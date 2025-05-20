@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "build-skip": "NEXT_SKIP_TYPE_CHECK=1 SKIP_TSC=true next build --no-lint"
+    "build-skip": "NEXT_SKIP_TYPE_CHECK=1 SKIP_TSC=true next build --no-lint",
+    "check-env": "node ../scripts/check-env.js",
+    "build-with-checks": "npm run check-env && next build"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

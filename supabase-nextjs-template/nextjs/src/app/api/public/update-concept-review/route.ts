@@ -4,13 +4,29 @@ import { Database } from '@/lib/types';
 import { DbBriefConcept, ShareSettings } from '@/lib/types/powerbrief';
 
 // Create a Supabase client with the service role key for admin access
+// Making sure environment variables are properly loaded
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+// Check for missing environment variables
+if (!supabaseUrl || !supabaseServiceKey) {
+  console.error('Missing environment variables for Supabase client:');
+  console.error(`NEXT_PUBLIC_SUPABASE_URL: ${supabaseUrl ? 'set' : 'missing'}`);
+  console.error(`SUPABASE_SERVICE_ROLE_KEY: ${supabaseServiceKey ? 'set' : 'missing'}`);
+}
+
 const supabaseAdmin = createClient<Database>(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  supabaseUrl!,
+  supabaseServiceKey!
 );
 
 export async function POST(request: NextRequest) {
   try {
+    // Log environment variables availability for debugging
+    console.log('API route environment check:');
+    console.log(`NEXT_PUBLIC_SUPABASE_URL: ${process.env.NEXT_PUBLIC_SUPABASE_URL ? 'available' : 'missing'}`);
+    console.log(`SUPABASE_SERVICE_ROLE_KEY: ${process.env.SUPABASE_SERVICE_ROLE_KEY ? 'available' : 'missing'}`);
+    
     const { conceptId, shareId, reviewLink } = await request.json();
 
     // Validate required fields
