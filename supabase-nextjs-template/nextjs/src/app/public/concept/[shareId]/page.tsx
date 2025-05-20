@@ -21,6 +21,7 @@ export default function SharedConceptPage({ params }: { params: { shareId: strin
   const [isEditable, setIsEditable] = useState<boolean>(false);
   const [reviewLink, setReviewLink] = useState<string>('');
   const [updatingReview, setUpdatingReview] = useState<boolean>(false);
+  const [updatingResubmission, setUpdatingResubmission] = useState<boolean>(false);
   
   // Unwrap params using React.use()
   const unwrappedParams = React.use(params as any) as { shareId: string };
@@ -84,6 +85,14 @@ export default function SharedConceptPage({ params }: { params: { shareId: strin
     fetchSharedConcept();
   }, [shareId]);
 
+  // Clear review link when status changes to needs_revisions
+  useEffect(() => {
+    if (concept?.review_status === 'needs_revisions') {
+      // Clear the review link if revisions were requested to prompt for a new link
+      setReviewLink('');
+    }
+  }, [concept?.review_status]);
+
   const handleMarkReadyForReview = async () => {
     if (!concept) return;
     
@@ -144,6 +153,69 @@ export default function SharedConceptPage({ params }: { params: { shareId: strin
       });
     } finally {
       setUpdatingReview(false);
+    }
+  };
+
+  const handleResubmitForReview = async () => {
+    if (!concept) return;
+    
+    try {
+      setUpdatingResubmission(true);
+      const supabase = createSPAClient();
+      
+      // First, try updating with regular client
+      const { data, error } = await supabase
+        .from('brief_concepts')
+        .update({
+          review_status: 'ready_for_review',
+          review_link: reviewLink,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', concept.id)
+        .select()
+        .single();
+      
+      if (error) {
+        // If error likely due to RLS permissions (non-authenticated users can't update),
+        // Use a serverless function or API endpoint instead
+        console.log("Using API endpoint for unauthenticated update");
+        const response = await fetch('/api/public/update-concept-review', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            conceptId: concept.id,
+            shareId: shareId,
+            reviewLink: reviewLink
+          }),
+        });
+        
+        if (!response.ok) {
+          throw new Error('Failed to resubmit for review via API endpoint');
+        }
+        
+        const updatedConcept = await response.json();
+        setConcept(updatedConcept);
+      } else {
+        setConcept(data);
+      }
+      
+      toast({
+        title: 'Success',
+        description: 'The concept has been resubmitted for review.',
+        duration: 3000,
+      });
+    } catch (err: any) {
+      console.error('Error resubmitting for review:', err);
+      toast({
+        title: 'Error',
+        description: 'Failed to resubmit for review. Please try again.',
+        variant: 'destructive',
+        duration: 3000,
+      });
+    } finally {
+      setUpdatingResubmission(false);
     }
   };
 
@@ -226,6 +298,39 @@ export default function SharedConceptPage({ params }: { params: { shareId: strin
             )}
           </div>
         </div>
+      )}
+
+      {/* Resubmission Section after Revisions */}
+      {isEditable && concept?.review_status === 'needs_revisions' && (
+        <Card className="border-2 border-amber-300">
+          <CardHeader>
+            <CardTitle className="text-lg">Submit Revised Version</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <Label htmlFor="revisedReviewLink">Updated Frame.io Review Link</Label>
+              <Input
+                id="revisedReviewLink"
+                placeholder="Paste your updated Frame.io link here"
+                value={reviewLink}
+                onChange={(e) => setReviewLink(e.target.value)}
+              />
+              <p className="text-sm text-gray-500 mt-1">
+                Please provide a link to the revised video on Frame.io for review
+              </p>
+            </div>
+          </CardContent>
+          <CardFooter>
+            <Button 
+              onClick={handleResubmitForReview} 
+              disabled={updatingResubmission || !reviewLink.trim()} 
+              className="bg-amber-600 hover:bg-amber-700 text-white"
+            >
+              {updatingResubmission ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+              Submit Revised Version
+            </Button>
+          </CardFooter>
+        </Card>
       )}
 
       {/* Editor Review Section */}
