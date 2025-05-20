@@ -3,11 +3,14 @@
 import React, { useState, useEffect } from 'react';
 import { createSPAClient } from '@/lib/supabase/client';
 import { BriefConcept, Scene } from '@/lib/types/powerbrief';
-import { Loader2, ArrowLeft, ChevronDown, ChevronUp, CheckCircle, Link as LinkIcon } from 'lucide-react';
+import { Loader2, ArrowLeft, ChevronDown, ChevronUp, CheckCircle, AlertTriangle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { toast } from '@/components/ui/use-toast';
 
 export default function SharedConceptPage({ params }: { params: { shareId: string } }) {
   const [loading, setLoading] = useState<boolean>(true);
@@ -16,13 +19,8 @@ export default function SharedConceptPage({ params }: { params: { shareId: strin
   const [showVideoInstructions, setShowVideoInstructions] = useState<boolean>(false);
   const [showDesignerInstructions, setShowDesignerInstructions] = useState<boolean>(false);
   const [isEditable, setIsEditable] = useState<boolean>(false);
-  const [isSaving, setIsSaving] = useState<boolean>(false);
-  const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
-  
-  // New states for editor inputs
-  const [reviewStatus, setReviewStatus] = useState<string | null>(null);
-  const [frameioLink, setFrameioLink] = useState<string | null>(null);
+  const [reviewLink, setReviewLink] = useState<string>('');
+  const [updatingReview, setUpdatingReview] = useState<boolean>(false);
   
   // Unwrap params using React.use()
   const unwrappedParams = React.use(params as any) as { shareId: string };
@@ -66,13 +64,15 @@ export default function SharedConceptPage({ params }: { params: { shareId: strin
           return;
         }
 
-        // Set if editable
+        // Set editability based on share settings
         setIsEditable(!!shareSettings.is_editable);
         
-        // Set concept and form states
+        // Initialize review link from concept if it exists
+        if (conceptWithShare.review_link) {
+          setReviewLink(conceptWithShare.review_link);
+        }
+
         setConcept(conceptWithShare);
-        setReviewStatus(conceptWithShare.review_status || null);
-        setFrameioLink(conceptWithShare.frameio_link || null);
       } catch (err: any) {
         console.error('Error fetching shared concept:', err);
         setError(err.message || 'Failed to load shared content');
@@ -84,45 +84,42 @@ export default function SharedConceptPage({ params }: { params: { shareId: strin
     fetchSharedConcept();
   }, [shareId]);
 
-  const handleSaveChanges = async () => {
-    if (!concept || !isEditable) return;
+  const handleMarkReadyForReview = async () => {
+    if (!concept) return;
     
     try {
-      setIsSaving(true);
-      setSaveSuccess(false);
-      setSaveError(null);
-      
+      setUpdatingReview(true);
       const supabase = createSPAClient();
       
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('brief_concepts')
         .update({
-          review_status: reviewStatus,
-          frameio_link: frameioLink,
+          review_status: 'ready_for_review',
+          review_link: reviewLink,
           updated_at: new Date().toISOString()
         })
-        .eq('id', concept.id);
+        .eq('id', concept.id)
+        .select()
+        .single();
       
       if (error) throw error;
       
-      // Update local state
-      setConcept(prev => prev ? {
-        ...prev,
-        review_status: reviewStatus,
-        frameio_link: frameioLink
-      } : null);
-      
-      setSaveSuccess(true);
-      
-      // Hide success message after 3 seconds
-      setTimeout(() => {
-        setSaveSuccess(false);
-      }, 3000);
+      setConcept(data);
+      toast({
+        title: 'Success',
+        description: 'The concept has been marked as ready for review.',
+        duration: 3000,
+      });
     } catch (err: any) {
-      console.error('Error saving changes:', err);
-      setSaveError(err.message || "Failed to save changes. Please try again.");
+      console.error('Error updating review status:', err);
+      toast({
+        title: 'Error',
+        description: 'Failed to update review status. Please try again.',
+        variant: 'destructive',
+        duration: 3000,
+      });
     } finally {
-      setIsSaving(false);
+      setUpdatingReview(false);
     }
   };
 
@@ -155,107 +152,107 @@ export default function SharedConceptPage({ params }: { params: { shareId: strin
       </div>
 
       {/* Status display */}
-      <div className="flex flex-wrap gap-2">
-        {concept.status && (
-          <div className="inline-block px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
-            Status: {concept.status}
-          </div>
-        )}
-        
-        {concept.review_status && (
-          <div className="inline-block px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm">
-            Review: {concept.review_status === 'ready_for_review' ? 'Ready for Review' :
-                    concept.review_status === 'revisions_needed' ? 'Needs Revisions' :
-                    concept.review_status === 'approved' ? 'Approved' : concept.review_status}
-          </div>
-        )}
-      </div>
+      {concept.status && (
+        <div className="inline-block px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+          Status: {concept.status}
+        </div>
+      )}
 
-      {/* Editor form for review status and frame.io link */}
-      {isEditable && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Review Information</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label htmlFor="review-status" className="text-sm font-medium">Review Status</label>
-                <select 
-                  id="review-status"
-                  className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  value={reviewStatus || ''}
-                  onChange={(e) => setReviewStatus(e.target.value === '' ? null : e.target.value)}
-                >
-                  <option value="">Not set</option>
-                  <option value="ready_for_review">Ready for Review</option>
-                  <option value="revisions_needed">Revisions Needed</option>
-                  <option value="approved">Approved</option>
-                </select>
-              </div>
-              
-              <div className="space-y-2">
-                <label htmlFor="frameio-link" className="text-sm font-medium">Frame.io Link</label>
-                <Input
-                  id="frameio-link"
-                  placeholder="Paste your Frame.io link here"
-                  value={frameioLink || ''}
-                  onChange={(e) => setFrameioLink(e.target.value === '' ? null : e.target.value)}
-                />
-              </div>
-              
-              <Button 
-                onClick={handleSaveChanges} 
-                disabled={isSaving}
-                className="w-full mt-2"
+      {/* Review Status Banner */}
+      {concept?.review_status === 'ready_for_review' && (
+        <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg flex items-center space-x-3">
+          <CheckCircle className="h-5 w-5 text-blue-500" />
+          <div>
+            <h3 className="font-medium text-blue-800">Ready for Review</h3>
+            <p className="text-sm text-blue-700">This concept has been marked as ready for review.</p>
+            {concept.review_link && (
+              <a 
+                href={concept.review_link} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-blue-600 hover:underline text-sm mt-1 inline-block"
               >
-                {isSaving ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle className="h-4 w-4 mr-2" />
-                    Save Changes
-                  </>
-                )}
-              </Button>
-              
-              {saveSuccess && (
-                <div className="bg-green-100 text-green-800 px-3 py-2 rounded text-sm mt-2">
-                  Changes saved successfully!
-                </div>
-              )}
-              
-              {saveError && (
-                <div className="bg-red-100 text-red-800 px-3 py-2 rounded text-sm mt-2">
-                  {saveError}
-                </div>
-              )}
+                View on Frame.io →
+              </a>
+            )}
+          </div>
+        </div>
+      )}
+
+      {concept?.review_status === 'approved' && (
+        <div className="bg-green-50 border border-green-200 p-4 rounded-lg flex items-center space-x-3">
+          <CheckCircle className="h-5 w-5 text-green-500" />
+          <div>
+            <h3 className="font-medium text-green-800">Approved</h3>
+            <p className="text-sm text-green-700">This concept has been approved.</p>
+          </div>
+        </div>
+      )}
+
+      {concept?.review_status === 'needs_revisions' && (
+        <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg flex items-center space-x-3">
+          <AlertTriangle className="h-5 w-5 text-amber-500" />
+          <div>
+            <h3 className="font-medium text-amber-800">Revisions Requested</h3>
+            <p className="text-sm text-amber-700">This concept needs revisions.</p>
+            {concept.reviewer_notes && (
+              <div className="mt-2 p-2 bg-amber-100 rounded text-sm text-amber-800">
+                <strong>Feedback:</strong> {concept.reviewer_notes}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Editor Review Section */}
+      {isEditable && !concept?.review_status && (
+        <Card className="border-2 border-blue-300">
+          <CardHeader>
+            <CardTitle className="text-lg">Mark Ready for Review</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <Label htmlFor="reviewLink">Frame.io Review Link</Label>
+              <Input
+                id="reviewLink"
+                placeholder="Paste your Frame.io link here"
+                value={reviewLink}
+                onChange={(e) => setReviewLink(e.target.value)}
+              />
+              <p className="text-sm text-gray-500 mt-1">
+                Please provide a link to the video on Frame.io for review
+              </p>
             </div>
           </CardContent>
+          <CardFooter>
+            <Button 
+              onClick={handleMarkReadyForReview} 
+              disabled={updatingReview || !reviewLink.trim()} 
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              {updatingReview ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+              Mark as Ready for Review
+            </Button>
+          </CardFooter>
         </Card>
       )}
 
-      {/* Frame.io link display */}
-      {concept.frameio_link && (
-        <Card>
+      {/* Read-only review section */}
+      {isEditable && concept?.review_status === 'ready_for_review' && (
+        <Card className="border-2 border-blue-300">
           <CardHeader>
-            <CardTitle className="text-lg">Frame.io Link</CardTitle>
+            <CardTitle className="text-lg">Awaiting Review</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center space-x-2">
-              <LinkIcon className="h-4 w-4 text-blue-500" />
-              <a 
-                href={concept.frameio_link} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="text-blue-500 hover:underline"
-              >
-                {concept.frameio_link}
-              </a>
-            </div>
+            <p>This concept has been marked as ready for review with the following review link:</p>
+            <a 
+              href={concept.review_link || '#'} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-blue-600 hover:underline mt-2 inline-block"
+            >
+              {concept.review_link}
+            </a>
           </CardContent>
         </Card>
       )}

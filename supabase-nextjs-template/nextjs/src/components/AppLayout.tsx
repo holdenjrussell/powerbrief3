@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {usePathname, useRouter} from 'next/navigation';
 import {
@@ -9,19 +9,42 @@ import {
     X,
     ChevronDown,
     LogOut,
-    Key, Files, LucideListTodo, Presentation,
+    Key, Files, LucideListTodo, Presentation, Film,
 } from 'lucide-react';
 import { useGlobal } from "@/lib/context/GlobalContext";
 import { createSPASassClient } from "@/lib/supabase/client";
+import { getPendingReviewsCount } from '@/lib/services/powerbriefService';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
     const [isSidebarOpen, setSidebarOpen] = useState(false);
     const [isUserDropdownOpen, setUserDropdownOpen] = useState(false);
+    const [pendingReviewsCount, setPendingReviewsCount] = useState(0);
     const pathname = usePathname();
     const router = useRouter();
 
 
     const { user } = useGlobal();
+
+    // Fetch pending reviews count
+    useEffect(() => {
+        if (!user?.id) return;
+        
+        const fetchPendingReviewsCount = async () => {
+            try {
+                const count = await getPendingReviewsCount();
+                setPendingReviewsCount(count);
+            } catch (err) {
+                console.error('Error fetching pending reviews count:', err);
+            }
+        };
+        
+        fetchPendingReviewsCount();
+        
+        // Set up a polling interval to check for new reviews every minute
+        const intervalId = setInterval(fetchPendingReviewsCount, 60000);
+        
+        return () => clearInterval(intervalId);
+    }, [user?.id]);
 
     const handleLogout = async () => {
         try {
@@ -49,6 +72,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         { name: 'Example Storage', href: '/app/storage', icon: Files },
         { name: 'Example Table', href: '/app/table', icon: LucideListTodo },
         { name: 'PowerBrief', href: '/app/powerbrief', icon: Presentation },
+        { 
+            name: 'Ad Reviews', 
+            href: '/app/reviews', 
+            icon: Film,
+            badge: pendingReviewsCount > 0 ? pendingReviewsCount : null
+        },
         { name: 'User Settings', href: '/app/user-settings', icon: User },
     ];
 
@@ -60,6 +89,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 <div
                     className="fixed inset-0 bg-gray-600 bg-opacity-75 z-20 lg:hidden"
                     onClick={toggleSidebar}
+                    aria-hidden="true"
                 />
             )}
 
@@ -72,6 +102,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     <button
                         onClick={toggleSidebar}
                         className="lg:hidden text-gray-500 hover:text-gray-700"
+                        aria-label="Close sidebar"
                     >
                         <X className="h-6 w-6" />
                     </button>
@@ -95,8 +126,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                                     className={`mr-3 h-5 w-5 ${
                                         isActive ? 'text-primary-500' : 'text-gray-400 group-hover:text-gray-500'
                                     }`}
+                                    aria-hidden="true"
                                 />
-                                {item.name}
+                                <span className="flex-1">{item.name}</span>
+                                {item.badge && (
+                                    <span className="ml-auto inline-flex items-center justify-center w-5 h-5 text-xs font-medium text-white bg-red-500 rounded-full">
+                                        {item.badge > 99 ? '99+' : item.badge}
+                                    </span>
+                                )}
                             </Link>
                         );
                     })}
@@ -109,6 +146,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     <button
                         onClick={toggleSidebar}
                         className="lg:hidden text-gray-500 hover:text-gray-700"
+                        aria-label="Open sidebar"
                     >
                         <Menu className="h-6 w-6"/>
                     </button>
@@ -117,6 +155,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                         <button
                             onClick={() => setUserDropdownOpen(!isUserDropdownOpen)}
                             className="flex items-center space-x-2 text-sm text-gray-700 hover:text-gray-900"
+                            aria-expanded={isUserDropdownOpen ? "true" : "false"}
+                            aria-haspopup="true"
                         >
                             <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center">
                                 <span className="text-primary-700 font-medium">
@@ -142,6 +182,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                                             handleChangePassword()
                                         }}
                                         className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                                        aria-label="Change password"
                                     >
                                         <Key className="mr-3 h-4 w-4 text-gray-400"/>
                                         Change Password
@@ -152,6 +193,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                                             setUserDropdownOpen(false);
                                         }}
                                         className="w-full flex items-center px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                                        aria-label="Sign out"
                                     >
                                         <LogOut className="mr-3 h-4 w-4 text-red-400"/>
                                         Sign Out

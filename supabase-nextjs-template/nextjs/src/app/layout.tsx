@@ -3,6 +3,8 @@ import "./globals.css";
 import { Analytics } from '@vercel/analytics/next';
 import CookieConsent from "@/components/Cookies";
 import { GoogleAnalytics } from '@next/third-parties/google'
+import { Toaster } from "@/components/ui/toaster";
+import { GlobalProvider } from "@/lib/context/GlobalContext";
 
 
 export const metadata: Metadata = {
@@ -23,13 +25,15 @@ export default function RootLayout({
   return (
     <html lang="en">
     <body className={theme}>
-      {children}
-      <Analytics />
-      <CookieConsent />
-      { gaID && (
-          <GoogleAnalytics gaId={gaID}/>
-      )}
-
+      <GlobalProvider>
+        {children}
+        <Analytics />
+        <CookieConsent />
+        { gaID && (
+            <GoogleAnalytics gaId={gaID}/>
+        )}
+        <Toaster />
+      </GlobalProvider>
     </body>
     </html>
   );

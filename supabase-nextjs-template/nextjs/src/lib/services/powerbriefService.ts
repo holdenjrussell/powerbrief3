@@ -521,4 +521,24 @@ export async function shareBriefConcept(
     share_id: shareId,
     share_url: shareUrl
   };
+}
+
+/**
+ * Get count of concepts ready for review
+ * @returns The count of concepts that need review
+ */
+export async function getPendingReviewsCount(): Promise<number> {
+  const supabase = createSPAClient();
+  
+  const { count, error } = await supabase
+    .from('brief_concepts')
+    .select('*', { count: 'exact', head: true })
+    .eq('review_status', 'ready_for_review');
+  
+  if (error) {
+    console.error('Error getting pending reviews count:', error);
+    throw error;
+  }
+  
+  return count || 0;
 } 

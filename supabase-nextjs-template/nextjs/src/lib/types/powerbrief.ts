@@ -84,10 +84,11 @@ export interface BriefConcept {
   cta_text_overlay: string | null;
   videoInstructions: string | null;
   designerInstructions: string | null;
-  review_status: string | null;
-  frameio_link: string | null;
   shared_with?: string[] | null;
   share_settings?: Record<string, ShareSettings> | null;
+  review_status?: 'pending' | 'ready_for_review' | 'approved' | 'needs_revisions' | null;
+  review_link?: string | null;
+  reviewer_notes?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -165,11 +166,12 @@ export type DbBriefConcept = {
   cta_text_overlay: string | null;
   videoInstructions: string | null;
   designerInstructions: string | null;
-  review_status: string | null;
-  frameio_link: string | null;
   order_in_batch: number;
   share_settings?: Record<string, ShareSettings> | null;
   shared_with?: string[] | null;
+  review_status?: string | null;
+  review_link?: string | null;
+  reviewer_notes?: string | null;
   created_at: string;
   updated_at: string;
 };
