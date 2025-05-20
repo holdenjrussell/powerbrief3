@@ -91,6 +91,7 @@ export default function SharedConceptPage({ params }: { params: { shareId: strin
       setUpdatingReview(true);
       const supabase = createSPAClient();
       
+      // First, try updating with regular client
       const { data, error } = await supabase
         .from('brief_concepts')
         .update({
@@ -102,9 +103,32 @@ export default function SharedConceptPage({ params }: { params: { shareId: strin
         .select()
         .single();
       
-      if (error) throw error;
+      if (error) {
+        // If error likely due to RLS permissions (non-authenticated users can't update),
+        // Use a serverless function or API endpoint instead
+        console.log("Using API endpoint for unauthenticated update");
+        const response = await fetch('/api/public/update-concept-review', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            conceptId: concept.id,
+            shareId: shareId,
+            reviewLink: reviewLink
+          }),
+        });
+        
+        if (!response.ok) {
+          throw new Error('Failed to update review status via API endpoint');
+        }
+        
+        const updatedConcept = await response.json();
+        setConcept(updatedConcept);
+      } else {
+        setConcept(data);
+      }
       
-      setConcept(data);
       toast({
         title: 'Success',
         description: 'The concept has been marked as ready for review.',

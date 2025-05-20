@@ -887,7 +887,7 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
             setShareSuccess(false);
             
             const shareSettings: ShareSettings = {
-                is_editable: false, // Concepts are always view-only when shared individually
+                is_editable: true, // Changed from false to true to allow editors to submit their work
                 expires_at: null // No expiration
             };
             
