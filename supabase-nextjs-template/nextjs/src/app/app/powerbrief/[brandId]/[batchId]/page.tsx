@@ -40,6 +40,8 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
     const [localCtaScript, setLocalCtaScript] = useState<Record<string, string>>({});
     const [localCtaTextOverlay, setLocalCtaTextOverlay] = useState<Record<string, string>>({});
     const [localScenes, setLocalScenes] = useState<Record<string, Scene[]>>({});
+    const [localVideoInstructions, setLocalVideoInstructions] = useState<Record<string, string>>({});
+    const [localDesignerInstructions, setLocalDesignerInstructions] = useState<Record<string, string>>({});
     const [showPromptDebugDialog, setShowPromptDebugDialog] = useState<boolean>(false);
     const [debugPrompt, setDebugPrompt] = useState<string>('');
     const [copied, setCopied] = useState<boolean>(false);
@@ -144,7 +146,7 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
 
     // Create new concept
     const handleCreateConcept = async () => {
-        if (!user?.id || !batch) return;
+        if (!user?.id || !batch || !brand) return;
         
         try {
             setSaving(true);
@@ -168,10 +170,23 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                 ai_custom_prompt: null,
                 caption_hook_options: null,
                 cta_script: null,
-                cta_text_overlay: null
+                cta_text_overlay: null,
+                videoInstructions: brand.default_video_instructions || '',
+                designerInstructions: brand.default_designer_instructions || ''
             });
             
             setConcepts(prev => [...prev, newConcept]);
+            
+            // Initialize local state for the new concept
+            setLocalVideoInstructions(prev => ({
+                ...prev,
+                [newConcept.id]: newConcept.videoInstructions || ''
+            }));
+            
+            setLocalDesignerInstructions(prev => ({
+                ...prev,
+                [newConcept.id]: newConcept.designerInstructions || ''
+            }));
             
             // Only set the new concept as active if there's no active concept already
             if (!activeConceptId) {
@@ -302,7 +317,9 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                         ai_custom_prompt: null,
                         caption_hook_options: null,
                         cta_script: null,
-                        cta_text_overlay: null
+                        cta_text_overlay: null,
+                        videoInstructions: brand?.default_video_instructions || '',
+                        designerInstructions: brand?.default_designer_instructions || ''
                     });
                     
                     console.log(`EZ UPLOAD: Created new concept for file ${i+1} with ID: ${newConcept.id}`);
@@ -669,6 +686,8 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
         const clickupLinksMap: Record<string, string> = {};
         const strategistsMap: Record<string, string> = {};
         const videoEditorsMap: Record<string, string> = {};
+        const videoInstructionsMap: Record<string, string> = {};
+        const designerInstructionsMap: Record<string, string> = {};
         
         concepts.forEach(concept => {
             promptMap[concept.id] = concept.ai_custom_prompt || '';
@@ -679,6 +698,8 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
             clickupLinksMap[concept.id] = concept.clickup_id || '';
             strategistsMap[concept.id] = concept.strategist || '';
             videoEditorsMap[concept.id] = concept.video_editor || '';
+            videoInstructionsMap[concept.id] = concept.videoInstructions || '';
+            designerInstructionsMap[concept.id] = concept.designerInstructions || '';
         });
         
         setLocalPrompts(promptMap);
@@ -689,6 +710,8 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
         setLocalClickupLinks(clickupLinksMap);
         setLocalStrategists(strategistsMap);
         setLocalVideoEditors(videoEditorsMap);
+        setLocalVideoInstructions(videoInstructionsMap);
+        setLocalDesignerInstructions(designerInstructionsMap);
     }, [concepts]);
 
     // Debug prompt for a concept
@@ -1650,6 +1673,85 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                                     handleUpdateConcept(updatedConcept);
                                                 }}
                                                 placeholder="Enter text overlay"
+                                                className="text-sm"
+                                            />
+                                        </div>
+                                    </div>
+                                    
+                                    {/* Creative Instructions Section */}
+                                    <div className="space-y-2 mt-4 pt-4 border-t border-gray-100">
+                                        <h3 className="font-medium text-sm">Creative Instructions</h3>
+                                        
+                                        <div>
+                                            <label className="block text-xs font-medium mb-1">Video Editor Instructions:</label>
+                                            <Textarea
+                                                value={localVideoInstructions[concept.id] || ''}
+                                                onChange={(e) => {
+                                                    // Update local state immediately for responsive typing
+                                                    setLocalVideoInstructions(prev => ({
+                                                        ...prev,
+                                                        [concept.id]: e.target.value
+                                                    }));
+                                                    
+                                                    // Debounce the actual save operation
+                                                    const updatedConcept = {
+                                                        ...concept,
+                                                        videoInstructions: e.target.value
+                                                    };
+                                                    debouncedUpdateConcept(updatedConcept);
+                                                }}
+                                                onBlur={() => {
+                                                    // Save immediately on blur
+                                                    if (saveTimeoutRef.current) {
+                                                        clearTimeout(saveTimeoutRef.current);
+                                                        saveTimeoutRef.current = null;
+                                                    }
+                                                    
+                                                    const updatedConcept = {
+                                                        ...concept,
+                                                        videoInstructions: localVideoInstructions[concept.id] || ''
+                                                    };
+                                                    handleUpdateConcept(updatedConcept);
+                                                }}
+                                                placeholder="Instructions for video editors... e.g.&#10;- Use AI voiceover from ElevenLabs&#10;- Add B-roll footage&#10;- Logo at 10-15% opacity&#10;- Add captions&#10;- Add light background music"
+                                                rows={4}
+                                                className="text-sm"
+                                            />
+                                        </div>
+                                        
+                                        <div>
+                                            <label className="block text-xs font-medium mb-1">Designer Instructions (for Images):</label>
+                                            <Textarea
+                                                value={localDesignerInstructions[concept.id] || ''}
+                                                onChange={(e) => {
+                                                    // Update local state immediately for responsive typing
+                                                    setLocalDesignerInstructions(prev => ({
+                                                        ...prev,
+                                                        [concept.id]: e.target.value
+                                                    }));
+                                                    
+                                                    // Debounce the actual save operation
+                                                    const updatedConcept = {
+                                                        ...concept,
+                                                        designerInstructions: e.target.value
+                                                    };
+                                                    debouncedUpdateConcept(updatedConcept);
+                                                }}
+                                                onBlur={() => {
+                                                    // Save immediately on blur
+                                                    if (saveTimeoutRef.current) {
+                                                        clearTimeout(saveTimeoutRef.current);
+                                                        saveTimeoutRef.current = null;
+                                                    }
+                                                    
+                                                    const updatedConcept = {
+                                                        ...concept,
+                                                        designerInstructions: localDesignerInstructions[concept.id] || ''
+                                                    };
+                                                    handleUpdateConcept(updatedConcept);
+                                                }}
+                                                placeholder="Instructions for designers creating image assets..."
+                                                rows={4}
                                                 className="text-sm"
                                             />
                                         </div>

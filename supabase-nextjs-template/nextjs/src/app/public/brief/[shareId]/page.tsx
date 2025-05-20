@@ -205,6 +205,26 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
                       </div>
                     )}
                     
+                    {/* Video Instructions */}
+                    {concept.videoInstructions && (
+                      <div>
+                        <h3 className="font-medium text-sm mb-1">Video Instructions</h3>
+                        <p className="text-sm bg-gray-50 p-3 rounded line-clamp-3">
+                          {concept.videoInstructions}
+                        </p>
+                      </div>
+                    )}
+                    
+                    {/* Designer Instructions */}
+                    {concept.designerInstructions && (
+                      <div>
+                        <h3 className="font-medium text-sm mb-1">Designer Instructions</h3>
+                        <p className="text-sm bg-gray-50 p-3 rounded line-clamp-3">
+                          {concept.designerInstructions}
+                        </p>
+                      </div>
+                    )}
+                    
                     {/* View full concept link */}
                     <div className="pt-2">
                       <Link
@@ -240,14 +260,36 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
                         <h3 className="font-medium">Brand Information</h3>
                         <div className="space-y-2 mt-2">
                           {typeof brand.brand_info_data === 'object' && brand.brand_info_data !== null ? 
-                            Object.entries(brand.brand_info_data).map(([key, value]) => (
-                              <div key={key} className="bg-gray-50 p-3 rounded">
-                                <span className="font-semibold capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}: </span>
-                                <span>{String(value)}</span>
-                              </div>
-                            )) : 
+                            Object.entries(brand.brand_info_data)
+                              .filter(([key]) => key !== 'videoInstructions' && key !== 'designerInstructions')
+                              .map(([key, value]) => (
+                                <div key={key} className="bg-gray-50 p-3 rounded">
+                                  <span className="font-semibold capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}: </span>
+                                  <span>{String(value)}</span>
+                                </div>
+                              )) : 
                             <p className="whitespace-pre-wrap">{String(brand.brand_info_data)}</p>
                           }
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Video Instructions */}
+                    {brand.brand_info_data && brand.brand_info_data.videoInstructions && (
+                      <div>
+                        <h3 className="font-medium">Video Instructions</h3>
+                        <div className="bg-gray-50 p-3 rounded mt-2">
+                          <p className="whitespace-pre-wrap">{brand.brand_info_data.videoInstructions}</p>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Designer Instructions */}
+                    {brand.brand_info_data && brand.brand_info_data.designerInstructions && (
+                      <div>
+                        <h3 className="font-medium">Designer Instructions</h3>
+                        <div className="bg-gray-50 p-3 rounded mt-2">
+                          <p className="whitespace-pre-wrap">{brand.brand_info_data.designerInstructions}</p>
                         </div>
                       </div>
                     )}

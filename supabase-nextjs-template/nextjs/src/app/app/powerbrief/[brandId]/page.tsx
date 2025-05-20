@@ -41,7 +41,9 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
         healthBenefits: '',
         targetAudienceSummary: '',
         brandVoice: '',
-        competitiveAdvantage: ''
+        competitiveAdvantage: '',
+        videoInstructions: '',
+        designerInstructions: ''
     });
     const [targetAudience, setTargetAudience] = useState({
         gender: '',
@@ -54,6 +56,8 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
         competitorAdLibraries: '',
         notes: ''
     });
+    const [defaultVideoInstructions, setDefaultVideoInstructions] = useState<string>('');
+    const [defaultDesignerInstructions, setDefaultDesignerInstructions] = useState<string>('');
 
     // Extract params using React.use()
     const unwrappedParams = React.use(params as any) as ParamsType;
@@ -84,6 +88,8 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
                 setBrandInfo(brandData.brand_info_data);
                 setTargetAudience(brandData.target_audience_data);
                 setCompetition(brandData.competition_data);
+                setDefaultVideoInstructions(brandData.default_video_instructions || '');
+                setDefaultDesignerInstructions(brandData.default_designer_instructions || '');
                 
                 setError(null);
             } catch (err) {
@@ -109,7 +115,9 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
                 name: brandName,
                 brand_info_data: brandInfo,
                 target_audience_data: targetAudience,
-                competition_data: competition
+                competition_data: competition,
+                default_video_instructions: defaultVideoInstructions,
+                default_designer_instructions: defaultDesignerInstructions
             });
             
             setBrand(updatedBrand);
@@ -404,6 +412,34 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
                                 value={competition.notes}
                                 onChange={(e) => setCompetition({...competition, notes: e.target.value})}
                                 placeholder="Additional notes about competitors"
+                                rows={8}
+                            />
+                        </div>
+                    </CardContent>
+                </Card>
+                
+                {/* Default Creative Instructions Column */}
+                <Card className="lg:col-span-1">
+                    <CardHeader>
+                        <CardTitle>Default Creative Instructions</CardTitle>
+                        <CardDescription>Set default instructions for concepts</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Default Video Instructions</label>
+                            <Textarea
+                                value={defaultVideoInstructions}
+                                onChange={(e) => setDefaultVideoInstructions(e.target.value)}
+                                placeholder="Enter default video instructions... e.g.\n- Use AI voiceover from ElevenLabs\n- Add B-roll footage\n- Logo at 10-15% opacity\n- Add captions\n- Add light background music"
+                                rows={8}
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Default Designer Instructions (for Images)</label>
+                            <Textarea
+                                value={defaultDesignerInstructions}
+                                onChange={(e) => setDefaultDesignerInstructions(e.target.value)}
+                                placeholder="Enter default designer instructions for image assets..."
                                 rows={8}
                             />
                         </div>

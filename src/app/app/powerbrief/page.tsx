@@ -58,7 +58,9 @@ export default function PowerBriefPage() {
                 healthBenefits: '',
                 targetAudienceSummary: '',
                 brandVoice: '',
-                competitiveAdvantage: ''
+                competitiveAdvantage: '',
+                videoInstructions: '',
+                designerInstructions: ''
             };
             
             const emptyTargetAudience: TargetAudienceData = {

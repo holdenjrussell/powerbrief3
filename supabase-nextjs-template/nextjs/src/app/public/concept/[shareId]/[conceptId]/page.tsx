@@ -189,6 +189,30 @@ export default function SharedSingleConceptPage({ params }: { params: { shareId:
         </Card>
       )}
 
+      {/* Video Instructions */}
+      {concept.videoInstructions && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Video Instructions</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="whitespace-pre-wrap">{concept.videoInstructions}</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Designer Instructions */}
+      {concept.designerInstructions && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Designer Instructions</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="whitespace-pre-wrap">{concept.designerInstructions}</p>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Attribution */}
       <div className="border-t pt-4 text-sm text-gray-500">
         {concept.strategist && <p>Strategist: {concept.strategist}</p>}

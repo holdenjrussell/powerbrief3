@@ -4,5 +4,13 @@
     "@types/uuid": "^10.0.0",
     "node-fetch": "^3.3.2",
     "uuid": "^11.1.0"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "build-skip": "SKIP_TSC=true next build --no-lint",
+    "start": "next start",
+    "lint": "next lint",
+    "gen-migrations": "npx supabase gen types typescript --local --schema public > src/lib/supabase/types.ts"
   }
 }

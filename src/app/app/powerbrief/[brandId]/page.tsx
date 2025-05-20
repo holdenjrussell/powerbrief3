@@ -78,12 +78,41 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
                     return;
                 }
                 
+                console.log('Fetched brand data:', brandData);
+                console.log('Brand info data:', brandData.brand_info_data);
+                console.log('Video instructions:', brandData.brand_info_data.videoInstructions);
+                console.log('Designer instructions:', brandData.brand_info_data.designerInstructions);
+                
                 setBrand(brandData);
                 setBatches(batchesData);
                 
                 // Set form fields
                 setBrandName(brandData.name);
-                setBrandInfo(brandData.brand_info_data);
+                
+                // Make sure all fields exist in brandInfo data, including the new ones
+                const safeInfo = {
+                    positioning: '',
+                    product: '',
+                    technology: '',
+                    testimonials: '',
+                    healthBenefits: '',
+                    targetAudienceSummary: '',
+                    brandVoice: '',
+                    competitiveAdvantage: '',
+                    videoInstructions: '',
+                    designerInstructions: '',
+                    ...brandData.brand_info_data
+                };
+                
+                // Ensure videoInstructions and designerInstructions exist
+                if (safeInfo.videoInstructions === undefined) {
+                    safeInfo.videoInstructions = '';
+                }
+                if (safeInfo.designerInstructions === undefined) {
+                    safeInfo.designerInstructions = '';
+                }
+                
+                setBrandInfo(safeInfo);
                 setTargetAudience(brandData.target_audience_data);
                 setCompetition(brandData.competition_data);
                 
@@ -106,13 +135,26 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
         try {
             setSaving(true);
             
+            // Make sure videoInstructions and designerInstructions are explicitly defined
+            const updatedBrandInfo = {
+                ...brandInfo,
+                videoInstructions: brandInfo.videoInstructions || '',
+                designerInstructions: brandInfo.designerInstructions || ''
+            };
+            
+            console.log('Saving brand info:', updatedBrandInfo);
+            
             const updatedBrand = await updateBrand({
                 id: brand.id,
                 name: brandName,
-                brand_info_data: brandInfo,
+                brand_info_data: updatedBrandInfo,
                 target_audience_data: targetAudience,
                 competition_data: competition
             });
+            
+            console.log('Updated brand:', updatedBrand);
+            console.log('Video instructions:', updatedBrand.brand_info_data.videoInstructions);
+            console.log('Designer instructions:', updatedBrand.brand_info_data.designerInstructions);
             
             setBrand(updatedBrand);
             setError(null);
@@ -238,14 +280,14 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
                 </Alert>
             )}
             
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
                 {/* Brand Info Column */}
-                <Card className="lg:col-span-1">
+                <Card className="lg:col-span-1 overflow-visible">
                     <CardHeader>
                         <CardTitle>Brand Info</CardTitle>
                         <CardDescription>Enter brand information</CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-4">
+                    <CardContent className="space-y-4 max-h-[800px] overflow-y-auto pr-2">
                         <div>
                             <label className="block text-sm font-medium mb-1">Brand Name</label>
                             <Input
@@ -326,10 +368,21 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
                                 rows={3}
                             />
                         </div>
+                    </CardContent>
+                </Card>
+                
+                {/* Custom Brief Instructions Column (NEW) */}
+                <Card className="lg:col-span-1">
+                    <CardHeader>
+                        <CardTitle>Custom Brief Instructions</CardTitle>
+                        <CardDescription>Default instructions for video and design.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4 max-h-[800px] overflow-y-auto pr-2">
+                        {/* Video Instructions */}
                         <div>
                             <label className="block text-sm font-medium mb-1">Video Instructions</label>
                             <Textarea
-                                value={brandInfo.videoInstructions}
+                                value={brandInfo.videoInstructions || ''}
                                 onChange={(e) => setBrandInfo({...brandInfo, videoInstructions: e.target.value})}
                                 placeholder="Enter default instructions for video creation (voiceover, b-roll, logo placement, captions, music)"
                                 rows={5}
@@ -338,10 +391,12 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
                                 Enter default video instructions to appear at the top of each concept. Example: ➡️ Use the script for AI voiceover using ElevenLabs, ➡️ Add B-roll footage throughout the video, ➡️ Add logo at 10-15% opacity, ➡️ Add captions, ➡️ Add background music that fits the mood.
                             </p>
                         </div>
+                        
+                        {/* Designer Instructions */}
                         <div>
                             <label className="block text-sm font-medium mb-1">Designer Instructions</label>
                             <Textarea
-                                value={brandInfo.designerInstructions}
+                                value={brandInfo.designerInstructions || ''}
                                 onChange={(e) => setBrandInfo({...brandInfo, designerInstructions: e.target.value})}
                                 placeholder="Enter default instructions for image design (style, elements, color scheme, layout)"
                                 rows={5}

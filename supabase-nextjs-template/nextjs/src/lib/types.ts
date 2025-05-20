@@ -168,6 +168,8 @@ export type Database = {
           body_content_structured: Json
           cta_script: string | null
           cta_text_overlay: string | null
+          videoInstructions: string | null
+          designerInstructions: string | null
           order_in_batch: number
           created_at: string
           updated_at: string
@@ -188,6 +190,8 @@ export type Database = {
           body_content_structured?: Json
           cta_script?: string | null
           cta_text_overlay?: string | null
+          videoInstructions?: string | null
+          designerInstructions?: string | null
           order_in_batch?: number
           created_at?: string
           updated_at?: string
@@ -208,6 +212,8 @@ export type Database = {
           body_content_structured?: Json
           cta_script?: string | null
           cta_text_overlay?: string | null
+          videoInstructions?: string | null
+          designerInstructions?: string | null
           order_in_batch?: number
           created_at?: string
           updated_at?: string

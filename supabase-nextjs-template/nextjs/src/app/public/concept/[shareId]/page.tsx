@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { createSPAClient } from '@/lib/supabase/client';
 import { BriefConcept, Scene } from '@/lib/types/powerbrief';
-import { Loader2, ArrowLeft } from 'lucide-react';
+import { Loader2, ArrowLeft, ChevronDown, ChevronUp } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -12,6 +12,8 @@ export default function SharedConceptPage({ params }: { params: { shareId: strin
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [concept, setConcept] = useState<BriefConcept | null>(null);
+  const [showVideoInstructions, setShowVideoInstructions] = useState<boolean>(false);
+  const [showDesignerInstructions, setShowDesignerInstructions] = useState<boolean>(false);
   
   // Unwrap params using React.use()
   const unwrappedParams = React.use(params as any) as { shareId: string };
@@ -125,6 +127,49 @@ export default function SharedConceptPage({ params }: { params: { shareId: strin
               )}
             </div>
           </CardContent>
+        </Card>
+      )}
+
+      {/* Instructions Accordions */}
+      {concept.videoInstructions && (
+        <Card>
+          <CardHeader 
+            className="flex flex-row items-center justify-between cursor-pointer" 
+            onClick={() => setShowVideoInstructions(!showVideoInstructions)}
+          >
+            <CardTitle className="text-lg">Editor Instructions for Video</CardTitle>
+            {showVideoInstructions ? (
+              <ChevronUp className="h-5 w-5" />
+            ) : (
+              <ChevronDown className="h-5 w-5" />
+            )}
+          </CardHeader>
+          {showVideoInstructions && (
+            <CardContent>
+              <div className="whitespace-pre-wrap bg-gray-50 p-4 rounded">{concept.videoInstructions}</div>
+            </CardContent>
+          )}
+        </Card>
+      )}
+
+      {concept.designerInstructions && concept.media_type === 'image' && (
+        <Card>
+          <CardHeader 
+            className="flex flex-row items-center justify-between cursor-pointer" 
+            onClick={() => setShowDesignerInstructions(!showDesignerInstructions)}
+          >
+            <CardTitle className="text-lg">Designer Instructions for Image</CardTitle>
+            {showDesignerInstructions ? (
+              <ChevronUp className="h-5 w-5" />
+            ) : (
+              <ChevronDown className="h-5 w-5" />
+            )}
+          </CardHeader>
+          {showDesignerInstructions && (
+            <CardContent>
+              <div className="whitespace-pre-wrap bg-gray-50 p-4 rounded">{concept.designerInstructions}</div>
+            </CardContent>
+          )}
         </Card>
       )}
 

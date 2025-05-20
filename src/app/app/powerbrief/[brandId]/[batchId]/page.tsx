@@ -13,6 +13,12 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import Link from 'next/link';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import {
+    Accordion,
+    AccordionContent,
+    AccordionItem,
+    AccordionTrigger,
+} from "@/components/ui/accordion"
 
 // Helper to unwrap params safely
 type ParamsType = { brandId: string, batchId: string };
@@ -103,6 +109,35 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
         
         fetchData();
     }, [user?.id, brandId, batchId, router, activeConceptId]);
+
+    // Fetch brand data
+    useEffect(() => {
+        const fetchBrandData = async () => {
+            if (!user?.id || !brandId) return;
+            
+            try {
+                const brandData = await getBrandById(brandId);
+                
+                if (!brandData) {
+                    router.push('/app/powerbrief');
+                    return;
+                }
+                
+                console.log('Batch page - Fetched brand data:', brandData);
+                console.log('Batch page - Brand info data:', brandData.brand_info_data);
+                console.log('Batch page - Video instructions:', brandData.brand_info_data.videoInstructions);
+                console.log('Batch page - Designer instructions:', brandData.brand_info_data.designerInstructions);
+                
+                setBrand(brandData);
+                
+            } catch (err) {
+                console.error('Error fetching brand data:', err);
+                setError('Failed to load brand data.');
+            }
+        };
+        
+        fetchBrandData();
+    }, [user?.id, brandId, router]);
 
     // Delete batch
     const handleDeleteBatch = async () => {
@@ -307,11 +342,13 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                         caption_hook_options: null,
                         cta_script: null,
                         cta_text_overlay: null,
-                        videoInstructions: brand?.brand_info_data?.videoInstructions || null,
-                        designerInstructions: brand?.brand_info_data?.designerInstructions || null
+                        videoInstructions: brand?.brand_info_data?.videoInstructions || '',
+                        designerInstructions: brand?.brand_info_data?.designerInstructions || ''
                     });
                     
                     console.log(`EZ UPLOAD: Created new concept for file ${i+1} with ID: ${newConcept.id}`);
+                    console.log(`EZ UPLOAD: Created new concept with video instructions: ${brand?.brand_info_data?.videoInstructions}`);
+                    console.log(`EZ UPLOAD: Created new concept with designer instructions: ${brand?.brand_info_data?.designerInstructions}`);
                     
                     // Step 3: Add the new concept to our tracking array
                     newConcepts.push(newConcept);
@@ -1667,97 +1704,82 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                         </div>
                                     </div>
                                     
-                                    {/* Video Instructions Section */}
-                                    <div className="space-y-2">
-                                        <h3 className="font-medium text-sm">Video Instructions</h3>
-                                        
-                                        <div>
-                                            <Textarea
-                                                value={localVideoInstructions[concept.id] || ''}
-                                                onChange={(e) => {
-                                                    // Update local state immediately for responsive typing
-                                                    setLocalVideoInstructions(prev => ({
-                                                        ...prev,
-                                                        [concept.id]: e.target.value
-                                                    }));
-                                                    
-                                                    // Debounce the actual save operation
-                                                    const updatedConcept = {
-                                                        ...concept,
-                                                        videoInstructions: e.target.value
-                                                    };
-                                                    debouncedUpdateConcept(updatedConcept);
-                                                }}
-                                                onBlur={() => {
-                                                    // Save immediately on blur
-                                                    if (saveTimeoutRef.current) {
-                                                        clearTimeout(saveTimeoutRef.current);
-                                                        saveTimeoutRef.current = null;
-                                                    }
-                                                    
-                                                    const updatedConcept = {
-                                                        ...concept,
-                                                        videoInstructions: localVideoInstructions[concept.id] || ''
-                                                    };
-                                                    handleUpdateConcept(updatedConcept);
-                                                }}
-                                                placeholder="Example:
-➡️ Use the script below to create an AI voiceover using ElevenLabs
-➡️ Add B-roll footage throughout the video to complement the script
-➡️ Logo: Add the logo at 10-15% opacity throughout the video
-➡️ Add captions
-➡️ Add background music—choose light music that fits the mood"
-                                                rows={6}
-                                                className="text-sm"
-                                            />
-                                        </div>
-                                    </div>
-                                    
-                                    {/* Designer Instructions Section */}
-                                    <div className="space-y-2">
-                                        <h3 className="font-medium text-sm">Designer Instructions</h3>
-                                        
-                                        <div>
-                                            <Textarea
-                                                value={localDesignerInstructions[concept.id] || ''}
-                                                onChange={(e) => {
-                                                    // Update local state immediately for responsive typing
-                                                    setLocalDesignerInstructions(prev => ({
-                                                        ...prev,
-                                                        [concept.id]: e.target.value
-                                                    }));
-                                                    
-                                                    // Debounce the actual save operation
-                                                    const updatedConcept = {
-                                                        ...concept,
-                                                        designerInstructions: e.target.value
-                                                    };
-                                                    debouncedUpdateConcept(updatedConcept);
-                                                }}
-                                                onBlur={() => {
-                                                    // Save immediately on blur
-                                                    if (saveTimeoutRef.current) {
-                                                        clearTimeout(saveTimeoutRef.current);
-                                                        saveTimeoutRef.current = null;
-                                                    }
-                                                    
-                                                    const updatedConcept = {
-                                                        ...concept,
-                                                        designerInstructions: localDesignerInstructions[concept.id] || ''
-                                                    };
-                                                    handleUpdateConcept(updatedConcept);
-                                                }}
-                                                placeholder="Example:
-➡️ Use the brand color palette (see brand guidelines)
-➡️ Include the product with clear packaging visible
-➡️ Add lifestyle elements showing the product in use
-➡️ Keep the design clean with minimal text
-➡️ Include the logo in bottom right corner"
-                                                rows={6}
-                                                className="text-sm"
-                                            />
-                                        </div>
-                                    </div>
+                                    <Accordion type="single" collapsible className="w-full pt-2">
+                                        <AccordionItem value="custom-brief-instructions">
+                                            <AccordionTrigger className="text-sm font-medium">Custom Brief Instructions</AccordionTrigger>
+                                            <AccordionContent className="pt-2">
+                                                {/* Video Instructions Section */}
+                                                <div className="space-y-2 pb-2">
+                                                    <h3 className="font-medium text-sm">Video Instructions</h3>
+                                                    <div>
+                                                        <Textarea
+                                                            value={localVideoInstructions[concept.id] || ''}
+                                                            onChange={(e) => {
+                                                                setLocalVideoInstructions(prev => ({
+                                                                    ...prev,
+                                                                    [concept.id]: e.target.value
+                                                                }));
+                                                                const updatedConcept = {
+                                                                    ...concept,
+                                                                    videoInstructions: e.target.value
+                                                                };
+                                                                debouncedUpdateConcept(updatedConcept);
+                                                            }}
+                                                            onBlur={() => {
+                                                                if (saveTimeoutRef.current) {
+                                                                    clearTimeout(saveTimeoutRef.current);
+                                                                    saveTimeoutRef.current = null;
+                                                                }
+                                                                const updatedConcept = {
+                                                                    ...concept,
+                                                                    videoInstructions: localVideoInstructions[concept.id] || ''
+                                                                };
+                                                                handleUpdateConcept(updatedConcept);
+                                                            }}
+                                                            placeholder="Example:\n➡️ Use the script below to create an AI voiceover using ElevenLabs\n➡️ Add B-roll footage throughout the video to complement the script\n➡️ Logo: Add the logo at 10-15% opacity throughout the video\n➡️ Add captions\n➡️ Add background music—choose light music that fits the mood"
+                                                            rows={6}
+                                                            className="text-sm"
+                                                        />
+                                                    </div>
+                                                </div>
+                                                
+                                                {/* Designer Instructions Section */}
+                                                <div className="space-y-2">
+                                                    <h3 className="font-medium text-sm">Designer Instructions</h3>
+                                                    <div>
+                                                        <Textarea
+                                                            value={localDesignerInstructions[concept.id] || ''}
+                                                            onChange={(e) => {
+                                                                setLocalDesignerInstructions(prev => ({
+                                                                    ...prev,
+                                                                    [concept.id]: e.target.value
+                                                                }));
+                                                                const updatedConcept = {
+                                                                    ...concept,
+                                                                    designerInstructions: e.target.value
+                                                                };
+                                                                debouncedUpdateConcept(updatedConcept);
+                                                            }}
+                                                            onBlur={() => {
+                                                                if (saveTimeoutRef.current) {
+                                                                    clearTimeout(saveTimeoutRef.current);
+                                                                    saveTimeoutRef.current = null;
+                                                                }
+                                                                const updatedConcept = {
+                                                                    ...concept,
+                                                                    designerInstructions: localDesignerInstructions[concept.id] || ''
+                                                                };
+                                                                handleUpdateConcept(updatedConcept);
+                                                            }}
+                                                            placeholder="Example:\n➡️ Use the brand color palette (see brand guidelines)\n➡️ Include the product with clear packaging visible\n➡️ Add lifestyle elements showing the product in use\n➡️ Keep the design clean with minimal text\n➡️ Include the logo in bottom right corner"
+                                                            rows={6}
+                                                            className="text-sm"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </AccordionContent>
+                                        </AccordionItem>
+                                    </Accordion>
                                 </CardContent>
                             </Card>
                         ))}
