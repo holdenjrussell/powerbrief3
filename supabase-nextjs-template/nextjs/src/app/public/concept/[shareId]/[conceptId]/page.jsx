@@ -5,17 +5,13 @@ import { Loader2, ArrowLeft } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-
 export default function SharedSingleConceptPage({ params }) {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [concept, setConcept] = useState(null);
-    const [brand, setBrand] = useState(null);
-    
     // Unwrap params using React.use()
     const unwrappedParams = React.use(params);
     const { shareId, conceptId } = unwrappedParams;
-
     useEffect(() => {
         const fetchSharedConcept = async () => {
             try {
@@ -24,7 +20,7 @@ export default function SharedSingleConceptPage({ params }) {
                 // Find the batch with this shareId in its share_settings
                 const { data: batchData, error: batchError } = await supabase
                     .from('brief_batches')
-                    .select('*, brands(*)')
+                    .select('*')
                     .contains('share_settings', { [shareId]: {} });
                 if (batchError) {
                     throw batchError;
@@ -44,11 +40,6 @@ export default function SharedSingleConceptPage({ params }) {
                     throw conceptError;
                 }
                 setConcept(conceptData);
-                
-                // Set the brand data from the batch
-                if (batchData[0].brands) {
-                    setBrand(batchData[0].brands);
-                }
             }
             catch (err) {
                 console.error('Error fetching shared concept:', err);
@@ -60,7 +51,6 @@ export default function SharedSingleConceptPage({ params }) {
         };
         fetchSharedConcept();
     }, [shareId, conceptId]);
-
     if (loading) {
         return (<div className="flex justify-center items-center min-h-screen">
         <Loader2 className="h-8 w-8 animate-spin text-primary-600"/>
@@ -156,7 +146,7 @@ export default function SharedSingleConceptPage({ params }) {
       {/* Video Instructions - only for video media type */}
       {concept.videoInstructions && concept.media_type === 'video' && (<Card>
           <CardHeader>
-            <CardTitle className="text-lg">Video Editor Instructions</CardTitle>
+            <CardTitle className="text-lg">Video Instructions</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="whitespace-pre-wrap">{concept.videoInstructions}</p>
@@ -172,88 +162,6 @@ export default function SharedSingleConceptPage({ params }) {
             <p className="whitespace-pre-wrap">{concept.designerInstructions}</p>
           </CardContent>
         </Card>)}
-
-      {/* Editing Resources - show for both video and image */}
-      {brand?.editing_resources && brand.editing_resources.length > 0 && (<Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Editing Resources</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {brand.editing_resources.map((resource, index) => (<div key={index} className="p-3 bg-gray-50 rounded">
-                  <a 
-                    href={resource.url} 
-                    target="_blank" 
-                    rel="noopener noreferrer" 
-                    className="text-blue-600 hover:underline"
-                  >
-                    {resource.name}
-                  </a>
-                </div>))}
-            </div>
-          </CardContent>
-        </Card>)}
-
-      {/* Resource Logins - show for both video and image */}
-      {brand?.resource_logins && brand.resource_logins.length > 0 && (<Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Resource Logins</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {brand.resource_logins.map((login, index) => (<div key={index} className="p-3 bg-gray-50 rounded">
-                  <div className="font-medium">{login.resourceName}</div>
-                  <div className="text-sm mt-1">Username: {login.username}</div>
-                  <div className="text-sm">Password: {login.password}</div>
-                </div>))}
-            </div>
-          </CardContent>
-        </Card>)}
-
-      {/* Do's and Don'ts - show appropriate ones based on media type */}
-      {brand?.dos_and_donts && (
-        (concept.media_type === 'image' && 
-         (brand.dos_and_donts.imagesDos?.length > 0 || brand.dos_and_donts.imagesDonts?.length > 0)) ||
-        (concept.media_type === 'video' && 
-         (brand.dos_and_donts.videosDos?.length > 0 || brand.dos_and_donts.videosDonts?.length > 0))
-      ) && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">
-              {concept.media_type === 'image' ? "Image" : "Video"} Do's and Don'ts
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Do's */}
-              <div>
-                <h3 className="font-medium text-green-600 mb-2">Do's:</h3>
-                <ul className="list-disc pl-5 space-y-1">
-                  {concept.media_type === 'image' && brand.dos_and_donts.imagesDos?.map((item, i) => (
-                    <li key={i} className="text-sm">{item}</li>
-                  ))}
-                  {concept.media_type === 'video' && brand.dos_and_donts.videosDos?.map((item, i) => (
-                    <li key={i} className="text-sm">{item}</li>
-                  ))}
-                </ul>
-              </div>
-              
-              {/* Don'ts */}
-              <div>
-                <h3 className="font-medium text-red-600 mb-2">Don'ts:</h3>
-                <ul className="list-disc pl-5 space-y-1">
-                  {concept.media_type === 'image' && brand.dos_and_donts.imagesDonts?.map((item, i) => (
-                    <li key={i} className="text-sm">{item}</li>
-                  ))}
-                  {concept.media_type === 'video' && brand.dos_and_donts.videosDonts?.map((item, i) => (
-                    <li key={i} className="text-sm">{item}</li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Attribution */}
       <div className="border-t pt-4 text-sm text-gray-500">

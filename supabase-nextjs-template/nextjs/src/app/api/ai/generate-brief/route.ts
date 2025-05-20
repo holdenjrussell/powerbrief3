@@ -236,7 +236,7 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
           console.log('Detected image-specific response format with description/cta');
           responseData = {
             description: jsonResponse.description || "",
-            caption_hook_options: jsonResponse.description || "",
+            caption_hook_options: jsonResponse.caption_hook_options || "",
             body_content_structured_scenes: [],
             cta_script: jsonResponse.cta || "",
             cta_text_overlay: jsonResponse.cta || ""

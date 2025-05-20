@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { createSPAClient } from '@/lib/supabase/client';
-import { Brand, BriefBatch, BriefConcept, Scene, EditingResource, ResourceLogin, DosAndDonts } from '@/lib/types/powerbrief';
+import { Brand, BriefBatch, BriefConcept, Scene } from '@/lib/types/powerbrief';
 import { Loader2, Eye, EyeOff } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
@@ -18,9 +18,6 @@ interface ExtendedBriefBatch extends Omit<BriefBatch, 'brand_id'> {
     brand_info_data: any;
     target_audience_data: any;
     competition_data: any;
-    editing_resources?: EditingResource[];
-    resource_logins?: ResourceLogin[];
-    dos_and_donts?: DosAndDonts;
     created_at: string;
     updated_at: string;
   };
@@ -297,115 +294,6 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
                       </div>
                     )}
                     
-                    {/* Editing Resources */}
-                    {brand.editing_resources && brand.editing_resources.length > 0 && (
-                      <div>
-                        <h3 className="font-medium">Editing Resources</h3>
-                        <div className="space-y-2 mt-2">
-                          {brand.editing_resources.map((resource: EditingResource, index: number) => (
-                            <div key={index} className="bg-gray-50 p-3 rounded flex items-center">
-                              <a 
-                                href={resource.url} 
-                                target="_blank" 
-                                rel="noopener noreferrer" 
-                                className="text-blue-600 hover:underline"
-                              >
-                                {resource.name}
-                              </a>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Resource Logins */}
-                    {brand.resource_logins && brand.resource_logins.length > 0 && (
-                      <div>
-                        <h3 className="font-medium">Resource Logins</h3>
-                        <div className="space-y-2 mt-2">
-                          {brand.resource_logins.map((login: ResourceLogin, index: number) => (
-                            <div key={index} className="bg-gray-50 p-3 rounded">
-                              <div className="font-semibold">{login.resourceName}</div>
-                              <div className="grid grid-cols-2 gap-2 mt-1">
-                                <div>
-                                  <span className="text-sm text-gray-500">Username: </span>
-                                  <span className="text-sm">{login.username}</span>
-                                </div>
-                                <div>
-                                  <span className="text-sm text-gray-500">Password: </span>
-                                  <span className="text-sm">{login.password}</span>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Do's and Don'ts for Images */}
-                    {brand.dos_and_donts && (brand.dos_and_donts.imagesDos?.length > 0 || brand.dos_and_donts.imagesDonts?.length > 0) && (
-                      <div>
-                        <h3 className="font-medium">Image Do's and Don'ts</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
-                          {/* Do's */}
-                          {brand.dos_and_donts.imagesDos?.length > 0 && (
-                            <div className="bg-green-50 p-3 rounded">
-                              <h4 className="font-medium text-green-700 mb-2">Do's:</h4>
-                              <ul className="list-disc pl-5 space-y-1">
-                                {brand.dos_and_donts.imagesDos.map((item: string, i: number) => (
-                                  <li key={i} className="text-sm">{item}</li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-                          
-                          {/* Don'ts */}
-                          {brand.dos_and_donts.imagesDonts?.length > 0 && (
-                            <div className="bg-red-50 p-3 rounded">
-                              <h4 className="font-medium text-red-700 mb-2">Don'ts:</h4>
-                              <ul className="list-disc pl-5 space-y-1">
-                                {brand.dos_and_donts.imagesDonts.map((item: string, i: number) => (
-                                  <li key={i} className="text-sm">{item}</li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Do's and Don'ts for Videos */}
-                    {brand.dos_and_donts && (brand.dos_and_donts.videosDos?.length > 0 || brand.dos_and_donts.videosDonts?.length > 0) && (
-                      <div>
-                        <h3 className="font-medium">Video Do's and Don'ts</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
-                          {/* Do's */}
-                          {brand.dos_and_donts.videosDos?.length > 0 && (
-                            <div className="bg-green-50 p-3 rounded">
-                              <h4 className="font-medium text-green-700 mb-2">Do's:</h4>
-                              <ul className="list-disc pl-5 space-y-1">
-                                {brand.dos_and_donts.videosDos.map((item: string, i: number) => (
-                                  <li key={i} className="text-sm">{item}</li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-                          
-                          {/* Don'ts */}
-                          {brand.dos_and_donts.videosDonts?.length > 0 && (
-                            <div className="bg-red-50 p-3 rounded">
-                              <h4 className="font-medium text-red-700 mb-2">Don'ts:</h4>
-                              <ul className="list-disc pl-5 space-y-1">
-                                {brand.dos_and_donts.videosDonts.map((item: string, i: number) => (
-                                  <li key={i} className="text-sm">{item}</li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                    
                     {brand.target_audience_data && (
                       <div>
                         <h3 className="font-medium">Target Audience</h3>
@@ -436,6 +324,130 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
                             )) : 
                             <p className="whitespace-pre-wrap">{String(brand.competition_data)}</p>
                           }
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Editing Resources */}
+                    {brand.editing_resources && brand.editing_resources.length > 0 && (
+                      <div>
+                        <h3 className="font-medium">Editing Resources</h3>
+                        <div className="space-y-2 mt-2">
+                          {brand.editing_resources.map((resource: any, index: number) => (
+                            <div key={index} className="bg-gray-50 p-3 rounded flex justify-between items-center">
+                              <span className="font-semibold">{resource.name}</span>
+                              <a 
+                                href={resource.url} 
+                                target="_blank" 
+                                rel="noopener noreferrer" 
+                                className="text-blue-600 hover:underline"
+                              >
+                                Visit
+                              </a>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Resource Logins */}
+                    {brand.resource_logins && brand.resource_logins.length > 0 && (
+                      <div>
+                        <h3 className="font-medium">Resource Logins</h3>
+                        <div className="space-y-2 mt-2">
+                          {brand.resource_logins.map((login: any, index: number) => (
+                            <div key={index} className="bg-gray-50 p-3 rounded">
+                              <p className="font-semibold">{login.resourceName}</p>
+                              <div className="grid grid-cols-2 gap-2 mt-1">
+                                <div>
+                                  <span className="text-gray-500">Username: </span>
+                                  <span>{login.username}</span>
+                                </div>
+                                <div>
+                                  <span className="text-gray-500">Password: </span>
+                                  <span>{login.password}</span>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Do's and Don'ts */}
+                    {brand.dos_and_donts && (
+                      <div>
+                        <h3 className="font-medium">Guidelines</h3>
+                        <div className="space-y-4 mt-2">
+                          {/* Image Guidelines */}
+                          {(brand.dos_and_donts.imagesDos?.length > 0 || brand.dos_and_donts.imagesDonts?.length > 0) && (
+                            <div>
+                              <h4 className="font-medium text-sm mb-2">Image Guidelines</h4>
+                              
+                              {/* Image Do's */}
+                              {brand.dos_and_donts.imagesDos?.length > 0 && (
+                                <div className="mb-2">
+                                  <h5 className="text-sm font-medium text-green-600 mb-1">Do's</h5>
+                                  <div className="space-y-1">
+                                    {brand.dos_and_donts.imagesDos.map((item: string, index: number) => (
+                                      <div key={index} className="bg-green-50 border border-green-200 p-2 rounded text-sm">
+                                        {item}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              
+                              {/* Image Don'ts */}
+                              {brand.dos_and_donts.imagesDonts?.length > 0 && (
+                                <div>
+                                  <h5 className="text-sm font-medium text-red-600 mb-1">Don'ts</h5>
+                                  <div className="space-y-1">
+                                    {brand.dos_and_donts.imagesDonts.map((item: string, index: number) => (
+                                      <div key={index} className="bg-red-50 border border-red-200 p-2 rounded text-sm">
+                                        {item}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          
+                          {/* Video Guidelines */}
+                          {(brand.dos_and_donts.videosDos?.length > 0 || brand.dos_and_donts.videosDonts?.length > 0) && (
+                            <div>
+                              <h4 className="font-medium text-sm mb-2">Video Guidelines</h4>
+                              
+                              {/* Video Do's */}
+                              {brand.dos_and_donts.videosDos?.length > 0 && (
+                                <div className="mb-2">
+                                  <h5 className="text-sm font-medium text-green-600 mb-1">Do's</h5>
+                                  <div className="space-y-1">
+                                    {brand.dos_and_donts.videosDos.map((item: string, index: number) => (
+                                      <div key={index} className="bg-green-50 border border-green-200 p-2 rounded text-sm">
+                                        {item}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              
+                              {/* Video Don'ts */}
+                              {brand.dos_and_donts.videosDonts?.length > 0 && (
+                                <div>
+                                  <h5 className="text-sm font-medium text-red-600 mb-1">Don'ts</h5>
+                                  <div className="space-y-1">
+                                    {brand.dos_and_donts.videosDonts.map((item: string, index: number) => (
+                                      <div key={index} className="bg-red-50 border border-red-200 p-2 rounded text-sm">
+                                        {item}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
                     )}
