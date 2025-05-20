@@ -1041,25 +1041,27 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                         Debug Prompt
                                     </Button>
                                     
-                                    {/* Caption Hooks */}
-                                    <div>
-                                        <h3 className="font-medium text-sm mb-1">Caption Hook options (with emojis)</h3>
-                                        <Textarea value={localCaptionHooks[concept.id] || ''} onChange={(e) => {
-                // Update local state immediately for responsive typing
-                setLocalCaptionHooks(prev => (Object.assign(Object.assign({}, prev), { [concept.id]: e.target.value })));
-                // Debounce the actual save operation
-                const updatedConcept = Object.assign(Object.assign({}, concept), { caption_hook_options: e.target.value });
-                debouncedUpdateConcept(updatedConcept);
-            }} onBlur={() => {
-                // Save immediately on blur
-                if (saveTimeoutRef.current) {
-                    clearTimeout(saveTimeoutRef.current);
-                    saveTimeoutRef.current = null;
-                }
-                const updatedConcept = Object.assign(Object.assign({}, concept), { caption_hook_options: localCaptionHooks[concept.id] || '' });
-                handleUpdateConcept(updatedConcept);
-            }} placeholder="Enter caption hook options with emojis" rows={3} className="text-sm"/>
-                                    </div>
+                                    {/* Caption Hooks - only shown for videos */}
+                                    {localMediaTypes[concept.id] !== 'image' && (
+                                        <div>
+                                            <h3 className="font-medium text-sm mb-1">Caption Hook options (with emojis)</h3>
+                                            <Textarea value={localCaptionHooks[concept.id] || ''} onChange={(e) => {
+                    // Update local state immediately for responsive typing
+                    setLocalCaptionHooks(prev => (Object.assign(Object.assign({}, prev), { [concept.id]: e.target.value })));
+                    // Debounce the actual save operation
+                    const updatedConcept = Object.assign(Object.assign({}, concept), { caption_hook_options: e.target.value });
+                    debouncedUpdateConcept(updatedConcept);
+                }} onBlur={() => {
+                    // Save immediately on blur
+                    if (saveTimeoutRef.current) {
+                        clearTimeout(saveTimeoutRef.current);
+                        saveTimeoutRef.current = null;
+                    }
+                    const updatedConcept = Object.assign(Object.assign({}, concept), { caption_hook_options: localCaptionHooks[concept.id] || '' });
+                    handleUpdateConcept(updatedConcept);
+                }} placeholder="Enter caption hook options with emojis" rows={3} className="text-sm"/>
+                                        </div>
+                                    )}
                                     
                                     {/* Body Content */}
                                     <div className="space-y-4">
