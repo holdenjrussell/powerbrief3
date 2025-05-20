@@ -885,10 +885,11 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
     };
     
     // Share concept via link
-    const handleShareConceptViaLink = async () => {
-        if (!sharingConceptId) return;
+    const handleShareConceptViaLink = async (conceptId: string) => {
+        if (!conceptId) return;
         
         try {
+            setSharingConceptId(conceptId);
             setSharingInProgress(true);
             setShareSuccess(false);
             
@@ -897,7 +898,7 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                 expires_at: null // No expiration
             };
             
-            const shareResult = await shareBriefConcept(sharingConceptId, 'link', shareSettings);
+            const shareResult = await shareBriefConcept(conceptId, 'link', shareSettings);
             
             setShareLink(shareResult.share_url);
             setShareSuccess(true);
@@ -957,6 +958,9 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
             setUpdatingReviewConceptId(null);
         }
     };
+    
+    // Find active concept from the concepts array
+    const activeConcept = activeConceptId ? concepts.find(c => c.id === activeConceptId) : null;
 
     if (loading) {
         return (
@@ -2130,8 +2134,8 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                             </div>
                         ) : (
                             <Button 
-                                onClick={handleShareConceptViaLink}
-                                disabled={sharingInProgress}
+                                onClick={() => sharingConceptId ? handleShareConceptViaLink(sharingConceptId) : null}
+                                disabled={sharingInProgress || !sharingConceptId}
                                 className="w-full"
                             >
                                 {sharingInProgress ? (
@@ -2356,6 +2360,8 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                                         ref={fileInputRef}
                                                         className="hidden"
                                                         accept="image/*,video/*"
+                                                        aria-label="Upload media file"
+                                                        title="Upload media file"
                                                         onChange={(e) => {
                                                             if (e.target.files && e.target.files.length > 0) {
                                                                 handleUploadMedia(e.target.files[0], activeConceptId);
