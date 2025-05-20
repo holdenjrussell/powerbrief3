@@ -97,12 +97,37 @@ export default function SharedSingleConceptPage({ params }: { params: { shareId:
         </Button>
       </div>
 
-      {/* Status display */}
-      {concept.status && (
-        <div className="inline-block px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
-          Status: {concept.status}
-        </div>
-      )}
+      {/* Metadata display */}
+      <div className="flex flex-wrap gap-2">
+        {concept.status && (
+          <div className="inline-block px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+            Status: {concept.status}
+          </div>
+        )}
+        {concept.clickup_id && (
+          <div className="inline-block px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+            Clickup ID: {concept.clickup_id}
+          </div>
+        )}
+        {concept.clickup_link && (
+          <div className="inline-block px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+            <a href={concept.clickup_link} target="_blank" rel="noopener noreferrer" className="flex items-center">
+              <LinkIcon className="h-3 w-3 mr-1" />
+              Clickup Link
+            </a>
+          </div>
+        )}
+        {concept.strategist && (
+          <div className="inline-block px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+            Strategist: {concept.strategist}
+          </div>
+        )}
+        {concept.video_editor && (
+          <div className="inline-block px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+            {concept.media_type === 'video' ? 'Video Editor' : 'Designer'}: {concept.video_editor}
+          </div>
+        )}
+      </div>
 
       <Tabs defaultValue="concept" className="w-full">
         <TabsList className="mb-4">

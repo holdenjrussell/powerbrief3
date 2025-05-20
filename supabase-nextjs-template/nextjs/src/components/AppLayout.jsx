@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Home, User, Menu, X, ChevronDown, LogOut, Key, Files, LucideListTodo, Presentation, } from 'lucide-react';
+import { Home, User, Menu, X, ChevronDown, LogOut, Key, Files, LucideListTodo, Presentation, Film } from 'lucide-react';
 import { useGlobal } from "@/lib/context/GlobalContext";
 import { createSPASassClient } from "@/lib/supabase/client";
 export default function AppLayout({ children }) {
@@ -32,9 +32,8 @@ export default function AppLayout({ children }) {
     const productName = process.env.NEXT_PUBLIC_PRODUCTNAME;
     const navigation = [
         { name: 'Homepage', href: '/app', icon: Home },
-        { name: 'Example Storage', href: '/app/storage', icon: Files },
-        { name: 'Example Table', href: '/app/table', icon: LucideListTodo },
         { name: 'PowerBrief', href: '/app/powerbrief', icon: Presentation },
+        { name: 'Ad Reviews', href: '/app/reviews', icon: Film },
         { name: 'User Settings', href: '/app/user-settings', icon: User },
     ];
     const toggleSidebar = () => setSidebarOpen(!isSidebarOpen);

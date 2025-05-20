@@ -2,7 +2,7 @@
 import React from 'react';
 import { useGlobal } from '@/lib/context/GlobalContext';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import { CalendarDays, Settings, ExternalLink } from 'lucide-react';
+import { CalendarDays, Settings, Presentation, Film } from 'lucide-react';
 import Link from 'next/link';
 export default function DashboardContent() {
     var _a;
@@ -39,6 +39,26 @@ export default function DashboardContent() {
                 </CardHeader>
                 <CardContent>
                     <div className="grid gap-4 md:grid-cols-2">
+                        <Link href="/app/powerbrief" className="flex items-center gap-3 p-4 border rounded-lg hover:bg-gray-50 transition-colors">
+                            <div className="p-2 bg-primary-50 rounded-full">
+                                <Presentation className="h-4 w-4 text-primary-600"/>
+                            </div>
+                            <div>
+                                <h3 className="font-medium">PowerBrief</h3>
+                                <p className="text-sm text-gray-500">Manage your brief concepts</p>
+                            </div>
+                        </Link>
+
+                        <Link href="/app/reviews" className="flex items-center gap-3 p-4 border rounded-lg hover:bg-gray-50 transition-colors">
+                            <div className="p-2 bg-primary-50 rounded-full">
+                                <Film className="h-4 w-4 text-primary-600"/>
+                            </div>
+                            <div>
+                                <h3 className="font-medium">Ad Reviews</h3>
+                                <p className="text-sm text-gray-500">Review ad content</p>
+                            </div>
+                        </Link>
+                        
                         <Link href="/app/user-settings" className="flex items-center gap-3 p-4 border rounded-lg hover:bg-gray-50 transition-colors">
                             <div className="p-2 bg-primary-50 rounded-full">
                                 <Settings className="h-4 w-4 text-primary-600"/>
@@ -46,16 +66,6 @@ export default function DashboardContent() {
                             <div>
                                 <h3 className="font-medium">User Settings</h3>
                                 <p className="text-sm text-gray-500">Manage your account preferences</p>
-                            </div>
-                        </Link>
-
-                        <Link href="/app/table" className="flex items-center gap-3 p-4 border rounded-lg hover:bg-gray-50 transition-colors">
-                            <div className="p-2 bg-primary-50 rounded-full">
-                                <ExternalLink className="h-4 w-4 text-primary-600"/>
-                            </div>
-                            <div>
-                                <h3 className="font-medium">Example Page</h3>
-                                <p className="text-sm text-gray-500">Check out example features</p>
                             </div>
                         </Link>
                     </div>
