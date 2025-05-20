@@ -754,6 +754,9 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
         // Use the local state value for the custom prompt
         const customPrompt = localPrompts[conceptId] || concept.ai_custom_prompt || '';
         
+        // Determine media type
+        const mediaType = concept.media_type || 'video';
+        
         // Construct the request object that would be sent to the API
         const request: AiBriefingRequest = {
             brandContext: {
@@ -768,20 +771,39 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                 caption_hook_options: localCaptionHooks[conceptId] || concept.caption_hook_options || '',
                 body_content_structured: localScenes[conceptId] || concept.body_content_structured || [],
                 cta_script: localCtaScript[conceptId] || concept.cta_script || '',
-                cta_text_overlay: localCtaTextOverlay[conceptId] || concept.cta_text_overlay || ''
+                cta_text_overlay: localCtaTextOverlay[conceptId] || concept.cta_text_overlay || '',
+                description: localDescriptions[conceptId] || concept.description || ''
             },
             media: {
                 url: concept.media_url || '',
-                type: concept.media_type || ''
+                type: mediaType
             },
-            desiredOutputFields: concept.media_type === 'image' 
+            desiredOutputFields: mediaType === 'image' 
                 ? ['description', 'cta'] // For image briefs (using system_instructions_image format)
                 : ['caption_hook_options', 'body_content_structured_scenes', 'cta_script', 'cta_text_overlay'] // For video briefs
         };
         
         // Simulate the prompt construction similar to what happens in the API route
         const brandContextStr = JSON.stringify(request.brandContext, null, 2);
-        const currentDataStr = request.conceptCurrentData ? JSON.stringify(request.conceptCurrentData, null, 2) : 'No current data provided';
+        
+        // Create media type appropriate currentData string
+        let currentDataStr;
+        if (mediaType === 'image') {
+            // For image briefs, only include description and cta
+            currentDataStr = JSON.stringify({
+                description: localDescriptions[conceptId] || concept.description || '',
+                cta: localCtaScript[conceptId] || concept.cta_script || ''
+            }, null, 2);
+        } else {
+            // For video briefs, use the full structure
+            currentDataStr = JSON.stringify({
+                caption_hook_options: localCaptionHooks[conceptId] || concept.caption_hook_options || '',
+                body_content_structured: localScenes[conceptId] || concept.body_content_structured || [],
+                cta_script: localCtaScript[conceptId] || concept.cta_script || '',
+                cta_text_overlay: localCtaTextOverlay[conceptId] || concept.cta_text_overlay || ''
+            }, null, 2);
+        }
+        
         const fieldsStr = request.desiredOutputFields.join(', ');
         
         // Get media information - update to show that binary data is now sent
@@ -812,8 +834,22 @@ allowing it to properly analyze images and videos. This is just a text represent
             systemPrompt = request.brandContext.system_instructions_video;
         } else {
             // Fallback to default system prompt if no custom instructions are available
-            systemPrompt = `You are an expert advertising strategist and copywriter specializing in direct response marketing. 
-Given the brand context (positioning, target audience, competitors), concept prompt, and media (if provided), generate ad creative components that specifically relate to the media content.
+            if (request.media?.type === 'image') {
+                systemPrompt = `You are an expert advertising strategist and copywriter specializing in direct response marketing.
+
+Given the brand context (positioning, target audience, competitors), concept prompt, and image (if provided), analyze the ad and generate a short, punchy image ad brief containing only the description and call to action (CTA). The description should highlight the key emotional or functional benefit in a compelling way that matches the visual. The CTA should clearly tell the viewer what to do next.
+
+IMPORTANT: Your response MUST be valid JSON and nothing else. Format:
+
+{
+  "description": "description of the image, details for how to interpret will be given in the prompt",
+  "cta": "if needed, based on the content of the prompt and image as well"
+}
+
+Only return that JSON structure and no other text.`;
+            } else {
+                systemPrompt = `You are an expert advertising strategist and copywriter specializing in direct response marketing. 
+Given the brand context (positioning, target audience, competitors), concept prompt, and video content (if provided), generate ad creative components that specifically relate to the video content.
 
 IMPORTANT: Your response MUST be valid JSON and nothing else. Format:
 {
@@ -829,6 +865,7 @@ IMPORTANT: Your response MUST be valid JSON and nothing else. Format:
   "cta_script": "Call to action script",
   "cta_text_overlay": "Text overlay for the CTA"
 }`;
+            }
         }
         
         // Add explanation about system instructions for clarity in debug view

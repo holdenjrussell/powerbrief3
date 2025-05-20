@@ -132,6 +132,7 @@ export interface AiBriefingRequest {
     body_content_structured?: Scene[];
     cta_script?: string;
     cta_text_overlay?: string;
+    description?: string;
   };
   media?: {
     url: string;
