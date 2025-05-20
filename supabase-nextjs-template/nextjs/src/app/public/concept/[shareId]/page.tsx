@@ -413,7 +413,7 @@ export default function SharedConceptPage({ params }: { params: { shareId: strin
       )}
 
       {/* Instructions Accordions */}
-      {concept.videoInstructions && (
+      {concept.videoInstructions && concept.media_type === 'video' && (
         <Card>
           <CardHeader 
             className="flex flex-row items-center justify-between cursor-pointer" 

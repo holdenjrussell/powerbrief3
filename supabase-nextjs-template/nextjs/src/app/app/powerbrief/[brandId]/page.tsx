@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import MarkdownTextarea from '@/components/ui/markdown-textarea';
 import Link from 'next/link';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 
@@ -250,9 +251,9 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
                 </Alert>
             )}
             
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            <div className="flex overflow-x-auto pb-4 space-x-6 hide-scrollbar" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
                 {/* Brand Info Column */}
-                <Card className="lg:col-span-1">
+                <Card className="min-w-[420px] max-w-[420px] flex-shrink-0">
                     <CardHeader>
                         <CardTitle>Brand Info</CardTitle>
                         <CardDescription>Enter brand information</CardDescription>
@@ -268,81 +269,81 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
                         </div>
                         <div>
                             <label className="block text-sm font-medium mb-1">Brand Positioning</label>
-                            <Textarea
+                            <MarkdownTextarea
                                 value={brandInfo.positioning}
                                 onChange={(e) => setBrandInfo({...brandInfo, positioning: e.target.value})}
                                 placeholder="Brand Positioning"
-                                rows={3}
+                                rows={5}
                             />
                         </div>
                         <div>
                             <label className="block text-sm font-medium mb-1">Product</label>
-                            <Textarea
+                            <MarkdownTextarea
                                 value={brandInfo.product}
                                 onChange={(e) => setBrandInfo({...brandInfo, product: e.target.value})}
                                 placeholder="Product"
-                                rows={3}
+                                rows={5}
                             />
                         </div>
                         <div>
                             <label className="block text-sm font-medium mb-1">Technology</label>
-                            <Textarea
+                            <MarkdownTextarea
                                 value={brandInfo.technology}
                                 onChange={(e) => setBrandInfo({...brandInfo, technology: e.target.value})}
                                 placeholder="Grounding Technology"
-                                rows={3}
+                                rows={5}
                             />
                         </div>
                         <div>
                             <label className="block text-sm font-medium mb-1">Testimonials/Quotes</label>
-                            <Textarea
+                            <MarkdownTextarea
                                 value={brandInfo.testimonials}
                                 onChange={(e) => setBrandInfo({...brandInfo, testimonials: e.target.value})}
                                 placeholder="Testimonials or Quotes"
-                                rows={3}
+                                rows={5}
                             />
                         </div>
                         <div>
                             <label className="block text-sm font-medium mb-1">Health Benefits</label>
-                            <Textarea
+                            <MarkdownTextarea
                                 value={brandInfo.healthBenefits}
                                 onChange={(e) => setBrandInfo({...brandInfo, healthBenefits: e.target.value})}
                                 placeholder="Health Benefits"
-                                rows={3}
+                                rows={5}
                             />
                         </div>
                         <div>
                             <label className="block text-sm font-medium mb-1">Target Audience Summary</label>
-                            <Textarea
+                            <MarkdownTextarea
                                 value={brandInfo.targetAudienceSummary}
                                 onChange={(e) => setBrandInfo({...brandInfo, targetAudienceSummary: e.target.value})}
                                 placeholder="Target Audience Summary"
-                                rows={3}
+                                rows={5}
                             />
                         </div>
                         <div>
                             <label className="block text-sm font-medium mb-1">Brand Voice</label>
-                            <Textarea
+                            <MarkdownTextarea
                                 value={brandInfo.brandVoice}
                                 onChange={(e) => setBrandInfo({...brandInfo, brandVoice: e.target.value})}
                                 placeholder="Brand Voice"
-                                rows={3}
+                                rows={5}
                             />
                         </div>
                         <div>
                             <label className="block text-sm font-medium mb-1">Competitive Advantage</label>
-                            <Textarea
+                            <MarkdownTextarea
                                 value={brandInfo.competitiveAdvantage}
                                 onChange={(e) => setBrandInfo({...brandInfo, competitiveAdvantage: e.target.value})}
                                 placeholder="Competitive Advantage"
-                                rows={3}
+                                rows={5}
                             />
                         </div>
                     </CardContent>
                 </Card>
                 
                 {/* Target Audience Column */}
-                <Card className="lg:col-span-1">
+                <Card className="min-w-[420px] max-w-[420px] flex-shrink-0">
                     <CardHeader>
                         <CardTitle>Target Audience</CardTitle>
                         <CardDescription>Define your audience demographics</CardDescription>
@@ -350,54 +351,54 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
                     <CardContent className="space-y-4">
                         <div>
                             <label className="block text-sm font-medium mb-1">Gender</label>
-                            <Textarea
+                            <MarkdownTextarea
                                 value={targetAudience.gender}
                                 onChange={(e) => setTargetAudience({...targetAudience, gender: e.target.value})}
                                 placeholder="Gender demographics"
-                                rows={3}
+                                rows={5}
                             />
                         </div>
                         <div>
                             <label className="block text-sm font-medium mb-1">Age</label>
-                            <Textarea
+                            <MarkdownTextarea
                                 value={targetAudience.age}
                                 onChange={(e) => setTargetAudience({...targetAudience, age: e.target.value})}
                                 placeholder="Age range"
-                                rows={3}
+                                rows={5}
                             />
                         </div>
                         <div>
                             <label className="block text-sm font-medium mb-1">Top Spending Demographics</label>
-                            <Textarea
+                            <MarkdownTextarea
                                 value={targetAudience.topSpendingDemographics}
                                 onChange={(e) => setTargetAudience({...targetAudience, topSpendingDemographics: e.target.value})}
                                 placeholder="Top spending demographics"
-                                rows={3}
+                                rows={5}
                             />
                         </div>
                         <div>
                             <label className="block text-sm font-medium mb-1">Location</label>
-                            <Textarea
+                            <MarkdownTextarea
                                 value={targetAudience.location}
                                 onChange={(e) => setTargetAudience({...targetAudience, location: e.target.value})}
                                 placeholder="Where they live"
-                                rows={3}
+                                rows={5}
                             />
                         </div>
                         <div>
                             <label className="block text-sm font-medium mb-1">Characteristics</label>
-                            <Textarea
+                            <MarkdownTextarea
                                 value={targetAudience.characteristics}
                                 onChange={(e) => setTargetAudience({...targetAudience, characteristics: e.target.value})}
                                 placeholder="Who they are"
-                                rows={5}
+                                rows={6}
                             />
                         </div>
                     </CardContent>
                 </Card>
                 
                 {/* Competition Column */}
-                <Card className="lg:col-span-1">
+                <Card className="min-w-[420px] max-w-[420px] flex-shrink-0">
                     <CardHeader>
                         <CardTitle>Competition</CardTitle>
                         <CardDescription>Competitor analysis</CardDescription>
@@ -405,27 +406,27 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
                     <CardContent className="space-y-4">
                         <div>
                             <label className="block text-sm font-medium mb-1">Competitor Ad Libraries</label>
-                            <Textarea
+                            <MarkdownTextarea
                                 value={competition.competitorAdLibraries}
                                 onChange={(e) => setCompetition({...competition, competitorAdLibraries: e.target.value})}
                                 placeholder="Competitor Ad Libraries"
-                                rows={8}
+                                rows={10}
                             />
                         </div>
                         <div>
                             <label className="block text-sm font-medium mb-1">Notes</label>
-                            <Textarea
+                            <MarkdownTextarea
                                 value={competition.notes}
                                 onChange={(e) => setCompetition({...competition, notes: e.target.value})}
                                 placeholder="Additional notes about competitors"
-                                rows={8}
+                                rows={10}
                             />
                         </div>
                     </CardContent>
                 </Card>
                 
                 {/* Default Creative Instructions Column */}
-                <Card className="lg:col-span-1">
+                <Card className="min-w-[420px] max-w-[420px] flex-shrink-0">
                     <CardHeader>
                         <CardTitle>Default Creative Instructions</CardTitle>
                         <CardDescription>Set default instructions for concepts</CardDescription>
@@ -433,27 +434,27 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
                     <CardContent className="space-y-4">
                         <div>
                             <label className="block text-sm font-medium mb-1">Default Video Instructions</label>
-                            <Textarea
+                            <MarkdownTextarea
                                 value={defaultVideoInstructions}
                                 onChange={(e) => setDefaultVideoInstructions(e.target.value)}
                                 placeholder="Enter default video instructions... e.g.\n- Use AI voiceover from ElevenLabs\n- Add B-roll footage\n- Logo at 10-15% opacity\n- Add captions\n- Add light background music"
-                                rows={8}
+                                rows={10}
                             />
                         </div>
                         <div>
                             <label className="block text-sm font-medium mb-1">Default Designer Instructions (for Images)</label>
-                            <Textarea
+                            <MarkdownTextarea
                                 value={defaultDesignerInstructions}
                                 onChange={(e) => setDefaultDesignerInstructions(e.target.value)}
                                 placeholder="Enter default designer instructions for image assets..."
-                                rows={8}
+                                rows={10}
                             />
                         </div>
                     </CardContent>
                 </Card>
                 
                 {/* AI System Instructions Column */}
-                <Card className="lg:col-span-1">
+                <Card className="min-w-[420px] max-w-[420px] flex-shrink-0">
                     <CardHeader>
                         <CardTitle>AI System Instructions</CardTitle>
                         <CardDescription>Customize AI system instructions by content type</CardDescription>
@@ -461,20 +462,20 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
                     <CardContent className="space-y-4">
                         <div>
                             <label className="block text-sm font-medium mb-1">System Instructions for Images</label>
-                            <Textarea
+                            <MarkdownTextarea
                                 value={systemInstructionsImage}
                                 onChange={(e) => setSystemInstructionsImage(e.target.value)}
                                 placeholder="Enter custom system instructions for image-based briefs..."
-                                rows={10}
+                                rows={12}
                             />
                         </div>
                         <div>
                             <label className="block text-sm font-medium mb-1">System Instructions for Videos</label>
-                            <Textarea
+                            <MarkdownTextarea
                                 value={systemInstructionsVideo}
                                 onChange={(e) => setSystemInstructionsVideo(e.target.value)}
                                 placeholder="Enter custom system instructions for video-based briefs..."
-                                rows={10}
+                                rows={12}
                             />
                         </div>
                     </CardContent>

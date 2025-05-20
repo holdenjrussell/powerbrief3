@@ -143,8 +143,8 @@ export default function SharedSingleConceptPage({ params }) {
           </CardContent>
         </Card>)}
 
-      {/* Video Instructions */}
-      {concept.videoInstructions && (<Card>
+      {/* Video Instructions - only for video media type */}
+      {concept.videoInstructions && concept.media_type === 'video' && (<Card>
           <CardHeader>
             <CardTitle className="text-lg">Video Instructions</CardTitle>
           </CardHeader>
@@ -153,8 +153,8 @@ export default function SharedSingleConceptPage({ params }) {
           </CardContent>
         </Card>)}
 
-      {/* Designer Instructions */}
-      {concept.designerInstructions && (<Card>
+      {/* Designer Instructions - only for image media type */}
+      {concept.designerInstructions && concept.media_type === 'image' && (<Card>
           <CardHeader>
             <CardTitle className="text-lg">Designer Instructions</CardTitle>
           </CardHeader>

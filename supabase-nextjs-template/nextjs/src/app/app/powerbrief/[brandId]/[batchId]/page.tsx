@@ -16,6 +16,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import Link from 'next/link';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import MarkdownTextarea from '@/components/ui/markdown-textarea';
 
 // Helper to unwrap params safely
 type ParamsType = { brandId: string, batchId: string };
@@ -1849,79 +1850,92 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                     <div className="space-y-2 mt-4 pt-4 border-t border-gray-100">
                                         <h3 className="font-medium text-sm">Creative Instructions</h3>
                                         
-                                        <div>
-                                            <label className="block text-xs font-medium mb-1">Video Editor Instructions:</label>
-                                            <Textarea
-                                                value={localVideoInstructions[concept.id] || ''}
-                                                onChange={(e) => {
-                                                    // Update local state immediately for responsive typing
-                                                    setLocalVideoInstructions(prev => ({
-                                                        ...prev,
-                                                        [concept.id]: e.target.value
-                                                    }));
-                                                    
-                                                    // Debounce the actual save operation
-                                                    const updatedConcept = {
-                                                        ...concept,
-                                                        videoInstructions: e.target.value
-                                                    };
-                                                    debouncedUpdateConcept(updatedConcept);
-                                                }}
-                                                onBlur={() => {
-                                                    // Save immediately on blur
-                                                    if (saveTimeoutRef.current) {
-                                                        clearTimeout(saveTimeoutRef.current);
-                                                        saveTimeoutRef.current = null;
-                                                    }
-                                                    
-                                                    const updatedConcept = {
-                                                        ...concept,
-                                                        videoInstructions: localVideoInstructions[concept.id] || ''
-                                                    };
-                                                    handleUpdateConcept(updatedConcept);
-                                                }}
-                                                placeholder="Instructions for video editors... e.g.&#10;- Use AI voiceover from ElevenLabs&#10;- Add B-roll footage&#10;- Logo at 10-15% opacity&#10;- Add captions&#10;- Add light background music"
-                                                rows={4}
-                                                className="text-sm"
-                                            />
-                                        </div>
+                                        {/* Only show video instructions for video media type */}
+                                        {localMediaTypes[concept.id] === 'video' && (
+                                            <div>
+                                                <label className="block text-xs font-medium mb-1">Video Editor Instructions:</label>
+                                                <MarkdownTextarea
+                                                    value={localVideoInstructions[concept.id] || ''}
+                                                    onChange={(e) => {
+                                                        // Update local state immediately for responsive typing
+                                                        setLocalVideoInstructions(prev => ({
+                                                            ...prev,
+                                                            [concept.id]: e.target.value
+                                                        }));
+                                                        
+                                                        // Debounce the actual save operation
+                                                        const updatedConcept = {
+                                                            ...concept,
+                                                            videoInstructions: e.target.value
+                                                        };
+                                                        debouncedUpdateConcept(updatedConcept);
+                                                    }}
+                                                    onBlur={() => {
+                                                        // Save immediately on blur
+                                                        if (saveTimeoutRef.current) {
+                                                            clearTimeout(saveTimeoutRef.current);
+                                                            saveTimeoutRef.current = null;
+                                                        }
+                                                        
+                                                        const updatedConcept = {
+                                                            ...concept,
+                                                            videoInstructions: localVideoInstructions[concept.id] || ''
+                                                        };
+                                                        handleUpdateConcept(updatedConcept);
+                                                    }}
+                                                    placeholder="Instructions for video editors... e.g.&#10;- Use AI voiceover from ElevenLabs&#10;- Add B-roll footage&#10;- Logo at 10-15% opacity&#10;- Add captions&#10;- Add light background music"
+                                                    rows={4}
+                                                    className="text-sm"
+                                                />
+                                            </div>
+                                        )}
                                         
-                                        <div>
-                                            <label className="block text-xs font-medium mb-1">Designer Instructions (for Images):</label>
-                                            <Textarea
-                                                value={localDesignerInstructions[concept.id] || ''}
-                                                onChange={(e) => {
-                                                    // Update local state immediately for responsive typing
-                                                    setLocalDesignerInstructions(prev => ({
-                                                        ...prev,
-                                                        [concept.id]: e.target.value
-                                                    }));
-                                                    
-                                                    // Debounce the actual save operation
-                                                    const updatedConcept = {
-                                                        ...concept,
-                                                        designerInstructions: e.target.value
-                                                    };
-                                                    debouncedUpdateConcept(updatedConcept);
-                                                }}
-                                                onBlur={() => {
-                                                    // Save immediately on blur
-                                                    if (saveTimeoutRef.current) {
-                                                        clearTimeout(saveTimeoutRef.current);
-                                                        saveTimeoutRef.current = null;
-                                                    }
-                                                    
-                                                    const updatedConcept = {
-                                                        ...concept,
-                                                        designerInstructions: localDesignerInstructions[concept.id] || ''
-                                                    };
-                                                    handleUpdateConcept(updatedConcept);
-                                                }}
-                                                placeholder="Instructions for designers creating image assets..."
-                                                rows={4}
-                                                className="text-sm"
-                                            />
-                                        </div>
+                                        {/* Only show designer instructions for image media type */}
+                                        {localMediaTypes[concept.id] === 'image' && (
+                                            <div>
+                                                <label className="block text-xs font-medium mb-1">Designer Instructions (for Images):</label>
+                                                <MarkdownTextarea
+                                                    value={localDesignerInstructions[concept.id] || ''}
+                                                    onChange={(e) => {
+                                                        // Update local state immediately for responsive typing
+                                                        setLocalDesignerInstructions(prev => ({
+                                                            ...prev,
+                                                            [concept.id]: e.target.value
+                                                        }));
+                                                        
+                                                        // Debounce the actual save operation
+                                                        const updatedConcept = {
+                                                            ...concept,
+                                                            designerInstructions: e.target.value
+                                                        };
+                                                        debouncedUpdateConcept(updatedConcept);
+                                                    }}
+                                                    onBlur={() => {
+                                                        // Save immediately on blur
+                                                        if (saveTimeoutRef.current) {
+                                                            clearTimeout(saveTimeoutRef.current);
+                                                            saveTimeoutRef.current = null;
+                                                        }
+                                                        
+                                                        const updatedConcept = {
+                                                            ...concept,
+                                                            designerInstructions: localDesignerInstructions[concept.id] || ''
+                                                        };
+                                                        handleUpdateConcept(updatedConcept);
+                                                    }}
+                                                    placeholder="Instructions for designers creating image assets..."
+                                                    rows={4}
+                                                    className="text-sm"
+                                                />
+                                            </div>
+                                        )}
+                                        
+                                        {/* Show a message if no media type is selected */}
+                                        {!localMediaTypes[concept.id] && (
+                                            <div className="text-gray-500 text-sm p-2">
+                                                Select a media type (Image/Video) to see relevant instructions
+                                            </div>
+                                        )}
                                     </div>
                                 </CardContent>
                             </Card>

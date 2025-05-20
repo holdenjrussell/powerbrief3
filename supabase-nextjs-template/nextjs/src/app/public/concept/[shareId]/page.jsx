@@ -96,8 +96,8 @@ export default function SharedConceptPage({ params }) {
           </CardContent>
         </Card>)}
 
-      {/* Instructions Accordions */}
-      {concept.videoInstructions && (<Card>
+      {/* Instructions Accordions - only for video media type */}
+      {concept.videoInstructions && concept.media_type === 'video' && (<Card>
           <CardHeader className="flex flex-row items-center justify-between cursor-pointer" onClick={() => setShowVideoInstructions(!showVideoInstructions)}>
             <CardTitle className="text-lg">Editor Instructions for Video</CardTitle>
             {showVideoInstructions ? (<ChevronUp className="h-5 w-5"/>) : (<ChevronDown className="h-5 w-5"/>)}
