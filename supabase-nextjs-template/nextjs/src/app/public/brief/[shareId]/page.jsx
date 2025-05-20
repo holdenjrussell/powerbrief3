@@ -68,9 +68,9 @@ export default function SharedBriefPage({ params }) {
                     throw conceptsError;
                 }
 
-                // Filter concepts to only show those with status "ready for designer" or "ready for editor"
+                // Filter concepts to only show those with status "READY FOR DESIGNER" or "READY FOR EDITOR"
                 const filteredConcepts = (conceptsData || []).filter(concept => 
-                  concept.status === "ready for designer" || concept.status === "ready for editor"
+                  concept.status === "READY FOR DESIGNER" || concept.status === "READY FOR EDITOR"
                 );
 
                 setConcepts(filteredConcepts);
