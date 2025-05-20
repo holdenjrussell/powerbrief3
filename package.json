@@ -12,7 +12,7 @@
     "build-skip": "SKIP_TSC=true next build --no-lint",
     "start": "next start",
     "lint": "next lint",
-    "gen-migrations": "npx supabase gen types typescript --local --schema public > src/lib/supabase/types.ts"
+    "gen-migrations": "npx supabase gen types typescript --local --schema public > supabase-nextjs-template/nextjs/src/lib/supabase/types.ts"
   },
   "devDependencies": {
     "@tailwindcss/typography": "^0.5.16"
