@@ -9,6 +9,9 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 // Extended types to match the actual data shape from Supabase
 interface ExtendedBriefBatch extends Omit<BriefBatch, 'brand_id'> {
@@ -33,6 +36,13 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
   const [batch, setBatch] = useState<any>(null);
   const [concepts, setConcepts] = useState<any[]>([]);
   const [isEditable, setIsEditable] = useState<boolean>(false);
+  
+  // Login form states
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [loginLoading, setLoginLoading] = useState(false);
+  const router = useRouter();
   
   // Unwrap params using React.use()
   const unwrappedParams = React.use(params as any) as { shareId: string };
@@ -110,7 +120,13 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
       } catch (err: any) {
         console.error('Error fetching shared batch:', err);
         setError(err.message || 'Failed to load shared content');
-        if (err.message?.includes('FetchError') || err.message?.includes('JSONडुप्लिकेट अनुवादToken') || (err.message?.toLowerCase().includes('not found') && !err.message?.toLowerCase().includes('share settings not found'))) {
+        // Show login prompt if content not found (RLS) or specific auth-related errors
+        if (
+          (err.message?.toLowerCase().includes('not found') && 
+           !err.message?.toLowerCase().includes('share settings not found')) || 
+          err.message?.includes('FetchError') || 
+          err.message?.includes('User not found') // Added "User not found"
+        ) {
             setShowLoginPrompt(true);
         }
       } finally {
@@ -120,6 +136,34 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
 
     fetchSharedBatch();
   }, [shareId]);
+
+  const handleLoginSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginError(null);
+    setLoginLoading(true);
+    try {
+      const supabase = createSPAClient();
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (signInError) {
+        throw signInError;
+      }
+      
+      router.refresh(); 
+      setShowLoginPrompt(false); 
+      setEmail('');
+      setPassword('');
+
+    } catch (err: any) {
+      console.error('Login failed:', err);
+      setLoginError(err.message || 'An unknown error occurred during login.');
+    } finally {
+      setLoginLoading(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -133,17 +177,53 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
     return (
       <div className="max-w-4xl mx-auto p-6">
         <Alert>
-          <AlertDescription>{error || 'Content not found'}</AlertDescription>
+          <AlertDescription>{error || 'Content not found. Please ensure the link is correct.'}</AlertDescription>
         </Alert>
         {showLoginPrompt && (
-          <div className="mt-4 text-center">
-            <p className="mb-2">Please log in to access this content.</p>
-            <Link href={`/login?redirect_to=${encodeURIComponent(window.location.href)}`} passHref>
-              <Button>
-                Log In
-              </Button>
-            </Link>
-          </div>
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle>Log In to View Content</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleLoginSubmit} className="space-y-4">
+                <div>
+                  <Label htmlFor="email">Email</Label>
+                  <Input
+                    id="email"
+                    name="email"
+                    type="email"
+                    autoComplete="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="you@example.com"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="password">Password</Label>
+                  <Input
+                    id="password"
+                    name="password"
+                    type="password"
+                    autoComplete="current-password"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                  />
+                </div>
+                {loginError && (
+                  <Alert variant="destructive">
+                    <AlertDescription>{loginError}</AlertDescription>
+                  </Alert>
+                )}
+                <Button type="submit" disabled={loginLoading} className="w-full">
+                  {loginLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                  Log In
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
         )}
       </div>
     );
