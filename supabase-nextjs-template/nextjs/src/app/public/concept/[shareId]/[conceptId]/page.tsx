@@ -53,7 +53,7 @@ export default function SharedSingleConceptPage({ params }: { params: { shareId:
         const supabase = createSPAClient();
 
         // Find the batch with this shareId in its share_settings
-        const { data: batchData, error: batchError } = await supabase
+        const { data: batchDataResult, error: batchError } = await supabase
           .from('brief_batches')
           .select('*, brands(*)')
           .contains('share_settings', { [shareId]: {} });
@@ -62,11 +62,13 @@ export default function SharedSingleConceptPage({ params }: { params: { shareId:
           throw batchError;
         }
 
-        if (!batchData || batchData.length === 0) {
+        if (!batchDataResult || batchDataResult.length === 0) {
           setError('Shared content not found or has expired');
           setLoading(false);
           return;
         }
+
+        const batchData = batchDataResult as BatchWithShare[]; // Cast to BatchWithShare array
 
         // Set the brand from the batch
         if (batchData[0].brands) {
@@ -74,7 +76,7 @@ export default function SharedSingleConceptPage({ params }: { params: { shareId:
         }
 
         // Get the specific concept
-        const { data: conceptData, error: conceptError } = await supabase
+        const { data: conceptDataResult, error: conceptError } = await supabase
           .from('brief_concepts')
           .select('*')
           .eq('id', conceptId)
@@ -84,7 +86,9 @@ export default function SharedSingleConceptPage({ params }: { params: { shareId:
           throw conceptError;
         }
 
-        setConcept(conceptData as ExtendedBriefConcept);
+        const conceptData = conceptDataResult as ExtendedBriefConcept; // Cast to ExtendedBriefConcept
+
+        setConcept(conceptData);
         
         // Initialize review link from concept if it exists
         if (conceptData.review_link) {
