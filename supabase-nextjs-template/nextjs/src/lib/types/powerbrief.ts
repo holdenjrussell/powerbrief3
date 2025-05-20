@@ -15,6 +15,25 @@ export interface BrandInfoData {
   [key: string]: Json | undefined;
 }
 
+export interface EditingResource {
+  name: string;
+  emoji: string;
+  url: string;
+}
+
+export interface ResourceLogin {
+  resourceName: string;
+  username: string;
+  password: string;
+}
+
+export interface DosAndDonts {
+  imagesDos: string[];
+  imagesDonts: string[];
+  videosDos: string[];
+  videosDonts: string[];
+}
+
 export interface TargetAudienceData {
   gender: string;
   age: string;
@@ -37,6 +56,9 @@ export interface Brand {
   brand_info_data: BrandInfoData;
   target_audience_data: TargetAudienceData;
   competition_data: CompetitionData;
+  editing_resources?: EditingResource[];
+  resource_logins?: ResourceLogin[];
+  dos_and_donts?: DosAndDonts;
   default_video_instructions?: string;
   default_designer_instructions?: string;
   system_instructions_image?: string;
@@ -82,6 +104,7 @@ export interface BriefConcept {
   media_type: string | null;
   ai_custom_prompt: string | null;
   caption_hook_options: string | null;
+  description: string | null;
   cta_script: string | null;
   cta_text_overlay: string | null;
   videoInstructions: string | null;
@@ -123,6 +146,7 @@ export interface AiBriefingResponse {
   body_content_structured_scenes?: Scene[];
   cta_script?: string;
   cta_text_overlay?: string;
+  description?: string;
 }
 
 // Type helpers for database interactions
@@ -133,6 +157,9 @@ export type DbBrand = {
   brand_info_data: Json;
   target_audience_data: Json;
   competition_data: Json;
+  editing_resources?: Json;
+  resource_logins?: Json;
+  dos_and_donts?: Json;
   default_video_instructions?: string;
   default_designer_instructions?: string;
   system_instructions_image?: string;
@@ -167,6 +194,7 @@ export type DbBriefConcept = {
   media_type: string | null;
   ai_custom_prompt: string | null;
   caption_hook_options: string | null;
+  description: string | null;
   body_content_structured: Json;
   cta_script: string | null;
   cta_text_overlay: string | null;
