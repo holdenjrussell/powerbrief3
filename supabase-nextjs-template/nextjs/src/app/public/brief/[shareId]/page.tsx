@@ -152,7 +152,7 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
         throw signInError;
       }
       
-      router.refresh(); 
+      window.location.reload();
       setShowLoginPrompt(false); 
       setEmail('');
       setPassword('');

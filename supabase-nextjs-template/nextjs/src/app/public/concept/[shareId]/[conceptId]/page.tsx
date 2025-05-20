@@ -160,7 +160,10 @@ export default function SharedSingleConceptPage({ params }: { params: { shareId:
         throw signInError;
       }
       
-      router.refresh();
+      // Reload the page to re-fetch data with the new auth state
+      window.location.reload();
+      
+      // Optionally, reset form and hide prompt, though page refresh might handle this
       setShowLoginPrompt(false);
       setEmail('');
       setPassword('');
