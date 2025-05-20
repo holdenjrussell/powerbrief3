@@ -5,7 +5,7 @@ import { useGlobal } from '@/lib/context/GlobalContext';
 import { useRouter } from 'next/navigation';
 import { getBriefBatchById, getBrandById, getBriefConcepts, createBriefConcept, updateBriefConcept, deleteBriefConcept, deleteBriefBatch, uploadMedia, shareBriefBatch, shareBriefConcept } from '@/lib/services/powerbriefService';
 import { Brand, BriefBatch, BriefConcept, Scene, AiBriefingRequest, ShareSettings } from '@/lib/types/powerbrief';
-import { Loader2, ArrowLeft, Save, Trash2, Plus, FileUp, Zap, Sparkles, MoveDown, MoveUp, X, Bug, Copy, Check, Pencil, Share2, LinkIcon, Mail } from 'lucide-react';
+import { Loader2, ArrowLeft, Save, Trash2, Plus, FileUp, Zap, Sparkles, MoveDown, MoveUp, X, Bug, Copy, Check, Pencil, Share2, LinkIcon, Mail, ThumbsUp, ThumbsDown, ExternalLink } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import Link from 'next/link';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
 
 // Helper to unwrap params safely
 type ParamsType = { brandId: string, batchId: string };
@@ -61,6 +62,7 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
     const [shareIsEditable, setShareIsEditable] = useState<boolean>(false);
     const [sharingInProgress, setSharingInProgress] = useState<boolean>(false);
     const [shareSuccess, setShareSuccess] = useState<boolean>(false);
+    const [updatingReviewConceptId, setUpdatingReviewConceptId] = useState<string | null>(null);
 
     // Extract params using React.use()
     const unwrappedParams = React.use(params as any) as ParamsType;
@@ -172,7 +174,9 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                 cta_script: null,
                 cta_text_overlay: null,
                 videoInstructions: brand.default_video_instructions || '',
-                designerInstructions: brand.default_designer_instructions || ''
+                designerInstructions: brand.default_designer_instructions || '',
+                review_status: null,
+                frameio_link: null
             });
             
             setConcepts(prev => [...prev, newConcept]);
@@ -319,7 +323,9 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                         cta_script: null,
                         cta_text_overlay: null,
                         videoInstructions: brand?.default_video_instructions || '',
-                        designerInstructions: brand?.default_designer_instructions || ''
+                        designerInstructions: brand?.default_designer_instructions || '',
+                        review_status: null,
+                        frameio_link: null
                     });
                     
                     console.log(`EZ UPLOAD: Created new concept for file ${i+1} with ID: ${newConcept.id}`);
@@ -923,6 +929,34 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
             setShareSuccess(false);
         }
     }, [showShareBatchDialog, showShareConceptDialog]);
+
+    // Handle updating review status
+    const handleUpdateReviewStatus = async (conceptId: string, status: string) => {
+        if (!user?.id) return;
+        
+        const concept = concepts.find(c => c.id === conceptId);
+        if (!concept) return;
+        
+        try {
+            setUpdatingReviewConceptId(conceptId);
+            
+            const updatedConcept = await updateBriefConcept({
+                ...concept,
+                id: conceptId,
+                review_status: status
+            });
+            
+            setConcepts(prev => 
+                prev.map(c => c.id === updatedConcept.id ? updatedConcept : c)
+            );
+            
+        } catch (err) {
+            console.error('Failed to update review status:', err);
+            setError('Failed to update review status. Please try again.');
+        } finally {
+            setUpdatingReviewConceptId(null);
+        }
+    };
 
     if (loading) {
         return (
@@ -2120,6 +2154,242 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+            
+            {/* Right panel - active concept */}
+            {activeConceptId && (
+                <div className="lg:w-2/3 space-y-6">
+                    {activeConcept ? (
+                        <>
+                            <div className="flex justify-between items-center">
+                                <div className="flex items-center space-x-4">
+                                    <h2 className="text-xl font-bold">{activeConcept.concept_title}</h2>
+                                    
+                                    {/* Review status */}
+                                    {activeConcept.review_status && (
+                                        <span className={`inline-flex text-xs px-2 py-1 rounded-full ${
+                                            activeConcept.review_status === 'approved' 
+                                                ? 'bg-green-100 text-green-800' 
+                                                : activeConcept.review_status === 'revisions_needed'
+                                                    ? 'bg-red-100 text-red-800'
+                                                    : activeConcept.review_status === 'ready_for_review'
+                                                        ? 'bg-yellow-100 text-yellow-800'
+                                                        : 'bg-gray-100 text-gray-800'
+                                        }`}>
+                                            {activeConcept.review_status === 'ready_for_review' ? 'Ready for Review' :
+                                            activeConcept.review_status === 'revisions_needed' ? 'Needs Revisions' :
+                                            activeConcept.review_status === 'approved' ? 'Approved' : activeConcept.review_status}
+                                        </span>
+                                    )}
+                                </div>
+                                <Button
+                                    size="sm"
+                                    onClick={() => handleShareConceptViaLink(activeConceptId)}
+                                >
+                                    <Share2 className="h-4 w-4 mr-2" />
+                                    Share
+                                </Button>
+                            </div>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {/* First column */}
+                                <Card>
+                                    <CardHeader>
+                                        <CardTitle className="text-sm">Project Management</CardTitle>
+                                    </CardHeader>
+                                    <CardContent className="space-y-4">
+                                        <div>
+                                            <Label htmlFor="strategist">Strategist</Label>
+                                            <Input
+                                                id="strategist"
+                                                placeholder="Not assigned"
+                                                value={localStrategists[activeConceptId] ?? activeConcept.strategist ?? ''}
+                                                onChange={(e) => {
+                                                    setLocalStrategists(prev => ({
+                                                        ...prev,
+                                                        [activeConceptId]: e.target.value
+                                                    }));
+                                                    debouncedUpdateConcept({
+                                                        ...activeConcept,
+                                                        strategist: e.target.value || null
+                                                    });
+                                                }}
+                                            />
+                                        </div>
+                                        <div>
+                                            <Label htmlFor="video-editor">Video Editor</Label>
+                                            <Input
+                                                id="video-editor"
+                                                placeholder="Not assigned"
+                                                value={localVideoEditors[activeConceptId] ?? activeConcept.video_editor ?? ''}
+                                                onChange={(e) => {
+                                                    setLocalVideoEditors(prev => ({
+                                                        ...prev,
+                                                        [activeConceptId]: e.target.value
+                                                    }));
+                                                    debouncedUpdateConcept({
+                                                        ...activeConcept,
+                                                        video_editor: e.target.value || null
+                                                    });
+                                                }}
+                                            />
+                                        </div>
+                                        <div>
+                                            <Label htmlFor="clickup-link">ClickUp Link</Label>
+                                            <div className="flex">
+                                                <Input
+                                                    id="clickup-link"
+                                                    placeholder="No ClickUp link"
+                                                    value={localClickupLinks[activeConceptId] ?? activeConcept.clickup_link ?? ''}
+                                                    onChange={(e) => {
+                                                        setLocalClickupLinks(prev => ({
+                                                            ...prev,
+                                                            [activeConceptId]: e.target.value
+                                                        }));
+                                                        debouncedUpdateConcept({
+                                                            ...activeConcept,
+                                                            clickup_link: e.target.value || null
+                                                        });
+                                                    }}
+                                                    readOnly={editingClickupLink === activeConceptId}
+                                                />
+                                                {activeConcept.clickup_link && (
+                                                    <Button
+                                                        variant="outline"
+                                                        size="icon"
+                                                        className="ml-2"
+                                                        onClick={() => window.open(activeConcept.clickup_link, '_blank')}
+                                                    >
+                                                        <ExternalLink className="h-4 w-4" />
+                                                    </Button>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <Label htmlFor="frameio-link">Frame.io Link</Label>
+                                            <div className="flex">
+                                                <Input
+                                                    id="frameio-link"
+                                                    placeholder="No Frame.io link"
+                                                    value={activeConcept.frameio_link ?? ''}
+                                                    readOnly
+                                                />
+                                                {activeConcept.frameio_link && (
+                                                    <Button
+                                                        variant="outline"
+                                                        size="icon"
+                                                        className="ml-2"
+                                                        onClick={() => window.open(activeConcept.frameio_link, '_blank')}
+                                                    >
+                                                        <ExternalLink className="h-4 w-4" />
+                                                    </Button>
+                                                )}
+                                            </div>
+                                        </div>
+                                        {activeConcept.review_status === 'ready_for_review' && (
+                                            <div className="flex space-x-2 pt-2">
+                                                <Button 
+                                                    variant="outline" 
+                                                    className="w-1/2 text-green-600 border-green-600 hover:bg-green-50"
+                                                    onClick={() => handleUpdateReviewStatus(activeConceptId, 'approved')}
+                                                    disabled={updatingReviewConceptId === activeConceptId}
+                                                >
+                                                    {updatingReviewConceptId === activeConceptId ? (
+                                                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                                    ) : (
+                                                        <ThumbsUp className="h-4 w-4 mr-2" />
+                                                    )}
+                                                    Approve
+                                                </Button>
+                                                <Button 
+                                                    variant="outline" 
+                                                    className="w-1/2 text-red-600 border-red-600 hover:bg-red-50"
+                                                    onClick={() => handleUpdateReviewStatus(activeConceptId, 'revisions_needed')}
+                                                    disabled={updatingReviewConceptId === activeConceptId}
+                                                >
+                                                    {updatingReviewConceptId === activeConceptId ? (
+                                                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                                    ) : (
+                                                        <ThumbsDown className="h-4 w-4 mr-2" />
+                                                    )}
+                                                    Needs Revisions
+                                                </Button>
+                                            </div>
+                                        )}
+                                    </CardContent>
+                                </Card>
+                                
+                                {/* Second column - media upload */}
+                                <Card>
+                                    <CardHeader>
+                                        <CardTitle className="text-sm">Media</CardTitle>
+                                    </CardHeader>
+                                    <CardContent>
+                                        {activeConcept.media_url ? (
+                                            <div className="aspect-video bg-gray-100 flex items-center justify-center rounded overflow-hidden">
+                                                {activeConcept.media_type === 'video' ? (
+                                                    <video 
+                                                        src={activeConcept.media_url} 
+                                                        controls 
+                                                        className="w-full h-full object-cover"
+                                                    />
+                                                ) : (
+                                                    <img 
+                                                        src={activeConcept.media_url} 
+                                                        alt={activeConcept.concept_title} 
+                                                        className="w-full h-full object-cover"
+                                                    />
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <div className="aspect-video bg-gray-100 flex items-center justify-center rounded">
+                                                <div className="text-center">
+                                                    <p className="text-gray-500 mb-2">No media uploaded</p>
+                                                    <Button
+                                                        size="sm"
+                                                        onClick={() => fileInputRef.current?.click()}
+                                                    >
+                                                        <FileUp className="h-4 w-4 mr-2" />
+                                                        Upload Media
+                                                    </Button>
+                                                    <input
+                                                        type="file"
+                                                        ref={fileInputRef}
+                                                        className="hidden"
+                                                        accept="image/*,video/*"
+                                                        onChange={(e) => {
+                                                            if (e.target.files && e.target.files.length > 0) {
+                                                                handleUploadMedia(e.target.files[0], activeConceptId);
+                                                                e.target.value = '';
+                                                            }
+                                                        }}
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
+                                        {activeConcept.media_url && (
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="mt-2 w-full"
+                                                onClick={() => fileInputRef.current?.click()}
+                                            >
+                                                <FileUp className="h-4 w-4 mr-2" />
+                                                Replace Media
+                                            </Button>
+                                        )}
+                                    </CardContent>
+                                </Card>
+                            </div>
+                            
+                            {/* Rest of the component remains the same */}
+                        </>
+                    ) : (
+                        <div className="flex justify-center items-center min-h-[200px]">
+                            <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
+                        </div>
+                    )}
+                </div>
+            )}
         </div>
     );
 } 

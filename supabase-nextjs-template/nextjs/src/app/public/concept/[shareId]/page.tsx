@@ -3,10 +3,11 @@
 import React, { useState, useEffect } from 'react';
 import { createSPAClient } from '@/lib/supabase/client';
 import { BriefConcept, Scene } from '@/lib/types/powerbrief';
-import { Loader2, ArrowLeft, ChevronDown, ChevronUp } from 'lucide-react';
+import { Loader2, ArrowLeft, ChevronDown, ChevronUp, CheckCircle, Link as LinkIcon } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 export default function SharedConceptPage({ params }: { params: { shareId: string } }) {
   const [loading, setLoading] = useState<boolean>(true);
@@ -14,6 +15,14 @@ export default function SharedConceptPage({ params }: { params: { shareId: strin
   const [concept, setConcept] = useState<BriefConcept | null>(null);
   const [showVideoInstructions, setShowVideoInstructions] = useState<boolean>(false);
   const [showDesignerInstructions, setShowDesignerInstructions] = useState<boolean>(false);
+  const [isEditable, setIsEditable] = useState<boolean>(false);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  
+  // New states for editor inputs
+  const [reviewStatus, setReviewStatus] = useState<string | null>(null);
+  const [frameioLink, setFrameioLink] = useState<string | null>(null);
   
   // Unwrap params using React.use()
   const unwrappedParams = React.use(params as any) as { shareId: string };
@@ -57,7 +66,13 @@ export default function SharedConceptPage({ params }: { params: { shareId: strin
           return;
         }
 
+        // Set if editable
+        setIsEditable(!!shareSettings.is_editable);
+        
+        // Set concept and form states
         setConcept(conceptWithShare);
+        setReviewStatus(conceptWithShare.review_status || null);
+        setFrameioLink(conceptWithShare.frameio_link || null);
       } catch (err: any) {
         console.error('Error fetching shared concept:', err);
         setError(err.message || 'Failed to load shared content');
@@ -68,6 +83,48 @@ export default function SharedConceptPage({ params }: { params: { shareId: strin
 
     fetchSharedConcept();
   }, [shareId]);
+
+  const handleSaveChanges = async () => {
+    if (!concept || !isEditable) return;
+    
+    try {
+      setIsSaving(true);
+      setSaveSuccess(false);
+      setSaveError(null);
+      
+      const supabase = createSPAClient();
+      
+      const { error } = await supabase
+        .from('brief_concepts')
+        .update({
+          review_status: reviewStatus,
+          frameio_link: frameioLink,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', concept.id);
+      
+      if (error) throw error;
+      
+      // Update local state
+      setConcept(prev => prev ? {
+        ...prev,
+        review_status: reviewStatus,
+        frameio_link: frameioLink
+      } : null);
+      
+      setSaveSuccess(true);
+      
+      // Hide success message after 3 seconds
+      setTimeout(() => {
+        setSaveSuccess(false);
+      }, 3000);
+    } catch (err: any) {
+      console.error('Error saving changes:', err);
+      setSaveError(err.message || "Failed to save changes. Please try again.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -98,10 +155,109 @@ export default function SharedConceptPage({ params }: { params: { shareId: strin
       </div>
 
       {/* Status display */}
-      {concept.status && (
-        <div className="inline-block px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
-          Status: {concept.status}
-        </div>
+      <div className="flex flex-wrap gap-2">
+        {concept.status && (
+          <div className="inline-block px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+            Status: {concept.status}
+          </div>
+        )}
+        
+        {concept.review_status && (
+          <div className="inline-block px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm">
+            Review: {concept.review_status === 'ready_for_review' ? 'Ready for Review' :
+                    concept.review_status === 'revisions_needed' ? 'Needs Revisions' :
+                    concept.review_status === 'approved' ? 'Approved' : concept.review_status}
+          </div>
+        )}
+      </div>
+
+      {/* Editor form for review status and frame.io link */}
+      {isEditable && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Review Information</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label htmlFor="review-status" className="text-sm font-medium">Review Status</label>
+                <select 
+                  id="review-status"
+                  className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  value={reviewStatus || ''}
+                  onChange={(e) => setReviewStatus(e.target.value === '' ? null : e.target.value)}
+                >
+                  <option value="">Not set</option>
+                  <option value="ready_for_review">Ready for Review</option>
+                  <option value="revisions_needed">Revisions Needed</option>
+                  <option value="approved">Approved</option>
+                </select>
+              </div>
+              
+              <div className="space-y-2">
+                <label htmlFor="frameio-link" className="text-sm font-medium">Frame.io Link</label>
+                <Input
+                  id="frameio-link"
+                  placeholder="Paste your Frame.io link here"
+                  value={frameioLink || ''}
+                  onChange={(e) => setFrameioLink(e.target.value === '' ? null : e.target.value)}
+                />
+              </div>
+              
+              <Button 
+                onClick={handleSaveChanges} 
+                disabled={isSaving}
+                className="w-full mt-2"
+              >
+                {isSaving ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Save Changes
+                  </>
+                )}
+              </Button>
+              
+              {saveSuccess && (
+                <div className="bg-green-100 text-green-800 px-3 py-2 rounded text-sm mt-2">
+                  Changes saved successfully!
+                </div>
+              )}
+              
+              {saveError && (
+                <div className="bg-red-100 text-red-800 px-3 py-2 rounded text-sm mt-2">
+                  {saveError}
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Frame.io link display */}
+      {concept.frameio_link && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Frame.io Link</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center space-x-2">
+              <LinkIcon className="h-4 w-4 text-blue-500" />
+              <a 
+                href={concept.frameio_link} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-blue-500 hover:underline"
+              >
+                {concept.frameio_link}
+              </a>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Media display */}

@@ -84,6 +84,8 @@ export interface BriefConcept {
   cta_text_overlay: string | null;
   videoInstructions: string | null;
   designerInstructions: string | null;
+  review_status: string | null;
+  frameio_link: string | null;
   shared_with?: string[] | null;
   share_settings?: Record<string, ShareSettings> | null;
   created_at: string;
@@ -163,6 +165,8 @@ export type DbBriefConcept = {
   cta_text_overlay: string | null;
   videoInstructions: string | null;
   designerInstructions: string | null;
+  review_status: string | null;
+  frameio_link: string | null;
   order_in_batch: number;
   share_settings?: Record<string, ShareSettings> | null;
   shared_with?: string[] | null;
