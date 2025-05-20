@@ -231,15 +231,15 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
         // Transform the response to match expected structure based on media type
         let responseData: AiBriefingResponse;
         
-        if (body.media?.type === 'image' && (jsonResponse.description !== undefined || jsonResponse.cta !== undefined)) {
-          // Handle image-specific format (description + cta)
-          console.log('Detected image-specific response format with description/cta');
+        if (body.media?.type === 'image' && jsonResponse.cta !== undefined) {
+          // Handle image-specific format (description and cta)
+          console.log('Detected image-specific response format with description and cta');
           responseData = {
-            description: jsonResponse.description || "",
             caption_hook_options: "",
             body_content_structured_scenes: [],
             cta_script: jsonResponse.cta || "",
-            cta_text_overlay: jsonResponse.cta || ""
+            cta_text_overlay: jsonResponse.cta || "",
+            description: jsonResponse.description || ""
           };
         } else {
           // Handle regular format (video or default)
@@ -261,21 +261,19 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
         console.log(systemPrompt);
         
         if (body.media?.type === 'image') {
-          console.log('This was an IMAGE request. Expected format with description/cta fields.');
+          console.log('This was an IMAGE request. Expected format with cta field.');
           
-          // Try to extract description/cta manually as a fallback
+          // Try to extract cta manually as a fallback
           try {
-            if (responseText.includes('"description"') && responseText.includes('"cta"')) {
-              const manualMatch = responseText.match(/\{\s*"description"\s*:\s*"([^"]*)"\s*,\s*"cta"\s*:\s*"([^"]*)"\s*\}/);
+            if (responseText.includes('"cta"')) {
+              const manualMatch = responseText.match(/\{\s*"cta"\s*:\s*"([^"]*)"\s*\}/);
               if (manualMatch) {
-                console.log('Found potential manual match for description/cta format');
-                const description = manualMatch[1];
-                const cta = manualMatch[2];
+                console.log('Found potential manual match for cta format');
+                const cta = manualMatch[1];
                 
                 // Return transformed response
                 return NextResponse.json({
-                  description: description,
-                  caption_hook_options: description,
+                  caption_hook_options: "",
                   body_content_structured_scenes: [],
                   cta_script: cta,
                   cta_text_overlay: cta

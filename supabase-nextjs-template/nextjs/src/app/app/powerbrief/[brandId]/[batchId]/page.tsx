@@ -175,9 +175,9 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                 media_type: null,
                 ai_custom_prompt: null,
                 caption_hook_options: null,
-                description: null, // Add description field
                 cta_script: null,
                 cta_text_overlay: null,
+                description: null,
                 videoInstructions: brand.default_video_instructions || '',
                 designerInstructions: brand.default_designer_instructions || ''
             });
@@ -330,9 +330,9 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                         status: null,
                         ai_custom_prompt: null,
                         caption_hook_options: null,
-                        description: null, // Add description field for image briefs
                         cta_script: null,
                         cta_text_overlay: null,
+                        description: null,
                         videoInstructions: brand?.default_video_instructions || '',
                         designerInstructions: brand?.default_designer_instructions || ''
                     });
@@ -455,15 +455,15 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
             
             const aiResponse = await response.json();
             
-            // Update concept with AI response
+                            // Update concept with AI response
             const updatedConcept = await updateBriefConcept({
                 ...concept,
                 id: conceptId,
                 caption_hook_options: aiResponse.caption_hook_options || concept.caption_hook_options,
-                description: aiResponse.description || concept.description, // Add the description field handling
                 body_content_structured: aiResponse.body_content_structured_scenes || concept.body_content_structured,
                 cta_script: aiResponse.cta_script || concept.cta_script,
-                cta_text_overlay: aiResponse.cta_text_overlay || concept.cta_text_overlay
+                cta_text_overlay: aiResponse.cta_text_overlay || concept.cta_text_overlay,
+                description: aiResponse.description || concept.description
             });
             
             setConcepts(prev => 
@@ -539,10 +539,10 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                         ...concept,
                         id: concept.id,
                         caption_hook_options: aiResponse.caption_hook_options || concept.caption_hook_options,
-                        description: aiResponse.description || concept.description, // Add the description field handling
                         body_content_structured: aiResponse.body_content_structured_scenes || concept.body_content_structured,
                         cta_script: aiResponse.cta_script || concept.cta_script,
-                        cta_text_overlay: aiResponse.cta_text_overlay || concept.cta_text_overlay
+                        cta_text_overlay: aiResponse.cta_text_overlay || concept.cta_text_overlay,
+                        description: aiResponse.description || concept.description
                     });
                     
                     setConcepts(prev => 

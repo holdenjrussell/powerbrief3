@@ -103,9 +103,9 @@ export interface BriefConcept {
   media_type: string | null;
   ai_custom_prompt: string | null;
   caption_hook_options: string | null;
-  description: string | null;
   cta_script: string | null;
   cta_text_overlay: string | null;
+  description: string | null;
   videoInstructions: string | null;
   designerInstructions: string | null;
   shared_with?: string[] | null;
@@ -194,10 +194,10 @@ export type DbBriefConcept = {
   media_type: string | null;
   ai_custom_prompt: string | null;
   caption_hook_options: string | null;
-  description: string | null;
   body_content_structured: Json;
   cta_script: string | null;
   cta_text_overlay: string | null;
+  description: string | null;
   videoInstructions: string | null;
   designerInstructions: string | null;
   order_in_batch: number;
