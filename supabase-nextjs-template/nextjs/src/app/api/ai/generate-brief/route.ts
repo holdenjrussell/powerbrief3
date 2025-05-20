@@ -125,8 +125,17 @@ export async function POST(request: NextRequest) {
       enhancedCustomPrompt = `IMPORTANT INSTRUCTION: ${enhancedCustomPrompt.toUpperCase()}`;
     }
 
-    // Define the system instruction 
-    const systemPrompt = `You are an expert advertising strategist and copywriter specializing in direct response marketing. 
+    // Get the appropriate system instructions based on media type
+    let systemPrompt = '';
+    
+    // Check if brand-specific system instructions are provided in the request
+    if (body.brandContext.system_instructions_image && body.media?.type === 'image') {
+      systemPrompt = body.brandContext.system_instructions_image;
+    } else if (body.brandContext.system_instructions_video && body.media?.type === 'video') {
+      systemPrompt = body.brandContext.system_instructions_video;
+    } else {
+      // Fallback to default system prompt if no custom instructions are available
+      systemPrompt = `You are an expert advertising strategist and copywriter specializing in direct response marketing. 
 Given the brand context (positioning, target audience, competitors), concept prompt, and media (if provided), generate ad creative components that specifically relate to the media content.
 
 IMPORTANT: Your response MUST be valid JSON and nothing else. Format:
@@ -143,6 +152,7 @@ IMPORTANT: Your response MUST be valid JSON and nothing else. Format:
   "cta_script": "Call to action script",
   "cta_text_overlay": "Text overlay for the CTA"
 }`;
+    }
 
     // Construct user prompt
     const userPrompt = `${enhancedCustomPrompt ? `${enhancedCustomPrompt}\n\n` : ''}

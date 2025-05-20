@@ -39,6 +39,8 @@ export interface Brand {
   competition_data: CompetitionData;
   default_video_instructions?: string;
   default_designer_instructions?: string;
+  system_instructions_image?: string;
+  system_instructions_video?: string;
   created_at: string;
   updated_at: string;
 }
@@ -99,6 +101,8 @@ export interface AiBriefingRequest {
     brand_info_data: BrandInfoData;
     target_audience_data: TargetAudienceData;
     competition_data: CompetitionData;
+    system_instructions_image?: string;
+    system_instructions_video?: string;
   };
   conceptSpecificPrompt: string;
   conceptCurrentData?: {
@@ -131,6 +135,8 @@ export type DbBrand = {
   competition_data: Json;
   default_video_instructions?: string;
   default_designer_instructions?: string;
+  system_instructions_image?: string;
+  system_instructions_video?: string;
   created_at: string;
   updated_at: string;
 };

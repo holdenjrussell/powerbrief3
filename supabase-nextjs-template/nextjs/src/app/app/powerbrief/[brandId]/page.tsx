@@ -58,6 +58,8 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
     });
     const [defaultVideoInstructions, setDefaultVideoInstructions] = useState<string>('');
     const [defaultDesignerInstructions, setDefaultDesignerInstructions] = useState<string>('');
+    const [systemInstructionsImage, setSystemInstructionsImage] = useState<string>('');
+    const [systemInstructionsVideo, setSystemInstructionsVideo] = useState<string>('');
 
     // Extract params using React.use()
     const unwrappedParams = React.use(params as any) as ParamsType;
@@ -90,6 +92,8 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
                 setCompetition(brandData.competition_data);
                 setDefaultVideoInstructions(brandData.default_video_instructions || '');
                 setDefaultDesignerInstructions(brandData.default_designer_instructions || '');
+                setSystemInstructionsImage(brandData.system_instructions_image || '');
+                setSystemInstructionsVideo(brandData.system_instructions_video || '');
                 
                 setError(null);
             } catch (err) {
@@ -117,7 +121,9 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
                 target_audience_data: targetAudience,
                 competition_data: competition,
                 default_video_instructions: defaultVideoInstructions,
-                default_designer_instructions: defaultDesignerInstructions
+                default_designer_instructions: defaultDesignerInstructions,
+                system_instructions_image: systemInstructionsImage,
+                system_instructions_video: systemInstructionsVideo
             });
             
             setBrand(updatedBrand);
@@ -441,6 +447,34 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
                                 onChange={(e) => setDefaultDesignerInstructions(e.target.value)}
                                 placeholder="Enter default designer instructions for image assets..."
                                 rows={8}
+                            />
+                        </div>
+                    </CardContent>
+                </Card>
+                
+                {/* AI System Instructions Column */}
+                <Card className="lg:col-span-1">
+                    <CardHeader>
+                        <CardTitle>AI System Instructions</CardTitle>
+                        <CardDescription>Customize AI system instructions by content type</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium mb-1">System Instructions for Images</label>
+                            <Textarea
+                                value={systemInstructionsImage}
+                                onChange={(e) => setSystemInstructionsImage(e.target.value)}
+                                placeholder="Enter custom system instructions for image-based briefs..."
+                                rows={10}
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-1">System Instructions for Videos</label>
+                            <Textarea
+                                value={systemInstructionsVideo}
+                                onChange={(e) => setSystemInstructionsVideo(e.target.value)}
+                                placeholder="Enter custom system instructions for video-based briefs..."
+                                rows={10}
                             />
                         </div>
                     </CardContent>

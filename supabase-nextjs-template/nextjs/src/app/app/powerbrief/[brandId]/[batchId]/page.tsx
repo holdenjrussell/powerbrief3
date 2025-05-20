@@ -5,7 +5,10 @@ import { useGlobal } from '@/lib/context/GlobalContext';
 import { useRouter } from 'next/navigation';
 import { getBriefBatchById, getBrandById, getBriefConcepts, createBriefConcept, updateBriefConcept, deleteBriefConcept, deleteBriefBatch, uploadMedia, shareBriefBatch, shareBriefConcept } from '@/lib/services/powerbriefService';
 import { Brand, BriefBatch, BriefConcept, Scene, AiBriefingRequest, ShareSettings } from '@/lib/types/powerbrief';
-import { Loader2, ArrowLeft, Save, Trash2, Plus, FileUp, Zap, Sparkles, MoveDown, MoveUp, X, Bug, Copy, Check, Pencil, Share2, LinkIcon, Mail } from 'lucide-react';
+import { 
+    Sparkles, Plus, X, FileUp, Trash2, Share2, MoveUp, MoveDown, Image, Video, 
+    Loader2, Check, Pencil, Bug, Film, FileImage, ArrowLeft, Copy, LinkIcon, Mail, Zap, Save
+} from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
@@ -61,6 +64,7 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
     const [shareIsEditable, setShareIsEditable] = useState<boolean>(false);
     const [sharingInProgress, setSharingInProgress] = useState<boolean>(false);
     const [shareSuccess, setShareSuccess] = useState<boolean>(false);
+    const [localMediaTypes, setLocalMediaTypes] = useState<Record<string, 'video' | 'image'>>({});
 
     // Extract params using React.use()
     const unwrappedParams = React.use(params as any) as ParamsType;
@@ -246,18 +250,25 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
             
             const mediaUrl = await uploadMedia(file, user.id);
             const concept = concepts.find(c => c.id === conceptId);
+            const mediaType = file.type.startsWith('video/') ? 'video' : 'image';
             
             if (concept) {
                 const updatedConcept = await updateBriefConcept({
                     ...concept,
                     id: conceptId,
                     media_url: mediaUrl,
-                    media_type: file.type.startsWith('video/') ? 'video' : 'image'
+                    media_type: mediaType
                 });
                 
                 setConcepts(prev => 
                     prev.map(c => c.id === updatedConcept.id ? updatedConcept : c)
                 );
+                
+                // Also update local media type
+                setLocalMediaTypes(prev => ({
+                    ...prev,
+                    [conceptId]: mediaType
+                }));
             }
         } catch (err) {
             console.error('Failed to upload media:', err);
@@ -331,6 +342,13 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                     // Force a small delay to ensure processing completes
                     await new Promise(resolve => setTimeout(resolve, 1000));
                     
+                    // After adding the concept to newConcepts array
+                    // Update local media type state to match
+                    setLocalMediaTypes(prev => ({
+                        ...prev,
+                        [newConcept.id]: file.type.startsWith('video/') ? 'video' : 'image'
+                    }));
+                    
                 } catch (fileErr) {
                     console.error(`EZ UPLOAD: Error processing file ${i+1}/${filesArray.length}:`, fileErr);
                     setError(prev => {
@@ -392,12 +410,14 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
         try {
             setGeneratingConceptId(conceptId);
             
-            const request: AiBriefingRequest = {
-                brandContext: {
-                    brand_info_data: brand.brand_info_data,
-                    target_audience_data: brand.target_audience_data,
-                    competition_data: brand.competition_data
-                },
+                                const request: AiBriefingRequest = {
+                        brandContext: {
+                            brand_info_data: brand.brand_info_data,
+                            target_audience_data: brand.target_audience_data,
+                            competition_data: brand.competition_data,
+                            system_instructions_image: brand.system_instructions_image,
+                            system_instructions_video: brand.system_instructions_video
+                        },
                 conceptSpecificPrompt: concept.ai_custom_prompt || '',
                 conceptCurrentData: {
                     caption_hook_options: concept.caption_hook_options || '',
@@ -474,7 +494,9 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                         brandContext: {
                             brand_info_data: brand.brand_info_data,
                             target_audience_data: brand.target_audience_data,
-                            competition_data: brand.competition_data
+                            competition_data: brand.competition_data,
+                            system_instructions_image: brand.system_instructions_image,
+                            system_instructions_video: brand.system_instructions_video
                         },
                         conceptSpecificPrompt: concept.ai_custom_prompt || '',
                         conceptCurrentData: {
@@ -688,6 +710,7 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
         const videoEditorsMap: Record<string, string> = {};
         const videoInstructionsMap: Record<string, string> = {};
         const designerInstructionsMap: Record<string, string> = {};
+        const mediaTypesMap: Record<string, 'video' | 'image'> = {};
         
         concepts.forEach(concept => {
             promptMap[concept.id] = concept.ai_custom_prompt || '';
@@ -700,6 +723,7 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
             videoEditorsMap[concept.id] = concept.video_editor || '';
             videoInstructionsMap[concept.id] = concept.videoInstructions || '';
             designerInstructionsMap[concept.id] = concept.designerInstructions || '';
+            mediaTypesMap[concept.id] = (concept.media_type as 'video' | 'image') || 'video';
         });
         
         setLocalPrompts(promptMap);
@@ -712,6 +736,7 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
         setLocalVideoEditors(videoEditorsMap);
         setLocalVideoInstructions(videoInstructionsMap);
         setLocalDesignerInstructions(designerInstructionsMap);
+        setLocalMediaTypes(mediaTypesMap);
     }, [concepts]);
 
     // Debug prompt for a concept
@@ -729,7 +754,9 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
             brandContext: {
                 brand_info_data: brand.brand_info_data,
                 target_audience_data: brand.target_audience_data,
-                competition_data: brand.competition_data
+                competition_data: brand.competition_data,
+                system_instructions_image: brand.system_instructions_image,
+                system_instructions_video: brand.system_instructions_video
             },
             conceptSpecificPrompt: customPrompt, // Use the local value
             conceptCurrentData: {
@@ -773,8 +800,17 @@ allowing it to properly analyze images and videos. This is just a text represent
             enhancedCustomPrompt = `IMPORTANT INSTRUCTION: ${enhancedCustomPrompt.toUpperCase()}`;
         }
         
-        // Define the system instruction and user prompt - same as in the API
-        const systemPrompt = `You are an expert advertising strategist and copywriter specializing in direct response marketing. 
+        // Get the appropriate system instructions based on media type
+        let systemPrompt = '';
+        
+        // Check if brand-specific system instructions are provided
+        if (request.brandContext.system_instructions_image && request.media?.type === 'image') {
+            systemPrompt = request.brandContext.system_instructions_image;
+        } else if (request.brandContext.system_instructions_video && request.media?.type === 'video') {
+            systemPrompt = request.brandContext.system_instructions_video;
+        } else {
+            // Fallback to default system prompt if no custom instructions are available
+            systemPrompt = `You are an expert advertising strategist and copywriter specializing in direct response marketing. 
 Given the brand context (positioning, target audience, competitors), concept prompt, and media (if provided), generate ad creative components that specifically relate to the media content.
 
 IMPORTANT: Your response MUST be valid JSON and nothing else. Format:
@@ -791,6 +827,14 @@ IMPORTANT: Your response MUST be valid JSON and nothing else. Format:
   "cta_script": "Call to action script",
   "cta_text_overlay": "Text overlay for the CTA"
 }`;
+        }
+        
+        // Add explanation about system instructions for clarity in debug view
+        if (request.brandContext.system_instructions_image || request.brandContext.system_instructions_video) {
+            // Add a note about which system instructions were used
+            const usedInstructions = request.media?.type === 'image' ? 'image' : request.media?.type === 'video' ? 'video' : 'default';
+            systemPrompt = `/* Using ${usedInstructions} system instructions */\n\n` + systemPrompt;
+        }
 
         const userPrompt = `${enhancedCustomPrompt ? `${enhancedCustomPrompt}\n\n` : ''}
 BRAND CONTEXT:
@@ -923,6 +967,26 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
             setShareSuccess(false);
         }
     }, [showShareBatchDialog, showShareConceptDialog]);
+
+    // Handle media type change
+    const handleMediaTypeChange = (conceptId: string, mediaType: 'video' | 'image') => {
+        const concept = concepts.find(c => c.id === conceptId);
+        if (!concept) return;
+        
+        // Update local state
+        setLocalMediaTypes(prev => ({
+            ...prev,
+            [conceptId]: mediaType
+        }));
+        
+        // Update concept in database
+        const updatedConcept = {
+            ...concept,
+            media_type: mediaType
+        };
+        
+        handleUpdateConcept(updatedConcept);
+    };
 
     if (loading) {
         return (
@@ -1302,6 +1366,31 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                         )}
                                     </div>
                                     
+                                    {/* Media Type Selector */}
+                                    <div className="flex items-center space-x-2">
+                                        <label className="text-xs font-medium">Media Type:</label>
+                                        <div className="flex space-x-1">
+                                            <Button
+                                                variant={localMediaTypes[concept.id] === 'video' ? 'default' : 'outline'}
+                                                size="sm"
+                                                className={`flex items-center ${localMediaTypes[concept.id] === 'video' ? 'bg-primary-600 text-white' : ''}`}
+                                                onClick={() => handleMediaTypeChange(concept.id, 'video')}
+                                            >
+                                                <Film className="h-3 w-3 mr-1" />
+                                                Video
+                                            </Button>
+                                            <Button
+                                                variant={localMediaTypes[concept.id] === 'image' ? 'default' : 'outline'}
+                                                size="sm"
+                                                className={`flex items-center ${localMediaTypes[concept.id] === 'image' ? 'bg-primary-600 text-white' : ''}`}
+                                                onClick={() => handleMediaTypeChange(concept.id, 'image')}
+                                            >
+                                                <FileImage className="h-3 w-3 mr-1" />
+                                                Image
+                                            </Button>
+                                        </div>
+                                    </div>
+                                    
                                     {/* AI Prompt */}
                                     <div>
                                         <Textarea
@@ -1409,193 +1498,269 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                         />
                                     </div>
                                     
-                                    {/* Body Content */}
+                                    {/* Body Content - conditional based on media type */}
                                     <div className="space-y-4">
                                         <div className="flex justify-between items-center">
-                                            <h3 className="font-medium text-sm">Body (Script & Visual Recommendations)</h3>
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    handleAddScene(concept.id);
-                                                }}
-                                            >
-                                                <Plus className="h-3 w-3 mr-1" />
-                                                Add Scene
-                                            </Button>
+                                            <h3 className="font-medium text-sm">
+                                                {localMediaTypes[concept.id] === 'video' 
+                                                    ? "Body (Script & Visual Recommendations)" 
+                                                    : "Image Description"}
+                                            </h3>
+                                            {localMediaTypes[concept.id] === 'video' && (
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleAddScene(concept.id);
+                                                    }}
+                                                >
+                                                    <Plus className="h-3 w-3 mr-1" />
+                                                    Add Scene
+                                                </Button>
+                                            )}
                                         </div>
                                         
-                                        {concept.body_content_structured.length === 0 ? (
-                                            <div className="p-4 bg-gray-50 rounded text-sm text-gray-500 text-center">
-                                                No scenes yet. Add a scene or use AI to generate content.
-                                            </div>
-                                        ) : (
-                                            <div className="space-y-4">
-                                                {(localScenes[concept.id] || []).map((scene, index) => (
-                                                    <div key={index} className="p-4 border rounded space-y-2">
-                                                        <div className="flex justify-between items-center">
-                                                            <Input
-                                                                value={scene.scene_title}
-                                                                onChange={(e) => {
-                                                                    const updatedScenes = [...(localScenes[concept.id] || [])];
-                                                                    updatedScenes[index] = {
-                                                                        ...scene,
-                                                                        scene_title: e.target.value
-                                                                    };
-                                                                    
-                                                                    // Update local state
-                                                                    setLocalScenes(prev => ({
-                                                                        ...prev,
-                                                                        [concept.id]: updatedScenes
-                                                                    }));
-                                                                    
-                                                                    // Debounce save
-                                                                    debouncedUpdateScene(
-                                                                        concept.id, 
-                                                                        index, 
-                                                                        updatedScenes[index]
-                                                                    );
-                                                                }}
-                                                                onBlur={() => {
-                                                                    if (saveTimeoutRef.current) {
-                                                                        clearTimeout(saveTimeoutRef.current);
-                                                                        saveTimeoutRef.current = null;
-                                                                    }
-                                                                    
-                                                                    handleUpdateScene(
-                                                                        concept.id, 
-                                                                        index, 
-                                                                        (localScenes[concept.id] || [])[index]
-                                                                    );
-                                                                }}
-                                                                placeholder="Scene Title (optional)"
-                                                                className="text-sm font-medium"
-                                                            />
-                                                            <div className="flex space-x-1">
-                                                                <Button
-                                                                    variant="ghost"
-                                                                    size="icon"
-                                                                    className="h-8 w-8"
-                                                                    disabled={index === 0}
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        handleMoveSceneUp(concept.id, index);
+                                        {localMediaTypes[concept.id] === 'video' ? (
+                                            // Video content with scenes
+                                            concept.body_content_structured.length === 0 ? (
+                                                <div className="p-4 bg-gray-50 rounded text-sm text-gray-500 text-center">
+                                                    No scenes yet. Add a scene or use AI to generate content.
+                                                </div>
+                                            ) : (
+                                                <div className="space-y-4">
+                                                    {(localScenes[concept.id] || []).map((scene, index) => (
+                                                        <div key={index} className="p-4 border rounded space-y-2">
+                                                            <div className="flex justify-between items-center">
+                                                                <Input
+                                                                    value={scene.scene_title}
+                                                                    onChange={(e) => {
+                                                                        const updatedScenes = [...(localScenes[concept.id] || [])];
+                                                                        updatedScenes[index] = {
+                                                                            ...scene,
+                                                                            scene_title: e.target.value
+                                                                        };
+                                                                        
+                                                                        // Update local state
+                                                                        setLocalScenes(prev => ({
+                                                                            ...prev,
+                                                                            [concept.id]: updatedScenes
+                                                                        }));
+                                                                        
+                                                                        // Debounce save
+                                                                        debouncedUpdateScene(
+                                                                            concept.id, 
+                                                                            index, 
+                                                                            updatedScenes[index]
+                                                                        );
                                                                     }}
-                                                                >
-                                                                    <MoveUp className="h-4 w-4" />
-                                                                </Button>
-                                                                <Button
-                                                                    variant="ghost"
-                                                                    size="icon"
-                                                                    className="h-8 w-8"
-                                                                    disabled={index === concept.body_content_structured.length - 1}
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        handleMoveSceneDown(concept.id, index);
+                                                                    onBlur={() => {
+                                                                        if (saveTimeoutRef.current) {
+                                                                            clearTimeout(saveTimeoutRef.current);
+                                                                            saveTimeoutRef.current = null;
+                                                                        }
+                                                                        
+                                                                        handleUpdateScene(
+                                                                            concept.id, 
+                                                                            index, 
+                                                                            (localScenes[concept.id] || [])[index]
+                                                                        );
                                                                     }}
-                                                                >
-                                                                    <MoveDown className="h-4 w-4" />
-                                                                </Button>
-                                                                <Button
-                                                                    variant="ghost"
-                                                                    size="icon"
-                                                                    className="h-8 w-8 text-red-500"
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        handleRemoveScene(concept.id, index);
+                                                                    placeholder="Scene Title (optional)"
+                                                                    className="text-sm font-medium"
+                                                                />
+                                                                <div className="flex space-x-1">
+                                                                    <Button
+                                                                        variant="ghost"
+                                                                        size="icon"
+                                                                        className="h-8 w-8"
+                                                                        disabled={index === 0}
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            handleMoveSceneUp(concept.id, index);
+                                                                        }}
+                                                                    >
+                                                                        <MoveUp className="h-4 w-4" />
+                                                                    </Button>
+                                                                    <Button
+                                                                        variant="ghost"
+                                                                        size="icon"
+                                                                        className="h-8 w-8"
+                                                                        disabled={index === concept.body_content_structured.length - 1}
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            handleMoveSceneDown(concept.id, index);
+                                                                        }}
+                                                                    >
+                                                                        <MoveDown className="h-4 w-4" />
+                                                                    </Button>
+                                                                    <Button
+                                                                        variant="ghost"
+                                                                        size="icon"
+                                                                        className="h-8 w-8 text-red-500"
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            handleRemoveScene(concept.id, index);
+                                                                        }}
+                                                                    >
+                                                                        <X className="h-4 w-4" />
+                                                                    </Button>
+                                                                </div>
+                                                            </div>
+                                                            
+                                                            <div>
+                                                                <label className="block text-xs font-medium mb-1">Script:</label>
+                                                                <Textarea
+                                                                    value={scene.script}
+                                                                    onChange={(e) => {
+                                                                        const updatedScenes = [...(localScenes[concept.id] || [])];
+                                                                        updatedScenes[index] = {
+                                                                            ...scene,
+                                                                            script: e.target.value
+                                                                        };
+                                                                        
+                                                                        // Update local state
+                                                                        setLocalScenes(prev => ({
+                                                                            ...prev,
+                                                                            [concept.id]: updatedScenes
+                                                                        }));
+                                                                        
+                                                                        // Debounce save
+                                                                        debouncedUpdateScene(
+                                                                            concept.id, 
+                                                                            index, 
+                                                                            updatedScenes[index]
+                                                                        );
                                                                     }}
-                                                                >
-                                                                    <X className="h-4 w-4" />
-                                                                </Button>
+                                                                    onBlur={() => {
+                                                                        if (saveTimeoutRef.current) {
+                                                                            clearTimeout(saveTimeoutRef.current);
+                                                                            saveTimeoutRef.current = null;
+                                                                        }
+                                                                        
+                                                                        handleUpdateScene(
+                                                                            concept.id, 
+                                                                            index, 
+                                                                            (localScenes[concept.id] || [])[index]
+                                                                        );
+                                                                    }}
+                                                                    placeholder="Enter script content"
+                                                                    rows={3}
+                                                                    className="text-sm"
+                                                                />
+                                                            </div>
+                                                            
+                                                            <div>
+                                                                <label className="block text-xs font-medium mb-1">Visuals:</label>
+                                                                <Textarea
+                                                                    value={scene.visuals}
+                                                                    onChange={(e) => {
+                                                                        const updatedScenes = [...(localScenes[concept.id] || [])];
+                                                                        updatedScenes[index] = {
+                                                                            ...scene,
+                                                                            visuals: e.target.value
+                                                                        };
+                                                                        
+                                                                        // Update local state
+                                                                        setLocalScenes(prev => ({
+                                                                            ...prev,
+                                                                            [concept.id]: updatedScenes
+                                                                        }));
+                                                                        
+                                                                        // Debounce save
+                                                                        debouncedUpdateScene(
+                                                                            concept.id, 
+                                                                            index, 
+                                                                            updatedScenes[index]
+                                                                        );
+                                                                    }}
+                                                                    onBlur={() => {
+                                                                        if (saveTimeoutRef.current) {
+                                                                            clearTimeout(saveTimeoutRef.current);
+                                                                            saveTimeoutRef.current = null;
+                                                                        }
+                                                                        
+                                                                        handleUpdateScene(
+                                                                            concept.id, 
+                                                                            index, 
+                                                                            (localScenes[concept.id] || [])[index]
+                                                                        );
+                                                                    }}
+                                                                    placeholder="Describe visuals for this scene"
+                                                                    rows={3}
+                                                                    className="text-sm"
+                                                                />
                                                             </div>
                                                         </div>
+                                                    ))}
+                                                </div>
+                                            )
+                                        ) : (
+                                            // Image content (single description block)
+                                            <div className="p-4 border rounded space-y-2">
+                                                <label className="block text-xs font-medium mb-1">Description:</label>
+                                                <Textarea
+                                                    value={
+                                                        // If there's existing scene data, use the first scene's visuals
+                                                        // Otherwise use empty string
+                                                        (localScenes[concept.id] && localScenes[concept.id].length > 0)
+                                                            ? localScenes[concept.id][0].visuals
+                                                            : ""
+                                                    }
+                                                    onChange={(e) => {
+                                                        let updatedScenes: Scene[] = [];
                                                         
-                                                        <div>
-                                                            <label className="block text-xs font-medium mb-1">Script:</label>
-                                                            <Textarea
-                                                                value={scene.script}
-                                                                onChange={(e) => {
-                                                                    const updatedScenes = [...(localScenes[concept.id] || [])];
-                                                                    updatedScenes[index] = {
-                                                                        ...scene,
-                                                                        script: e.target.value
-                                                                    };
-                                                                    
-                                                                    // Update local state
-                                                                    setLocalScenes(prev => ({
-                                                                        ...prev,
-                                                                        [concept.id]: updatedScenes
-                                                                    }));
-                                                                    
-                                                                    // Debounce save
-                                                                    debouncedUpdateScene(
-                                                                        concept.id, 
-                                                                        index, 
-                                                                        updatedScenes[index]
-                                                                    );
-                                                                }}
-                                                                onBlur={() => {
-                                                                    if (saveTimeoutRef.current) {
-                                                                        clearTimeout(saveTimeoutRef.current);
-                                                                        saveTimeoutRef.current = null;
-                                                                    }
-                                                                    
-                                                                    handleUpdateScene(
-                                                                        concept.id, 
-                                                                        index, 
-                                                                        (localScenes[concept.id] || [])[index]
-                                                                    );
-                                                                }}
-                                                                placeholder="Enter script content"
-                                                                rows={3}
-                                                                className="text-sm"
-                                                            />
-                                                        </div>
+                                                        // If there's already a scene, update it
+                                                        if (localScenes[concept.id] && localScenes[concept.id].length > 0) {
+                                                            updatedScenes = [...localScenes[concept.id]];
+                                                            updatedScenes[0] = {
+                                                                ...updatedScenes[0],
+                                                                visuals: e.target.value
+                                                            };
+                                                        } else {
+                                                            // Create a new scene if none exists
+                                                            updatedScenes = [{
+                                                                scene_title: "Image Description",
+                                                                script: "",
+                                                                visuals: e.target.value
+                                                            }];
+                                                        }
                                                         
-                                                        <div>
-                                                            <label className="block text-xs font-medium mb-1">Visuals:</label>
-                                                            <Textarea
-                                                                value={scene.visuals}
-                                                                onChange={(e) => {
-                                                                    const updatedScenes = [...(localScenes[concept.id] || [])];
-                                                                    updatedScenes[index] = {
-                                                                        ...scene,
-                                                                        visuals: e.target.value
-                                                                    };
-                                                                    
-                                                                    // Update local state
-                                                                    setLocalScenes(prev => ({
-                                                                        ...prev,
-                                                                        [concept.id]: updatedScenes
-                                                                    }));
-                                                                    
-                                                                    // Debounce save
-                                                                    debouncedUpdateScene(
-                                                                        concept.id, 
-                                                                        index, 
-                                                                        updatedScenes[index]
-                                                                    );
-                                                                }}
-                                                                onBlur={() => {
-                                                                    if (saveTimeoutRef.current) {
-                                                                        clearTimeout(saveTimeoutRef.current);
-                                                                        saveTimeoutRef.current = null;
-                                                                    }
-                                                                    
-                                                                    handleUpdateScene(
-                                                                        concept.id, 
-                                                                        index, 
-                                                                        (localScenes[concept.id] || [])[index]
-                                                                    );
-                                                                }}
-                                                                placeholder="Describe visuals for this scene"
-                                                                rows={3}
-                                                                className="text-sm"
-                                                            />
-                                                        </div>
-                                                    </div>
-                                                ))}
+                                                        // Update local state
+                                                        setLocalScenes(prev => ({
+                                                            ...prev,
+                                                            [concept.id]: updatedScenes
+                                                        }));
+                                                        
+                                                        // Update the concept with the new scenes
+                                                        const updatedConcept = {
+                                                            ...concept,
+                                                            body_content_structured: updatedScenes
+                                                        };
+                                                        
+                                                        debouncedUpdateConcept(updatedConcept);
+                                                    }}
+                                                    onBlur={() => {
+                                                        if (saveTimeoutRef.current) {
+                                                            clearTimeout(saveTimeoutRef.current);
+                                                            saveTimeoutRef.current = null;
+                                                        }
+                                                        
+                                                        // Get the updated scenes from local state
+                                                        const updatedScenes = localScenes[concept.id] || [];
+                                                        
+                                                        // Update the concept with these scenes
+                                                        const updatedConcept = {
+                                                            ...concept,
+                                                            body_content_structured: updatedScenes
+                                                        };
+                                                        
+                                                        handleUpdateConcept(updatedConcept);
+                                                    }}
+                                                    placeholder="Describe the image content, style, elements, and composition..."
+                                                    rows={5}
+                                                    className="text-sm"
+                                                />
                                             </div>
                                         )}
                                     </div>
