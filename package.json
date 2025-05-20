@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "@types/uuid": "^10.0.0",
+    "node-fetch": "^3.3.2",
+    "uuid": "^11.1.0"
+  }
+}
