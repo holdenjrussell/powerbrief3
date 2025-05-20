@@ -6,6 +6,7 @@ import { Brand, BriefBatch, BriefConcept, Scene } from '@/lib/types/powerbrief';
 import { Loader2, Eye, EyeOff } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Link from 'next/link';
 
@@ -27,6 +28,7 @@ interface ExtendedBriefBatch extends Omit<BriefBatch, 'brand_id'> {
 export default function SharedBriefPage({ params }: { params: { shareId: string } }) {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [showLoginPrompt, setShowLoginPrompt] = useState<boolean>(false);
   const [brand, setBrand] = useState<any>(null);
   const [batch, setBatch] = useState<any>(null);
   const [concepts, setConcepts] = useState<any[]>([]);
@@ -53,7 +55,8 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
         }
 
         if (!batchData || batchData.length === 0) {
-          setError('Shared content not found or has expired');
+          setError('Shared content not found or has expired. You might need to log in to view this content.');
+          setShowLoginPrompt(true);
           setLoading(false);
           return;
         }
@@ -107,6 +110,9 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
       } catch (err: any) {
         console.error('Error fetching shared batch:', err);
         setError(err.message || 'Failed to load shared content');
+        if (err.message?.includes('FetchError') || err.message?.includes('JSONडुप्लिकेट अनुवादToken') || (err.message?.toLowerCase().includes('not found') && !err.message?.toLowerCase().includes('share settings not found'))) {
+            setShowLoginPrompt(true);
+        }
       } finally {
         setLoading(false);
       }
@@ -129,6 +135,16 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
         <Alert>
           <AlertDescription>{error || 'Content not found'}</AlertDescription>
         </Alert>
+        {showLoginPrompt && (
+          <div className="mt-4 text-center">
+            <p className="mb-2">Please log in to access this content.</p>
+            <Link href={`/login?redirect_to=${encodeURIComponent(window.location.href)}`} passHref>
+              <Button>
+                Log In
+              </Button>
+            </Link>
+          </div>
+        )}
       </div>
     );
   }
