@@ -64,7 +64,7 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
 
     // New state for editing resources, resource logins, and dos/donts
     const [editingResources, setEditingResources] = useState<EditingResource[]>([]);
-    const [newResource, setNewResource] = useState<EditingResource>({ name: '', emoji: '', url: '' });
+    const [newResource, setNewResource] = useState<EditingResource>({ name: '', url: '' });
     const [resourceLogins, setResourceLogins] = useState<ResourceLogin[]>([]);
     const [newLogin, setNewLogin] = useState<ResourceLogin>({ resourceName: '', username: '', password: '' });
     const [dosAndDonts, setDosAndDonts] = useState<DosAndDonts>({
@@ -502,7 +502,6 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
                             {editingResources.map((resource, index) => (
                                 <div key={index} className="flex items-center justify-between p-3 rounded-md border">
                                     <div className="flex items-center space-x-2">
-                                        <span className="text-xl">{resource.emoji}</span>
                                         <span className="font-medium">{resource.name}</span>
                                     </div>
                                     <div className="flex items-center space-x-2">
@@ -522,15 +521,7 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
                         
                         <div className="space-y-2">
                             <h3 className="text-sm font-medium">Add New Resource</h3>
-                            <div className="grid grid-cols-4 gap-2">
-                                <div className="col-span-1">
-                                    <Input
-                                        value={newResource.emoji}
-                                        onChange={(e) => setNewResource({...newResource, emoji: e.target.value})}
-                                        placeholder="Emoji"
-                                        className="w-full"
-                                    />
-                                </div>
+                            <div className="grid grid-cols-3 gap-2">
                                 <div className="col-span-1">
                                     <Input
                                         value={newResource.name}
@@ -550,7 +541,7 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
                                         onClick={() => {
                                             if (newResource.name && newResource.url) {
                                                 setEditingResources(prev => [...prev, {...newResource}]);
-                                                setNewResource({ name: '', emoji: '', url: '' });
+                                                setNewResource({ name: '', url: '' });
                                             }
                                         }}
                                         disabled={!newResource.name || !newResource.url}

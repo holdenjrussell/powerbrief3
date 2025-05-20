@@ -17,7 +17,6 @@ export interface BrandInfoData {
 
 export interface EditingResource {
   name: string;
-  emoji: string;
   url: string;
 }
 
