@@ -93,6 +93,48 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                 setBrand(brandData);
                 setBatch(batchData);
                 setConcepts(conceptsData);
+
+                // Initialize local states for each concept based on fetched data
+                const initialLocalPrompts: Record<string, string> = {};
+                const initialLocalCaptionHooks: Record<string, string> = {};
+                const initialLocalCtaScript: Record<string, string> = {};
+                const initialLocalCtaTextOverlay: Record<string, string> = {};
+                const initialLocalScenes: Record<string, Scene[]> = {};
+                const initialLocalDescriptions: Record<string, string> = {};
+                const initialLocalVideoInstructions: Record<string, string> = {};
+                const initialLocalDesignerInstructions: Record<string, string> = {};
+                const initialLocalClickupLinks: Record<string, string> = {};
+                const initialLocalStrategists: Record<string, string> = {};
+                const initialLocalVideoEditors: Record<string, string> = {};
+                const initialLocalMediaTypes: Record<string, 'video' | 'image'> = {};
+
+                conceptsData.forEach(concept => {
+                    initialLocalPrompts[concept.id] = concept.ai_custom_prompt || '';
+                    initialLocalCaptionHooks[concept.id] = concept.caption_hook_options?.[0] || ''; // Assuming single hook for now, adjust if multiple
+                    initialLocalCtaScript[concept.id] = concept.cta_script || '';
+                    initialLocalCtaTextOverlay[concept.id] = concept.cta_text_overlay || '';
+                    initialLocalScenes[concept.id] = concept.body_content_structured || [];
+                    initialLocalDescriptions[concept.id] = concept.description || '';
+                    initialLocalVideoInstructions[concept.id] = concept.videoInstructions || '';
+                    initialLocalDesignerInstructions[concept.id] = concept.designerInstructions || '';
+                    initialLocalClickupLinks[concept.id] = concept.clickup_id || ''; // Note: uses clickup_id from concept
+                    initialLocalStrategists[concept.id] = concept.strategist || '';
+                    initialLocalVideoEditors[concept.id] = concept.video_editor || '';
+                    initialLocalMediaTypes[concept.id] = concept.media_type === 'image' ? 'image' : 'video'; // Corrected line
+                });
+
+                setLocalPrompts(initialLocalPrompts);
+                setLocalCaptionHooks(initialLocalCaptionHooks);
+                setLocalCtaScript(initialLocalCtaScript);
+                setLocalCtaTextOverlay(initialLocalCtaTextOverlay);
+                setLocalScenes(initialLocalScenes);
+                setLocalDescriptions(initialLocalDescriptions);
+                setLocalVideoInstructions(initialLocalVideoInstructions);
+                setLocalDesignerInstructions(initialLocalDesignerInstructions);
+                setLocalClickupLinks(initialLocalClickupLinks);
+                setLocalStrategists(initialLocalStrategists);
+                setLocalVideoEditors(initialLocalVideoEditors);
+                setLocalMediaTypes(initialLocalMediaTypes);
                 
                 if (conceptsData.length > 0 && !activeConceptId) {
                     setActiveConceptId(conceptsData[0].id);
