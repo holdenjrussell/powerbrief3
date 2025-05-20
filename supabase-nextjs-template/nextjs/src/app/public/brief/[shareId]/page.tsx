@@ -275,6 +275,12 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
                     {concept.status && (
                       <CardDescription>Status: {concept.status}</CardDescription>
                     )}
+                    {concept.strategist && (
+                      <CardDescription>Strategist: {concept.strategist}</CardDescription>
+                    )}
+                    {concept.video_editor && (
+                      <CardDescription>Video Editor/Designer: {concept.video_editor}</CardDescription>
+                    )}
                   </CardHeader>
                   <CardContent className="space-y-4">
                     {/* Media Preview */}
