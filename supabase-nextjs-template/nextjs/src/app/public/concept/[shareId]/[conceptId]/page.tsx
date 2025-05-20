@@ -1,5 +1,5 @@
 "use client";
-
+// latest updates
 import React, { useState, useEffect } from 'react';
 import { createSPAClient } from '@/lib/supabase/client';
 import { BriefConcept, Scene } from '@/lib/types/powerbrief';
@@ -100,7 +100,8 @@ export default function SharedSingleConceptPage({ params }: { params: { shareId:
         setIsEditable(!!shareSettings?.is_editable);
         
         // Check if the concept status is appropriate for sharing
-        if (conceptData && conceptData.status !== "ready for designer" && conceptData.status !== "ready for editor") {
+        const statusLowerCase = conceptData?.status?.toLowerCase();
+        if (conceptData && statusLowerCase !== "ready for designer" && statusLowerCase !== "ready for editor") {
           setError('This concept is not available for viewing. Only concepts with status "ready for designer" or "ready for editor" can be viewed.');
           setConcept(null);
         }
