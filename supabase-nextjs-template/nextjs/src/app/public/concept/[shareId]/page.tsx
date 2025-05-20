@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { createSPAClient } from '@/lib/supabase/client';
 import { BriefConcept, Scene } from '@/lib/types/powerbrief';
-import { Loader2, ArrowLeft, ChevronDown, ChevronUp, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Loader2, ArrowLeft, ChevronDown, ChevronUp, CheckCircle, AlertTriangle, Link as LinkIcon } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,11 +11,50 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { toast } from '@/components/ui/use-toast';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+
+// Add these types above export default function SharedConceptPage
+interface BrandWithResources {
+  id: string;
+  name: string;
+  editing_resources?: Array<{ name: string; url: string }>;
+  resource_logins?: Array<{ name: string; username: string; password: string }>;
+  stock_resources?: Array<{ name: string; url: string }>;
+}
+
+// Use this more flexible type instead of extending from BriefConcept
+interface ConceptWithShareSettings {
+  id: string;
+  brief_batch_id: string;
+  user_id: string;
+  concept_title: string;
+  clickup_id?: string;
+  strategist?: string;
+  video_editor?: string;
+  status?: string;
+  media_url?: string;
+  media_type?: string;
+  caption_hook_options?: string;
+  videoInstructions?: string;
+  designerInstructions?: string;
+  body_content_structured?: any; // Use any to avoid type conflicts
+  cta_script?: string;
+  cta_text_overlay?: string;
+  review_status?: string;
+  review_link?: string;
+  reviewer_notes?: string;
+  share_settings?: Record<string, any>;
+  brief_batches?: {
+    brands: BrandWithResources;
+  };
+  [key: string]: any; // Allow any other properties
+}
 
 export default function SharedConceptPage({ params }: { params: { shareId: string } }) {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [concept, setConcept] = useState<BriefConcept | null>(null);
+  const [concept, setConcept] = useState<ConceptWithShareSettings | null>(null);
+  const [brand, setBrand] = useState<BrandWithResources | null>(null);
   const [showVideoInstructions, setShowVideoInstructions] = useState<boolean>(false);
   const [showDesignerInstructions, setShowDesignerInstructions] = useState<boolean>(false);
   const [isEditable, setIsEditable] = useState<boolean>(false);
@@ -36,7 +75,7 @@ export default function SharedConceptPage({ params }: { params: { shareId: strin
         // Find the concept with this shareId in its share_settings
         const { data: conceptData, error: conceptError } = await supabase
           .from('brief_concepts')
-          .select('*')
+          .select('*, brief_batches(*, brands(*))')
           .contains('share_settings', { [shareId]: {} });
 
         if (conceptError) {
@@ -49,7 +88,7 @@ export default function SharedConceptPage({ params }: { params: { shareId: strin
           return;
         }
 
-        const conceptWithShare = conceptData[0];
+        const conceptWithShare = conceptData[0] as unknown as ConceptWithShareSettings;
         const shareSettings = conceptWithShare.share_settings?.[shareId];
         
         if (!shareSettings) {
@@ -71,6 +110,11 @@ export default function SharedConceptPage({ params }: { params: { shareId: strin
         // Initialize review link from concept if it exists
         if (conceptWithShare.review_link) {
           setReviewLink(conceptWithShare.review_link);
+        }
+
+        // Get brand data if available
+        if (conceptWithShare.brief_batches?.brands) {
+          setBrand(conceptWithShare.brief_batches.brands);
         }
 
         setConcept(conceptWithShare);
@@ -133,9 +177,9 @@ export default function SharedConceptPage({ params }: { params: { shareId: strin
         }
         
         const updatedConcept = await response.json();
-        setConcept(updatedConcept);
+        setConcept(updatedConcept as unknown as ConceptWithShareSettings);
       } else {
-        setConcept(data);
+        setConcept(data as unknown as ConceptWithShareSettings);
       }
       
       toast({
@@ -196,9 +240,9 @@ export default function SharedConceptPage({ params }: { params: { shareId: strin
         }
         
         const updatedConcept = await response.json();
-        setConcept(updatedConcept);
+        setConcept(updatedConcept as unknown as ConceptWithShareSettings);
       } else {
-        setConcept(data);
+        setConcept(data as unknown as ConceptWithShareSettings);
       }
       
       toast({
@@ -526,6 +570,283 @@ export default function SharedConceptPage({ params }: { params: { shareId: strin
         {concept.strategist && <p>Strategist: {concept.strategist}</p>}
         {concept.video_editor && <p>Video Editor: {concept.video_editor}</p>}
       </div>
+
+      <Tabs defaultValue="concept" className="w-full">
+        <TabsList className="mb-4">
+          <TabsTrigger value="concept">Concept Details</TabsTrigger>
+          <TabsTrigger value="resources">Editing Resources</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="concept">
+          {/* Existing content */}
+          {/* Editor Review Section */}
+          {isEditable && !concept?.review_status && (
+            <Card className="border-2 border-blue-300">
+              <CardHeader>
+                <CardTitle className="text-lg">Mark Ready for Review</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label htmlFor="reviewLink">Frame.io Review Link</Label>
+                  <Input
+                    id="reviewLink"
+                    placeholder="Paste your Frame.io link here"
+                    value={reviewLink}
+                    onChange={(e) => setReviewLink(e.target.value)}
+                  />
+                  <p className="text-sm text-gray-500 mt-1">
+                    Please provide a link to the video on Frame.io for review
+                  </p>
+                </div>
+              </CardContent>
+              <CardFooter>
+                <Button 
+                  onClick={handleMarkReadyForReview} 
+                  disabled={updatingReview || !reviewLink.trim()} 
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  {updatingReview ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                  Mark as Ready for Review
+                </Button>
+              </CardFooter>
+            </Card>
+          )}
+
+          {/* Media display */}
+          {concept.media_url && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Media</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex justify-center">
+                  {concept.media_type === 'video' ? (
+                    <video
+                      src={concept.media_url}
+                      controls
+                      className="max-h-[400px] object-contain rounded"
+                    />
+                  ) : (
+                    <img
+                      src={concept.media_url}
+                      alt="Concept media"
+                      className="max-h-[400px] object-contain rounded"
+                    />
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Instructions Accordions */}
+          {concept.videoInstructions && concept.media_type === 'video' && (
+            <Card>
+              <CardHeader 
+                className="flex flex-row items-center justify-between cursor-pointer" 
+                onClick={() => setShowVideoInstructions(!showVideoInstructions)}
+              >
+                <CardTitle className="text-lg">Editor Instructions for Video</CardTitle>
+                {showVideoInstructions ? (
+                  <ChevronUp className="h-5 w-5" />
+                ) : (
+                  <ChevronDown className="h-5 w-5" />
+                )}
+              </CardHeader>
+              {showVideoInstructions && (
+                <CardContent>
+                  <div className="whitespace-pre-wrap bg-gray-50 p-4 rounded">{concept.videoInstructions}</div>
+                </CardContent>
+              )}
+            </Card>
+          )}
+
+          {concept.designerInstructions && concept.media_type === 'image' && (
+            <Card>
+              <CardHeader 
+                className="flex flex-row items-center justify-between cursor-pointer" 
+                onClick={() => setShowDesignerInstructions(!showDesignerInstructions)}
+              >
+                <CardTitle className="text-lg">Designer Instructions for Image</CardTitle>
+                {showDesignerInstructions ? (
+                  <ChevronUp className="h-5 w-5" />
+                ) : (
+                  <ChevronDown className="h-5 w-5" />
+                )}
+              </CardHeader>
+              {showDesignerInstructions && (
+                <CardContent>
+                  <div className="whitespace-pre-wrap bg-gray-50 p-4 rounded">{concept.designerInstructions}</div>
+                </CardContent>
+              )}
+            </Card>
+          )}
+
+          {/* Caption hooks */}
+          {concept.caption_hook_options && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Caption Hook Options</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="whitespace-pre-wrap">{concept.caption_hook_options}</p>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Body content - scenes */}
+          {concept.body_content_structured && concept.body_content_structured.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Body Content</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-6">
+                  {concept.body_content_structured.map((scene: Scene, index: number) => (
+                    <div key={index} className="p-4 border rounded space-y-3">
+                      <h3 className="font-medium">{scene.scene_title || `Scene ${index + 1}`}</h3>
+                      
+                      <div>
+                        <h4 className="text-sm font-medium text-gray-500 mb-1">Script:</h4>
+                        <p className="whitespace-pre-wrap text-sm bg-gray-50 p-3 rounded">{scene.script}</p>
+                      </div>
+                      
+                      <div>
+                        <h4 className="text-sm font-medium text-gray-500 mb-1">Visuals:</h4>
+                        <p className="whitespace-pre-wrap text-sm bg-gray-50 p-3 rounded">{scene.visuals}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* CTA */}
+          {(concept.cta_script || concept.cta_text_overlay) && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Call to Action</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {concept.cta_script && (
+                    <div>
+                      <h4 className="text-sm font-medium mb-1">CTA Script:</h4>
+                      <p className="whitespace-pre-wrap bg-gray-50 p-3 rounded">{concept.cta_script}</p>
+                    </div>
+                  )}
+                  
+                  {concept.cta_text_overlay && (
+                    <div>
+                      <h4 className="text-sm font-medium mb-1">CTA Text Overlay:</h4>
+                      <p className="whitespace-pre-wrap bg-gray-50 p-3 rounded">{concept.cta_text_overlay}</p>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Concept metadata */}
+          <div className="border-t pt-4 text-sm text-gray-500">
+            {concept.strategist && <p>Strategist: {concept.strategist}</p>}
+            {concept.video_editor && <p>Video Editor: {concept.video_editor}</p>}
+          </div>
+        </TabsContent>
+        
+        <TabsContent value="resources" className="space-y-6">
+          {brand && (
+            <>
+              {/* Editing Resources */}
+              {brand.editing_resources && brand.editing_resources.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Editing Resources</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      {brand.editing_resources.map((resource: any, index: number) => (
+                        <div key={index} className="bg-gray-50 p-3 rounded flex justify-between items-center">
+                          <span className="font-medium">{resource.name}</span>
+                          <a 
+                            href={resource.url} 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            className="flex items-center space-x-1 text-blue-600 hover:underline"
+                          >
+                            <LinkIcon className="h-4 w-4" />
+                            <span>Visit</span>
+                          </a>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+              
+              {/* Resource Logins */}
+              {brand.resource_logins && brand.resource_logins.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Resource Logins</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      {brand.resource_logins.map((login: any, index: number) => (
+                        <div key={index} className="bg-gray-50 p-3 rounded">
+                          <div className="font-medium">{login.name}</div>
+                          <div className="grid grid-cols-2 gap-2 mt-2 text-sm">
+                            <div className="text-gray-500">Username:</div>
+                            <div>{login.username}</div>
+                            <div className="text-gray-500">Password:</div>
+                            <div>{login.password}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+              
+              {/* Stock Resources */}
+              {brand.stock_resources && brand.stock_resources.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Stock Resources</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      {brand.stock_resources.map((resource: any, index: number) => (
+                        <div key={index} className="bg-gray-50 p-3 rounded flex justify-between items-center">
+                          <span className="font-medium">{resource.name}</span>
+                          <a 
+                            href={resource.url} 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            className="flex items-center space-x-1 text-blue-600 hover:underline"
+                          >
+                            <LinkIcon className="h-4 w-4" />
+                            <span>Visit</span>
+                          </a>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </>
+          )}
+          
+          {(!brand || 
+            (!brand.editing_resources?.length && 
+             !brand.resource_logins?.length && 
+             !brand.stock_resources?.length)) && (
+            <div className="text-center p-8 text-gray-500">
+              <p>No editing resources available for this concept.</p>
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 } 
