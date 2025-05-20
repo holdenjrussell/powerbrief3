@@ -235,6 +235,7 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
           // Handle image-specific format (description + cta)
           console.log('Detected image-specific response format with description/cta');
           responseData = {
+            description: jsonResponse.description || "",
             caption_hook_options: jsonResponse.description || "",
             body_content_structured_scenes: [],
             cta_script: jsonResponse.cta || "",
@@ -273,6 +274,7 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                 
                 // Return transformed response
                 return NextResponse.json({
+                  description: description,
                   caption_hook_options: description,
                   body_content_structured_scenes: [],
                   cta_script: cta,

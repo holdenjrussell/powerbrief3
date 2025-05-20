@@ -347,9 +347,11 @@ export default function BrandDetailPage({ params }) {
                                 {batches.map((batch) => (<Link href={`/app/powerbrief/${brand.id}/${batch.id}`} key={batch.id}>
                                         <Card className="cursor-pointer hover:shadow-md transition-shadow">
                                             <CardContent className="p-4 flex items-center">
+                                                <div className="mr-4 flex-shrink-0 text-lg font-semibold text-primary-600">
+                                                    {batch.name}
+                                                </div>
                                                 <Folder className="h-5 w-5 mr-3 text-gray-500"/>
                                                 <div>
-                                                    <h3 className="font-medium">{batch.name}</h3>
                                                     <p className="text-sm text-gray-500">
                                                         Created: {new Date(batch.created_at).toLocaleDateString()}
                                                     </p>

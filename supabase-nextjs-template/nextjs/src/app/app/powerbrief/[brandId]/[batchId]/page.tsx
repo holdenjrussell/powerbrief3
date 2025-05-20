@@ -44,6 +44,7 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
     const [localCtaScript, setLocalCtaScript] = useState<Record<string, string>>({});
     const [localCtaTextOverlay, setLocalCtaTextOverlay] = useState<Record<string, string>>({});
     const [localScenes, setLocalScenes] = useState<Record<string, Scene[]>>({});
+    const [localDescriptions, setLocalDescriptions] = useState<Record<string, string>>({});
     const [localVideoInstructions, setLocalVideoInstructions] = useState<Record<string, string>>({});
     const [localDesignerInstructions, setLocalDesignerInstructions] = useState<Record<string, string>>({});
     const [showPromptDebugDialog, setShowPromptDebugDialog] = useState<boolean>(false);
@@ -174,6 +175,7 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                 media_type: null,
                 ai_custom_prompt: null,
                 caption_hook_options: null,
+                description: null, // Add description field
                 cta_script: null,
                 cta_text_overlay: null,
                 videoInstructions: brand.default_video_instructions || '',
@@ -328,6 +330,7 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                         status: null,
                         ai_custom_prompt: null,
                         caption_hook_options: null,
+                        description: null, // Add description field for image briefs
                         cta_script: null,
                         cta_text_overlay: null,
                         videoInstructions: brand?.default_video_instructions || '',
@@ -457,6 +460,7 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                 ...concept,
                 id: conceptId,
                 caption_hook_options: aiResponse.caption_hook_options || concept.caption_hook_options,
+                description: aiResponse.description || concept.description, // Add the description field handling
                 body_content_structured: aiResponse.body_content_structured_scenes || concept.body_content_structured,
                 cta_script: aiResponse.cta_script || concept.cta_script,
                 cta_text_overlay: aiResponse.cta_text_overlay || concept.cta_text_overlay
@@ -535,6 +539,7 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                         ...concept,
                         id: concept.id,
                         caption_hook_options: aiResponse.caption_hook_options || concept.caption_hook_options,
+                        description: aiResponse.description || concept.description, // Add the description field handling
                         body_content_structured: aiResponse.body_content_structured_scenes || concept.body_content_structured,
                         cta_script: aiResponse.cta_script || concept.cta_script,
                         cta_text_overlay: aiResponse.cta_text_overlay || concept.cta_text_overlay
@@ -708,6 +713,7 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
         const videoInstructionsMap: Record<string, string> = {};
         const designerInstructionsMap: Record<string, string> = {};
         const mediaTypesMap: Record<string, 'video' | 'image'> = {};
+        const descriptionsMap: Record<string, string> = {};
         
         concepts.forEach(concept => {
             promptMap[concept.id] = concept.ai_custom_prompt || '';
@@ -721,6 +727,7 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
             videoInstructionsMap[concept.id] = concept.videoInstructions || '';
             designerInstructionsMap[concept.id] = concept.designerInstructions || '';
             mediaTypesMap[concept.id] = (concept.media_type as 'video' | 'image') || 'video';
+            descriptionsMap[concept.id] = concept.description || '';
         });
         
         setLocalPrompts(promptMap);
@@ -734,6 +741,7 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
         setLocalVideoInstructions(videoInstructionsMap);
         setLocalDesignerInstructions(designerInstructionsMap);
         setLocalMediaTypes(mediaTypesMap);
+        setLocalDescriptions(descriptionsMap);
     }, [concepts]);
 
     // Debug prompt for a concept
@@ -1697,43 +1705,23 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                                 <label className="block text-xs font-medium mb-1">Description:</label>
                                                 <Textarea
                                                     value={
-                                                        // If there's existing scene data, use the first scene's visuals
-                                                        // Otherwise use empty string
-                                                        (localScenes[concept.id] && localScenes[concept.id].length > 0)
-                                                            ? localScenes[concept.id][0].visuals
-                                                            : ""
+                                                        // Use local description state if available, otherwise use the concept description
+                                                        localDescriptions[concept.id] !== undefined
+                                                            ? localDescriptions[concept.id]
+                                                            : concept.description || ""
                                                     }
                                                     onChange={(e) => {
-                                                        let updatedScenes: Scene[] = [];
-                                                        
-                                                        // If there's already a scene, update it
-                                                        if (localScenes[concept.id] && localScenes[concept.id].length > 0) {
-                                                            updatedScenes = [...localScenes[concept.id]];
-                                                            updatedScenes[0] = {
-                                                                ...updatedScenes[0],
-                                                                visuals: e.target.value
-                                                            };
-                                                        } else {
-                                                            // Create a new scene if none exists
-                                                            updatedScenes = [{
-                                                                scene_title: "Image Description",
-                                                                script: "",
-                                                                visuals: e.target.value
-                                                            }];
-                                                        }
-                                                        
-                                                        // Update local state
-                                                        setLocalScenes(prev => ({
+                                                        // Update local description state
+                                                        setLocalDescriptions(prev => ({
                                                             ...prev,
-                                                            [concept.id]: updatedScenes
+                                                            [concept.id]: e.target.value
                                                         }));
                                                         
-                                                        // Update the concept with the new scenes
+                                                        // Debounce the actual save operation
                                                         const updatedConcept = {
                                                             ...concept,
-                                                            body_content_structured: updatedScenes
+                                                            description: e.target.value
                                                         };
-                                                        
                                                         debouncedUpdateConcept(updatedConcept);
                                                     }}
                                                     onBlur={() => {
@@ -1742,13 +1730,10 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                                             saveTimeoutRef.current = null;
                                                         }
                                                         
-                                                        // Get the updated scenes from local state
-                                                        const updatedScenes = localScenes[concept.id] || [];
-                                                        
-                                                        // Update the concept with these scenes
+                                                        // Save the description field
                                                         const updatedConcept = {
                                                             ...concept,
-                                                            body_content_structured: updatedScenes
+                                                            description: localDescriptions[concept.id] || ""
                                                         };
                                                         
                                                         handleUpdateConcept(updatedConcept);

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { createSPAClient } from '@/lib/supabase/client';
-import { BriefConcept, Scene } from '@/lib/types/powerbrief';
+import { BriefConcept, Scene, EditingResource, ResourceLogin, DosAndDonts } from '@/lib/types/powerbrief';
 import { Loader2, ArrowLeft } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -12,6 +12,7 @@ export default function SharedSingleConceptPage({ params }: { params: { shareId:
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [concept, setConcept] = useState<BriefConcept | null>(null);
+  const [brand, setBrand] = useState<any | null>(null);
   
   // Unwrap params using React.use()
   const unwrappedParams = React.use(params as any) as { shareId: string, conceptId: string };
@@ -26,7 +27,7 @@ export default function SharedSingleConceptPage({ params }: { params: { shareId:
         // Find the batch with this shareId in its share_settings
         const { data: batchData, error: batchError } = await supabase
           .from('brief_batches')
-          .select('*')
+          .select('*, brands(*)')
           .contains('share_settings', { [shareId]: {} });
 
         if (batchError) {
@@ -51,6 +52,11 @@ export default function SharedSingleConceptPage({ params }: { params: { shareId:
         }
 
         setConcept(conceptData);
+        
+        // Set the brand data from the batch
+        if (batchData[0].brands) {
+          setBrand(batchData[0].brands);
+        }
       } catch (err: any) {
         console.error('Error fetching shared concept:', err);
         setError(err.message || 'Failed to load shared content');
@@ -193,7 +199,7 @@ export default function SharedSingleConceptPage({ params }: { params: { shareId:
       {concept.videoInstructions && concept.media_type === 'video' && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Video Instructions</CardTitle>
+            <CardTitle className="text-lg">Video Editor Instructions</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="whitespace-pre-wrap">{concept.videoInstructions}</p>
@@ -209,6 +215,96 @@ export default function SharedSingleConceptPage({ params }: { params: { shareId:
           </CardHeader>
           <CardContent>
             <p className="whitespace-pre-wrap">{concept.designerInstructions}</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Editing Resources - show for both video and image */}
+      {brand?.editing_resources && brand.editing_resources.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Editing Resources</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {brand.editing_resources.map((resource: EditingResource, index: number) => (
+                <div key={index} className="p-3 bg-gray-50 rounded">
+                  <a 
+                    href={resource.url} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="text-blue-600 hover:underline"
+                  >
+                    {resource.name}
+                  </a>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Resource Logins - show for both video and image */}
+      {brand?.resource_logins && brand.resource_logins.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Resource Logins</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {brand.resource_logins.map((login: ResourceLogin, index: number) => (
+                <div key={index} className="p-3 bg-gray-50 rounded">
+                  <div className="font-medium">{login.resourceName}</div>
+                  <div className="text-sm mt-1">Username: {login.username}</div>
+                  <div className="text-sm">Password: {login.password}</div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Do's and Don'ts - show appropriate ones based on media type */}
+      {brand?.dos_and_donts && (
+        (concept.media_type === 'image' && 
+         (brand.dos_and_donts.imagesDos?.length > 0 || brand.dos_and_donts.imagesDonts?.length > 0)) ||
+        (concept.media_type === 'video' && 
+         (brand.dos_and_donts.videosDos?.length > 0 || brand.dos_and_donts.videosDonts?.length > 0))
+      ) && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">
+              {concept.media_type === 'image' ? "Image" : "Video"} Do's and Don'ts
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Do's */}
+              <div>
+                <h3 className="font-medium text-green-600 mb-2">Do's:</h3>
+                <ul className="list-disc pl-5 space-y-1">
+                  {concept.media_type === 'image' && brand.dos_and_donts.imagesDos?.map((item: string, i: number) => (
+                    <li key={i} className="text-sm">{item}</li>
+                  ))}
+                  {concept.media_type === 'video' && brand.dos_and_donts.videosDos?.map((item: string, i: number) => (
+                    <li key={i} className="text-sm">{item}</li>
+                  ))}
+                </ul>
+              </div>
+              
+              {/* Don'ts */}
+              <div>
+                <h3 className="font-medium text-red-600 mb-2">Don'ts:</h3>
+                <ul className="list-disc pl-5 space-y-1">
+                  {concept.media_type === 'image' && brand.dos_and_donts.imagesDonts?.map((item: string, i: number) => (
+                    <li key={i} className="text-sm">{item}</li>
+                  ))}
+                  {concept.media_type === 'video' && brand.dos_and_donts.videosDonts?.map((item: string, i: number) => (
+                    <li key={i} className="text-sm">{item}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
           </CardContent>
         </Card>
       )}
