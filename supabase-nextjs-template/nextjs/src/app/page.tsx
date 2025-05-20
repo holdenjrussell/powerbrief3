@@ -1,56 +1,56 @@
 import React from 'react';
 import Link from 'next/link';
-import { ArrowRight, Globe, Shield, Users, Key, Database, Clock } from 'lucide-react';
+import { ArrowRight, Sparkles, FileText, Briefcase, Repeat, Target, Share2 } from 'lucide-react';
 import AuthAwareButtons from '@/components/AuthAwareButtons';
 import HomePricing from "@/components/HomePricing";
 
 export default function Home() {
-  const productName = process.env.NEXT_PUBLIC_PRODUCTNAME;
+  const productName = process.env.NEXT_PUBLIC_PRODUCTNAME || 'PowerBrief';
 
   const features = [
     {
-      icon: Shield,
-      title: 'Robust Authentication',
-      description: 'Secure login with email/password, Multi-Factor Authentication, and SSO providers',
-      color: 'text-green-600'
+      icon: Briefcase,
+      title: 'Brand Management',
+      description: 'Organize all your brand information, guidelines, and audience details in one place',
+      color: 'text-blue-600'
     },
     {
-      icon: Database,
-      title: 'File Management',
-      description: 'Built-in file storage with secure sharing, downloads, and granular permissions',
-      color: 'text-orange-600'
-    },
-    {
-      icon: Users,
-      title: 'User Settings',
-      description: 'Complete user management with password updates, MFA setup, and profile controls',
-      color: 'text-red-600'
-    },
-    {
-      icon: Clock,
-      title: 'Task Management',
-      description: 'Built-in todo system with real-time updates and priority management',
-      color: 'text-teal-600'
-    },
-    {
-      icon: Globe,
-      title: 'Legal Documents',
-      description: 'Pre-configured privacy policy, terms of service, and refund policy pages',
+      icon: Sparkles,
+      title: 'AI-Powered Concepts',
+      description: 'Generate compelling ad concepts with AI assistance to speed up your creative process',
       color: 'text-purple-600'
     },
     {
-      icon: Key,
-      title: 'Cookie Consent',
-      description: 'GDPR-compliant cookie consent system with customizable preferences',
-      color: 'text-blue-600'
+      icon: FileText,
+      title: 'Structured Briefs',
+      description: 'Create detailed, structured ad briefs with scene-by-scene descriptions for video production',
+      color: 'text-green-600'
+    },
+    {
+      icon: Repeat,
+      title: 'Batch Processing',
+      description: 'Organize and manage multiple ad concepts in batches for efficient campaign development',
+      color: 'text-orange-600'
+    },
+    {
+      icon: Target,
+      title: 'Audience Targeting',
+      description: 'Define and store target audience demographics and characteristics for better ad targeting',
+      color: 'text-red-600'
+    },
+    {
+      icon: Share2,
+      title: 'Collaboration Tools',
+      description: 'Share briefs with team members and clients via link or email with customizable permissions',
+      color: 'text-teal-600'
     }
   ];
 
   const stats = [
-    { label: 'Active Users', value: '10K+' },
-    { label: 'Organizations', value: '2K+' },
-    { label: 'Countries', value: '50+' },
-    { label: 'Uptime', value: '99.9%' }
+    { label: 'Ad Concepts Created', value: '5K+' },
+    { label: 'Hours Saved', value: '1000+' },
+    { label: 'Brands Managed', value: '200+' },
+    { label: 'Customer Satisfaction', value: '98%' }
   ];
 
   return (
@@ -72,21 +72,12 @@ export default function Home() {
                   Pricing
                 </Link>
                 <Link
-                    href="https://github.com/Razikus/supabase-nextjs-template"
+                    href="#"
                     className="text-gray-600 hover:text-gray-900"
                     target="_blank"
                     rel="noopener noreferrer"
                 >
                   Documentation
-                </Link>
-
-                <Link
-                    href="https://github.com/Razikus/supabase-nextjs-template"
-                    className="bg-primary-800 text-white px-4 py-2 rounded-lg hover:bg-primary-900 transition-colors"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                >
-                  Grab This Template
                 </Link>
 
                 <AuthAwareButtons variant="nav" />
@@ -99,14 +90,13 @@ export default function Home() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center">
               <h1 className="text-5xl md:text-6xl font-bold tracking-tight">
-                Bootstrap Your SaaS
-                <span className="block text-primary-600">In 5 minutes</span>
+                Streamline Your Ad Creative
+                <span className="block text-primary-600">With AI-Powered Briefs</span>
               </h1>
               <p className="mt-6 text-xl text-gray-600 max-w-3xl mx-auto">
-                Launch your SaaS product in days, not months. Complete with authentication and enterprise-grade security built right in.
+                Create professional ad briefs and video concepts in minutes, not days. Organize your brand information, generate compelling concepts, and collaborate with your team seamlessly.
               </p>
               <div className="mt-10 flex gap-4 justify-center">
-
                 <AuthAwareButtons />
               </div>
             </div>
@@ -130,9 +120,9 @@ export default function Home() {
         <section id="features" className="py-24 bg-gray-50">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-16">
-              <h2 className="text-3xl font-bold">Everything You Need</h2>
+              <h2 className="text-3xl font-bold">Craft Better Ad Briefs, Faster</h2>
               <p className="mt-4 text-xl text-gray-600">
-                Built with modern technologies for reliability and speed
+                PowerBrief simplifies the creative process from brand management to concept delivery
               </p>
             </div>
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -155,10 +145,10 @@ export default function Home() {
         <section className="py-24 bg-primary-600">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
             <h2 className="text-3xl font-bold text-white">
-              Ready to Transform Your Idea into Reality?
+              Ready to Transform Your Ad Creation Process?
             </h2>
             <p className="mt-4 text-xl text-primary-100">
-              Join thousands of developers building their SaaS with {productName}
+              Join marketing teams using {productName} to create compelling ad briefs in minutes
             </p>
             <Link
                 href="/auth/register"
@@ -192,8 +182,13 @@ export default function Home() {
                 <h4 className="text-sm font-semibold text-gray-900">Resources</h4>
                 <ul className="mt-4 space-y-2">
                   <li>
-                    <Link href="https://github.com/Razikus/supabase-nextjs-template" className="text-gray-600 hover:text-gray-900">
+                    <Link href="#" className="text-gray-600 hover:text-gray-900">
                       Documentation
+                    </Link>
+                  </li>
+                  <li>
+                    <Link href="#" className="text-gray-600 hover:text-gray-900">
+                      Help Center
                     </Link>
                   </li>
                 </ul>
