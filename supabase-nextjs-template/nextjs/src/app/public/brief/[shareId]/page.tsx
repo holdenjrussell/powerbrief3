@@ -210,8 +210,8 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
                       </div>
                     )}
                     
-                    {/* Video Instructions */}
-                    {concept.videoInstructions && (
+                    {/* Video Instructions - only for video media type */}
+                    {concept.videoInstructions && concept.media_type === 'video' && (
                       <div>
                         <h3 className="font-medium text-sm mb-1">Video Instructions</h3>
                         <p className="text-sm bg-gray-50 p-3 rounded line-clamp-3">
@@ -220,8 +220,8 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
                       </div>
                     )}
                     
-                    {/* Designer Instructions */}
-                    {concept.designerInstructions && (
+                    {/* Designer Instructions - only for image media type */}
+                    {concept.designerInstructions && concept.media_type === 'image' && (
                       <div>
                         <h3 className="font-medium text-sm mb-1">Designer Instructions</h3>
                         <p className="text-sm bg-gray-50 p-3 rounded line-clamp-3">

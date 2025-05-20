@@ -474,6 +474,18 @@ export default function SharedSingleConceptPage({ params }: { params: { shareId:
             </Card>
           )}
 
+          {/* Description */}
+          {concept.description && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Description</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="whitespace-pre-wrap">{concept.description}</p>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Caption hooks */}
           {concept.caption_hook_options && (
             <Card>
