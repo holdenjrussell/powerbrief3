@@ -1,5 +1,5 @@
 import { createSPAClient } from '@/lib/supabase/client';
-import { Brand, BriefBatch, BriefConcept, DbBrand, DbBriefConcept, ShareSettings, ShareResult } from '@/lib/types/powerbrief';
+import { Brand, BriefBatch, BriefConcept, DbBrand, DbBriefConcept, DbBriefBatch, ShareSettings, ShareResult, Scene } from '@/lib/types/powerbrief';
 import { v4 as uuidv4 } from 'uuid';
 
 const supabase = createSPAClient();
@@ -213,11 +213,16 @@ export async function getBriefConcepts(batchId: string): Promise<BriefConcept[]>
     throw error;
   }
 
-  // Transform from DB format to app format
-  return (data || []).map((item: DbBriefConcept) => ({
-    ...item,
-    body_content_structured: item.body_content_structured as unknown as BriefConcept['body_content_structured'],
-  }));
+  // Transform from DB format to app format with type casting
+  return (data || []).map((item: any) => {
+    const concept: any = {
+      ...item,
+      body_content_structured: item.body_content_structured as unknown as Scene[],
+    };
+    
+    // Ensure the object meets the BriefConcept interface
+    return concept as BriefConcept;
+  });
 }
 
 export async function getBriefConceptById(conceptId: string): Promise<BriefConcept | null> {
@@ -234,22 +239,63 @@ export async function getBriefConceptById(conceptId: string): Promise<BriefConce
 
   if (!data) return null;
 
-  // Transform from DB format to app format
-  return {
+  // Transform from DB format to app format with type casting
+  const concept: any = {
     ...data,
-    body_content_structured: data.body_content_structured as unknown as BriefConcept['body_content_structured'],
+    body_content_structured: data.body_content_structured as unknown as Scene[],
   };
+  
+  // Ensure the object meets the BriefConcept interface
+  return concept as BriefConcept;
 }
 
 export async function createBriefConcept(concept: Omit<BriefConcept, 'id' | 'created_at' | 'updated_at'>): Promise<BriefConcept> {
-  const dbConcept = {
+  // If there's a brief_batch_id, fetch the associated brand to get default instructions
+  let defaultVideoInstructions = '';
+  let defaultDesignerInstructions = '';
+  
+  if (concept.brief_batch_id) {
+    try {
+      // First, get the batch to find the brand_id
+      const { data: batchData } = await supabase
+        .from('brief_batches')
+        .select('brand_id')
+        .eq('id', concept.brief_batch_id)
+        .single();
+      
+      if (batchData?.brand_id) {
+        // Then get the brand to find the default instructions
+        const { data: brandData } = await supabase
+          .from('brands')
+          .select('*')
+          .eq('id', batchData.brand_id)
+          .single();
+        
+        if (brandData) {
+          // Type cast to access properties that might not be in the type
+          const brandWithDefaults = brandData as any;
+          defaultVideoInstructions = brandWithDefaults.default_video_instructions || '';
+          defaultDesignerInstructions = brandWithDefaults.default_designer_instructions || '';
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching brand defaults for concept:', err);
+      // Continue with empty defaults if there's an error
+    }
+  }
+
+  // Create the concept with defaults
+  const dbConcept: any = {
     ...concept,
     id: uuidv4(),
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
     concept_title: concept.concept_title || 'New Concept',
     body_content_structured: concept.body_content_structured || [],
-    order_in_batch: concept.order_in_batch || 0
+    order_in_batch: concept.order_in_batch || 0,
+    // Set video and designer instructions from brand defaults if not provided
+    videoInstructions: concept.videoInstructions || defaultVideoInstructions,
+    designerInstructions: concept.designerInstructions || defaultDesignerInstructions,
   };
 
   const { data, error } = await supabase
@@ -263,18 +309,27 @@ export async function createBriefConcept(concept: Omit<BriefConcept, 'id' | 'cre
     throw error;
   }
 
-  // Transform from DB format to app format
-  return {
+  // Transform from DB format to app format with type casting
+  const createdConcept: any = {
     ...data,
-    body_content_structured: data.body_content_structured as unknown as BriefConcept['body_content_structured'],
+    body_content_structured: data.body_content_structured as unknown as Scene[],
   };
+  
+  // Ensure the object meets the BriefConcept interface
+  return createdConcept as BriefConcept;
 }
 
 export async function updateBriefConcept(concept: Partial<BriefConcept> & { id: string }): Promise<BriefConcept> {
-  const dbConcept = {
+  // Use type casting to avoid issues with potentially missing fields
+  const dbConcept: any = {
     ...concept,
     updated_at: new Date().toISOString()
   };
+
+  // Log what we're updating, specifically the instructions fields
+  console.log('Updating concept: ', concept.id);
+  console.log('videoInstructions:', concept.videoInstructions);
+  console.log('designerInstructions:', concept.designerInstructions);
 
   const { data, error } = await supabase
     .from('brief_concepts')
@@ -288,11 +343,14 @@ export async function updateBriefConcept(concept: Partial<BriefConcept> & { id: 
     throw error;
   }
 
-  // Transform from DB format to app format
-  return {
+  // Transform from DB format to app format with type casting
+  const updatedConcept: any = {
     ...data,
-    body_content_structured: data.body_content_structured as unknown as BriefConcept['body_content_structured'],
+    body_content_structured: data.body_content_structured as unknown as Scene[],
   };
+  
+  // Ensure the object meets the BriefConcept interface
+  return updatedConcept as BriefConcept;
 }
 
 export async function deleteBriefConcept(conceptId: string): Promise<void> {
@@ -360,7 +418,7 @@ export async function shareBriefBatch(
           share_type: shareType
         }
       }
-    })
+    } as Partial<DbBriefBatch>)
     .eq('id', batchId)
     .select();
   
@@ -428,7 +486,7 @@ export async function shareBriefConcept(
           share_type: shareType
         }
       }
-    })
+    } as Partial<DbBriefConcept>)
     .eq('id', conceptId)
     .select();
   

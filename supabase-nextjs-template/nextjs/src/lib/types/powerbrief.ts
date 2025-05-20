@@ -37,6 +37,8 @@ export interface Brand {
   brand_info_data: BrandInfoData;
   target_audience_data: TargetAudienceData;
   competition_data: CompetitionData;
+  default_video_instructions?: string;
+  default_designer_instructions?: string;
   created_at: string;
   updated_at: string;
 }
@@ -124,7 +126,21 @@ export type DbBrand = {
   brand_info_data: Json;
   target_audience_data: Json;
   competition_data: Json;
+  default_video_instructions?: string;
+  default_designer_instructions?: string;
   created_at: string;
+  updated_at: string;
+};
+
+export type DbBriefBatch = {
+  id: string;
+  name: string;
+  brand_id: string;
+  user_id: string;
+  created_at: string;
+  status?: string | null;
+  shared_with?: string[] | null;
+  share_settings?: Record<string, ShareSettings> | null;
   updated_at: string;
 };
 
@@ -148,6 +164,8 @@ export type DbBriefConcept = {
   videoInstructions: string | null;
   designerInstructions: string | null;
   order_in_batch: number;
+  share_settings?: Record<string, ShareSettings> | null;
+  shared_with?: string[] | null;
   created_at: string;
   updated_at: string;
 };
@@ -156,6 +174,8 @@ export interface ShareSettings {
   is_editable: boolean;
   expires_at: string | null;
   email?: string;
+  share_type?: 'link' | 'email';
+  created_at?: string;
 }
 
 export interface ShareResult {
