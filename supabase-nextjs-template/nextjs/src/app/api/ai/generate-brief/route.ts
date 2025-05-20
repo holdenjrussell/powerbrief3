@@ -96,6 +96,7 @@ export async function POST(request: NextRequest) {
       generationConfig: {
         temperature: 0.7,
         responseMimeType: "application/json",
+        maxOutputTokens: 32768, // Maximum output token limit
       },
       safetySettings: [
         {
@@ -110,8 +111,17 @@ export async function POST(request: NextRequest) {
           category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
           threshold: HarmBlockThreshold.BLOCK_NONE,
         },
+        {
+          category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+          threshold: HarmBlockThreshold.BLOCK_NONE,
+        },
       ],
-    });
+      // Using type assertion to bypass TypeScript error
+      // @ts-ignore - thinkingConfig is supported by the API but not by the current type definitions
+      thinkingConfig: {
+        thinkingBudget: 15000, // Allocate 15k tokens for thinking
+      },
+    } as any);
 
     // Prepare the prompt and content
     const brandContextStr = JSON.stringify(body.brandContext, null, 2);
