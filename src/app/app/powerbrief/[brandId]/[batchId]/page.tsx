@@ -40,6 +40,8 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
     const [localCtaScript, setLocalCtaScript] = useState<Record<string, string>>({});
     const [localCtaTextOverlay, setLocalCtaTextOverlay] = useState<Record<string, string>>({});
     const [localScenes, setLocalScenes] = useState<Record<string, Scene[]>>({});
+    const [localVideoInstructions, setLocalVideoInstructions] = useState<Record<string, string>>({});
+    const [localDesignerInstructions, setLocalDesignerInstructions] = useState<Record<string, string>>({});
     const [showPromptDebugDialog, setShowPromptDebugDialog] = useState<boolean>(false);
     const [debugPrompt, setDebugPrompt] = useState<string>('');
     const [copied, setCopied] = useState<boolean>(false);
@@ -168,7 +170,9 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                 ai_custom_prompt: null,
                 caption_hook_options: null,
                 cta_script: null,
-                cta_text_overlay: null
+                cta_text_overlay: null,
+                videoInstructions: brand?.brand_info_data?.videoInstructions || null,
+                designerInstructions: brand?.brand_info_data?.designerInstructions || null
             });
             
             setConcepts(prev => [...prev, newConcept]);
@@ -302,7 +306,9 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                         ai_custom_prompt: null,
                         caption_hook_options: null,
                         cta_script: null,
-                        cta_text_overlay: null
+                        cta_text_overlay: null,
+                        videoInstructions: brand?.brand_info_data?.videoInstructions || null,
+                        designerInstructions: brand?.brand_info_data?.designerInstructions || null
                     });
                     
                     console.log(`EZ UPLOAD: Created new concept for file ${i+1} with ID: ${newConcept.id}`);
@@ -669,6 +675,8 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
         const clickupLinksMap: Record<string, string> = {};
         const strategistsMap: Record<string, string> = {};
         const videoEditorsMap: Record<string, string> = {};
+        const videoInstructionsMap: Record<string, string> = {};
+        const designerInstructionsMap: Record<string, string> = {};
         
         concepts.forEach(concept => {
             promptMap[concept.id] = concept.ai_custom_prompt || '';
@@ -679,6 +687,8 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
             clickupLinksMap[concept.id] = concept.clickup_id || '';
             strategistsMap[concept.id] = concept.strategist || '';
             videoEditorsMap[concept.id] = concept.video_editor || '';
+            videoInstructionsMap[concept.id] = concept.videoInstructions || '';
+            designerInstructionsMap[concept.id] = concept.designerInstructions || '';
         });
         
         setLocalPrompts(promptMap);
@@ -689,6 +699,8 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
         setLocalClickupLinks(clickupLinksMap);
         setLocalStrategists(strategistsMap);
         setLocalVideoEditors(videoEditorsMap);
+        setLocalVideoInstructions(videoInstructionsMap);
+        setLocalDesignerInstructions(designerInstructionsMap);
     }, [concepts]);
 
     // Debug prompt for a concept
@@ -1650,6 +1662,98 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                                     handleUpdateConcept(updatedConcept);
                                                 }}
                                                 placeholder="Enter text overlay"
+                                                className="text-sm"
+                                            />
+                                        </div>
+                                    </div>
+                                    
+                                    {/* Video Instructions Section */}
+                                    <div className="space-y-2">
+                                        <h3 className="font-medium text-sm">Video Instructions</h3>
+                                        
+                                        <div>
+                                            <Textarea
+                                                value={localVideoInstructions[concept.id] || ''}
+                                                onChange={(e) => {
+                                                    // Update local state immediately for responsive typing
+                                                    setLocalVideoInstructions(prev => ({
+                                                        ...prev,
+                                                        [concept.id]: e.target.value
+                                                    }));
+                                                    
+                                                    // Debounce the actual save operation
+                                                    const updatedConcept = {
+                                                        ...concept,
+                                                        videoInstructions: e.target.value
+                                                    };
+                                                    debouncedUpdateConcept(updatedConcept);
+                                                }}
+                                                onBlur={() => {
+                                                    // Save immediately on blur
+                                                    if (saveTimeoutRef.current) {
+                                                        clearTimeout(saveTimeoutRef.current);
+                                                        saveTimeoutRef.current = null;
+                                                    }
+                                                    
+                                                    const updatedConcept = {
+                                                        ...concept,
+                                                        videoInstructions: localVideoInstructions[concept.id] || ''
+                                                    };
+                                                    handleUpdateConcept(updatedConcept);
+                                                }}
+                                                placeholder="Example:
+➡️ Use the script below to create an AI voiceover using ElevenLabs
+➡️ Add B-roll footage throughout the video to complement the script
+➡️ Logo: Add the logo at 10-15% opacity throughout the video
+➡️ Add captions
+➡️ Add background music—choose light music that fits the mood"
+                                                rows={6}
+                                                className="text-sm"
+                                            />
+                                        </div>
+                                    </div>
+                                    
+                                    {/* Designer Instructions Section */}
+                                    <div className="space-y-2">
+                                        <h3 className="font-medium text-sm">Designer Instructions</h3>
+                                        
+                                        <div>
+                                            <Textarea
+                                                value={localDesignerInstructions[concept.id] || ''}
+                                                onChange={(e) => {
+                                                    // Update local state immediately for responsive typing
+                                                    setLocalDesignerInstructions(prev => ({
+                                                        ...prev,
+                                                        [concept.id]: e.target.value
+                                                    }));
+                                                    
+                                                    // Debounce the actual save operation
+                                                    const updatedConcept = {
+                                                        ...concept,
+                                                        designerInstructions: e.target.value
+                                                    };
+                                                    debouncedUpdateConcept(updatedConcept);
+                                                }}
+                                                onBlur={() => {
+                                                    // Save immediately on blur
+                                                    if (saveTimeoutRef.current) {
+                                                        clearTimeout(saveTimeoutRef.current);
+                                                        saveTimeoutRef.current = null;
+                                                    }
+                                                    
+                                                    const updatedConcept = {
+                                                        ...concept,
+                                                        designerInstructions: localDesignerInstructions[concept.id] || ''
+                                                    };
+                                                    handleUpdateConcept(updatedConcept);
+                                                }}
+                                                placeholder="Example:
+➡️ Use the brand color palette (see brand guidelines)
+➡️ Include the product with clear packaging visible
+➡️ Add lifestyle elements showing the product in use
+➡️ Keep the design clean with minimal text
+➡️ Include the logo in bottom right corner"
+                                                rows={6}
                                                 className="text-sm"
                                             />
                                         </div>

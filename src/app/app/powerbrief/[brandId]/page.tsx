@@ -41,7 +41,9 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
         healthBenefits: '',
         targetAudienceSummary: '',
         brandVoice: '',
-        competitiveAdvantage: ''
+        competitiveAdvantage: '',
+        videoInstructions: '',
+        designerInstructions: ''
     });
     const [targetAudience, setTargetAudience] = useState({
         gender: '',
@@ -323,6 +325,30 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
                                 placeholder="Competitive Advantage"
                                 rows={3}
                             />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Video Instructions</label>
+                            <Textarea
+                                value={brandInfo.videoInstructions}
+                                onChange={(e) => setBrandInfo({...brandInfo, videoInstructions: e.target.value})}
+                                placeholder="Enter default instructions for video creation (voiceover, b-roll, logo placement, captions, music)"
+                                rows={5}
+                            />
+                            <p className="mt-1 text-xs text-gray-500">
+                                Enter default video instructions to appear at the top of each concept. Example: ➡️ Use the script for AI voiceover using ElevenLabs, ➡️ Add B-roll footage throughout the video, ➡️ Add logo at 10-15% opacity, ➡️ Add captions, ➡️ Add background music that fits the mood.
+                            </p>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Designer Instructions</label>
+                            <Textarea
+                                value={brandInfo.designerInstructions}
+                                onChange={(e) => setBrandInfo({...brandInfo, designerInstructions: e.target.value})}
+                                placeholder="Enter default instructions for image design (style, elements, color scheme, layout)"
+                                rows={5}
+                            />
+                            <p className="mt-1 text-xs text-gray-500">
+                                Enter default instructions for designers when using images. These can be customized per concept later.
+                            </p>
                         </div>
                     </CardContent>
                 </Card>
