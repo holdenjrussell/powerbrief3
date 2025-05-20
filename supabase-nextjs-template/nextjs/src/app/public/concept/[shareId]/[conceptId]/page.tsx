@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from '@/components/ui/use-toast';
+import Link from 'next/link';
 
 // Extended BriefConcept interface to include the properties we need
 interface ExtendedBriefConcept extends Omit<BriefConcept, 'review_status'> {
@@ -35,6 +36,7 @@ interface BatchWithShare {
 export default function SharedSingleConceptPage({ params }: { params: { shareId: string, conceptId: string } }) {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [showLoginPrompt, setShowLoginPrompt] = useState<boolean>(false);
   const [concept, setConcept] = useState<ExtendedBriefConcept | null>(null);
   const [brand, setBrand] = useState<any>(null);
   const [isEditable, setIsEditable] = useState<boolean>(false);
@@ -63,7 +65,8 @@ export default function SharedSingleConceptPage({ params }: { params: { shareId:
         }
 
         if (!batchDataResult || batchDataResult.length === 0) {
-          setError('Shared content not found or has expired');
+          setError('Shared content not found or has expired. You might need to log in to view this content.');
+          setShowLoginPrompt(true);
           setLoading(false);
           return;
         }
@@ -108,6 +111,9 @@ export default function SharedSingleConceptPage({ params }: { params: { shareId:
       } catch (err: any) {
         console.error('Error fetching shared concept:', err);
         setError(err.message || 'Failed to load shared content');
+        if (err.message?.includes('FetchError') || err.message?.includes('JSONडुप्लिकेट अनुवादToken')) {
+            setShowLoginPrompt(true);
+        }
       } finally {
         setLoading(false);
       }
@@ -264,6 +270,16 @@ export default function SharedSingleConceptPage({ params }: { params: { shareId:
         <Alert>
           <AlertDescription>{error || 'Concept not found'}</AlertDescription>
         </Alert>
+        {showLoginPrompt && (
+          <div className="mt-4 text-center">
+            <p className="mb-2">Please log in to access this content.</p>
+            <Link href={`/login?redirect_to=${encodeURIComponent(window.location.href)}`} passHref>
+              <Button>
+                Log In
+              </Button>
+            </Link>
+          </div>
+        )}
       </div>
     );
   }
