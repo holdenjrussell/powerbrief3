@@ -25,7 +25,7 @@ export default function ConceptBriefingPage({ params }) {
     const [saving, setSaving] = useState(false);
     const [savingConceptId, setSavingConceptId] = useState(null);
     const [generatingAI, setGeneratingAI] = useState(false);
-    const [generatingConceptId, setGeneratingConceptId] = useState(null);
+    const [generatingConceptIds, setGeneratingConceptIds] = useState({});
     const fileInputRef = useRef(null);
     const multipleFileInputRef = useRef(null);
     const saveTimeoutRef = useRef(null);
@@ -330,13 +330,18 @@ export default function ConceptBriefingPage({ params }) {
     };
     // Generate AI brief for a concept
     const handleGenerateAI = async (conceptId) => {
-        if (!brand || !(user === null || user === void 0 ? void 0 : user.id))
-            return;
+        if (!brand || !user?.id) return;
+        
         const concept = concepts.find(c => c.id === conceptId);
-        if (!concept)
-            return;
+        if (!concept) return;
+        
         try {
-            setGeneratingConceptId(conceptId);
+            // Set this specific concept as generating
+            setGeneratingConceptIds(prev => ({
+                ...prev,
+                [conceptId]: true
+            }));
+            
             const request = {
                 brandContext: {
                     brand_info_data: brand.brand_info_data,
@@ -381,9 +386,13 @@ export default function ConceptBriefingPage({ params }) {
         catch (err) {
             console.error('Failed to generate AI brief:', err);
             setError(`AI brief generation failed: ${err.message || 'Unknown error'}`);
-        }
-        finally {
-            setGeneratingConceptId(null);
+        } finally {
+            // Clear the loading state for this specific concept
+            setGeneratingConceptIds(prev => {
+                const updated = { ...prev };
+                delete updated[conceptId];
+                return updated;
+            });
         }
     };
     // Generate AI briefs for all concepts
@@ -397,48 +406,14 @@ export default function ConceptBriefingPage({ params }) {
             let failCount = 0;
             for (const concept of concepts) {
                 try {
+                    // Add this concept to the loading states
+                    setGeneratingConceptIds(prev => ({
+                        ...prev,
+                        [concept.id]: true
+                    }));
+                    
                     console.log(`Generating AI brief for concept: ${concept.id} (${concept.concept_title})`);
-                    setGeneratingConceptId(concept.id);
-                    const request = {
-                        brandContext: {
-                            brand_info_data: brand.brand_info_data,
-                            target_audience_data: brand.target_audience_data,
-                            competition_data: brand.competition_data
-                        },
-                        conceptSpecificPrompt: concept.ai_custom_prompt || '',
-                        conceptCurrentData: {
-                            caption_hook_options: concept.caption_hook_options || '',
-                            body_content_structured: concept.body_content_structured || [],
-                            cta_script: concept.cta_script || '',
-                            cta_text_overlay: concept.cta_text_overlay || ''
-                        },
-                        media: {
-                            url: concept.media_url || '',
-                            type: concept.media_type || ''
-                        },
-                        desiredOutputFields: [
-                            'caption_hook_options',
-                            'body_content_structured_scenes',
-                            'cta_script',
-                            'cta_text_overlay'
-                        ]
-                    };
-                    const response = await fetch('/api/ai/generate-brief', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify(request)
-                    });
-                    if (!response.ok) {
-                        const errorData = await response.json().catch(() => null);
-                        const errorMessage = (errorData === null || errorData === void 0 ? void 0 : errorData.error) || `Failed to generate AI brief (HTTP ${response.status})`;
-                        throw new Error(errorMessage);
-                    }
-                    const aiResponse = await response.json();
-                    // Update concept with AI response
-                    const updatedConcept = await updateBriefConcept(Object.assign(Object.assign({}, concept), { id: concept.id, caption_hook_options: aiResponse.caption_hook_options || concept.caption_hook_options, body_content_structured: aiResponse.body_content_structured_scenes || concept.body_content_structured, cta_script: aiResponse.cta_script || concept.cta_script, cta_text_overlay: aiResponse.cta_text_overlay || concept.cta_text_overlay }));
-                    setConcepts(prev => prev.map(c => c.id === updatedConcept.id ? updatedConcept : c));
+                    await handleGenerateAI(concept.id);
                     successCount++;
                     console.log(`Successfully generated AI brief for concept: ${concept.id} (${successCount}/${concepts.length})`);
                     // Add a small delay between requests to prevent rate limiting
@@ -447,10 +422,16 @@ export default function ConceptBriefingPage({ params }) {
                 catch (conceptErr) {
                     console.error(`Failed to generate AI brief for concept ${concept.id}:`, conceptErr);
                     failCount++;
+                } finally {
+                    // Clear the loading state for this concept when done
+                    setGeneratingConceptIds(prev => {
+                        const updated = { ...prev };
+                        delete updated[concept.id];
+                        return updated;
+                    });
                 }
             }
             // Set final status message
-            setGeneratingConceptId(null);
             if (failCount > 0) {
                 if (successCount > 0) {
                     setError(`Generated AI briefs for ${successCount}/${concepts.length} concepts. ${failCount} failed.`);
@@ -470,7 +451,6 @@ export default function ConceptBriefingPage({ params }) {
         }
         finally {
             setGeneratingAI(false);
-            setGeneratingConceptId(null);
         }
     };
     // Add scene to concept
@@ -1025,8 +1005,8 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                     </div>
                                     
                                     {/* AI Button */}
-                                    {concept.media_url && (<Button size="sm" className="ml-2 bg-primary-600 text-white hover:bg-primary-700 flex items-center" disabled={generatingConceptId === concept.id} onClick={() => handleGenerateAI(concept.id)}>
-                                            {generatingConceptId === concept.id ? (<>
+                                    {concept.media_url && (<Button size="sm" className="ml-2 bg-primary-600 text-white hover:bg-primary-700 flex items-center" disabled={generatingConceptIds[concept.id]} onClick={() => handleGenerateAI(concept.id)}>
+                                            {generatingConceptIds[concept.id] ? (<>
                                                     <Loader2 className="h-4 w-4 mr-2 animate-spin"/>
                                                     Generating...
                                                 </>) : (<>

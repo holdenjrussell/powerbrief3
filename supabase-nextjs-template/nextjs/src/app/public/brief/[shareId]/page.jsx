@@ -67,7 +67,13 @@ export default function SharedBriefPage({ params }) {
                 if (conceptsError) {
                     throw conceptsError;
                 }
-                setConcepts(conceptsData || []);
+
+                // Filter concepts to only show those with status "ready for designer" or "ready for editor"
+                const filteredConcepts = (conceptsData || []).filter(concept => 
+                  concept.status === "ready for designer" || concept.status === "ready for editor"
+                );
+
+                setConcepts(filteredConcepts);
             }
             catch (err) {
                 console.error('Error fetching shared batch:', err);
@@ -117,9 +123,11 @@ export default function SharedBriefPage({ params }) {
         </TabsList>
         
         <TabsContent value="concepts" className="space-y-6">
-          {concepts.length === 0 ? (<div className="text-center p-6 bg-gray-50 rounded-lg">
-              <p className="text-gray-500">No concepts available in this batch.</p>
-            </div>) : (<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {concepts.length === 0 ? (
+            <div className="text-center p-6 bg-gray-50 rounded-lg">
+              <p className="text-gray-500">No concepts with status "ready for designer" or "ready for editor" available in this batch.</p>
+            </div>
+          ) : (<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {concepts.map((concept) => (<Card key={concept.id} className="overflow-hidden">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-lg">{concept.concept_title}</CardTitle>

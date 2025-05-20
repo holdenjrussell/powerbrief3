@@ -41,6 +41,12 @@ export default function SharedSingleConceptPage({ params }) {
                     throw conceptError;
                 }
                 setConcept(conceptData);
+                
+                // Check if the concept status is appropriate for sharing
+                if (conceptData && conceptData.status !== "ready for designer" && conceptData.status !== "ready for editor") {
+                  setError('This concept is not available for viewing. Only concepts with status "ready for designer" or "ready for editor" can be viewed.');
+                  setConcept(null);
+                }
             }
             catch (err) {
                 console.error('Error fetching shared concept:', err);

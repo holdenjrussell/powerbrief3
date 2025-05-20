@@ -98,7 +98,12 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
           throw conceptsError;
         }
 
-        setConcepts(conceptsData || []);
+        // Filter concepts to only show those with status "ready for designer" or "ready for editor"
+        const filteredConcepts = (conceptsData || []).filter(concept => 
+          concept.status === "ready for designer" || concept.status === "ready for editor"
+        );
+
+        setConcepts(filteredConcepts);
       } catch (err: any) {
         console.error('Error fetching shared batch:', err);
         setError(err.message || 'Failed to load shared content');
@@ -163,7 +168,7 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
         <TabsContent value="concepts" className="space-y-6">
           {concepts.length === 0 ? (
             <div className="text-center p-6 bg-gray-50 rounded-lg">
-              <p className="text-gray-500">No concepts available in this batch.</p>
+              <p className="text-gray-500">No concepts with status "ready for designer" or "ready for editor" available in this batch.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

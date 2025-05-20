@@ -3,17 +3,44 @@
 import React, { useState, useEffect } from 'react';
 import { createSPAClient } from '@/lib/supabase/client';
 import { BriefConcept, Scene } from '@/lib/types/powerbrief';
-import { Loader2, ArrowLeft, Link as LinkIcon } from 'lucide-react';
+import { Loader2, ArrowLeft, Link as LinkIcon, CheckCircle, AlertTriangle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { toast } from '@/components/ui/use-toast';
+
+// Extended BriefConcept interface to include the properties we need
+interface ExtendedBriefConcept extends Omit<BriefConcept, 'review_status'> {
+  review_status?: 'pending' | 'ready_for_review' | 'approved' | 'needs_revisions' | string;
+  review_link?: string;
+  reviewer_notes?: string;
+  share_settings?: Record<string, any>;
+}
+
+// Extend the batch type to include share_settings
+interface BatchWithShare {
+  id: string;
+  brand_id: string;
+  user_id: string;
+  name: string;
+  created_at: string;
+  updated_at: string;
+  brands: any;
+  share_settings?: Record<string, any>;
+}
 
 export default function SharedSingleConceptPage({ params }: { params: { shareId: string, conceptId: string } }) {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [concept, setConcept] = useState<BriefConcept | null>(null);
+  const [concept, setConcept] = useState<ExtendedBriefConcept | null>(null);
   const [brand, setBrand] = useState<any>(null);
+  const [isEditable, setIsEditable] = useState<boolean>(false);
+  const [reviewLink, setReviewLink] = useState<string>('');
+  const [updatingReview, setUpdatingReview] = useState<boolean>(false);
+  const [updatingResubmission, setUpdatingResubmission] = useState<boolean>(false);
   
   // Unwrap params using React.use()
   const unwrappedParams = React.use(params as any) as { shareId: string, conceptId: string };
@@ -57,7 +84,22 @@ export default function SharedSingleConceptPage({ params }: { params: { shareId:
           throw conceptError;
         }
 
-        setConcept(conceptData as BriefConcept);
+        setConcept(conceptData as ExtendedBriefConcept);
+        
+        // Initialize review link from concept if it exists
+        if (conceptData.review_link) {
+          setReviewLink(conceptData.review_link);
+        }
+
+        // Set editability based on share settings from batch
+        const shareSettings = batchData[0].share_settings?.[shareId];
+        setIsEditable(!!shareSettings?.is_editable);
+        
+        // Check if the concept status is appropriate for sharing
+        if (conceptData && conceptData.status !== "ready for designer" && conceptData.status !== "ready for editor") {
+          setError('This concept is not available for viewing. Only concepts with status "ready for designer" or "ready for editor" can be viewed.');
+          setConcept(null);
+        }
       } catch (err: any) {
         console.error('Error fetching shared concept:', err);
         setError(err.message || 'Failed to load shared content');
@@ -68,6 +110,140 @@ export default function SharedSingleConceptPage({ params }: { params: { shareId:
 
     fetchSharedConcept();
   }, [shareId, conceptId]);
+
+  // Clear review link when status changes to needs_revisions
+  useEffect(() => {
+    if (concept?.review_status === 'needs_revisions') {
+      // Clear the review link if revisions were requested to prompt for a new link
+      setReviewLink('');
+    }
+  }, [concept?.review_status]);
+
+  const handleMarkReadyForReview = async () => {
+    if (!concept) return;
+    
+    try {
+      setUpdatingReview(true);
+      const supabase = createSPAClient();
+      
+      // First, try updating with regular client
+      const { data, error } = await supabase
+        .from('brief_concepts')
+        .update({
+          review_status: 'ready_for_review',
+          review_link: reviewLink,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', concept.id)
+        .select()
+        .single();
+      
+      if (error) {
+        // If error likely due to RLS permissions (non-authenticated users can't update),
+        // Use a serverless function or API endpoint instead
+        console.log("Using API endpoint for unauthenticated update");
+        const response = await fetch('/api/public/update-concept-review', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            conceptId: concept.id,
+            shareId: shareId,
+            reviewLink: reviewLink
+          }),
+        });
+        
+        if (!response.ok) {
+          throw new Error('Failed to update review status via API endpoint');
+        }
+        
+        const updatedConcept = await response.json();
+        setConcept(updatedConcept);
+      } else {
+        setConcept(data as ExtendedBriefConcept);
+      }
+      
+      toast({
+        title: 'Success',
+        description: 'The concept has been marked as ready for review.',
+        duration: 3000,
+      });
+    } catch (err: any) {
+      console.error('Error updating review status:', err);
+      toast({
+        title: 'Error',
+        description: 'Failed to update review status. Please try again.',
+        variant: 'destructive',
+        duration: 3000,
+      });
+    } finally {
+      setUpdatingReview(false);
+    }
+  };
+
+  const handleResubmitForReview = async () => {
+    if (!concept) return;
+    
+    try {
+      setUpdatingResubmission(true);
+      const supabase = createSPAClient();
+      
+      // First, try updating with regular client
+      const { data, error } = await supabase
+        .from('brief_concepts')
+        .update({
+          review_status: 'ready_for_review',
+          review_link: reviewLink,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', concept.id)
+        .select()
+        .single();
+      
+      if (error) {
+        // If error likely due to RLS permissions (non-authenticated users can't update),
+        // Use a serverless function or API endpoint instead
+        console.log("Using API endpoint for unauthenticated update");
+        const response = await fetch('/api/public/update-concept-review', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            conceptId: concept.id,
+            shareId: shareId,
+            reviewLink: reviewLink
+          }),
+        });
+        
+        if (!response.ok) {
+          throw new Error('Failed to resubmit for review via API endpoint');
+        }
+        
+        const updatedConcept = await response.json();
+        setConcept(updatedConcept);
+      } else {
+        setConcept(data as ExtendedBriefConcept);
+      }
+      
+      toast({
+        title: 'Success',
+        description: 'The concept has been resubmitted for review.',
+        duration: 3000,
+      });
+    } catch (err: any) {
+      console.error('Error resubmitting for review:', err);
+      toast({
+        title: 'Error',
+        description: 'Failed to resubmit for review. Please try again.',
+        variant: 'destructive',
+        duration: 3000,
+      });
+    } finally {
+      setUpdatingResubmission(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -128,6 +304,138 @@ export default function SharedSingleConceptPage({ params }: { params: { shareId:
           </div>
         )}
       </div>
+
+      {/* Review Status Banner */}
+      {concept?.review_status === 'ready_for_review' && (
+        <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg flex items-center space-x-3">
+          <CheckCircle className="h-5 w-5 text-blue-500" />
+          <div>
+            <h3 className="font-medium text-blue-800">Ready for Review</h3>
+            <p className="text-sm text-blue-700">This concept has been marked as ready for review.</p>
+            {concept.review_link && (
+              <a 
+                href={concept.review_link} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-blue-600 hover:underline text-sm mt-1 inline-block"
+              >
+                View on Frame.io →
+              </a>
+            )}
+          </div>
+        </div>
+      )}
+
+      {concept?.review_status === 'approved' && (
+        <div className="bg-green-50 border border-green-200 p-4 rounded-lg flex items-center space-x-3">
+          <CheckCircle className="h-5 w-5 text-green-500" />
+          <div>
+            <h3 className="font-medium text-green-800">Approved</h3>
+            <p className="text-sm text-green-700">This concept has been approved.</p>
+          </div>
+        </div>
+      )}
+
+      {concept?.review_status === 'needs_revisions' && (
+        <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg flex items-center space-x-3">
+          <AlertTriangle className="h-5 w-5 text-amber-500" />
+          <div>
+            <h3 className="font-medium text-amber-800">Revisions Requested</h3>
+            <p className="text-sm text-amber-700">This concept needs revisions.</p>
+            {concept.reviewer_notes && (
+              <div className="mt-2 p-2 bg-amber-100 rounded text-sm text-amber-800">
+                <strong>Feedback:</strong> {concept.reviewer_notes}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Resubmission Section after Revisions */}
+      {isEditable && concept?.review_status === 'needs_revisions' && (
+        <Card className="border-2 border-amber-300">
+          <CardHeader>
+            <CardTitle className="text-lg">Submit Revised Version</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <Label htmlFor="revisedReviewLink">Updated Frame.io Review Link</Label>
+              <Input
+                id="revisedReviewLink"
+                placeholder="Paste your updated Frame.io link here"
+                value={reviewLink}
+                onChange={(e) => setReviewLink(e.target.value)}
+              />
+              <p className="text-sm text-gray-500 mt-1">
+                Please provide a link to the revised video on Frame.io for review
+              </p>
+            </div>
+          </CardContent>
+          <CardFooter>
+            <Button 
+              onClick={handleResubmitForReview} 
+              disabled={updatingResubmission || !reviewLink.trim()} 
+              className="bg-amber-600 hover:bg-amber-700 text-white"
+            >
+              {updatingResubmission ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+              Submit Revised Version
+            </Button>
+          </CardFooter>
+        </Card>
+      )}
+
+      {/* Editor Review Section */}
+      {isEditable && !concept?.review_status && (
+        <Card className="border-2 border-blue-300">
+          <CardHeader>
+            <CardTitle className="text-lg">Mark Ready for Review</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <Label htmlFor="reviewLink">Frame.io Review Link</Label>
+              <Input
+                id="reviewLink"
+                placeholder="Paste your Frame.io link here"
+                value={reviewLink}
+                onChange={(e) => setReviewLink(e.target.value)}
+              />
+              <p className="text-sm text-gray-500 mt-1">
+                Please provide a link to the video on Frame.io for review
+              </p>
+            </div>
+          </CardContent>
+          <CardFooter>
+            <Button 
+              onClick={handleMarkReadyForReview} 
+              disabled={updatingReview || !reviewLink.trim()} 
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              {updatingReview ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+              Mark as Ready for Review
+            </Button>
+          </CardFooter>
+        </Card>
+      )}
+
+      {/* Read-only review section */}
+      {isEditable && concept?.review_status === 'ready_for_review' && (
+        <Card className="border-2 border-blue-300">
+          <CardHeader>
+            <CardTitle className="text-lg">Awaiting Review</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p>This concept has been marked as ready for review with the following review link:</p>
+            <a 
+              href={concept.review_link || '#'} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-blue-600 hover:underline mt-2 inline-block"
+            >
+              {concept.review_link}
+            </a>
+          </CardContent>
+        </Card>
+      )}
 
       <Tabs defaultValue="concept" className="w-full">
         <TabsList className="mb-4">

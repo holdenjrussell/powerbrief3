@@ -35,7 +35,7 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
     const [saving, setSaving] = useState<boolean>(false);
     const [savingConceptId, setSavingConceptId] = useState<string | null>(null);
     const [generatingAI, setGeneratingAI] = useState<boolean>(false);
-    const [generatingConceptId, setGeneratingConceptId] = useState<string | null>(null);
+    const [generatingConceptIds, setGeneratingConceptIds] = useState<Record<string, boolean>>({});
     const fileInputRef = useRef<HTMLInputElement>(null);
     const multipleFileInputRef = useRef<HTMLInputElement>(null);
     const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -412,16 +412,17 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
         if (!concept) return;
         
         try {
-            setGeneratingConceptId(conceptId);
+            // Set this specific concept as generating
+            setGeneratingConceptIds(prev => ({
+                ...prev,
+                [conceptId]: true
+            }));
             
-            // Generate the API request object
             const request: AiBriefingRequest = {
                 brandContext: {
                     brand_info_data: brand.brand_info_data,
                     target_audience_data: brand.target_audience_data,
-                    competition_data: brand.competition_data,
-                    system_instructions_image: brand.system_instructions_image,
-                    system_instructions_video: brand.system_instructions_video
+                    competition_data: brand.competition_data
                 },
                 conceptSpecificPrompt: concept.ai_custom_prompt || '',
                 conceptCurrentData: {
@@ -434,9 +435,12 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                     url: concept.media_url || '',
                     type: concept.media_type || ''
                 },
-                desiredOutputFields: concept.media_type === 'image' 
-                    ? ['description', 'cta'] // For image briefs (using system_instructions_image format)
-                    : ['caption_hook_options', 'body_content_structured_scenes', 'cta_script', 'cta_text_overlay'] // For video briefs
+                desiredOutputFields: [
+                    'caption_hook_options', 
+                    'body_content_structured_scenes', 
+                    'cta_script', 
+                    'cta_text_overlay'
+                ]
             };
             
             const response = await fetch('/api/ai/generate-brief', {
@@ -455,15 +459,14 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
             
             const aiResponse = await response.json();
             
-                            // Update concept with AI response
+            // Update concept with AI response
             const updatedConcept = await updateBriefConcept({
                 ...concept,
                 id: conceptId,
                 caption_hook_options: aiResponse.caption_hook_options || concept.caption_hook_options,
                 body_content_structured: aiResponse.body_content_structured_scenes || concept.body_content_structured,
                 cta_script: aiResponse.cta_script || concept.cta_script,
-                cta_text_overlay: aiResponse.cta_text_overlay || concept.cta_text_overlay,
-                description: aiResponse.description || concept.description
+                cta_text_overlay: aiResponse.cta_text_overlay || concept.cta_text_overlay
             });
             
             setConcepts(prev => 
@@ -473,7 +476,12 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
             console.error('Failed to generate AI brief:', err);
             setError(`AI brief generation failed: ${err.message || 'Unknown error'}`);
         } finally {
-            setGeneratingConceptId(null);
+            // Clear the loading state for this specific concept
+            setGeneratingConceptIds(prev => {
+                const updated = { ...prev };
+                delete updated[conceptId];
+                return updated;
+            });
         }
     };
 
@@ -491,16 +499,17 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
             for (const concept of concepts) {
                 try {
                     console.log(`Generating AI brief for concept: ${concept.id} (${concept.concept_title})`);
-                    setGeneratingConceptId(concept.id);
+                    // Add this concept to the loading states
+                    setGeneratingConceptIds(prev => ({
+                        ...prev,
+                        [concept.id]: true
+                    }));
                     
-                    // Generate the API request object
                     const request: AiBriefingRequest = {
                         brandContext: {
                             brand_info_data: brand.brand_info_data,
                             target_audience_data: brand.target_audience_data,
-                            competition_data: brand.competition_data,
-                            system_instructions_image: brand.system_instructions_image,
-                            system_instructions_video: brand.system_instructions_video
+                            competition_data: brand.competition_data
                         },
                         conceptSpecificPrompt: concept.ai_custom_prompt || '',
                         conceptCurrentData: {
@@ -513,9 +522,12 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                             url: concept.media_url || '',
                             type: concept.media_type || ''
                         },
-                        desiredOutputFields: concept.media_type === 'image'
-                            ? ['description', 'cta'] // For image briefs (using system_instructions_image format)
-                            : ['caption_hook_options', 'body_content_structured_scenes', 'cta_script', 'cta_text_overlay'] // For video briefs
+                        desiredOutputFields: [
+                            'caption_hook_options', 
+                            'body_content_structured_scenes', 
+                            'cta_script', 
+                            'cta_text_overlay'
+                        ]
                     };
                     
                     const response = await fetch('/api/ai/generate-brief', {
@@ -541,8 +553,7 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                         caption_hook_options: aiResponse.caption_hook_options || concept.caption_hook_options,
                         body_content_structured: aiResponse.body_content_structured_scenes || concept.body_content_structured,
                         cta_script: aiResponse.cta_script || concept.cta_script,
-                        cta_text_overlay: aiResponse.cta_text_overlay || concept.cta_text_overlay,
-                        description: aiResponse.description || concept.description
+                        cta_text_overlay: aiResponse.cta_text_overlay || concept.cta_text_overlay
                     });
                     
                     setConcepts(prev => 
@@ -557,11 +568,17 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                 } catch (conceptErr: any) {
                     console.error(`Failed to generate AI brief for concept ${concept.id}:`, conceptErr);
                     failCount++;
+                } finally {
+                    // Clear the loading state for this concept when done
+                    setGeneratingConceptIds(prev => {
+                        const updated = { ...prev };
+                        delete updated[concept.id];
+                        return updated;
+                    });
                 }
             }
             
             // Set final status message
-            setGeneratingConceptId(null);
             if (failCount > 0) {
                 if (successCount > 0) {
                     setError(`Generated AI briefs for ${successCount}/${concepts.length} concepts. ${failCount} failed.`);
@@ -577,7 +594,6 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
             setError(`AI briefs generation failed: ${err.message || 'Unknown error'}`);
         } finally {
             setGeneratingAI(false);
-            setGeneratingConceptId(null);
         }
     };
 
@@ -1472,10 +1488,10 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                         <Button
                                             size="sm"
                                             className="ml-2 bg-primary-600 text-white hover:bg-primary-700 flex items-center"
-                                            disabled={generatingConceptId === concept.id}
+                                            disabled={generatingConceptIds[concept.id]}
                                             onClick={() => handleGenerateAI(concept.id)}
                                         >
-                                            {generatingConceptId === concept.id ? (
+                                            {generatingConceptIds[concept.id] ? (
                                                 <>
                                                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                                                     Generating...
