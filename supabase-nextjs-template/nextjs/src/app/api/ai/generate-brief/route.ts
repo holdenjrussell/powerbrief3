@@ -225,23 +225,70 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
         const jsonStr = jsonMatch ? jsonMatch[0] : responseText;
         const jsonResponse = JSON.parse(jsonStr);
         
-        // Transform the response to match expected structure
-        const responseData: AiBriefingResponse = {
-          caption_hook_options: jsonResponse.caption_hook_options || "",
-          // Ensure proper naming for scenes
-          body_content_structured_scenes: jsonResponse.body_content_structured_scenes || [],
-          cta_script: jsonResponse.cta_script || "",
-          cta_text_overlay: jsonResponse.cta_text_overlay || ""
-        };
+        // Log for debugging
+        console.log(`Debug prompt:\n/* Using ${body.media?.type === 'image' ? 'image' : 'video'} system instructions */\n\n${systemPrompt}\n\nMEDIA INFORMATION:\nType: ${body.media?.type || 'none'}\nURL: ${body.media?.url || 'none'}\n\nNOTE: In the actual API request, the media file is downloaded and sent as binary data directly to Gemini, \nallowing it to properly analyze images and videos. This is just a text representation for debugging purposes.\n\nCURRENT CONTENT (for refinement):\n\`\`\`json\n${currentDataStr}\n\`\`\`\n\nPlease generate content for these fields: ${fieldsStr}\nIf media is provided, make sure your content directly references and relates to what's shown in the media.\nEnsure your response is ONLY valid JSON matching the structure in my instructions. Do not include any other text.`);
+        
+        // Transform the response to match expected structure based on media type
+        let responseData: AiBriefingResponse;
+        
+        if (body.media?.type === 'image' && (jsonResponse.description || jsonResponse.cta)) {
+          // Handle image-specific format (description + cta)
+          console.log('Detected image-specific response format with description/cta');
+          responseData = {
+            caption_hook_options: jsonResponse.description || "",
+            body_content_structured_scenes: [],
+            cta_script: jsonResponse.cta || "",
+            cta_text_overlay: jsonResponse.cta || ""
+          };
+        } else {
+          // Handle regular format (video or default)
+          responseData = {
+            caption_hook_options: jsonResponse.caption_hook_options || "",
+            body_content_structured_scenes: jsonResponse.body_content_structured_scenes || [],
+            cta_script: jsonResponse.cta_script || "",
+            cta_text_overlay: jsonResponse.cta_text_overlay || ""
+          };
+        }
         
         return NextResponse.json(responseData);
       } catch (parseError) {
         console.error('Failed to parse Gemini response as JSON:', parseError);
         console.log('Raw response text:', responseText);
         
-        // Return a fallback response
+        // Log additional diagnostic information
+        console.log('System instructions used:');
+        console.log(systemPrompt);
+        
+        if (body.media?.type === 'image') {
+          console.log('This was an IMAGE request. Expected format with description/cta fields.');
+          
+          // Try to extract description/cta manually as a fallback
+          try {
+            if (responseText.includes('"description"') && responseText.includes('"cta"')) {
+              const manualMatch = responseText.match(/\{\s*"description"\s*:\s*"([^"]*)"\s*,\s*"cta"\s*:\s*"([^"]*)"\s*\}/);
+              if (manualMatch) {
+                console.log('Found potential manual match for description/cta format');
+                const description = manualMatch[1];
+                const cta = manualMatch[2];
+                
+                // Return transformed response
+                return NextResponse.json({
+                  caption_hook_options: description,
+                  body_content_structured_scenes: [],
+                  cta_script: cta,
+                  cta_text_overlay: cta
+                });
+              }
+            }
+          } catch (fallbackError) {
+            console.error('Failed in fallback extraction attempt:', fallbackError);
+          }
+        }
+        
+        // Return a fallback response with more details
         return NextResponse.json({ 
           error: 'Failed to parse AI response as JSON',
+          media_type: body.media?.type || 'none',
           rawResponse: responseText.substring(0, 500) + (responseText.length > 500 ? '...' : '')
         }, { status: 500 });
       }

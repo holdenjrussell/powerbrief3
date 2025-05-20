@@ -411,14 +411,15 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
         try {
             setGeneratingConceptId(conceptId);
             
-                                const request: AiBriefingRequest = {
-                        brandContext: {
-                            brand_info_data: brand.brand_info_data,
-                            target_audience_data: brand.target_audience_data,
-                            competition_data: brand.competition_data,
-                            system_instructions_image: brand.system_instructions_image,
-                            system_instructions_video: brand.system_instructions_video
-                        },
+            // Generate the API request object
+            const request: AiBriefingRequest = {
+                brandContext: {
+                    brand_info_data: brand.brand_info_data,
+                    target_audience_data: brand.target_audience_data,
+                    competition_data: brand.competition_data,
+                    system_instructions_image: brand.system_instructions_image,
+                    system_instructions_video: brand.system_instructions_video
+                },
                 conceptSpecificPrompt: concept.ai_custom_prompt || '',
                 conceptCurrentData: {
                     caption_hook_options: concept.caption_hook_options || '',
@@ -430,12 +431,9 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                     url: concept.media_url || '',
                     type: concept.media_type || ''
                 },
-                desiredOutputFields: [
-                    'caption_hook_options', 
-                    'body_content_structured_scenes', 
-                    'cta_script', 
-                    'cta_text_overlay'
-                ]
+                desiredOutputFields: concept.media_type === 'image' 
+                    ? ['description', 'cta'] // For image briefs (using system_instructions_image format)
+                    : ['caption_hook_options', 'body_content_structured_scenes', 'cta_script', 'cta_text_overlay'] // For video briefs
             };
             
             const response = await fetch('/api/ai/generate-brief', {
@@ -491,6 +489,7 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                     console.log(`Generating AI brief for concept: ${concept.id} (${concept.concept_title})`);
                     setGeneratingConceptId(concept.id);
                     
+                    // Generate the API request object
                     const request: AiBriefingRequest = {
                         brandContext: {
                             brand_info_data: brand.brand_info_data,
@@ -510,12 +509,9 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                             url: concept.media_url || '',
                             type: concept.media_type || ''
                         },
-                        desiredOutputFields: [
-                            'caption_hook_options', 
-                            'body_content_structured_scenes', 
-                            'cta_script', 
-                            'cta_text_overlay'
-                        ]
+                        desiredOutputFields: concept.media_type === 'image'
+                            ? ['description', 'cta'] // For image briefs (using system_instructions_image format)
+                            : ['caption_hook_options', 'body_content_structured_scenes', 'cta_script', 'cta_text_overlay'] // For video briefs
                     };
                     
                     const response = await fetch('/api/ai/generate-brief', {
@@ -770,12 +766,9 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                 url: concept.media_url || '',
                 type: concept.media_type || ''
             },
-            desiredOutputFields: [
-                'caption_hook_options', 
-                'body_content_structured_scenes', 
-                'cta_script', 
-                'cta_text_overlay'
-            ]
+            desiredOutputFields: concept.media_type === 'image' 
+                ? ['description', 'cta'] // For image briefs (using system_instructions_image format)
+                : ['caption_hook_options', 'body_content_structured_scenes', 'cta_script', 'cta_text_overlay'] // For video briefs
         };
         
         // Simulate the prompt construction similar to what happens in the API route
@@ -1856,17 +1849,17 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                                 <label className="block text-xs font-medium mb-1">Video Editor Instructions:</label>
                                                 <MarkdownTextarea
                                                     value={localVideoInstructions[concept.id] || ''}
-                                                    onChange={(e) => {
+                                                    onChange={(value) => {
                                                         // Update local state immediately for responsive typing
                                                         setLocalVideoInstructions(prev => ({
                                                             ...prev,
-                                                            [concept.id]: e.target.value
+                                                            [concept.id]: value
                                                         }));
                                                         
                                                         // Debounce the actual save operation
                                                         const updatedConcept = {
                                                             ...concept,
-                                                            videoInstructions: e.target.value
+                                                            videoInstructions: value
                                                         };
                                                         debouncedUpdateConcept(updatedConcept);
                                                     }}
@@ -1884,7 +1877,6 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                                         handleUpdateConcept(updatedConcept);
                                                     }}
                                                     placeholder="Instructions for video editors... e.g.&#10;- Use AI voiceover from ElevenLabs&#10;- Add B-roll footage&#10;- Logo at 10-15% opacity&#10;- Add captions&#10;- Add light background music"
-                                                    rows={4}
                                                     className="text-sm"
                                                 />
                                             </div>
@@ -1896,17 +1888,17 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                                 <label className="block text-xs font-medium mb-1">Designer Instructions (for Images):</label>
                                                 <MarkdownTextarea
                                                     value={localDesignerInstructions[concept.id] || ''}
-                                                    onChange={(e) => {
+                                                    onChange={(value) => {
                                                         // Update local state immediately for responsive typing
                                                         setLocalDesignerInstructions(prev => ({
                                                             ...prev,
-                                                            [concept.id]: e.target.value
+                                                            [concept.id]: value
                                                         }));
                                                         
                                                         // Debounce the actual save operation
                                                         const updatedConcept = {
                                                             ...concept,
-                                                            designerInstructions: e.target.value
+                                                            designerInstructions: value
                                                         };
                                                         debouncedUpdateConcept(updatedConcept);
                                                     }}
@@ -1924,7 +1916,6 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                                         handleUpdateConcept(updatedConcept);
                                                     }}
                                                     placeholder="Instructions for designers creating image assets..."
-                                                    rows={4}
                                                     className="text-sm"
                                                 />
                                             </div>
