@@ -2,6 +2,7 @@
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
     "@types/uuid": "^10.0.0",
+    "dotenv": "^16.5.0",
     "node-fetch": "^3.3.2",
     "uuid": "^11.1.0"
   },
@@ -12,5 +13,8 @@
     "start": "next start",
     "lint": "next lint",
     "gen-migrations": "npx supabase gen types typescript --local --schema public > src/lib/supabase/types.ts"
+  },
+  "devDependencies": {
+    "@tailwindcss/typography": "^0.5.16"
   }
 }
