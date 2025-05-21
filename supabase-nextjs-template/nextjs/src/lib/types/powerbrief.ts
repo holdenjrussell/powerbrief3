@@ -108,6 +108,8 @@ export interface BriefConcept {
   description: string | null;
   videoInstructions: string | null;
   designerInstructions: string | null;
+  hook_type?: 'caption' | 'verbal' | 'both' | null;
+  hook_count?: number | null;
   shared_with?: string[] | null;
   share_settings?: Record<string, ShareSettings> | null;
   review_status?: 'pending' | 'ready_for_review' | 'approved' | 'needs_revisions' | null;
@@ -204,6 +206,8 @@ export type DbBriefConcept = {
   description: string | null;
   videoInstructions: string | null;
   designerInstructions: string | null;
+  hook_type?: string | null;
+  hook_count?: number | null;
   order_in_batch: number;
   share_settings?: Record<string, ShareSettings> | null;
   shared_with?: string[] | null;

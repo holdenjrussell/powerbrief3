@@ -576,14 +576,14 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
                                             <Trash2 className="h-4 w-4" />
                                         </Button>
                                     </div>
-                                    <div className="grid grid-cols-2 gap-2 text-sm">
-                                        <div>
-                                            <span className="text-gray-500">Username:</span>
-                                            <span className="ml-2">{login.username}</span>
+                                    <div className="grid grid-cols-1 gap-2 text-sm">
+                                        <div className="flex flex-col">
+                                            <span className="text-gray-500 font-medium">Username:</span>
+                                            <span className="break-all">{login.username}</span>
                                         </div>
-                                        <div>
-                                            <span className="text-gray-500">Password:</span>
-                                            <span className="ml-2">{login.password}</span>
+                                        <div className="flex flex-col">
+                                            <span className="text-gray-500 font-medium">Password:</span>
+                                            <span className="break-all">{login.password}</span>
                                         </div>
                                     </div>
                                 </div>
