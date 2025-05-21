@@ -950,7 +950,6 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
         concepts.forEach(concept => {
             promptMap[concept.id] = concept.ai_custom_prompt || '';
             captionHooksMap[concept.id] = concept.caption_hook_options || '';
-            const spokenHooksMap: Record<string, string> = {};
             spokenHooksMap[concept.id] = concept.spoken_hook_options || '';
             ctaScriptMap[concept.id] = concept.cta_script || '';
             ctaTextOverlayMap[concept.id] = concept.cta_text_overlay || '';
