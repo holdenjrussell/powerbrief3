@@ -41,6 +41,7 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
     const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const [localPrompts, setLocalPrompts] = useState<Record<string, string>>({});
     const [localCaptionHooks, setLocalCaptionHooks] = useState<Record<string, string>>({});
+    const [localSpokenHooks, setLocalSpokenHooks] = useState<Record<string, string>>({});
     const [localCtaScript, setLocalCtaScript] = useState<Record<string, string>>({});
     const [localCtaTextOverlay, setLocalCtaTextOverlay] = useState<Record<string, string>>({});
     const [localScenes, setLocalScenes] = useState<Record<string, Scene[]>>({});
@@ -99,6 +100,7 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                 // Initialize local states for each concept based on fetched data
                 const initialLocalPrompts: Record<string, string> = {};
                 const initialLocalCaptionHooks: Record<string, string> = {};
+                const initialLocalSpokenHooks: Record<string, string> = {};
                 const initialLocalCtaScript: Record<string, string> = {};
                 const initialLocalCtaTextOverlay: Record<string, string> = {};
                 const initialLocalScenes: Record<string, Scene[]> = {};
@@ -115,6 +117,7 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                 conceptsData.forEach(concept => {
                     initialLocalPrompts[concept.id] = concept.ai_custom_prompt || '';
                     initialLocalCaptionHooks[concept.id] = concept.caption_hook_options?.[0] || ''; // Assuming single hook for now, adjust if multiple
+                    initialLocalSpokenHooks[concept.id] = concept.spoken_hook_options || '';
                     initialLocalCtaScript[concept.id] = concept.cta_script || '';
                     initialLocalCtaTextOverlay[concept.id] = concept.cta_text_overlay || '';
                     initialLocalScenes[concept.id] = concept.body_content_structured || [];
@@ -131,6 +134,7 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
 
                 setLocalPrompts(initialLocalPrompts);
                 setLocalCaptionHooks(initialLocalCaptionHooks);
+                setLocalSpokenHooks(initialLocalSpokenHooks);
                 setLocalCtaScript(initialLocalCtaScript);
                 setLocalCtaTextOverlay(initialLocalCtaTextOverlay);
                 setLocalScenes(initialLocalScenes);
@@ -843,6 +847,7 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
     useEffect(() => {
         const promptMap: Record<string, string> = {};
         const captionHooksMap: Record<string, string> = {};
+        const spokenHooksMap: Record<string, string> = {};
         const ctaScriptMap: Record<string, string> = {};
         const ctaTextOverlayMap: Record<string, string> = {};
         const scenesMap: Record<string, Scene[]> = {};
@@ -857,6 +862,8 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
         concepts.forEach(concept => {
             promptMap[concept.id] = concept.ai_custom_prompt || '';
             captionHooksMap[concept.id] = concept.caption_hook_options || '';
+            const spokenHooksMap: Record<string, string> = {};
+            spokenHooksMap[concept.id] = concept.spoken_hook_options || '';
             ctaScriptMap[concept.id] = concept.cta_script || '';
             ctaTextOverlayMap[concept.id] = concept.cta_text_overlay || '';
             scenesMap[concept.id] = [...(concept.body_content_structured || [])];
@@ -871,6 +878,7 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
         
         setLocalPrompts(promptMap);
         setLocalCaptionHooks(captionHooksMap);
+        setLocalSpokenHooks(spokenHooksMap);
         setLocalCtaScript(ctaScriptMap);
         setLocalCtaTextOverlay(ctaTextOverlayMap);
         setLocalScenes(scenesMap);
@@ -1698,9 +1706,15 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                     <div className="mt-2">
                                         <h3 className="font-medium text-sm mb-1">Spoken Hook options</h3>
                                         <Textarea
-                                            value={concept.spoken_hook_options || ''}
+                                            value={localSpokenHooks[concept.id] || ''}
                                             onChange={(e) => {
                                                 // Update local state immediately for responsive typing
+                                                setLocalSpokenHooks(prev => ({
+                                                    ...prev,
+                                                    [concept.id]: e.target.value
+                                                }));
+                                                
+                                                // Debounce the actual save operation
                                                 const updatedConcept = {
                                                     ...concept,
                                                     spoken_hook_options: e.target.value
@@ -1716,7 +1730,7 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                                 
                                                 const updatedConcept = {
                                                     ...concept,
-                                                    spoken_hook_options: concept.spoken_hook_options || ''
+                                                    spoken_hook_options: localSpokenHooks[concept.id] || ''
                                                 };
                                                 handleUpdateConcept(updatedConcept);
                                             }}
