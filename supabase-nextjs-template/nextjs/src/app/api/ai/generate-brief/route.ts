@@ -4,7 +4,7 @@ import { AiBriefingRequest, AiBriefingResponse } from '@/lib/types/powerbrief';
 import { createClient } from '@/utils/supabase/server';
 
 // Use the correct model name as shown in the endpoint
-const MODEL_NAME = 'gemini-2.5-flash-preview-05-20';
+const MODEL_NAME = 'gemini-2.5-pro-exp-03-25';
 
 // Helper to get more specific mime types
 const getProperMimeType = (mediaType: string | undefined, fileUrl: string): string => {
