@@ -501,6 +501,25 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
             // Now use the updated concept with the saved prompt
             const conceptWithSavedPrompt = concepts.find(c => c.id === conceptId) || concept;
             
+            // Get the current hook type and count from local state first, falling back to the concept values
+            const hookType = localHookTypes[conceptId] || conceptWithSavedPrompt.hook_type || 'both';
+            const hookCount = localHookCounts[conceptId] || conceptWithSavedPrompt.hook_count || 5;
+            
+            // First, save the hook type and count to the database to ensure consistency
+            const updatedConceptWithHooks = {
+                ...conceptWithSavedPrompt,
+                hook_type: hookType,
+                hook_count: hookCount
+            };
+            
+            // Save the hook settings
+            await updateBriefConcept(updatedConceptWithHooks);
+            
+            // Update the local concept state
+            setConcepts(prev => 
+                prev.map(c => c.id === conceptId ? updatedConceptWithHooks : c)
+            );
+            
             const request: AiBriefingRequest = {
                 brandContext: {
                     brand_info_data: brand.brand_info_data,
@@ -520,15 +539,18 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                 },
                 desiredOutputFields: [
                     'caption_hook_options', 
+                    'spoken_hook_options',
                     'body_content_structured_scenes', 
                     'cta_script', 
                     'cta_text_overlay'
                 ],
                 hookOptions: {
-                    type: conceptWithSavedPrompt.hook_type || localHookTypes[conceptId] || 'both',
-                    count: conceptWithSavedPrompt.hook_count || localHookCounts[conceptId] || 5
+                    type: hookType,
+                    count: hookCount
                 }
             };
+            
+            console.log('Sending AI generation request with hook options:', request.hookOptions);
             
             const response = await fetch('/api/ai/generate-brief', {
                 method: 'POST',
@@ -550,10 +572,26 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
             const updatedConceptWithAI = await updateBriefConcept({
                  ...conceptWithSavedPrompt,
                  caption_hook_options: aiResponse.caption_hook_options || conceptWithSavedPrompt.caption_hook_options,
+                 spoken_hook_options: aiResponse.spoken_hook_options || conceptWithSavedPrompt.spoken_hook_options,
                  body_content_structured: aiResponse.body_content_structured_scenes || conceptWithSavedPrompt.body_content_structured,
                  cta_script: aiResponse.cta_script || conceptWithSavedPrompt.cta_script,
                  cta_text_overlay: aiResponse.cta_text_overlay || conceptWithSavedPrompt.cta_text_overlay
               });
+              
+              // Update local caption and spoken hooks state
+              if (aiResponse.caption_hook_options) {
+                  setLocalCaptionHooks(prev => ({
+                      ...prev,
+                      [conceptId]: aiResponse.caption_hook_options
+                  }));
+              }
+              
+              if (aiResponse.spoken_hook_options) {
+                  setLocalSpokenHooks(prev => ({
+                      ...prev,
+                      [conceptId]: aiResponse.spoken_hook_options
+                  }));
+              }
               
               setConcepts(prev => 
                   prev.map(c => c.id === updatedConceptWithAI.id ? updatedConceptWithAI : c)
@@ -602,6 +640,32 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                         // Continue with the next concept even if saving this prompt fails
                     }
                 }
+                
+                // Also save hook type and count settings if they differ from the database
+                const localHookType = localHookTypes[concept.id] || 'both';
+                const localHookCount = localHookCounts[concept.id] || 5;
+                
+                if (localHookType !== concept.hook_type || localHookCount !== concept.hook_count) {
+                    try {
+                        // Update the concept with the current hook settings
+                        const updatedConceptWithHooks = {
+                            ...concept,
+                            hook_type: localHookType,
+                            hook_count: localHookCount
+                        };
+                        
+                        // Save the updated hook settings
+                        const savedConcept = await updateBriefConcept(updatedConceptWithHooks);
+                        
+                        // Update the local concepts state
+                        setConcepts(prev => 
+                            prev.map(c => c.id === concept.id ? savedConcept : c)
+                        );
+                    } catch (hookSaveError) {
+                        console.error(`Failed to save hook settings for concept ${concept.id}:`, hookSaveError);
+                        // Continue with the next concept even if saving hook settings fails
+                    }
+                }
             }
             
             // Clear any pending debounced updates
@@ -628,6 +692,12 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                     // Get the latest prompt from local state (which should be synchronized with DB at this point)
                     const currentPromptValue = localPrompts[concept.id] || concept.ai_custom_prompt || '';
                     
+                    // Get the hook type and count for this concept
+                    const hookType = localHookTypes[concept.id] || concept.hook_type || 'both';
+                    const hookCount = localHookCounts[concept.id] || concept.hook_count || 5;
+                    
+                    console.log(`Using hook type: ${hookType}, hook count: ${hookCount} for concept ${concept.id}`);
+                    
                     const request: AiBriefingRequest = {
                         brandContext: {
                             brand_info_data: brand.brand_info_data,
@@ -647,13 +717,14 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                         },
                         desiredOutputFields: [
                             'caption_hook_options', 
+                            'spoken_hook_options',
                             'body_content_structured_scenes', 
                             'cta_script', 
                             'cta_text_overlay'
                         ],
                         hookOptions: {
-                            type: concept.hook_type || localHookTypes[concept.id] || 'both',
-                            count: concept.hook_count || localHookCounts[concept.id] || 5
+                            type: hookType,
+                            count: hookCount
                         }
                     };
                     
@@ -678,10 +749,26 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                         ...concept,
                         id: concept.id,
                         caption_hook_options: aiResponse.caption_hook_options || concept.caption_hook_options,
+                        spoken_hook_options: aiResponse.spoken_hook_options || concept.spoken_hook_options,
                         body_content_structured: aiResponse.body_content_structured_scenes || concept.body_content_structured,
                         cta_script: aiResponse.cta_script || concept.cta_script,
                         cta_text_overlay: aiResponse.cta_text_overlay || concept.cta_text_overlay
                     });
+                    
+                    // Update local state for hooks
+                    if (aiResponse.caption_hook_options) {
+                        setLocalCaptionHooks(prev => ({
+                            ...prev,
+                            [concept.id]: aiResponse.caption_hook_options
+                        }));
+                    }
+                    
+                    if (aiResponse.spoken_hook_options) {
+                        setLocalSpokenHooks(prev => ({
+                            ...prev,
+                            [concept.id]: aiResponse.spoken_hook_options
+                        }));
+                    }
                     
                     setConcepts(prev => 
                         prev.map(c => c.id === updatedConcept.id ? updatedConcept : c)
@@ -927,7 +1014,11 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
             },
             desiredOutputFields: mediaType === 'image' 
                 ? ['description', 'cta'] // For image briefs (using system_instructions_image format)
-                : ['caption_hook_options', 'body_content_structured_scenes', 'cta_script', 'cta_text_overlay'] // For video briefs
+                : ['caption_hook_options', 'body_content_structured_scenes', 'cta_script', 'cta_text_overlay'], // For video briefs
+            hookOptions: {
+                type: concept.hook_type || localHookTypes[conceptId] || 'both',
+                count: concept.hook_count || localHookCounts[conceptId] || 5
+            }
         };
         
         // Simulate the prompt construction similar to what happens in the API route
@@ -971,6 +1062,21 @@ allowing it to properly analyze images and videos. This is just a text represent
             enhancedCustomPrompt = `IMPORTANT INSTRUCTION: ${enhancedCustomPrompt.toUpperCase()}`;
         }
         
+        // Handle hook options
+        let hookInstructions = '';
+        if (request.hookOptions) {
+            const { type, count } = request.hookOptions;
+            hookInstructions = `\nHOOK OPTIONS INSTRUCTIONS:
+- Generate ${count} unique hook options
+- Hook type: ${type}
+- For caption hooks: Use emojis and catchy phrases suitable for social media captions
+- For verbal hooks: Create spoken phrases that would work well when read aloud in videos
+- If hook type is 'caption', only populate the caption_hook_options field
+- If hook type is 'verbal', only populate the spoken_hook_options field 
+- If hook type is 'both', populate both fields with ${count} options each
+`;
+        }
+        
         // Get the appropriate system instructions based on media type
         let systemPrompt = '';
         
@@ -1001,6 +1107,7 @@ Given the brand context (positioning, target audience, competitors), concept pro
 IMPORTANT: Your response MUST be valid JSON and nothing else. Format:
 {
   "caption_hook_options": "A string with multiple options for caption hooks (with emojis)",
+  "spoken_hook_options": "A string with multiple options for verbal/spoken hooks",
   "body_content_structured_scenes": [
     { 
       "scene_title": "Scene 1 (optional)", 
@@ -1022,7 +1129,7 @@ IMPORTANT: Your response MUST be valid JSON and nothing else. Format:
             systemPrompt = `/* Using ${usedInstructions} system instructions */\n\n` + systemPrompt;
         }
 
-        const userPrompt = `${enhancedCustomPrompt ? `${enhancedCustomPrompt}\n\n` : ''}
+        const userPrompt = `${enhancedCustomPrompt ? `${enhancedCustomPrompt}\n\n` : ''}${hookInstructions}
 BRAND CONTEXT:
 \`\`\`json
 ${brandContextStr}
