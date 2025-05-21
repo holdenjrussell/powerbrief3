@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
-import { Home, User, Menu, X, ChevronDown, LogOut, Key, Files, LucideListTodo, Presentation, Film } from 'lucide-react';
+import { Home, User, Menu, X, ChevronDown, LogOut, Key, Files, LucideListTodo, Presentation, Film, Users } from 'lucide-react';
 import { useGlobal } from "@/lib/context/GlobalContext";
 import { createSPASassClient } from "@/lib/supabase/client";
 export default function AppLayout({ children }) {
@@ -34,6 +34,8 @@ export default function AppLayout({ children }) {
     const navigation = [
         { name: 'Homepage', href: '/app', icon: Home },
         { name: 'PowerBrief', href: '/app/powerbrief', icon: Presentation },
+        { name: 'UGC Creators', href: '/app/powerbrief', subMenu: true, icon: Users, 
+          isActive: (path) => path.includes('/ugc-pipeline') },
         { name: 'Ad Reviews', href: '/app/reviews', icon: Film },
         { name: 'User Settings', href: '/app/user-settings', icon: User },
     ];
@@ -65,14 +67,53 @@ export default function AppLayout({ children }) {
                 {/* Navigation */}
                 <nav className="mt-4 px-2 space-y-1">
                     {navigation.map((item) => {
-            const isActive = pathname === item.href;
-            return (<Link key={item.name} href={item.href} className={`group flex items-center px-2 py-2 text-sm font-medium rounded-md ${isActive
-                    ? 'bg-primary-50 text-primary-600'
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}`}>
-                                <item.icon className={`mr-3 h-5 w-5 ${isActive ? 'text-primary-500' : 'text-gray-400 group-hover:text-gray-500'}`}/>
+                        const isActive = item.isActive ? item.isActive(pathname) : pathname === item.href;
+                        
+                        if (item.subMenu) {
+                            return (
+                                <div key={item.name}>
+                                    <Link
+                                        href={`${item.href}/ugc-pipeline`}
+                                        className={`group flex items-center px-2 py-2 text-sm font-medium rounded-md ${
+                                            isActive
+                                                ? 'bg-primary-50 text-primary-600'
+                                                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                                        }`}
+                                    >
+                                        <item.icon
+                                            className={`mr-3 h-5 w-5 ${
+                                                isActive
+                                                    ? 'text-primary-500'
+                                                    : 'text-gray-400 group-hover:text-gray-500'
+                                            }`}
+                                        />
+                                        {item.name}
+                                    </Link>
+                                </div>
+                            );
+                        }
+                        
+                        return (
+                            <Link
+                                key={item.name}
+                                href={item.href}
+                                className={`group flex items-center px-2 py-2 text-sm font-medium rounded-md ${
+                                    isActive
+                                        ? 'bg-primary-50 text-primary-600'
+                                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                                }`}
+                            >
+                                <item.icon
+                                    className={`mr-3 h-5 w-5 ${
+                                        isActive
+                                            ? 'text-primary-500'
+                                            : 'text-gray-400 group-hover:text-gray-500'
+                                    }`}
+                                />
                                 {item.name}
-                            </Link>);
-        })}
+                            </Link>
+                        );
+                    })}
                 </nav>
 
             </div>
