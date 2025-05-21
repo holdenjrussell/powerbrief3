@@ -137,6 +137,43 @@ export default function SharedConceptPage({ params }: { params: { shareId: strin
     }
   }, [concept?.review_status]);
 
+  // Sync status with review_status
+  useEffect(() => {
+    if (concept && concept.review_status) {
+      // Only update if there's a mismatch between status and review_status
+      let newStatus = concept.status;
+      
+      if (concept.review_status === 'ready_for_review' && concept.status !== 'READY FOR REVIEW') {
+        newStatus = 'READY FOR REVIEW';
+      } else if (concept.review_status === 'approved' && concept.status !== 'APPROVED') {
+        newStatus = 'APPROVED';
+      } else if (concept.review_status === 'needs_revisions' && concept.status !== 'REVISIONS REQUESTED') {
+        newStatus = 'REVISIONS REQUESTED';
+      }
+      
+      // If status needs to be updated, update it
+      if (newStatus !== concept.status) {
+        // Update the status locally for immediate UI update
+        setConcept(prev => prev ? { ...prev, status: newStatus } : null);
+        
+        // Also update in database to ensure persistence
+        const updateStatus = async () => {
+          try {
+            const supabase = createSPAClient();
+            await supabase
+              .from('brief_concepts')
+              .update({ status: newStatus })
+              .eq('id', concept.id);
+          } catch (err) {
+            console.error('Error syncing status with review_status:', err);
+          }
+        };
+        
+        updateStatus();
+      }
+    }
+  }, [concept?.review_status]);
+
   const handleMarkReadyForReview = async () => {
     if (!concept) return;
     
