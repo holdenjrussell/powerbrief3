@@ -8,6 +8,7 @@
  */
 import React from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { ArrowRight, Sparkles, FileText, Briefcase, Repeat, Target, Share2 } from 'lucide-react';
 import AuthAwareButtons from '@/components/AuthAwareButtons';
 import HomePricing from "@/components/HomePricing";
@@ -79,9 +80,14 @@ export default function Home() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between h-16 items-center">
               <div className="flex-shrink-0">
-              <span className="text-2xl font-bold bg-gradient-to-r from-primary-600 to-primary-500 bg-clip-text text-transparent">
-                {productName}
-              </span>
+                <Image 
+                  src="/images/powerbrief-logo.png" 
+                  alt={productName} 
+                  width={140} 
+                  height={32} 
+                  className="object-contain" 
+                  priority
+                />
               </div>
               <div className="hidden md:flex items-center space-x-8">
                 <Link href="#features" className="text-gray-600 hover:text-gray-900">

@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import { ArrowLeft } from 'lucide-react';
 
 export default function AuthLayout({
@@ -40,9 +41,16 @@ export default function AuthLayout({
                 </Link>
 
                 <div className="sm:mx-auto sm:w-full sm:max-w-md">
-                    <h2 className="text-center text-3xl font-bold tracking-tight text-gray-900">
-                        {productName}
-                    </h2>
+                    <div className="flex justify-center">
+                        <Image 
+                            src="/images/powerbrief-logo.png" 
+                            alt={productName || "PowerBrief"} 
+                            width={200} 
+                            height={48} 
+                            className="object-contain" 
+                            priority
+                        />
+                    </div>
                 </div>
 
                 <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
