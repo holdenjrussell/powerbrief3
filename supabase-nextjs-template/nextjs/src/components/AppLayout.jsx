@@ -1,6 +1,7 @@
 "use client";
 import React, { useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { Home, User, Menu, X, ChevronDown, LogOut, Key, Files, LucideListTodo, Presentation, Film } from 'lucide-react';
 import { useGlobal } from "@/lib/context/GlobalContext";
@@ -45,7 +46,16 @@ export default function AppLayout({ children }) {
                 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}>
 
                 <div className="h-16 flex items-center justify-between px-4 border-b">
-                    <span className="text-xl font-semibold text-primary-600">{productName}</span>
+                    <div className="relative h-8 w-auto">
+                        <Image 
+                            src="/images/powerbrief-logo.png" 
+                            alt={productName || "PowerBrief"} 
+                            width={140} 
+                            height={32} 
+                            className="object-contain"
+                            priority
+                        />
+                    </div>
                     <button onClick={toggleSidebar} className="lg:hidden text-gray-500 hover:text-gray-700">
                         <X className="h-6 w-6"/>
                     </button>
