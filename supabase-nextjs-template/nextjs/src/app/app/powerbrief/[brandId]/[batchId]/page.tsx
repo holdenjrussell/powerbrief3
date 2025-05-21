@@ -1985,43 +1985,44 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                                     {(localScenes[concept.id] || []).map((scene, index) => (
                                                         <div key={index} className="p-4 border rounded space-y-2">
                                                             <div className="flex justify-between items-center">
-                                                                <Input
-                                                                    value={scene.scene_title}
-                                                                    onChange={(e) => {
-                                                                        const updatedScenes = [...(localScenes[concept.id] || [])];
-                                                                        updatedScenes[index] = {
-                                                                            ...scene,
-                                                                            scene_title: e.target.value
-                                                                        };
-                                                                        
-                                                                        // Update local state
-                                                                        setLocalScenes(prev => ({
-                                                                            ...prev,
-                                                                            [concept.id]: updatedScenes
-                                                                        }));
-                                                                        
-                                                                        // Debounce save
-                                                                        debouncedUpdateScene(
-                                                                            concept.id, 
-                                                                            index, 
-                                                                            updatedScenes[index]
-                                                                        );
-                                                                    }}
-                                                                    onBlur={() => {
-                                                                        if (saveTimeoutRef.current) {
-                                                                            clearTimeout(saveTimeoutRef.current);
-                                                                            saveTimeoutRef.current = null;
-                                                                        }
-                                                                        
-                                                                        handleUpdateScene(
-                                                                            concept.id, 
-                                                                            index, 
-                                                                            (localScenes[concept.id] || [])[index]
-                                                                        );
-                                                                    }}
-                                                                    placeholder="Scene Title (optional)"
-                                                                    className="text-sm font-medium"
-                                                                />
+                                                                                                            <Textarea
+                                                value={scene.scene_title}
+                                                onChange={(e) => {
+                                                    const updatedScenes = [...(localScenes[concept.id] || [])];
+                                                    updatedScenes[index] = {
+                                                        ...scene,
+                                                        scene_title: e.target.value
+                                                    };
+                                                    
+                                                    // Update local state
+                                                    setLocalScenes(prev => ({
+                                                        ...prev,
+                                                        [concept.id]: updatedScenes
+                                                    }));
+                                                    
+                                                    // Debounce save
+                                                    debouncedUpdateScene(
+                                                        concept.id, 
+                                                        index, 
+                                                        updatedScenes[index]
+                                                    );
+                                                }}
+                                                onBlur={() => {
+                                                    if (saveTimeoutRef.current) {
+                                                        clearTimeout(saveTimeoutRef.current);
+                                                        saveTimeoutRef.current = null;
+                                                    }
+                                                    
+                                                    handleUpdateScene(
+                                                        concept.id, 
+                                                        index, 
+                                                        (localScenes[concept.id] || [])[index]
+                                                    );
+                                                }}
+                                                placeholder="Scene Title (optional)"
+                                                className="text-sm font-medium w-full min-h-fit"
+                                                style={{ height: 'auto', overflow: 'hidden', resize: 'none' }}
+                                            />
                                                                 <div className="flex space-x-1">
                                                                     <Button
                                                                         variant="ghost"
@@ -2238,7 +2239,7 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                         
                                         <div>
                                             <label className="block text-xs font-medium mb-1">Text overlay:</label>
-                                            <Input
+                                            <Textarea
                                                 value={localCtaTextOverlay[concept.id] || ''}
                                                 onChange={(e) => {
                                                     // Update local state immediately for responsive typing
@@ -2268,7 +2269,8 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                                     handleUpdateConcept(updatedConcept);
                                                 }}
                                                 placeholder="Enter text overlay"
-                                                className="text-sm"
+                                                className="text-sm w-full min-h-fit"
+                                                style={{ height: 'auto', overflow: 'hidden', resize: 'none' }}
                                             />
                                         </div>
                                     </div>

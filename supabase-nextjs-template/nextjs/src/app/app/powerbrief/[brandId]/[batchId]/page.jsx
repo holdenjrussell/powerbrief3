@@ -1121,7 +1121,7 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                             </div>) : (<div className="space-y-4">
                                                 {(localScenes[concept.id] || []).map((scene, index) => (<div key={index} className="p-4 border rounded space-y-2">
                                                         <div className="flex justify-between items-center">
-                                                            <Input value={scene.scene_title} onChange={(e) => {
+                                                            <Textarea value={scene.scene_title} onChange={(e) => {
                         const updatedScenes = [...(localScenes[concept.id] || [])];
                         updatedScenes[index] = Object.assign(Object.assign({}, scene), { scene_title: e.target.value });
                         // Update local state
@@ -1134,7 +1134,7 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                             saveTimeoutRef.current = null;
                         }
                         handleUpdateScene(concept.id, index, (localScenes[concept.id] || [])[index]);
-                    }} placeholder="Scene Title (optional)" className="text-sm font-medium"/>
+                    }} placeholder="Scene Title (optional)" className="text-sm font-medium w-full min-h-fit" style={{ height: 'auto', overflow: 'hidden', resize: 'none' }}/>
                                                             <div className="flex space-x-1">
                                                                 <Button variant="ghost" size="icon" className="h-8 w-8" disabled={index === 0} onClick={(e) => {
                         e.stopPropagation();
@@ -1221,7 +1221,7 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                         
                                         <div>
                                             <label className="block text-xs font-medium mb-1">Text overlay:</label>
-                                            <Input value={localCtaTextOverlay[concept.id] || ''} onChange={(e) => {
+                                            <Textarea value={localCtaTextOverlay[concept.id] || ''} onChange={(e) => {
                 // Update local state immediately for responsive typing
                 setLocalCtaTextOverlay(prev => (Object.assign(Object.assign({}, prev), { [concept.id]: e.target.value })));
                 // Debounce the actual save operation
@@ -1235,7 +1235,7 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                 }
                 const updatedConcept = Object.assign(Object.assign({}, concept), { cta_text_overlay: localCtaTextOverlay[concept.id] || '' });
                 handleUpdateConcept(updatedConcept);
-            }} placeholder="Enter text overlay" className="text-sm"/>
+            }} placeholder="Enter text overlay" className="text-sm w-full min-h-fit" style={{ height: 'auto', overflow: 'hidden', resize: 'none' }}/>
                                         </div>
                                     </div>
                                     
