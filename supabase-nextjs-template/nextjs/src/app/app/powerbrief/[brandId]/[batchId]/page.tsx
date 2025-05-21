@@ -1561,6 +1561,24 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                         </div>
                                     </div>
                                     
+                                    {/* Frame.io Review Link - Display when concept is ready for review or approved */}
+                                    {(concept.status === 'READY FOR REVIEW' || concept.status === 'APPROVED' || concept.review_status === 'ready_for_review' || concept.review_status === 'approved') && 
+                                        concept.review_link && (
+                                        <div className="mt-2">
+                                            <label className="block text-xs font-medium mb-1">Frame.io Review Link:</label>
+                                            <div className="flex w-full items-center">
+                                                <a 
+                                                    href={concept.review_link} 
+                                                    target="_blank" 
+                                                    rel="noopener noreferrer"
+                                                    className="text-blue-600 hover:underline text-sm truncate flex-1"
+                                                >
+                                                    {concept.review_link}
+                                                </a>
+                                            </div>
+                                        </div>
+                                    )}
+                                    
                                     {/* Status Dropdown */}
                                     <div className="mt-2">
                                         <label className="block text-xs font-medium mb-1" id={`status-label-${concept.id}`}>Status:</label>
@@ -1659,6 +1677,12 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                         {concept.video_editor && (
                                             <div className="text-xs px-3 py-1.5 bg-purple-100 text-purple-800 rounded-full font-medium border border-purple-200">
                                                 Editor: {concept.video_editor}
+                                            </div>
+                                        )}
+                                        {concept.review_link && (
+                                            <div className="text-xs px-3 py-1.5 bg-blue-100 text-blue-800 rounded-full font-medium border border-blue-200 flex items-center">
+                                                <LinkIcon className="h-3 w-3 mr-1" />
+                                                Frame.io Available
                                             </div>
                                         )}
                                     </div>

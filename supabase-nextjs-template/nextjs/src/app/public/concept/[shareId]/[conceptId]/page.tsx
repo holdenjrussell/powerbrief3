@@ -483,6 +483,16 @@ export default function SharedSingleConceptPage({ params }: { params: { shareId:
           <div>
             <h3 className="font-medium text-green-800">Approved</h3>
             <p className="text-sm text-green-700">This concept has been approved.</p>
+            {concept.review_link && (
+              <a 
+                href={concept.review_link} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-green-600 hover:underline text-sm mt-1 inline-block"
+              >
+                View on Frame.io →
+              </a>
+            )}
           </div>
         </div>
       )}
