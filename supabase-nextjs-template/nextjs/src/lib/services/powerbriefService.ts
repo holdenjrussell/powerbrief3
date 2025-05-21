@@ -296,6 +296,8 @@ export async function createBriefConcept(concept: Omit<BriefConcept, 'id' | 'cre
     // Set video and designer instructions from brand defaults if not provided
     videoInstructions: concept.videoInstructions || defaultVideoInstructions,
     designerInstructions: concept.designerInstructions || defaultDesignerInstructions,
+    // Ensure spoken_hook_options is included 
+    spoken_hook_options: concept.spoken_hook_options || null,
   };
 
   const { data, error } = await supabase
@@ -313,6 +315,8 @@ export async function createBriefConcept(concept: Omit<BriefConcept, 'id' | 'cre
   const createdConcept: any = {
     ...data,
     body_content_structured: data.body_content_structured as unknown as Scene[],
+    // Ensure spoken_hook_options is included in the returned object
+    spoken_hook_options: data.spoken_hook_options || null,
   };
   
   // Ensure the object meets the BriefConcept interface
