@@ -23,6 +23,15 @@ import { GlobalProvider } from "@/lib/context/GlobalContext";
 export const metadata: Metadata = {
   title: process.env.NEXT_PUBLIC_PRODUCTNAME,
   description: "The best way to build your SaaS product.",
+  icons: {
+    icon: [
+      { url: '/favicon.ico' },
+      { url: '/icon.png', type: 'image/png' },
+    ],
+    apple: [
+      { url: '/apple-icon.png' },
+    ],
+  },
 };
 
 /**
