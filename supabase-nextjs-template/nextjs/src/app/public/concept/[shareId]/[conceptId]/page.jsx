@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import { createSPAClient } from '@/lib/supabase/client';
-import { Loader2, ArrowLeft, LinkIcon } from 'lucide-react';
+import { Loader2, ArrowLeft, LinkIcon, CheckCircle, AlertTriangle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -43,8 +43,13 @@ export default function SharedSingleConceptPage({ params }) {
                 setConcept(conceptData);
                 
                 // Check if the concept status is appropriate for sharing
-                if (conceptData && conceptData.status !== "ready for designer" && conceptData.status !== "ready for editor") {
-                  setError('This concept is not available for viewing. Only concepts with status "ready for designer" or "ready for editor" can be viewed.');
+                if (conceptData && 
+                    conceptData.status.toLowerCase() !== "ready for designer" && 
+                    conceptData.status.toLowerCase() !== "ready for editor" && 
+                    conceptData.status.toLowerCase() !== "ready for review" && 
+                    conceptData.status.toLowerCase() !== "approved" && 
+                    conceptData.status.toLowerCase() !== "revisions requested") {
+                  setError('This concept is not available for viewing. Only concepts with status "ready for designer", "ready for editor", "ready for review", "approved", or "revisions requested" can be viewed.');
                   setConcept(null);
                 }
             }
@@ -80,36 +85,88 @@ export default function SharedSingleConceptPage({ params }) {
       </div>
 
       {/* Metadata display */}
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2 mb-4">
         {concept.status && (
-          <div className="inline-block px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+          <div className={`inline-block px-4 py-1.5 rounded-full text-sm font-medium ${
+            concept.status.toLowerCase() === "revisions requested" 
+              ? "bg-amber-100 text-amber-800 border border-amber-300" 
+              : concept.status.toLowerCase() === "approved" 
+                ? "bg-green-100 text-green-800 border border-green-300" 
+                : "bg-blue-100 text-blue-800 border border-blue-300"
+          }`}>
             Status: {concept.status}
           </div>
         )}
         {concept.clickup_id && (
-          <div className="inline-block px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+          <div className="inline-block px-4 py-1.5 bg-blue-100 text-blue-800 rounded-full text-sm font-medium border border-blue-300">
             Clickup ID: {concept.clickup_id}
           </div>
         )}
         {concept.clickup_link && (
-          <div className="inline-block px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+          <div className="inline-block px-4 py-1.5 bg-blue-100 text-blue-800 rounded-full text-sm font-medium border border-blue-300">
             <a href={concept.clickup_link} target="_blank" rel="noopener noreferrer" className="flex items-center">
-              <LinkIcon className="h-3 w-3 mr-1" />
+              <LinkIcon className="h-3 w-3 mr-2" />
               Clickup Link
             </a>
           </div>
         )}
         {concept.strategist && (
-          <div className="inline-block px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+          <div className="inline-block px-4 py-1.5 bg-indigo-100 text-indigo-800 rounded-full text-sm font-medium border border-indigo-300">
             Strategist: {concept.strategist}
           </div>
         )}
         {concept.video_editor && (
-          <div className="inline-block px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+          <div className="inline-block px-4 py-1.5 bg-purple-100 text-purple-800 rounded-full text-sm font-medium border border-purple-300">
             {concept.media_type === 'video' ? 'Video Editor' : 'Designer'}: {concept.video_editor}
           </div>
         )}
       </div>
+
+      {/* Review Status Banner */}
+      {concept.review_status === 'ready_for_review' && (
+        <div className="bg-blue-50 border border-blue-200 p-4 mb-4 rounded-lg flex items-center space-x-3">
+          <CheckCircle className="h-5 w-5 text-blue-500" />
+          <div>
+            <h3 className="font-medium text-blue-800">Ready for Review</h3>
+            <p className="text-sm text-blue-700">This concept has been marked as ready for review.</p>
+            {concept.review_link && (
+              <a 
+                href={concept.review_link} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-blue-600 hover:underline text-sm mt-1 inline-block"
+              >
+                View on Frame.io →
+              </a>
+            )}
+          </div>
+        </div>
+      )}
+
+      {concept.review_status === 'approved' && (
+        <div className="bg-green-50 border border-green-200 p-4 mb-4 rounded-lg flex items-center space-x-3">
+          <CheckCircle className="h-5 w-5 text-green-500" />
+          <div>
+            <h3 className="font-medium text-green-800">Approved</h3>
+            <p className="text-sm text-green-700">This concept has been approved.</p>
+          </div>
+        </div>
+      )}
+
+      {concept.review_status === 'needs_revisions' && (
+        <div className="bg-amber-50 border border-amber-200 p-4 mb-4 rounded-lg flex items-center space-x-3">
+          <AlertTriangle className="h-5 w-5 text-amber-500" />
+          <div>
+            <h3 className="font-medium text-amber-800">Revisions Requested</h3>
+            <p className="text-sm text-amber-700">This concept needs revisions.</p>
+            {concept.reviewer_notes && (
+              <div className="mt-2 p-2 bg-amber-100 rounded text-sm text-amber-800">
+                <strong>Feedback:</strong> {concept.reviewer_notes}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Media display */}
       {concept.media_url && (<Card>

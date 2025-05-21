@@ -112,8 +112,13 @@ export default function SharedSingleConceptPage({ params }: { params: { shareId:
         
         // Check if the concept status is appropriate for sharing
         const statusLowerCase = conceptData?.status?.toLowerCase();
-        if (conceptData && statusLowerCase !== "ready for designer" && statusLowerCase !== "ready for editor") {
-          setError('This concept is not available for viewing. Only concepts with status "ready for designer" or "ready for editor" can be viewed.');
+        if (conceptData && 
+            statusLowerCase !== "ready for designer" && 
+            statusLowerCase !== "ready for editor" && 
+            statusLowerCase !== "ready for review" && 
+            statusLowerCase !== "approved" && 
+            statusLowerCase !== "revisions requested") {
+          setError('This concept is not available for viewing. Only concepts with status "ready for designer", "ready for editor", "ready for review", "approved", or "revisions requested" can be viewed.');
           setConcept(null);
         }
       } catch (err: any) {
