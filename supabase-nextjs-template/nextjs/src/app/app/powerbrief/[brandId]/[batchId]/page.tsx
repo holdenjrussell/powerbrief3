@@ -225,6 +225,7 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                 media_type: null,
                 ai_custom_prompt: null,
                 caption_hook_options: null,
+                spoken_hook_options: null,
                 cta_script: null,
                 cta_text_overlay: null,
                 description: null,
@@ -380,6 +381,7 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                         status: null,
                         ai_custom_prompt: null,
                         caption_hook_options: null,
+                        spoken_hook_options: null,
                         cta_script: null,
                         cta_text_overlay: null,
                         description: null,
@@ -1282,7 +1284,7 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                         {concepts.map((concept) => (
                             <Card 
                                 key={concept.id} 
-                                className="min-w-[350px] max-w-[350px] flex-shrink-0"
+                                className="min-w-[350px] max-w-[350px] flex-shrink-0 flex flex-col h-auto"
                             >
                                 <CardHeader className="relative">
                                     <div className="flex justify-between items-center">
@@ -1617,82 +1619,10 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                                 };
                                                 handleUpdateConcept(updatedConcept);
                                             }}
-                                            rows={3}
-                                            className="text-sm"
+                                            className="text-sm w-full min-h-fit"
+                                            style={{ height: 'auto', overflow: 'hidden' }}
                                         />
                                     </div>
-                                    
-                                    {/* AI Button */}
-                                    {concept.media_url && (
-                                        <Button
-                                            size="sm"
-                                            className="ml-2 bg-primary-600 text-white hover:bg-primary-700 flex items-center"
-                                            disabled={generatingConceptIds[concept.id]}
-                                            onClick={() => handleGenerateAI(concept.id)}
-                                        >
-                                            {generatingConceptIds[concept.id] ? (
-                                                <>
-                                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                                    Generating...
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <Sparkles className="h-4 w-4 mr-2" />
-                                                    Generate AI
-                                                </>
-                                            )}
-                                        </Button>
-                                    )}
-                                    
-                                    {/* Debug Prompt Button */}
-                                    <Button
-                                        size="sm"
-                                        className="ml-2 bg-gray-500 text-white hover:bg-gray-600 flex items-center"
-                                        onClick={() => handleDebugPrompt(concept.id)}
-                                    >
-                                        <Bug className="h-4 w-4 mr-2" />
-                                        Debug Prompt
-                                    </Button>
-                                    
-                                    {/* Caption Hooks - only shown for videos */}
-                                    {localMediaTypes[concept.id] !== 'image' && (
-                                        <div>
-                                            <h3 className="font-medium text-sm mb-1">Caption Hook options (with emojis)</h3>
-                                            <Textarea
-                                                value={localCaptionHooks[concept.id] || ''}
-                                                onChange={(e) => {
-                                                    // Update local state immediately for responsive typing
-                                                    setLocalCaptionHooks(prev => ({
-                                                        ...prev,
-                                                        [concept.id]: e.target.value
-                                                    }));
-                                                    
-                                                    // Debounce the actual save operation
-                                                    const updatedConcept = {
-                                                        ...concept,
-                                                        caption_hook_options: e.target.value
-                                                    };
-                                                    debouncedUpdateConcept(updatedConcept);
-                                                }}
-                                                onBlur={() => {
-                                                    // Save immediately on blur
-                                                    if (saveTimeoutRef.current) {
-                                                        clearTimeout(saveTimeoutRef.current);
-                                                        saveTimeoutRef.current = null;
-                                                    }
-                                                    
-                                                    const updatedConcept = {
-                                                        ...concept,
-                                                        caption_hook_options: localCaptionHooks[concept.id] || ''
-                                                    };
-                                                    handleUpdateConcept(updatedConcept);
-                                                }}
-                                                placeholder="Enter caption hook options with emojis"
-                                                rows={3}
-                                                className="text-sm"
-                                            />
-                                        </div>
-                                    )}
                                     
                                     {/* Hook Options UI - only for videos */}
                                     {localMediaTypes[concept.id] !== 'image' && (
@@ -1794,8 +1724,110 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                                     />
                                                 </div>
                                             </div>
+                                            
+                                            {/* Caption Hook Box */}
+                                            <div className="mt-2">
+                                                <h3 className="font-medium text-sm mb-1">Caption Hook options (with emojis)</h3>
+                                                <Textarea
+                                                    value={localCaptionHooks[concept.id] || ''}
+                                                    onChange={(e) => {
+                                                        // Update local state immediately for responsive typing
+                                                        setLocalCaptionHooks(prev => ({
+                                                            ...prev,
+                                                            [concept.id]: e.target.value
+                                                        }));
+                                                        
+                                                        // Debounce the actual save operation
+                                                        const updatedConcept = {
+                                                            ...concept,
+                                                            caption_hook_options: e.target.value
+                                                        };
+                                                        debouncedUpdateConcept(updatedConcept);
+                                                    }}
+                                                    onBlur={() => {
+                                                        // Save immediately on blur
+                                                        if (saveTimeoutRef.current) {
+                                                            clearTimeout(saveTimeoutRef.current);
+                                                            saveTimeoutRef.current = null;
+                                                        }
+                                                        
+                                                        const updatedConcept = {
+                                                            ...concept,
+                                                            caption_hook_options: localCaptionHooks[concept.id] || ''
+                                                        };
+                                                        handleUpdateConcept(updatedConcept);
+                                                    }}
+                                                    placeholder="Enter caption hook options with emojis"
+                                                    className="text-sm w-full min-h-fit"
+                                                    style={{ height: 'auto', overflow: 'hidden' }}
+                                                />
+                                            </div>
+                                            
+                                            {/* Spoken Hook Box */}
+                                            <div className="mt-2">
+                                                <h3 className="font-medium text-sm mb-1">Spoken Hook options</h3>
+                                                <Textarea
+                                                    value={concept.spoken_hook_options || ''}
+                                                    onChange={(e) => {
+                                                        // Update local state immediately for responsive typing
+                                                        const updatedConcept = {
+                                                            ...concept,
+                                                            spoken_hook_options: e.target.value
+                                                        };
+                                                        debouncedUpdateConcept(updatedConcept);
+                                                    }}
+                                                    onBlur={() => {
+                                                        // Save immediately on blur
+                                                        if (saveTimeoutRef.current) {
+                                                            clearTimeout(saveTimeoutRef.current);
+                                                            saveTimeoutRef.current = null;
+                                                        }
+                                                        
+                                                        const updatedConcept = {
+                                                            ...concept,
+                                                            spoken_hook_options: concept.spoken_hook_options || ''
+                                                        };
+                                                        handleUpdateConcept(updatedConcept);
+                                                    }}
+                                                    placeholder="Enter spoken hook options"
+                                                    className="text-sm w-full min-h-fit"
+                                                    style={{ height: 'auto', overflow: 'hidden' }}
+                                                />
+                                            </div>
                                         </div>
                                     )}
+                                    
+                                    {/* AI Button */}
+                                    {concept.media_url && (
+                                        <Button
+                                            size="sm"
+                                            className="ml-2 bg-primary-600 text-white hover:bg-primary-700 flex items-center"
+                                            disabled={generatingConceptIds[concept.id]}
+                                            onClick={() => handleGenerateAI(concept.id)}
+                                        >
+                                            {generatingConceptIds[concept.id] ? (
+                                                <>
+                                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                                    Generating...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Sparkles className="h-4 w-4 mr-2" />
+                                                    Generate AI
+                                                </>
+                                            )}
+                                        </Button>
+                                    )}
+                                    
+                                    {/* Debug Prompt Button */}
+                                    <Button
+                                        size="sm"
+                                        className="ml-2 bg-gray-500 text-white hover:bg-gray-600 flex items-center"
+                                        onClick={() => handleDebugPrompt(concept.id)}
+                                    >
+                                        <Bug className="h-4 w-4 mr-2" />
+                                        Debug Prompt
+                                    </Button>
                                     
                                     {/* Body Content - conditional based on media type */}
                                     <div className="space-y-4">
@@ -2034,8 +2066,8 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                                         handleUpdateConcept(updatedConcept);
                                                     }}
                                                     placeholder="Describe the image content, style, elements, and composition..."
-                                                    rows={5}
-                                                    className="text-sm"
+                                                    className="text-sm w-full min-h-fit"
+                                                    style={{ height: 'auto', overflow: 'hidden' }}
                                                 />
                                             </div>
                                         )}
@@ -2077,8 +2109,8 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                                     handleUpdateConcept(updatedConcept);
                                                 }}
                                                 placeholder="Enter CTA script"
-                                                rows={2}
-                                                className="text-sm"
+                                                className="text-sm w-full min-h-fit"
+                                                style={{ height: 'auto', overflow: 'hidden' }}
                                             />
                                         </div>
                                         

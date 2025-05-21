@@ -103,6 +103,7 @@ export interface BriefConcept {
   media_type: string | null;
   ai_custom_prompt: string | null;
   caption_hook_options: string | null;
+  spoken_hook_options: string | null;
   cta_script: string | null;
   cta_text_overlay: string | null;
   description: string | null;
@@ -200,6 +201,7 @@ export type DbBriefConcept = {
   media_type: string | null;
   ai_custom_prompt: string | null;
   caption_hook_options: string | null;
+  spoken_hook_options: string | null;
   body_content_structured: Json;
   cta_script: string | null;
   cta_text_overlay: string | null;
