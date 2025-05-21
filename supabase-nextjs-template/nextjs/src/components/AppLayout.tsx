@@ -23,7 +23,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
     const router = useRouter();
 
-
     const { user } = useGlobal();
 
     // Fetch pending reviews count
@@ -82,6 +81,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
     const toggleSidebar = () => setSidebarOpen(!isSidebarOpen);
 
+    // Check if the current path is a brand-specific path
+    const isBrandPage = pathname.includes('/powerbrief/') && pathname.split('/').length > 3;
+
     return (
         <div className="min-h-screen bg-gray-100">
             {isSidebarOpen && (
@@ -120,7 +122,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 {/* Navigation */}
                 <nav className="mt-4 px-2 space-y-1">
                     {navigation.map((item) => {
-                        const isActive = pathname === item.href;
+                        const isActive = pathname === item.href || 
+                          (item.href === '/app/powerbrief' && pathname.startsWith('/app/powerbrief') && !isBrandPage);
+                          
                         return (
                             <Link
                                 key={item.name}
@@ -164,7 +168,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                         <button
                             onClick={() => setUserDropdownOpen(!isUserDropdownOpen)}
                             className="flex items-center space-x-2 text-sm text-gray-700 hover:text-gray-900"
-                            aria-expanded={isUserDropdownOpen}
+                            aria-expanded={isUserDropdownOpen ? 'true' : 'false'}
                             aria-haspopup="true"
                         >
                             <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center">
@@ -213,7 +217,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     </div>
                 </div>
 
-                <main className="p-4">
+                <main className="h-[calc(100vh-4rem)] overflow-auto">
                     {children}
                 </main>
             </div>

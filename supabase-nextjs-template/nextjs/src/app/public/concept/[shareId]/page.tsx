@@ -50,7 +50,10 @@ interface ConceptWithShareSettings {
   [key: string]: any; // Allow any other properties
 }
 
-export default function SharedConceptPage({ params }: { params: { shareId: string } }) {
+// Helper to unwrap params safely
+type ParamsType = { shareId: string };
+
+export default function SharedConceptPage({ params }: { params: ParamsType | Promise<ParamsType> }) {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [concept, setConcept] = useState<ConceptWithShareSettings | null>(null);
@@ -63,7 +66,7 @@ export default function SharedConceptPage({ params }: { params: { shareId: strin
   const [updatingResubmission, setUpdatingResubmission] = useState<boolean>(false);
   
   // Unwrap params using React.use()
-  const unwrappedParams = React.use(params as any) as { shareId: string };
+  const unwrappedParams = params instanceof Promise ? React.use(params) : params;
   const { shareId } = unwrappedParams;
 
   useEffect(() => {

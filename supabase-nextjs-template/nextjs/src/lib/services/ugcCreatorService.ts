@@ -4,7 +4,10 @@ import {
   UgcCreator, 
   UgcCreatorScript, 
   DbUgcCreator, 
-  DbUgcCreatorScript 
+  DbUgcCreatorScript,
+  UgcScriptShare,
+  DbUgcScriptShare,
+  UgcBrandFields
 } from '../types/ugcCreator';
 
 const supabase = createSPAClient();
@@ -279,13 +282,16 @@ export async function getUgcCreatorScriptsByConceptStatus(brandId: string, conce
   // Map concept status to corresponding script statuses
   switch (conceptStatus) {
     case 'Script Approval':
-      statusFilter = ['NEW CREATOR SUBMISSION', 'COLD OUTREACH', 'PRIMARY SCREEN', 'BACKLOG', 'APPROVED FOR NEXT STEPS'];
+      statusFilter = ['NEW CREATOR SUBMISSION', 'COLD OUTREACH', 'PRIMARY SCREEN', 'BACKLOG', 'APPROVED FOR NEXT STEPS', 'PENDING_APPROVAL', 'REVISION_REQUESTED'];
       break;
     case 'Creator Assignment':
-      statusFilter = ['SCHEDULE CALL', 'CALL SCHEDULED', 'SCRIPT ASSIGNMENT', 'SCRIPT ASSIGNED'];
+      statusFilter = ['SCHEDULE CALL', 'CALL SCHEDULED', 'SCRIPT ASSIGNMENT', 'APPROVED'];
+      break;
+    case 'Send Script to Creator':
+      statusFilter = ['SCRIPT_ASSIGNED'];
       break;
     case 'Creator Shooting':
-      statusFilter = ['CONTRACT SENT', 'PRODUCT SHIPMENT', 'CREATOR FILMING'];
+      statusFilter = ['CONTRACT SENT', 'PRODUCT SHIPMENT', 'CREATOR FILMING', 'CREATOR_APPROVED'];
       break;
     case 'Content Approval':
       statusFilter = ['FINAL CONTENT UPLOAD', 'CONTENT UPLOADED', 'READY FOR PAYMENT'];
@@ -301,12 +307,27 @@ export async function getUgcCreatorScriptsByConceptStatus(brandId: string, conce
     return [];
   }
 
-  const { data, error } = await supabase
+  // First try to filter by both status and concept_status
+  let { data, error } = await supabase
     .from('ugc_creator_scripts')
     .select('*')
     .eq('brand_id', brandId)
     .in('status', statusFilter)
     .order('created_at', { ascending: false });
+
+  // If no results, try filtering by concept_status directly
+  if (!error && (!data || data.length === 0)) {
+    const { data: conceptStatusData, error: conceptStatusError } = await supabase
+      .from('ugc_creator_scripts')
+      .select('*')
+      .eq('brand_id', brandId)
+      .eq('concept_status', conceptStatus)
+      .order('created_at', { ascending: false });
+    
+    if (!conceptStatusError && conceptStatusData && conceptStatusData.length > 0) {
+      data = conceptStatusData;
+    }
+  }
 
   if (error) {
     console.error('Error fetching UGC creator scripts by concept status:', error);
@@ -350,4 +371,214 @@ export async function sendToBriefBatch(
     script_content: updatedScript.script_content as UgcCreatorScript['script_content'],
     b_roll_shot_list: updatedScript.b_roll_shot_list as string[] || []
   };
+}
+
+// New functions for UGC script shares
+export async function createUgcScriptShare(
+  creatorId: string,
+  brandId: string,
+  userId: string,
+  scriptIds: string[]
+): Promise<UgcScriptShare> {
+  const shareId = uuidv4();
+  
+  const newShare = {
+    id: uuidv4(),
+    creator_id: creatorId,
+    brand_id: brandId,
+    user_id: userId,
+    share_id: shareId,
+    scripts: scriptIds,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  };
+
+  const { data, error } = await supabase
+    .from('ugc_script_shares')
+    .insert(newShare)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error creating UGC script share:', error);
+    throw error;
+  }
+
+  return {
+    ...data,
+    scripts: data.scripts as string[]
+  };
+}
+
+export async function getUgcScriptShareByShareId(shareId: string): Promise<UgcScriptShare | null> {
+  const { data, error } = await supabase
+    .from('ugc_script_shares')
+    .select('*')
+    .eq('share_id', shareId)
+    .single();
+
+  if (error) {
+    console.error('Error fetching UGC script share by share ID:', error);
+    throw error;
+  }
+
+  if (!data) return null;
+
+  return {
+    ...data,
+    scripts: data.scripts as string[]
+  };
+}
+
+export async function getScriptsFromShare(shareId: string): Promise<UgcCreatorScript[]> {
+  const share = await getUgcScriptShareByShareId(shareId);
+  
+  if (!share) return [];
+  
+  const { data, error } = await supabase
+    .from('ugc_creator_scripts')
+    .select('*')
+    .in('id', share.scripts);
+    
+  if (error) {
+    console.error('Error fetching scripts from share:', error);
+    throw error;
+  }
+  
+  return (data || []).map((script: DbUgcCreatorScript) => ({
+    ...script,
+    script_content: JSON.parse(JSON.stringify(script.script_content)) as UgcCreatorScript['script_content'],
+    b_roll_shot_list: script.b_roll_shot_list as string[] || []
+  }));
+}
+
+// Brand UGC field management
+export async function updateBrandUgcFields(
+  brandId: string, 
+  ugcFields: UgcBrandFields
+): Promise<void> {
+  const { error } = await supabase
+    .from('brands')
+    .update({
+      ugc_filming_instructions: ugcFields.ugc_filming_instructions,
+      ugc_company_description: ugcFields.ugc_company_description,
+      ugc_guide_description: ugcFields.ugc_guide_description,
+      ugc_default_system_instructions: ugcFields.ugc_default_system_instructions,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', brandId);
+
+  if (error) {
+    console.error('Error updating brand UGC fields:', error);
+    throw error;
+  }
+}
+
+export async function getBrandUgcFields(brandId: string): Promise<UgcBrandFields | null> {
+  const { data, error } = await supabase
+    .from('brands')
+    .select('ugc_filming_instructions, ugc_company_description, ugc_guide_description, ugc_default_system_instructions')
+    .eq('id', brandId)
+    .single();
+
+  if (error) {
+    console.error('Error fetching brand UGC fields:', error);
+    throw error;
+  }
+
+  if (!data) return null;
+
+  return data as UgcBrandFields;
+}
+
+// Generate B-roll shot list using AI (placeholder function)
+export async function generateBRollShotList(
+  scriptContent: UgcCreatorScript['script_content'],
+  customPrompt?: string
+): Promise<string[]> {
+  try {
+    // This would call an AI service endpoint, but for now we'll return a placeholder
+    // In the actual implementation, call your AI service here
+    
+    // Placeholder sample b-roll shots
+    return [
+      "Preparation Shot: Creator applying/using product before the skit",
+      "Pre-Interaction Confidence: Close-up of creator's face showing subtle confidence",
+      "Participant's Captivated Look: Close-up of participant's captivated expression",
+      "Product Shot: Product in creator's hand or bag after interaction",
+      "Bold Gesture Detail: Hand shot of participant reaching for phone/business card"
+    ];
+  } catch (error) {
+    console.error('Error generating B-roll shot list:', error);
+    throw error;
+  }
+}
+
+// Function to generate default system instructions
+export function generateDefaultSystemInstructions(): string {
+  return `You are an expert UGC (User Generated Content) script creator that specializes in creating engaging scripts for social media videos.
+
+Your task is to create a highly engaging UGC script for a creator. The script should be optimized for the brand's products and target audience.
+
+IMPORTANT: Your response MUST be valid JSON with the following structure:
+{
+  "script_content": {
+    "scene_start": "Description of how the scene starts",
+    "segments": [
+      {
+        "segment": "Segment name/title",
+        "script": "Dialogue or action description",
+        "visuals": "Visual instructions for filming"
+      }
+    ],
+    "scene_end": "Description of how the scene ends"
+  },
+  "hook_body": "The main body/message of the script that follows the hook",
+  "cta": "Call to action for the end of the video",
+  "b_roll_shot_list": [
+    "Description of supplementary shot 1",
+    "Description of supplementary shot 2",
+    ...
+  ],
+  "company_description": "Description of the company, products, and brand",
+  "guide_description": "Overview of what the creator will be filming and the goals of the content",
+  "filming_instructions": "Detailed technical and performance guidance for filming"
+}
+
+# UGC Brief Creation Guidelines
+
+## 1. About the Company
+- Include company name, product category, key benefits, flagship products, and achievements
+
+## 2. About This Guide
+- Provide an overview of what the creator will be filming
+- Clarify the goal and requirements of the content
+- Specify target audience demographics and interests
+- Highlight the key emotional connection to make with viewers
+- Explain how this content fits into the brand's overall marketing strategy
+
+## 3. Filming Instructions
+- Video quality requirements (resolution, orientation, etc.)
+- Audio requirements (clarity, background noise control)
+- Performance guidelines (authenticity, energy level, tone)
+- Lighting and background guidance (natural light vs. studio, setting)
+- Location suggestions that would enhance the content
+- On-camera presence tips (how to appear natural and authentic)
+- Pacing and timing recommendations (keeping viewer attention)
+- Specific technical requirements (closeups, transitions, etc.)
+- Consent and respect guidelines
+
+## 4. Script
+- Title
+- Scene description
+- Segment-by-segment breakdown with dialogue, actions, and visuals
+- Include clear instructions for each part of the script
+
+## 5. B-Roll Shot List
+- Detail specific additional shots needed
+- Include preparation shots, closeups, and product shots
+
+Your response should use any provided guide description or filming instructions as a starting point, enhancing them as needed based on the brand context. If these elements are missing or minimal, create comprehensive versions.
+
+Format the output in clean JSON with the structure provided at the beginning of these instructions.`
 } 

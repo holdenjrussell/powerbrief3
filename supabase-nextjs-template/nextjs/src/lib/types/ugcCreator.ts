@@ -11,6 +11,9 @@ export interface UgcCreator {
   products?: string[];
   content_types?: string[];
   contract_status?: string;
+  product_shipment_status?: string;
+  product_shipped?: boolean;
+  tracking_number?: string | null;
   portfolio_link?: string | null;
   per_script_fee?: number | null;
   email?: string | null;
@@ -47,17 +50,40 @@ export interface UgcCreatorScript {
     scene_end?: string;
   };
   status?: string;
+  concept_status?: string;
+  revision_notes?: string | null;
   b_roll_shot_list?: string[];
   ai_custom_prompt?: string | null;
   system_instructions?: string | null;
   hook_type?: string;
   hook_count?: number;
+  hook_body?: string | null;
+  cta?: string | null;
+  company_description?: string | null;
+  guide_description?: string | null;
+  filming_instructions?: string | null;
+  media_type?: string;
   final_content_link?: string | null;
   linked_brief_concept_id?: string | null;
   linked_brief_batch_id?: string | null;
   original_creator_script?: string | null;
   creator_footage?: string | null;
   public_share_id?: string | null;
+  inspiration_video_url?: string | null;
+  inspiration_video_notes?: string | null;
+  is_ai_generated?: boolean;
+  creative_strategist?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UgcScriptShare {
+  id: string;
+  creator_id: string;
+  user_id: string;
+  brand_id: string;
+  share_id: string;
+  scripts: string[];
   created_at: string;
   updated_at: string;
 }
@@ -72,6 +98,9 @@ export type DbUgcCreator = {
   products?: Json;
   content_types?: Json;
   contract_status?: string;
+  product_shipment_status?: string;
+  product_shipped?: boolean;
+  tracking_number?: string | null;
   portfolio_link?: string | null;
   per_script_fee?: number | null;
   email?: string | null;
@@ -98,20 +127,51 @@ export type DbUgcCreatorScript = {
   title: string;
   script_content: Json;
   status?: string;
+  concept_status?: string;
+  revision_notes?: string | null;
   b_roll_shot_list?: Json;
   ai_custom_prompt?: string | null;
   system_instructions?: string | null;
   hook_type?: string;
   hook_count?: number;
+  hook_body?: string | null;
+  cta?: string | null;
+  company_description?: string | null;
+  guide_description?: string | null;
+  filming_instructions?: string | null;
+  media_type?: string;
   final_content_link?: string | null;
   linked_brief_concept_id?: string | null;
   linked_brief_batch_id?: string | null;
   original_creator_script?: string | null;
   creator_footage?: string | null;
   public_share_id?: string | null;
+  inspiration_video_url?: string | null;
+  inspiration_video_notes?: string | null;
+  is_ai_generated?: boolean;
+  creative_strategist?: string | null;
   created_at: string;
   updated_at: string;
 };
+
+export type DbUgcScriptShare = {
+  id: string;
+  creator_id: string;
+  user_id: string;
+  brand_id: string;
+  share_id: string;
+  scripts: Json;
+  created_at: string;
+  updated_at: string;
+};
+
+// Extended brand type with UGC fields
+export interface UgcBrandFields {
+  ugc_filming_instructions?: string | null;
+  ugc_company_description?: string | null;
+  ugc_guide_description?: string | null;
+  ugc_default_system_instructions?: string | null;
+}
 
 // UGC Creator Pipeline status options
 export const UGC_CREATOR_STATUSES = [
@@ -125,6 +185,14 @@ export const UGC_CREATOR_CONTRACT_STATUSES = [
   'not signed',
   'contract sent',
   'contract signed'
+];
+
+export const UGC_CREATOR_PRODUCT_SHIPMENT_STATUSES = [
+  'Not Shipped',
+  'Processing',
+  'Shipped',
+  'Delivered',
+  'Returned'
 ];
 
 export const UGC_CREATOR_SCRIPT_STATUSES = [
@@ -150,7 +218,20 @@ export const UGC_CREATOR_SCRIPT_STATUSES = [
 export const UGC_CREATOR_SCRIPT_CONCEPT_STATUSES = [
   'Script Approval',
   'Creator Assignment',
+  'Send Script to Creator',
   'Creator Shooting',
   'Content Approval',
   'To Edit'
+];
+
+export const UGC_CREATOR_GENDERS = [
+  'Male',
+  'Female',
+  'Other'
+];
+
+export const UGC_CREATOR_MEDIA_TYPES = [
+  'video',
+  'image',
+  'text'
 ]; 

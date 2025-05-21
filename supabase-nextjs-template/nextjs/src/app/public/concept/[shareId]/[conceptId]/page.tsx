@@ -34,7 +34,10 @@ interface BatchWithShare {
   share_settings?: Record<string, any>;
 }
 
-export default function SharedSingleConceptPage({ params }: { params: { shareId: string, conceptId: string } }) {
+// Helper to unwrap params safely
+type ParamsType = { shareId: string, conceptId: string };
+
+export default function SharedSingleConceptPage({ params }: { params: ParamsType | Promise<ParamsType> }) {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [showLoginPrompt, setShowLoginPrompt] = useState<boolean>(false);
@@ -53,7 +56,7 @@ export default function SharedSingleConceptPage({ params }: { params: { shareId:
   const router = useRouter();
 
   // Unwrap params using React.use()
-  const unwrappedParams = React.use(params as any) as { shareId: string, conceptId: string };
+  const unwrappedParams = params instanceof Promise ? React.use(params) : params;
   const { shareId, conceptId } = unwrappedParams;
 
   useEffect(() => {

@@ -1,0 +1,313 @@
+-- Create PowerBrief initial schema
+-- This migration creates the necessary base tables for the PowerBrief feature
+
+-- Create brands table
+CREATE TABLE IF NOT EXISTS public.brands (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    brand_info_data JSONB DEFAULT '{}'::jsonb,
+    target_audience_data JSONB DEFAULT '{}'::jsonb,
+    competition_data JSONB DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT now() NOT NULL
+);
+
+-- Create brief_batches table
+CREATE TABLE IF NOT EXISTS public.brief_batches (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    brand_id UUID NOT NULL REFERENCES public.brands(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT now() NOT NULL
+);
+
+-- Create brief_concepts table
+CREATE TABLE IF NOT EXISTS public.brief_concepts (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    brief_batch_id UUID NOT NULL REFERENCES public.brief_batches(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    concept_title TEXT DEFAULT 'New Concept',
+    body_content_structured JSONB DEFAULT '[]'::jsonb,
+    order_in_batch INTEGER DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT now() NOT NULL
+);
+
+-- Create or replace update_updated_at_column function
+CREATE OR REPLACE FUNCTION public.update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = now();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Add triggers to update updated_at column automatically
+DROP TRIGGER IF EXISTS update_brands_updated_at ON public.brands;
+CREATE TRIGGER update_brands_updated_at
+BEFORE UPDATE ON public.brands
+FOR EACH ROW
+EXECUTE FUNCTION public.update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_brief_batches_updated_at ON public.brief_batches;
+CREATE TRIGGER update_brief_batches_updated_at
+BEFORE UPDATE ON public.brief_batches
+FOR EACH ROW
+EXECUTE FUNCTION public.update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_brief_concepts_updated_at ON public.brief_concepts;
+CREATE TRIGGER update_brief_concepts_updated_at
+BEFORE UPDATE ON public.brief_concepts
+FOR EACH ROW
+EXECUTE FUNCTION public.update_updated_at_column();
+
+-- Enable RLS on tables
+ALTER TABLE public.brands ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.brief_batches ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.brief_concepts ENABLE ROW LEVEL SECURITY;
+
+-- Create policies for brands table
+CREATE POLICY "Users can view their own brands" 
+    ON public.brands FOR SELECT
+    USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert their own brands" 
+    ON public.brands FOR INSERT
+    WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update their own brands" 
+    ON public.brands FOR UPDATE
+    USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete their own brands" 
+    ON public.brands FOR DELETE
+    USING (auth.uid() = user_id);
+
+-- Create policies for brief_batches table
+CREATE POLICY "Users can view their own brief batches" 
+    ON public.brief_batches FOR SELECT
+    USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert their own brief batches" 
+    ON public.brief_batches FOR INSERT
+    WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update their own brief batches" 
+    ON public.brief_batches FOR UPDATE
+    USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete their own brief batches" 
+    ON public.brief_batches FOR DELETE
+    USING (auth.uid() = user_id);
+
+-- Create policies for brief_concepts table
+CREATE POLICY "Users can view their own brief concepts" 
+    ON public.brief_concepts FOR SELECT
+    USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert their own brief concepts" 
+    ON public.brief_concepts FOR INSERT
+    WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update their own brief concepts" 
+    ON public.brief_concepts FOR UPDATE
+    USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete their own brief concepts" 
+    ON public.brief_concepts FOR DELETE
+    USING (auth.uid() = user_id);
+
+-- Create indexes for faster queries
+CREATE INDEX IF NOT EXISTS brands_user_id_idx ON public.brands(user_id);
+CREATE INDEX IF NOT EXISTS brief_batches_brand_id_idx ON public.brief_batches(brand_id);
+CREATE INDEX IF NOT EXISTS brief_batches_user_id_idx ON public.brief_batches(user_id);
+CREATE INDEX IF NOT EXISTS brief_concepts_batch_id_idx ON public.brief_concepts(brief_batch_id);
+CREATE INDEX IF NOT EXISTS brief_concepts_user_id_idx ON public.brief_concepts(user_id); 
+-- Organizations Migration
+
+-- Add Organizations Feature
+-- This migration adds support for organizations, allowing users to collaborate on brands and briefs
+
+-- Create organizations table
+CREATE TABLE IF NOT EXISTS public.organizations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    type TEXT NOT NULL CHECK (type IN ('brand', 'agency')),
+    created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+    settings JSONB DEFAULT '{}'::jsonb
+);
+
+-- Create organization_members table for managing users within organizations
+CREATE TABLE IF NOT EXISTS public.organization_members (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    role TEXT NOT NULL CHECK (role IN ('owner', 'admin', 'member')),
+    created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+    UNIQUE(organization_id, user_id)
+);
+
+-- Add organization_id to brands table (nullable for backward compatibility during migration)
+ALTER TABLE public.brands 
+ADD COLUMN organization_id UUID REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+-- Create indexes for faster queries
+CREATE INDEX IF NOT EXISTS organizations_type_idx ON public.organizations(type);
+CREATE INDEX IF NOT EXISTS organization_members_user_id_idx ON public.organization_members(user_id);
+CREATE INDEX IF NOT EXISTS organization_members_organization_id_idx ON public.organization_members(organization_id);
+CREATE INDEX IF NOT EXISTS brands_organization_id_idx ON public.brands(organization_id);
+
+-- Create or replace update_updated_at_column function for organizations
+CREATE OR REPLACE FUNCTION public.update_organization_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = now();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Add triggers to update updated_at column automatically
+DROP TRIGGER IF EXISTS update_organizations_updated_at ON public.organizations;
+CREATE TRIGGER update_organizations_updated_at
+BEFORE UPDATE ON public.organizations
+FOR EACH ROW
+EXECUTE FUNCTION public.update_organization_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_organization_members_updated_at ON public.organization_members;
+CREATE TRIGGER update_organization_members_updated_at
+BEFORE UPDATE ON public.organization_members
+FOR EACH ROW
+EXECUTE FUNCTION public.update_organization_updated_at_column();
+
+-- Enable RLS on new tables
+ALTER TABLE public.organizations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.organization_members ENABLE ROW LEVEL SECURITY;
+
+-- RLS policies for organizations
+CREATE POLICY "Users can view organizations they belong to" 
+    ON public.organizations FOR SELECT
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.organization_members 
+            WHERE organization_id = public.organizations.id 
+            AND user_id = auth.uid()
+        )
+    );
+
+CREATE POLICY "Organization owners and admins can update their organizations" 
+    ON public.organizations FOR UPDATE
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.organization_members 
+            WHERE organization_id = public.organizations.id 
+            AND user_id = auth.uid() 
+            AND role IN ('owner', 'admin')
+        )
+    );
+
+CREATE POLICY "Users can create organizations" 
+    ON public.organizations FOR INSERT
+    WITH CHECK (true);
+
+CREATE POLICY "Only owners can delete organizations" 
+    ON public.organizations FOR DELETE
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.organization_members 
+            WHERE organization_id = public.organizations.id 
+            AND user_id = auth.uid() 
+            AND role = 'owner'
+        )
+    );
+
+-- RLS policies for organization members
+CREATE POLICY "Users can view members in their organizations" 
+    ON public.organization_members FOR SELECT
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.organization_members AS member
+            WHERE member.organization_id = public.organization_members.organization_id
+            AND member.user_id = auth.uid()
+        )
+    );
+
+CREATE POLICY "Owners and admins can manage members" 
+    ON public.organization_members FOR INSERT
+    WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM public.organization_members AS member
+            WHERE member.organization_id = public.organization_members.organization_id
+            AND member.user_id = auth.uid()
+            AND member.role IN ('owner', 'admin')
+        ) OR 
+        -- Allow self-insertion for newly created organizations
+        (
+            public.organization_members.user_id = auth.uid() AND
+            public.organization_members.role = 'owner'
+        )
+    );
+
+CREATE POLICY "Owners and admins can update members" 
+    ON public.organization_members FOR UPDATE
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.organization_members AS member
+            WHERE member.organization_id = public.organization_members.organization_id
+            AND member.user_id = auth.uid()
+            AND member.role IN ('owner', 'admin')
+        )
+    );
+
+CREATE POLICY "Owners and admins can remove members" 
+    ON public.organization_members FOR DELETE
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.organization_members AS member
+            WHERE member.organization_id = public.organization_members.organization_id
+            AND member.user_id = auth.uid()
+            AND member.role IN ('owner', 'admin')
+        )
+    ); 
+-- Migrate Existing Users
+
+-- Migrate existing users to organizations
+-- This migration creates default organizations for existing users and links their brands
+
+-- Create a temporary function to handle the migration
+CREATE OR REPLACE FUNCTION migrate_users_to_organizations()
+RETURNS void AS $$
+DECLARE
+    user_record RECORD;
+    org_id UUID;
+BEGIN
+    -- For each user that has brands
+    FOR user_record IN 
+        SELECT DISTINCT user_id 
+        FROM public.brands
+    LOOP
+        -- Create a default personal organization for the user
+        INSERT INTO public.organizations (name, type)
+        VALUES ('My Organization', 'brand')
+        RETURNING id INTO org_id;
+        
+        -- Add the user as the owner of the organization
+        INSERT INTO public.organization_members (organization_id, user_id, role)
+        VALUES (org_id, user_record.user_id, 'owner');
+        
+        -- Update all the user's brands to belong to this organization
+        UPDATE public.brands
+        SET organization_id = org_id
+        WHERE user_id = user_record.user_id;
+    END LOOP;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Execute the migration function
+SELECT migrate_users_to_organizations();
+
+-- Clean up the temporary function
+DROP FUNCTION migrate_users_to_organizations(); 
