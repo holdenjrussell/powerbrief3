@@ -46,14 +46,15 @@ export default function AppLayout({ children }) {
                 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}>
 
                 <div className="h-16 flex items-center justify-between px-4 border-b">
-                    <div className="flex items-center">
+                    <div className="flex items-center py-0">
                         <Image 
                             src="/images/powerbrief-logo.png" 
                             alt={productName || "PowerBrief"} 
-                            width={140} 
-                            height={32} 
-                            className="object-contain"
+                            width={150} 
+                            height={40} 
+                            className="object-contain my-0"
                             priority
+                            style={{ maxHeight: "40px" }}
                         />
                     </div>
                     <button onClick={toggleSidebar} className="lg:hidden text-gray-500 hover:text-gray-700">

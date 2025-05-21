@@ -10,7 +10,7 @@ import {
     X,
     ChevronDown,
     LogOut,
-    Key, Files, LucideListTodo, Presentation, Film,
+    Key, Presentation, Film,
 } from 'lucide-react';
 import { useGlobal } from "@/lib/context/GlobalContext";
 import { createSPASassClient } from "@/lib/supabase/client";
@@ -97,14 +97,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}>
 
                 <div className="h-16 flex items-center justify-between px-4 border-b">
-                    <div className="flex items-center">
+                    <div className="flex items-center py-0">
                         <Image 
                             src="/images/powerbrief-logo.png" 
                             alt={productName || "PowerBrief"} 
-                            width={140} 
-                            height={32} 
-                            className="object-contain"
+                            width={150} 
+                            height={40} 
+                            className="object-contain my-0"
                             priority
+                            style={{ maxHeight: "40px" }}
                         />
                     </div>
                     <button
@@ -163,7 +164,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                         <button
                             onClick={() => setUserDropdownOpen(!isUserDropdownOpen)}
                             className="flex items-center space-x-2 text-sm text-gray-700 hover:text-gray-900"
-                            aria-expanded={isUserDropdownOpen ? "true" : "false"}
+                            aria-expanded={isUserDropdownOpen}
                             aria-haspopup="true"
                         >
                             <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center">
