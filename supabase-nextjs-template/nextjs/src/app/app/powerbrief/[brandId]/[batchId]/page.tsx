@@ -116,7 +116,7 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
 
                 conceptsData.forEach(concept => {
                     initialLocalPrompts[concept.id] = concept.ai_custom_prompt || '';
-                    initialLocalCaptionHooks[concept.id] = concept.caption_hook_options?.[0] || ''; // Assuming single hook for now, adjust if multiple
+                    initialLocalCaptionHooks[concept.id] = concept.caption_hook_options || '';
                     initialLocalSpokenHooks[concept.id] = concept.spoken_hook_options || '';
                     initialLocalCtaScript[concept.id] = concept.cta_script || '';
                     initialLocalCtaTextOverlay[concept.id] = concept.cta_text_overlay || '';
@@ -586,6 +586,7 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                   }));
               }
               
+              // Update local spoken hooks state when received from AI
               if (aiResponse.spoken_hook_options) {
                   setLocalSpokenHooks(prev => ({
                       ...prev,

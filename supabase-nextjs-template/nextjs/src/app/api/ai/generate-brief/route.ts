@@ -270,9 +270,24 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
           };
         } else {
           // Handle regular format (video or default)
+          const hookType = body.hookOptions?.type || 'both';
+          
+          // Ensure we have hook options in the expected format based on hook type
+          let captionHooks = jsonResponse.caption_hook_options || "";
+          let spokenHooks = jsonResponse.spoken_hook_options || "";
+          
+          // If we requested a specific hook type but got empty result, try to extract from the other field
+          if (hookType === 'caption' && !captionHooks && spokenHooks) {
+            console.log('Caption hooks missing but verbal hooks present - trying to use verbal hooks');
+            captionHooks = spokenHooks;
+          } else if (hookType === 'verbal' && !spokenHooks && captionHooks) {
+            console.log('Verbal hooks missing but caption hooks present - trying to use caption hooks');
+            spokenHooks = captionHooks;
+          }
+          
           responseData = {
-            caption_hook_options: jsonResponse.caption_hook_options || "",
-            spoken_hook_options: jsonResponse.spoken_hook_options || "",
+            caption_hook_options: captionHooks,
+            spoken_hook_options: spokenHooks,
             body_content_structured_scenes: jsonResponse.body_content_structured_scenes || [],
             cta_script: jsonResponse.cta_script || "",
             cta_text_overlay: jsonResponse.cta_text_overlay || ""

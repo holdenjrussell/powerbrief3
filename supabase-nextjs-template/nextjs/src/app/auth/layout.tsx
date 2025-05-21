@@ -9,22 +9,22 @@ export default function AuthLayout({
     const productName = process.env.NEXT_PUBLIC_PRODUCTNAME;
     const testimonials = [
         {
-            quote: "This template helped us launch our SaaS product in just two weeks. The authentication and multi-tenancy features are rock solid.",
-            author: "Sarah Chen",
-            role: "CTO, TechStart",
-            avatar: "SC"
+            quote: "PowerBrief streamlines our ad creation workflow by generating targeted briefs and copywriting suggestions that align with our brand voice.",
+            author: "Placeholder Name",
+            role: "Marketing Director",
+            avatar: "PN"
         },
         {
-            quote: "The best part is how well thought out the organization management is. It saved us months of development time.",
-            author: "Michael Roberts",
-            role: "Founder, DataFlow",
-            avatar: "MR"
+            quote: "The AI-driven audience insights helped us discover new market segments and tailor our messaging more effectively.",
+            author: "Placeholder Name",
+            role: "Brand Strategist",
+            avatar: "PN"
         },
         {
-            quote: "Clean code, great documentation, and excellent support. Exactly what we needed to get our MVP off the ground.",
-            author: "Jessica Kim",
-            role: "Lead Developer, CloudScale",
-            avatar: "JK"
+            quote: "Creating consistent ad campaigns across multiple platforms is so much easier with PowerBrief's centralized brand management.",
+            author: "Placeholder Name",
+            role: "Digital Marketing Manager",
+            avatar: "PN"
         }
     ];
 
