@@ -1875,80 +1875,84 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                     )}
                                     
                                     {/* Caption Hook Box - Moved Below Generate AI */}
-                                    <div className="mt-4">
-                                        <h3 className="font-medium text-sm mb-1">Caption Hook options (with emojis)</h3>
-                                        <Textarea
-                                            value={localCaptionHooks[concept.id] || ''}
-                                            onChange={(e) => {
-                                                // Update local state immediately for responsive typing
-                                                setLocalCaptionHooks(prev => ({
-                                                    ...prev,
-                                                    [concept.id]: e.target.value
-                                                }));
-                                                
-                                                // Debounce the actual save operation
-                                                const updatedConcept = {
-                                                    ...concept,
-                                                    caption_hook_options: e.target.value
-                                                };
-                                                debouncedUpdateConcept(updatedConcept);
-                                            }}
-                                            onBlur={() => {
-                                                // Save immediately on blur
-                                                if (saveTimeoutRef.current) {
-                                                    clearTimeout(saveTimeoutRef.current);
-                                                    saveTimeoutRef.current = null;
-                                                }
-                                                
-                                                const updatedConcept = {
-                                                    ...concept,
-                                                    caption_hook_options: localCaptionHooks[concept.id] || ''
-                                                };
-                                                handleUpdateConcept(updatedConcept);
-                                            }}
-                                            placeholder="Enter caption hook options with emojis"
-                                            className="text-sm w-full min-h-fit"
-                                            style={{ height: 'auto', overflow: 'hidden' }}
-                                        />
-                                    </div>
+                                    {localMediaTypes[concept.id] === 'video' && (
+                                        <div className="mt-4">
+                                            <h3 className="font-medium text-sm mb-1">Caption Hook options (with emojis)</h3>
+                                            <Textarea
+                                                value={localCaptionHooks[concept.id] || ''}
+                                                onChange={(e) => {
+                                                    // Update local state immediately for responsive typing
+                                                    setLocalCaptionHooks(prev => ({
+                                                        ...prev,
+                                                        [concept.id]: e.target.value
+                                                    }));
+                                                    
+                                                    // Debounce the actual save operation
+                                                    const updatedConcept = {
+                                                        ...concept,
+                                                        caption_hook_options: e.target.value
+                                                    };
+                                                    debouncedUpdateConcept(updatedConcept);
+                                                }}
+                                                onBlur={() => {
+                                                    // Save immediately on blur
+                                                    if (saveTimeoutRef.current) {
+                                                        clearTimeout(saveTimeoutRef.current);
+                                                        saveTimeoutRef.current = null;
+                                                    }
+                                                    
+                                                    const updatedConcept = {
+                                                        ...concept,
+                                                        caption_hook_options: localCaptionHooks[concept.id] || ''
+                                                    };
+                                                    handleUpdateConcept(updatedConcept);
+                                                }}
+                                                placeholder="Enter caption hook options with emojis"
+                                                className="text-sm w-full min-h-fit"
+                                                style={{ height: 'auto', overflow: 'hidden' }}
+                                            />
+                                        </div>
+                                    )}
                                     
                                     {/* Spoken Hook Box - Moved Below Generate AI */}
-                                    <div className="mt-2">
-                                        <h3 className="font-medium text-sm mb-1">Spoken Hook options</h3>
-                                        <Textarea
-                                            value={localSpokenHooks[concept.id] || ''}
-                                            onChange={(e) => {
-                                                // Update local state immediately for responsive typing
-                                                setLocalSpokenHooks(prev => ({
-                                                    ...prev,
-                                                    [concept.id]: e.target.value
-                                                }));
-                                                
-                                                // Debounce the actual save operation
-                                                const updatedConcept = {
-                                                    ...concept,
-                                                    spoken_hook_options: e.target.value
-                                                };
-                                                debouncedUpdateConcept(updatedConcept);
-                                            }}
-                                            onBlur={() => {
-                                                // Save immediately on blur
-                                                if (saveTimeoutRef.current) {
-                                                    clearTimeout(saveTimeoutRef.current);
-                                                    saveTimeoutRef.current = null;
-                                                }
-                                                
-                                                const updatedConcept = {
-                                                    ...concept,
-                                                    spoken_hook_options: localSpokenHooks[concept.id] || ''
-                                                };
-                                                handleUpdateConcept(updatedConcept);
-                                            }}
-                                            placeholder="Enter spoken hook options"
-                                            className="text-sm w-full min-h-fit"
-                                            style={{ height: 'auto', overflow: 'hidden' }}
-                                        />
-                                    </div>
+                                    {localMediaTypes[concept.id] === 'video' && (
+                                        <div className="mt-2">
+                                            <h3 className="font-medium text-sm mb-1">Spoken Hook options</h3>
+                                            <Textarea
+                                                value={localSpokenHooks[concept.id] || ''}
+                                                onChange={(e) => {
+                                                    // Update local state immediately for responsive typing
+                                                    setLocalSpokenHooks(prev => ({
+                                                        ...prev,
+                                                        [concept.id]: e.target.value
+                                                    }));
+                                                    
+                                                    // Debounce the actual save operation
+                                                    const updatedConcept = {
+                                                        ...concept,
+                                                        spoken_hook_options: e.target.value
+                                                    };
+                                                    debouncedUpdateConcept(updatedConcept);
+                                                }}
+                                                onBlur={() => {
+                                                    // Save immediately on blur
+                                                    if (saveTimeoutRef.current) {
+                                                        clearTimeout(saveTimeoutRef.current);
+                                                        saveTimeoutRef.current = null;
+                                                    }
+                                                    
+                                                    const updatedConcept = {
+                                                        ...concept,
+                                                        spoken_hook_options: localSpokenHooks[concept.id] || ''
+                                                    };
+                                                    handleUpdateConcept(updatedConcept);
+                                                }}
+                                                placeholder="Enter spoken hook options"
+                                                className="text-sm w-full min-h-fit"
+                                                style={{ height: 'auto', overflow: 'hidden' }}
+                                            />
+                                        </div>
+                                    )}
                                     
                                     {/* Body Content - conditional based on media type */}
                                     <div className="space-y-4 mt-4">
