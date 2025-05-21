@@ -1624,179 +1624,6 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                         />
                                     </div>
                                     
-                                    {/* Hook Options UI - only for videos */}
-                                    {localMediaTypes[concept.id] !== 'image' && (
-                                        <div className="space-y-2 mt-2">
-                                            <h3 className="font-medium text-sm mb-1">Hook Generation Options</h3>
-                                            <div className="flex flex-col space-y-2">
-                                                <div className="flex items-center space-x-2">
-                                                    <label className="text-xs font-medium">Hook Type:</label>
-                                                    <div className="flex space-x-1">
-                                                        <Button
-                                                            variant={localHookTypes[concept.id] === 'caption' ? 'default' : 'outline'}
-                                                            size="sm"
-                                                            className={`flex items-center ${localHookTypes[concept.id] === 'caption' ? 'bg-primary-600 text-white' : ''}`}
-                                                            onClick={() => {
-                                                                // Update local state first
-                                                                setLocalHookTypes(prev => ({
-                                                                    ...prev,
-                                                                    [concept.id]: 'caption'
-                                                                }));
-                                                                
-                                                                // Update concept in database
-                                                                const updatedConcept = {
-                                                                    ...concept,
-                                                                    hook_type: 'caption' as 'caption'
-                                                                };
-                                                                handleUpdateConcept(updatedConcept);
-                                                            }}
-                                                        >
-                                                            Caption
-                                                        </Button>
-                                                        <Button
-                                                            variant={localHookTypes[concept.id] === 'verbal' ? 'default' : 'outline'}
-                                                            size="sm"
-                                                            className={`flex items-center ${localHookTypes[concept.id] === 'verbal' ? 'bg-primary-600 text-white' : ''}`}
-                                                            onClick={() => {
-                                                                // Update local state first
-                                                                setLocalHookTypes(prev => ({
-                                                                    ...prev,
-                                                                    [concept.id]: 'verbal'
-                                                                }));
-                                                                
-                                                                // Update concept in database
-                                                                const updatedConcept = {
-                                                                    ...concept,
-                                                                    hook_type: 'verbal' as 'verbal'
-                                                                };
-                                                                handleUpdateConcept(updatedConcept);
-                                                            }}
-                                                        >
-                                                            Verbal
-                                                        </Button>
-                                                        <Button
-                                                            variant={!localHookTypes[concept.id] || localHookTypes[concept.id] === 'both' ? 'default' : 'outline'}
-                                                            size="sm"
-                                                            className={`flex items-center ${!localHookTypes[concept.id] || localHookTypes[concept.id] === 'both' ? 'bg-primary-600 text-white' : ''}`}
-                                                            onClick={() => {
-                                                                // Update local state first
-                                                                setLocalHookTypes(prev => ({
-                                                                    ...prev,
-                                                                    [concept.id]: 'both'
-                                                                }));
-                                                                
-                                                                // Update concept in database
-                                                                const updatedConcept = {
-                                                                    ...concept,
-                                                                    hook_type: 'both' as 'both'
-                                                                };
-                                                                handleUpdateConcept(updatedConcept);
-                                                            }}
-                                                        >
-                                                            Both
-                                                        </Button>
-                                                    </div>
-                                                </div>
-                                                <div className="flex items-center space-x-2">
-                                                    <label className="text-xs font-medium">Number of Hooks:</label>
-                                                    <Input
-                                                        type="number"
-                                                        min={1}
-                                                        max={10}
-                                                        value={localHookCounts[concept.id] || 5}
-                                                        onChange={(e) => {
-                                                            const count = parseInt(e.target.value) || 5;
-                                                            
-                                                            // Update local state first
-                                                            setLocalHookCounts(prev => ({
-                                                                ...prev,
-                                                                [concept.id]: count
-                                                            }));
-                                                            
-                                                            // Update concept in database
-                                                            const updatedConcept = {
-                                                                ...concept,
-                                                                hook_count: count
-                                                            };
-                                                            handleUpdateConcept(updatedConcept);
-                                                        }}
-                                                        className="w-20 text-sm"
-                                                    />
-                                                </div>
-                                            </div>
-                                            
-                                            {/* Caption Hook Box */}
-                                            <div className="mt-2">
-                                                <h3 className="font-medium text-sm mb-1">Caption Hook options (with emojis)</h3>
-                                                <Textarea
-                                                    value={localCaptionHooks[concept.id] || ''}
-                                                    onChange={(e) => {
-                                                        // Update local state immediately for responsive typing
-                                                        setLocalCaptionHooks(prev => ({
-                                                            ...prev,
-                                                            [concept.id]: e.target.value
-                                                        }));
-                                                        
-                                                        // Debounce the actual save operation
-                                                        const updatedConcept = {
-                                                            ...concept,
-                                                            caption_hook_options: e.target.value
-                                                        };
-                                                        debouncedUpdateConcept(updatedConcept);
-                                                    }}
-                                                    onBlur={() => {
-                                                        // Save immediately on blur
-                                                        if (saveTimeoutRef.current) {
-                                                            clearTimeout(saveTimeoutRef.current);
-                                                            saveTimeoutRef.current = null;
-                                                        }
-                                                        
-                                                        const updatedConcept = {
-                                                            ...concept,
-                                                            caption_hook_options: localCaptionHooks[concept.id] || ''
-                                                        };
-                                                        handleUpdateConcept(updatedConcept);
-                                                    }}
-                                                    placeholder="Enter caption hook options with emojis"
-                                                    className="text-sm w-full min-h-fit"
-                                                    style={{ height: 'auto', overflow: 'hidden' }}
-                                                />
-                                            </div>
-                                            
-                                            {/* Spoken Hook Box */}
-                                            <div className="mt-2">
-                                                <h3 className="font-medium text-sm mb-1">Spoken Hook options</h3>
-                                                <Textarea
-                                                    value={concept.spoken_hook_options || ''}
-                                                    onChange={(e) => {
-                                                        // Update local state immediately for responsive typing
-                                                        const updatedConcept = {
-                                                            ...concept,
-                                                            spoken_hook_options: e.target.value
-                                                        };
-                                                        debouncedUpdateConcept(updatedConcept);
-                                                    }}
-                                                    onBlur={() => {
-                                                        // Save immediately on blur
-                                                        if (saveTimeoutRef.current) {
-                                                            clearTimeout(saveTimeoutRef.current);
-                                                            saveTimeoutRef.current = null;
-                                                        }
-                                                        
-                                                        const updatedConcept = {
-                                                            ...concept,
-                                                            spoken_hook_options: concept.spoken_hook_options || ''
-                                                        };
-                                                        handleUpdateConcept(updatedConcept);
-                                                    }}
-                                                    placeholder="Enter spoken hook options"
-                                                    className="text-sm w-full min-h-fit"
-                                                    style={{ height: 'auto', overflow: 'hidden' }}
-                                                />
-                                            </div>
-                                        </div>
-                                    )}
-                                    
                                     {/* AI Button */}
                                     {concept.media_url && (
                                         <Button
@@ -1829,8 +1656,78 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                         Debug Prompt
                                     </Button>
                                     
+                                    {/* Caption Hook Box - Moved Below Generate AI */}
+                                    <div className="mt-4">
+                                        <h3 className="font-medium text-sm mb-1">Caption Hook options (with emojis)</h3>
+                                        <Textarea
+                                            value={localCaptionHooks[concept.id] || ''}
+                                            onChange={(e) => {
+                                                // Update local state immediately for responsive typing
+                                                setLocalCaptionHooks(prev => ({
+                                                    ...prev,
+                                                    [concept.id]: e.target.value
+                                                }));
+                                                
+                                                // Debounce the actual save operation
+                                                const updatedConcept = {
+                                                    ...concept,
+                                                    caption_hook_options: e.target.value
+                                                };
+                                                debouncedUpdateConcept(updatedConcept);
+                                            }}
+                                            onBlur={() => {
+                                                // Save immediately on blur
+                                                if (saveTimeoutRef.current) {
+                                                    clearTimeout(saveTimeoutRef.current);
+                                                    saveTimeoutRef.current = null;
+                                                }
+                                                
+                                                const updatedConcept = {
+                                                    ...concept,
+                                                    caption_hook_options: localCaptionHooks[concept.id] || ''
+                                                };
+                                                handleUpdateConcept(updatedConcept);
+                                            }}
+                                            placeholder="Enter caption hook options with emojis"
+                                            className="text-sm w-full min-h-fit"
+                                            style={{ height: 'auto', overflow: 'hidden' }}
+                                        />
+                                    </div>
+                                    
+                                    {/* Spoken Hook Box - Moved Below Generate AI */}
+                                    <div className="mt-2">
+                                        <h3 className="font-medium text-sm mb-1">Spoken Hook options</h3>
+                                        <Textarea
+                                            value={concept.spoken_hook_options || ''}
+                                            onChange={(e) => {
+                                                // Update local state immediately for responsive typing
+                                                const updatedConcept = {
+                                                    ...concept,
+                                                    spoken_hook_options: e.target.value
+                                                };
+                                                debouncedUpdateConcept(updatedConcept);
+                                            }}
+                                            onBlur={() => {
+                                                // Save immediately on blur
+                                                if (saveTimeoutRef.current) {
+                                                    clearTimeout(saveTimeoutRef.current);
+                                                    saveTimeoutRef.current = null;
+                                                }
+                                                
+                                                const updatedConcept = {
+                                                    ...concept,
+                                                    spoken_hook_options: concept.spoken_hook_options || ''
+                                                };
+                                                handleUpdateConcept(updatedConcept);
+                                            }}
+                                            placeholder="Enter spoken hook options"
+                                            className="text-sm w-full min-h-fit"
+                                            style={{ height: 'auto', overflow: 'hidden' }}
+                                        />
+                                    </div>
+                                    
                                     {/* Body Content - conditional based on media type */}
-                                    <div className="space-y-4">
+                                    <div className="space-y-4 mt-4">
                                         <div className="flex justify-between items-center">
                                             <h3 className="font-medium text-sm">
                                                 {localMediaTypes[concept.id] === 'video' 
