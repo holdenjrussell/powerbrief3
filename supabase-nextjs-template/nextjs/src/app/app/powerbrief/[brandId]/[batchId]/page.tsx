@@ -454,11 +454,38 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
         if (!concept) return;
         
         try {
+            // Save the current prompt first if there's unsaved content in the input field
+            const currentPromptValue = localPrompts[conceptId] || '';
+            if (currentPromptValue !== concept.ai_custom_prompt) {
+                // Clear any pending debounced updates
+                if (saveTimeoutRef.current) {
+                    clearTimeout(saveTimeoutRef.current);
+                    saveTimeoutRef.current = null;
+                }
+                
+                // Update the concept with the current prompt immediately
+                const updatedConceptWithPrompt = {
+                    ...concept,
+                    ai_custom_prompt: currentPromptValue
+                };
+                
+                // Save the updated prompt first
+                await updateBriefConcept(updatedConceptWithPrompt);
+                
+                // Update the local concepts state to reflect the saved prompt
+                setConcepts(prev => 
+                    prev.map(c => c.id === conceptId ? { ...c, ai_custom_prompt: currentPromptValue } : c)
+                );
+            }
+            
             // Set this specific concept as generating
             setGeneratingConceptIds(prev => ({
                 ...prev,
                 [conceptId]: true
             }));
+            
+            // Now use the updated concept with the saved prompt
+            const conceptWithSavedPrompt = concepts.find(c => c.id === conceptId) || concept;
             
             const request: AiBriefingRequest = {
                 brandContext: {
@@ -466,16 +493,16 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                     target_audience_data: brand.target_audience_data,
                     competition_data: brand.competition_data
                 },
-                conceptSpecificPrompt: concept.ai_custom_prompt || '',
+                conceptSpecificPrompt: currentPromptValue, // Use the current prompt value directly
                 conceptCurrentData: {
-                    caption_hook_options: concept.caption_hook_options || '',
-                    body_content_structured: concept.body_content_structured || [],
-                    cta_script: concept.cta_script || '',
-                    cta_text_overlay: concept.cta_text_overlay || ''
+                    caption_hook_options: conceptWithSavedPrompt.caption_hook_options || '',
+                    body_content_structured: conceptWithSavedPrompt.body_content_structured || [],
+                    cta_script: conceptWithSavedPrompt.cta_script || '',
+                    cta_text_overlay: conceptWithSavedPrompt.cta_text_overlay || ''
                 },
                 media: {
-                    url: concept.media_url || '',
-                    type: concept.media_type || ''
+                    url: conceptWithSavedPrompt.media_url || '',
+                    type: conceptWithSavedPrompt.media_type || ''
                 },
                 desiredOutputFields: [
                     'caption_hook_options', 
@@ -502,18 +529,17 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
             const aiResponse = await response.json();
             
             // Update concept with AI response
-            const updatedConcept = await updateBriefConcept({
-                ...concept,
-                id: conceptId,
-                caption_hook_options: aiResponse.caption_hook_options || concept.caption_hook_options,
-                body_content_structured: aiResponse.body_content_structured_scenes || concept.body_content_structured,
-                cta_script: aiResponse.cta_script || concept.cta_script,
-                cta_text_overlay: aiResponse.cta_text_overlay || concept.cta_text_overlay
-            });
-            
-            setConcepts(prev => 
-                prev.map(c => c.id === updatedConcept.id ? updatedConcept : c)
-            );
+            const updatedConceptWithAI = await updateBriefConcept({
+                 ...conceptWithSavedPrompt,
+                 caption_hook_options: aiResponse.caption_hook_options || conceptWithSavedPrompt.caption_hook_options,
+                 body_content_structured: aiResponse.body_content_structured_scenes || conceptWithSavedPrompt.body_content_structured,
+                 cta_script: aiResponse.cta_script || conceptWithSavedPrompt.cta_script,
+                 cta_text_overlay: aiResponse.cta_text_overlay || conceptWithSavedPrompt.cta_text_overlay
+              });
+              
+              setConcepts(prev => 
+                  prev.map(c => c.id === updatedConceptWithAI.id ? updatedConceptWithAI : c)
+              );
         } catch (err: any) {
             console.error('Failed to generate AI brief:', err);
             setError(`AI brief generation failed: ${err.message || 'Unknown error'}`);
@@ -535,10 +561,44 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
             setGeneratingAI(true);
             setError(null);
             
+            // First, save any unsaved prompts for all concepts
+            for (const concept of concepts) {
+                const currentPromptValue = localPrompts[concept.id] || '';
+                if (currentPromptValue !== concept.ai_custom_prompt) {
+                    try {
+                        // Update the concept with the current prompt immediately
+                        const updatedConceptWithPrompt = {
+                            ...concept,
+                            ai_custom_prompt: currentPromptValue
+                        };
+                        
+                        // Save the updated prompt
+                        const savedConcept = await updateBriefConcept(updatedConceptWithPrompt);
+                        
+                        // Update the local concepts state to reflect the saved prompt
+                        setConcepts(prev => 
+                            prev.map(c => c.id === concept.id ? savedConcept : c)
+                        );
+                    } catch (promptSaveError) {
+                        console.error(`Failed to save prompt for concept ${concept.id}:`, promptSaveError);
+                        // Continue with the next concept even if saving this prompt fails
+                    }
+                }
+            }
+            
+            // Clear any pending debounced updates
+            if (saveTimeoutRef.current) {
+                clearTimeout(saveTimeoutRef.current);
+                saveTimeoutRef.current = null;
+            }
+            
+            // Get the refreshed concepts list after saving all prompts
+            const refreshedConcepts = [...concepts];
+            
             let successCount = 0;
             let failCount = 0;
             
-            for (const concept of concepts) {
+            for (const concept of refreshedConcepts) {
                 try {
                     console.log(`Generating AI brief for concept: ${concept.id} (${concept.concept_title})`);
                     // Add this concept to the loading states
@@ -547,13 +607,16 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                         [concept.id]: true
                     }));
                     
+                    // Get the latest prompt from local state (which should be synchronized with DB at this point)
+                    const currentPromptValue = localPrompts[concept.id] || concept.ai_custom_prompt || '';
+                    
                     const request: AiBriefingRequest = {
                         brandContext: {
                             brand_info_data: brand.brand_info_data,
                             target_audience_data: brand.target_audience_data,
                             competition_data: brand.competition_data
                         },
-                        conceptSpecificPrompt: concept.ai_custom_prompt || '',
+                        conceptSpecificPrompt: currentPromptValue,
                         conceptCurrentData: {
                             caption_hook_options: concept.caption_hook_options || '',
                             body_content_structured: concept.body_content_structured || [],
