@@ -141,7 +141,12 @@ export async function POST(request: NextRequest) {
       const { type, count } = body.hookOptions;
       hookInstructions = `\nHOOK OPTIONS INSTRUCTIONS:
 - Generate ${count} unique hook options
-- Hook type to focus on: ${type === 'both' ? 'both caption and verbal hooks' : type === 'caption' ? 'only caption hooks' : 'only verbal hooks'}
+- Hook type: ${type}
+- For caption hooks: Use emojis and catchy phrases suitable for social media captions
+- For verbal hooks: Create spoken phrases that would work well when read aloud in videos
+- If hook type is 'caption', only populate the caption_hook_options field
+- If hook type is 'verbal', only populate the spoken_hook_options field 
+- If hook type is 'both', populate both fields with ${count} options each
 `;
     }
 
@@ -156,11 +161,12 @@ export async function POST(request: NextRequest) {
     } else {
       // Fallback to default system prompt if no custom instructions are available
       systemPrompt = `You are an expert advertising strategist and copywriter specializing in direct response marketing. 
-Given the brand context (positioning, target audience, competitors), concept prompt, and media (if provided), generate ad creative components that specifically relate to the media content.
+Given the brand context (positioning, target audience, competitors), concept prompt, and media (if provided), generate ad creative components that specifically relate to the media content. DO NOT EVER use another brand than specified in brand name: The Grounding Co.
 
 IMPORTANT: Your response MUST be valid JSON and nothing else. Format:
 {
-  "caption_hook_options": "A string with multiple options for caption hooks (with emojis)",
+  "caption_hook_options": "Generate caption hooks with emojis here. Only include caption hooks, not verbal hooks. Generate exactly the number requested in the hook count.",
+  "spoken_hook_options": "Generate verbal/spoken hooks here. These are hooks meant to be spoken in videos, not written as captions. Generate exactly the number requested in the hook count.",
   "body_content_structured_scenes": [
     { 
       "scene_title": "Scene 1 (optional)", 
@@ -256,6 +262,7 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
           console.log('Detected image-specific response format with description and cta');
           responseData = {
             caption_hook_options: "",
+            spoken_hook_options: "",
             body_content_structured_scenes: [],
             cta_script: jsonResponse.cta || "",
             cta_text_overlay: jsonResponse.cta || "",
@@ -265,6 +272,7 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
           // Handle regular format (video or default)
           responseData = {
             caption_hook_options: jsonResponse.caption_hook_options || "",
+            spoken_hook_options: jsonResponse.spoken_hook_options || "",
             body_content_structured_scenes: jsonResponse.body_content_structured_scenes || [],
             cta_script: jsonResponse.cta_script || "",
             cta_text_overlay: jsonResponse.cta_text_overlay || ""
@@ -294,6 +302,7 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                 // Return transformed response
                 return NextResponse.json({
                   caption_hook_options: "",
+                  spoken_hook_options: "",
                   body_content_structured_scenes: [],
                   cta_script: cta,
                   cta_text_overlay: cta

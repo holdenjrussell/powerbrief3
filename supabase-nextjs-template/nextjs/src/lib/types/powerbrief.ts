@@ -143,16 +143,17 @@ export interface AiBriefingRequest {
   };
   desiredOutputFields: string[];
   hookOptions?: {
-    type: string;
+    type: 'caption' | 'verbal' | 'both';
     count: number;
   };
 }
 
 export interface AiBriefingResponse {
-  caption_hook_options?: string;
-  body_content_structured_scenes?: Scene[];
-  cta_script?: string;
-  cta_text_overlay?: string;
+  caption_hook_options: string;
+  spoken_hook_options?: string;
+  body_content_structured_scenes: Scene[];
+  cta_script: string;
+  cta_text_overlay: string;
   description?: string;
 }
 
