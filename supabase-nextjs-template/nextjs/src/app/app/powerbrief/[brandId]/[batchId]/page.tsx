@@ -1234,10 +1234,18 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                         <Input
                                             value={localClickupLinks[concept.id] || ''}
                                             onChange={(e) => {
+                                                // Update the local state for UI updates
                                                 setLocalClickupLinks(prev => ({
                                                     ...prev,
                                                     [concept.id]: e.target.value
                                                 }));
+                                                
+                                                // Also update the concepts state directly for immediate feedback
+                                                setConcepts(prevConcepts => 
+                                                    prevConcepts.map(c => 
+                                                        c.id === concept.id ? { ...c, clickup_id: e.target.value } : c
+                                                    )
+                                                );
                                                 
                                                 const updatedConcept = {
                                                     ...concept,
@@ -1271,9 +1279,19 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                                     <Input
                                                         value={concept.clickup_link || ''}
                                                         onChange={(e) => {
+                                                            // Store the value directly in a temporary variable to prevent loss
+                                                            const newValue = e.target.value;
+                                                            // Update the concept in state immediately for better typing responsiveness
+                                                            setConcepts(prevConcepts => 
+                                                                prevConcepts.map(c => 
+                                                                    c.id === concept.id ? { ...c, clickup_link: newValue } : c
+                                                                )
+                                                            );
+                                                            
+                                                            // Still send the update to the debounced handler
                                                             const updatedConcept = {
                                                                 ...concept,
-                                                                clickup_link: e.target.value
+                                                                clickup_link: newValue
                                                             };
                                                             debouncedUpdateConcept(updatedConcept);
                                                         }}

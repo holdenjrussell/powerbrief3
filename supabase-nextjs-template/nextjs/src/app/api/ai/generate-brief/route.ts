@@ -4,7 +4,7 @@ import { AiBriefingRequest, AiBriefingResponse } from '@/lib/types/powerbrief';
 import { createClient } from '@/utils/supabase/server';
 
 // Use the correct model name as shown in the endpoint
-const MODEL_NAME = 'gemini-2.5-flash-preview-04-17';
+const MODEL_NAME = 'gemini-2.5-flash-preview-05-20';
 
 // Helper to get more specific mime types
 const getProperMimeType = (mediaType: string | undefined, fileUrl: string): string => {
@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
       generationConfig: {
         temperature: 0.7,
         responseMimeType: "application/json",
-        maxOutputTokens: 32768, // Maximum output token limit
+        maxOutputTokens: 64000, // Maximum output token limit
       },
       safetySettings: [
         {

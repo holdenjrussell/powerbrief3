@@ -1,3 +1,11 @@
+/**
+ * Home Page Component
+ * 
+ * KEYWORDS: landing page, home page, features, pricing, marketing
+ * 
+ * This is the main landing page for the application. It showcases the product
+ * features, pricing, and calls-to-action to encourage user signups.
+ */
 import React from 'react';
 import Link from 'next/link';
 import { ArrowRight, Sparkles, FileText, Briefcase, Repeat, Target, Share2 } from 'lucide-react';
@@ -5,8 +13,14 @@ import AuthAwareButtons from '@/components/AuthAwareButtons';
 import HomePricing from "@/components/HomePricing";
 
 export default function Home() {
+  // Get product name from environment variables or use default
   const productName = process.env.NEXT_PUBLIC_PRODUCTNAME || 'PowerBrief';
 
+  /**
+   * Feature cards configuration
+   * 
+   * KEYWORDS: features, feature cards, product features
+   */
   const features = [
     {
       icon: Briefcase,
@@ -46,6 +60,11 @@ export default function Home() {
     }
   ];
 
+  /**
+   * Statistics display configuration
+   * 
+   * KEYWORDS: stats, statistics, metrics
+   */
   const stats = [
     { label: 'Ad Concepts Created', value: '5K+' },
     { label: 'Hours Saved', value: '1000+' },
@@ -55,6 +74,7 @@ export default function Home() {
 
   return (
       <div className="min-h-screen">
+        {/* Navigation Bar */}
         <nav className="fixed top-0 w-full bg-white/80 backdrop-blur-sm z-50 border-b border-gray-100">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between h-16 items-center">
@@ -86,6 +106,7 @@ export default function Home() {
           </div>
         </nav>
 
+        {/* Hero Section */}
         <section className="relative pt-32 pb-24 overflow-hidden">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center">
@@ -103,6 +124,7 @@ export default function Home() {
           </div>
         </section>
 
+        {/* Statistics Section */}
         <section className="py-16 bg-gradient-to-b from-white to-gray-50">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
@@ -140,8 +162,10 @@ export default function Home() {
           </div>
         </section>
 
+        {/* Pricing Section */}
         <HomePricing />
 
+        {/* Call-to-Action Section */}
         <section className="py-24 bg-primary-600">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
             <h2 className="text-3xl font-bold text-white">
@@ -160,6 +184,7 @@ export default function Home() {
           </div>
         </section>
 
+        {/* Footer Section */}
         <footer className="bg-gray-50 border-t border-gray-200">
           <div className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
