@@ -6,7 +6,7 @@ import Image from 'next/image';
 import { getUgcCreatorScriptByShareId } from '@/lib/services/ugcCreatorService';
 import { UgcCreatorScript, ScriptSegment } from '@/lib/types/ugcCreator';
 import { Loader2 } from 'lucide-react';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Alert, AlertDescription } from '@/components/ui';
 
 export default function PublicUgcScriptPage({ params }: { params: { shareId: string } }) {
   const [script, setScript] = useState<UgcCreatorScript | null>(null);

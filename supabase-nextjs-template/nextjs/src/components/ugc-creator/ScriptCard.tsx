@@ -5,10 +5,10 @@ import {
   CardTitle, 
   CardDescription, 
   CardContent,
-  CardFooter 
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+  CardFooter,
+  Button,
+  Badge
+} from "@/components/ui";
 import { UgcCreatorScript } from '@/lib/types/ugcCreator';
 import { ChevronRight } from 'lucide-react';
 

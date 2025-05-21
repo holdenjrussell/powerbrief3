@@ -3,10 +3,11 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/ui';
 import { ArrowLeft, ArrowRight, Presentation, Users } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { getBrandById } from '@/lib/services/powerbriefService';
+import { Brand } from '@/lib/types/powerbrief';
 
 export default function BrandLayout({
   children,
@@ -16,7 +17,7 @@ export default function BrandLayout({
   params: { brandId: string };
 }) {
   const { user } = useAuth();
-  const [brand, setBrand] = useState<any>(null);
+  const [brand, setBrand] = useState<Brand | null>(null);
   const [loading, setLoading] = useState(true);
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -57,6 +58,10 @@ export default function BrandLayout({
   const toggleSidebar = () => {
     setSidebarOpen(!sidebarOpen);
   };
+
+  if (loading && !brand) {
+    // Loading state could be used here if needed
+  }
 
   return (
     <div className="h-full flex">

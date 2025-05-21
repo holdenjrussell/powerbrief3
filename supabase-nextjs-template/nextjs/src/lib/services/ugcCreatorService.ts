@@ -6,7 +6,6 @@ import {
   DbUgcCreator, 
   DbUgcCreatorScript 
 } from '../types/ugcCreator';
-import type { Database } from '../types/database';
 
 const supabase = createSPAClient();
 
@@ -131,7 +130,7 @@ export async function getUgcCreatorScripts(creatorId: string): Promise<UgcCreato
 
   return (data || []).map((script: DbUgcCreatorScript) => ({
     ...script,
-    script_content: script.script_content as UgcCreatorScript['script_content'],
+    script_content: JSON.parse(JSON.stringify(script.script_content)) as UgcCreatorScript['script_content'],
     b_roll_shot_list: script.b_roll_shot_list as string[] || []
   }));
 }
@@ -152,7 +151,7 @@ export async function getUgcCreatorScriptById(scriptId: string): Promise<UgcCrea
 
   return {
     ...data,
-    script_content: data.script_content as UgcCreatorScript['script_content'],
+    script_content: JSON.parse(JSON.stringify(data.script_content)) as UgcCreatorScript['script_content'],
     b_roll_shot_list: data.b_roll_shot_list as string[] || []
   };
 }
@@ -173,7 +172,7 @@ export async function getUgcCreatorScriptByShareId(shareId: string): Promise<Ugc
 
   return {
     ...data,
-    script_content: data.script_content as UgcCreatorScript['script_content'],
+    script_content: JSON.parse(JSON.stringify(data.script_content)) as UgcCreatorScript['script_content'],
     b_roll_shot_list: data.b_roll_shot_list as string[] || []
   };
 }
@@ -182,8 +181,12 @@ export async function createUgcCreatorScript(
   script: Omit<UgcCreatorScript, 'id' | 'created_at' | 'updated_at'>
 ): Promise<UgcCreatorScript> {
   const publicShareId = uuidv4();
-  const newScript = {
+  
+  // Serialize script_content to avoid type issues
+  const serializedScript = {
     ...script,
+    script_content: JSON.parse(JSON.stringify(script.script_content)),
+    b_roll_shot_list: Array.isArray(script.b_roll_shot_list) ? script.b_roll_shot_list : [],
     id: uuidv4(),
     public_share_id: publicShareId,
     created_at: new Date().toISOString(),
@@ -192,7 +195,7 @@ export async function createUgcCreatorScript(
 
   const { data, error } = await supabase
     .from('ugc_creator_scripts')
-    .insert(newScript)
+    .insert(serializedScript)
     .select()
     .single();
 
@@ -203,7 +206,7 @@ export async function createUgcCreatorScript(
 
   return {
     ...data,
-    script_content: data.script_content as UgcCreatorScript['script_content'],
+    script_content: JSON.parse(JSON.stringify(data.script_content)) as UgcCreatorScript['script_content'],
     b_roll_shot_list: data.b_roll_shot_list as string[] || []
   };
 }
@@ -211,12 +214,16 @@ export async function createUgcCreatorScript(
 export async function updateUgcCreatorScript(
   script: Partial<UgcCreatorScript> & { id: string }
 ): Promise<UgcCreatorScript> {
+  // Serialize script_content if it exists
+  const serializedScript = {
+    ...script,
+    script_content: script.script_content ? JSON.parse(JSON.stringify(script.script_content)) : undefined,
+    updated_at: new Date().toISOString()
+  };
+
   const { data, error } = await supabase
     .from('ugc_creator_scripts')
-    .update({
-      ...script,
-      updated_at: new Date().toISOString()
-    })
+    .update(serializedScript)
     .eq('id', script.id)
     .select()
     .single();
@@ -228,7 +235,7 @@ export async function updateUgcCreatorScript(
 
   return {
     ...data,
-    script_content: data.script_content as UgcCreatorScript['script_content'],
+    script_content: JSON.parse(JSON.stringify(data.script_content)) as UgcCreatorScript['script_content'],
     b_roll_shot_list: data.b_roll_shot_list as string[] || []
   };
 }

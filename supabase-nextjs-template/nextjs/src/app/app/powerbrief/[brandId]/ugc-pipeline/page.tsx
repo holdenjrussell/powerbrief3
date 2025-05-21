@@ -7,16 +7,12 @@ import {
   Tabs, 
   TabsContent, 
   TabsList, 
-  TabsTrigger 
-} from "@/components/ui/tabs";
-import {
+  TabsTrigger,
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
-import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -24,11 +20,12 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+  Input,
+  Label,
+  Button,
+  Alert,
+  AlertDescription
+} from "@/components/ui";
 import { ArrowLeft, Plus, Loader2 } from "lucide-react";
 import { useAuth } from '@/hooks/useAuth';
 import { getBrandById } from '@/lib/services/powerbriefService';
@@ -38,13 +35,13 @@ import {
   getUgcCreatorScriptsByConceptStatus 
 } from '@/lib/services/ugcCreatorService';
 import { UgcCreator, UgcCreatorScript, UGC_CREATOR_SCRIPT_CONCEPT_STATUSES } from '@/lib/types/ugcCreator';
-import CreatorCard from '@/components/ugc-creator/CreatorCard';
-import ScriptCard from '@/components/ugc-creator/ScriptCard';
+import { CreatorCard, ScriptCard } from '@/components/ugc-creator';
+import { Brand } from '@/lib/types/powerbrief';
 
 export default function UgcPipelinePage({ params }: { params: { brandId: string } }) {
   const { user } = useAuth();
   const router = useRouter();
-  const [brand, setBrand] = useState<any>(null);
+  const [brand, setBrand] = useState<Brand | null>(null);
   const [creators, setCreators] = useState<UgcCreator[]>([]);
   const [scripts, setScripts] = useState<UgcCreatorScript[]>([]);
   const [loading, setLoading] = useState(true);
@@ -76,7 +73,7 @@ export default function UgcPipelinePage({ params }: { params: { brandId: string 
           const scriptsData = await getUgcCreatorScriptsByConceptStatus(params.brandId, activeStatus);
           setScripts(scriptsData);
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('Failed to fetch data:', err);
         setError('Failed to fetch data. Please try again.');
       } finally {
@@ -107,7 +104,7 @@ export default function UgcPipelinePage({ params }: { params: { brandId: string 
       
       // Navigate to the new creator's page
       router.push(`/app/powerbrief/${brand.id}/ugc-pipeline/creators/${newCreator.id}`);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Failed to create creator:', err);
       setError('Failed to create creator. Please try again.');
     } finally {
@@ -237,7 +234,7 @@ export default function UgcPipelinePage({ params }: { params: { brandId: string 
                 <CardHeader>
                   <CardTitle>No Creators</CardTitle>
                   <CardDescription>
-                    You haven't added any UGC creators yet. Click the "New Creator" button to get started.
+                    You haven&apos;t added any UGC creators yet. Click the &quot;New Creator&quot; button to get started.
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -285,7 +282,7 @@ export default function UgcPipelinePage({ params }: { params: { brandId: string 
                       <CardHeader>
                         <CardTitle>No Scripts</CardTitle>
                         <CardDescription>
-                          There are no scripts in the "{activeStatus}" status.
+                          There are no scripts in the &quot;{activeStatus}&quot; status.
                         </CardDescription>
                       </CardHeader>
                     </Card>
