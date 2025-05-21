@@ -377,9 +377,15 @@ export default function SharedSingleConceptPage({ params }: { params: { shareId:
       </div>
 
       {/* Metadata display */}
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2 mb-4">
         {concept.status && (
-          <div className="inline-block px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+          <div className={`inline-block px-4 py-1.5 rounded-full text-sm font-medium ${
+            concept.status === "REVISIONS REQUESTED" 
+              ? "bg-amber-100 text-amber-800 border border-amber-300" 
+              : concept.status === "APPROVED" 
+                ? "bg-green-100 text-green-800 border border-green-300" 
+                : "bg-blue-100 text-blue-800 border border-blue-300"
+          }`}>
             Status: {concept.status}
           </div>
         )}
@@ -397,12 +403,12 @@ export default function SharedSingleConceptPage({ params }: { params: { shareId:
           </div>
         )}
         {concept.strategist && (
-          <div className="inline-block px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+          <div className="inline-block px-4 py-1.5 bg-indigo-100 text-indigo-800 rounded-full text-sm font-medium border border-indigo-300">
             Strategist: {concept.strategist}
           </div>
         )}
         {concept.video_editor && (
-          <div className="inline-block px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+          <div className="inline-block px-4 py-1.5 bg-purple-100 text-purple-800 rounded-full text-sm font-medium border border-purple-300">
             {concept.media_type === 'video' ? 'Video Editor' : 'Designer'}: {concept.video_editor}
           </div>
         )}

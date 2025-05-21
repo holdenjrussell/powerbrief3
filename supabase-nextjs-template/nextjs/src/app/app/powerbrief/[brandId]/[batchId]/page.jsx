@@ -921,7 +921,14 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                     }
                     handleUpdateConcept(concept);
                 }} placeholder="Paste ClickUp URL" className="text-sm" autoFocus/>
-                                                    <Button size="sm" variant="ghost" onClick={() => setEditingClickupLink(null)} className="ml-1">
+                                                    <Button size="sm" variant="ghost" onClick={() => {
+                    setEditingClickupLink(null);
+                    if (saveTimeoutRef.current) {
+                        clearTimeout(saveTimeoutRef.current);
+                        saveTimeoutRef.current = null;
+                    }
+                    handleUpdateConcept(concept);
+                }} className="ml-1">
                                                         <Check className="h-4 w-4"/>
                                                     </Button>
                                                 </div>) : (<div className="flex w-full items-center">

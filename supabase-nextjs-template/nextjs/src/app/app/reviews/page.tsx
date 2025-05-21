@@ -81,6 +81,7 @@ export default function ReviewsPage() {
                 .from('brief_concepts')
                 .update({
                     review_status: 'approved',
+                    status: 'APPROVED',
                     reviewer_notes: reviewerNotes[conceptId] || null,
                     updated_at: new Date().toISOString()
                 })
@@ -130,6 +131,7 @@ export default function ReviewsPage() {
                 .from('brief_concepts')
                 .update({
                     review_status: 'needs_revisions',
+                    status: 'REVISIONS REQUESTED',
                     reviewer_notes: reviewerNotes[conceptId],
                     updated_at: new Date().toISOString()
                 })

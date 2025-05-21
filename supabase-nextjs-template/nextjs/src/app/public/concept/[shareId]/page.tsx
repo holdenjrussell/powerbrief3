@@ -149,6 +149,7 @@ export default function SharedConceptPage({ params }: { params: { shareId: strin
         .from('brief_concepts')
         .update({
           review_status: 'ready_for_review',
+          status: 'READY FOR REVIEW',
           review_link: reviewLink,
           updated_at: new Date().toISOString()
         })
@@ -212,6 +213,7 @@ export default function SharedConceptPage({ params }: { params: { shareId: strin
         .from('brief_concepts')
         .update({
           review_status: 'ready_for_review',
+          status: 'READY FOR REVIEW',
           review_link: reviewLink,
           updated_at: new Date().toISOString()
         })
@@ -294,30 +296,36 @@ export default function SharedConceptPage({ params }: { params: { shareId: strin
       {/* Metadata display */}
       <div className="flex flex-wrap gap-2">
         {concept.status && (
-          <div className="inline-block px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+          <div className={`inline-block px-4 py-1.5 rounded-full text-sm font-medium ${
+            concept.status === "REVISIONS REQUESTED" 
+              ? "bg-amber-100 text-amber-800 border border-amber-300" 
+              : concept.status === "APPROVED" 
+                ? "bg-green-100 text-green-800 border border-green-300" 
+                : "bg-blue-100 text-blue-800 border border-blue-300"
+          }`}>
             Status: {concept.status}
           </div>
         )}
         {concept.clickup_id && (
-          <div className="inline-block px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+          <div className="inline-block px-4 py-1.5 bg-blue-100 text-blue-800 rounded-full text-sm font-medium border border-blue-300">
             Clickup ID: {concept.clickup_id}
           </div>
         )}
         {concept.clickup_link && (
-          <div className="inline-block px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+          <div className="inline-block px-4 py-1.5 bg-blue-100 text-blue-800 rounded-full text-sm font-medium border border-blue-300">
             <a href={concept.clickup_link} target="_blank" rel="noopener noreferrer" className="flex items-center">
-              <LinkIcon className="h-3 w-3 mr-1" />
+              <LinkIcon className="h-3 w-3 mr-2" />
               Clickup Link
             </a>
           </div>
         )}
         {concept.strategist && (
-          <div className="inline-block px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+          <div className="inline-block px-4 py-1.5 bg-indigo-100 text-indigo-800 rounded-full text-sm font-medium border border-indigo-300">
             Strategist: {concept.strategist}
           </div>
         )}
         {concept.video_editor && (
-          <div className="inline-block px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+          <div className="inline-block px-4 py-1.5 bg-purple-100 text-purple-800 rounded-full text-sm font-medium border border-purple-300">
             {concept.media_type === 'video' ? 'Video Editor' : 'Designer'}: {concept.video_editor}
           </div>
         )}

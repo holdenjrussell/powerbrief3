@@ -70,6 +70,7 @@ export async function POST(request: NextRequest) {
       .from('brief_concepts')
       .update({
         review_status: 'ready_for_review',
+        status: 'READY FOR REVIEW',
         review_link: reviewLink,
         updated_at: new Date().toISOString()
       })

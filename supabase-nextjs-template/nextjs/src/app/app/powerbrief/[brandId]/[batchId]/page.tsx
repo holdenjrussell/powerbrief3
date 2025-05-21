@@ -285,17 +285,23 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
     // Update concept
     const handleUpdateConcept = async (concept: BriefConcept) => {
         try {
-            setSavingConceptId(concept.id);
-            const updatedConcept = await updateBriefConcept(concept);
+            // Synchronize review_status based on status
+            if (concept.status === 'APPROVED' && concept.review_status !== 'approved') {
+                concept.review_status = 'approved';
+            } else if (concept.status === 'REVISIONS REQUESTED' && concept.review_status !== 'needs_revisions') {
+                concept.review_status = 'needs_revisions';
+            } else if (concept.status === 'READY FOR REVIEW' && concept.review_status !== 'ready_for_review') {
+                concept.review_status = 'ready_for_review';
+            }
             
+            const updatedConcept = await updateBriefConcept(concept);
             setConcepts(prev => 
                 prev.map(c => c.id === updatedConcept.id ? updatedConcept : c)
             );
+            return updatedConcept;
         } catch (err) {
-            console.error('Failed to update concept:', err);
-            setError('Failed to update concept. Please try again.');
-        } finally {
-            setSavingConceptId(null);
+            console.error('Error updating concept:', err);
+            throw err;
         }
     };
 
@@ -1399,7 +1405,13 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                         {concepts.map((concept) => (
                             <Card 
                                 key={concept.id} 
-                                className="min-w-[350px] max-w-[350px] flex-shrink-0 flex flex-col h-auto"
+                                className={`${
+                                    concept.status === "REVISIONS REQUESTED" 
+                                    ? "border-amber-300 border-2" 
+                                    : concept.status === "APPROVED" 
+                                        ? "border-green-300 border-2"
+                                        : ""
+                                } mb-4 transition-all duration-200 ease-in-out p-3 relative`}
                             >
                                 <CardHeader className="relative">
                                     <div className="flex justify-between items-center">
@@ -1508,7 +1520,16 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                                     <Button 
                                                         size="sm" 
                                                         variant="ghost" 
-                                                        onClick={() => setEditingClickupLink(null)}
+                                                        onClick={() => {
+                                                            setEditingClickupLink(null);
+                                                            
+                                                            if (saveTimeoutRef.current) {
+                                                                clearTimeout(saveTimeoutRef.current);
+                                                                saveTimeoutRef.current = null;
+                                                            }
+                                                            
+                                                            handleUpdateConcept(concept);
+                                                        }}
                                                         className="ml-1"
                                                     >
                                                         <Check className="h-4 w-4" />
@@ -1560,6 +1581,9 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                             <option value="BRIEF REVIEW">BRIEF REVIEW</option>
                                             <option value="READY FOR DESIGNER">READY FOR DESIGNER</option>
                                             <option value="READY FOR EDITOR">READY FOR EDITOR</option>
+                                            <option value="READY FOR REVIEW">READY FOR REVIEW</option>
+                                            <option value="APPROVED">APPROVED</option>
+                                            <option value="REVISIONS REQUESTED">REVISIONS REQUESTED</option>
                                         </select>
                                     </div>
                                     
@@ -1615,17 +1639,25 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                     
                                     <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-gray-100">
                                         {concept.status && (
-                                            <div className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded">
+                                            <div className={`text-xs px-3 py-1.5 rounded-full font-medium ${
+                                                concept.status === "REVISIONS REQUESTED" 
+                                                ? "bg-amber-100 text-amber-800 border border-amber-300" 
+                                                : concept.status === "APPROVED" 
+                                                    ? "bg-green-100 text-green-800 border border-green-300"
+                                                    : concept.status === "READY FOR REVIEW"
+                                                        ? "bg-blue-100 text-blue-800 border border-blue-300"
+                                                        : "bg-green-100 text-green-700 border border-green-200"
+                                            }`}>
                                                 Status: {concept.status}
                                             </div>
                                         )}
                                         {concept.strategist && (
-                                            <div className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded">
+                                            <div className="text-xs px-3 py-1.5 bg-indigo-100 text-indigo-800 rounded-full font-medium border border-indigo-200">
                                                 Strategist: {concept.strategist}
                                             </div>
                                         )}
                                         {concept.video_editor && (
-                                            <div className="text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded">
+                                            <div className="text-xs px-3 py-1.5 bg-purple-100 text-purple-800 rounded-full font-medium border border-purple-200">
                                                 Editor: {concept.video_editor}
                                             </div>
                                         )}

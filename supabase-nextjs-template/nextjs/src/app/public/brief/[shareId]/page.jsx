@@ -70,10 +70,20 @@ export default function SharedBriefPage({ params }) {
 
                 // Filter concepts to only show those with status "READY FOR DESIGNER" or "READY FOR EDITOR"
                 const filteredConcepts = (conceptsData || []).filter(concept => 
-                  concept.status === "READY FOR DESIGNER" || concept.status === "READY FOR EDITOR"
+                  concept.status === "READY FOR DESIGNER" || 
+                  concept.status === "READY FOR EDITOR" ||
+                  concept.status === "REVISIONS REQUESTED" ||
+                  concept.status === "APPROVED"
                 );
 
-                setConcepts(filteredConcepts);
+                // Sort concepts to move APPROVED to the end
+                const sortedConcepts = [...filteredConcepts].sort((a, b) => {
+                  if (a.status === "APPROVED" && b.status !== "APPROVED") return 1;
+                  if (a.status !== "APPROVED" && b.status === "APPROVED") return -1;
+                  return a.order_in_batch - b.order_in_batch;
+                });
+
+                setConcepts(sortedConcepts);
             }
             catch (err) {
                 console.error('Error fetching shared batch:', err);
@@ -125,13 +135,32 @@ export default function SharedBriefPage({ params }) {
         <TabsContent value="concepts" className="space-y-6">
           {concepts.length === 0 ? (
             <div className="text-center p-6 bg-gray-50 rounded-lg">
-              <p className="text-gray-500">No concepts with status "ready for designer" or "ready for editor" available in this batch.</p>
+              <p className="text-gray-500">No concepts with status "ready for designer", "ready for editor", "revisions requested", or "approved" available in this batch.</p>
             </div>
           ) : (<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {concepts.map((concept) => (<Card key={concept.id} className="overflow-hidden">
+              {concepts.map((concept) => {
+                // Determine card styling based on status
+                const cardClass = concept.status === "REVISIONS REQUESTED" 
+                  ? "overflow-hidden border-amber-300 border-2 bg-amber-50" 
+                  : concept.status === "APPROVED" 
+                    ? "overflow-hidden border-green-300 border-2 bg-green-50" 
+                    : "overflow-hidden";
+                
+                return (
+                <Card key={concept.id} className={cardClass}>
                   <CardHeader className="pb-2">
                     <CardTitle className="text-lg">{concept.concept_title}</CardTitle>
-                    {concept.status && (<CardDescription>Status: {concept.status}</CardDescription>)}
+                    {concept.status && (
+                      <CardDescription className={
+                        concept.status === "REVISIONS REQUESTED"
+                          ? "text-amber-700 font-medium"
+                          : concept.status === "APPROVED"
+                            ? "text-green-700 font-medium"
+                            : ""
+                      }>
+                        Status: {concept.status}
+                      </CardDescription>
+                    )}
                   </CardHeader>
                   <CardContent className="space-y-4">
                     {/* Media Preview */}
@@ -170,7 +199,9 @@ export default function SharedBriefPage({ params }) {
                       </Link>
                     </div>
                   </CardContent>
-                </Card>))}
+                </Card>
+                );
+              })}
             </div>)}
         </TabsContent>
         
