@@ -296,8 +296,10 @@ export async function createBriefConcept(concept: Omit<BriefConcept, 'id' | 'cre
     // Set video and designer instructions from brand defaults if not provided
     videoInstructions: concept.videoInstructions || defaultVideoInstructions,
     designerInstructions: concept.designerInstructions || defaultDesignerInstructions,
-    // Ensure spoken_hook_options is included 
+    // Ensure hook fields are included
     spoken_hook_options: concept.spoken_hook_options || null,
+    hook_type: concept.hook_type || 'both',
+    hook_count: concept.hook_count || 5
   };
 
   const { data, error } = await supabase
@@ -315,8 +317,10 @@ export async function createBriefConcept(concept: Omit<BriefConcept, 'id' | 'cre
   const createdConcept: any = {
     ...data,
     body_content_structured: data.body_content_structured as unknown as Scene[],
-    // Ensure spoken_hook_options is included in the returned object
+    // Ensure hook fields are included in the returned object
     spoken_hook_options: data.spoken_hook_options || null,
+    hook_type: data.hook_type || 'both',
+    hook_count: data.hook_count || 5
   };
   
   // Ensure the object meets the BriefConcept interface
@@ -330,10 +334,13 @@ export async function updateBriefConcept(concept: Partial<BriefConcept> & { id: 
     updated_at: new Date().toISOString()
   };
 
-  // Log what we're updating, specifically the instructions fields
+  // Log what we're updating, including the hook fields
   console.log('Updating concept: ', concept.id);
   console.log('videoInstructions:', concept.videoInstructions);
   console.log('designerInstructions:', concept.designerInstructions);
+  console.log('hook_type:', concept.hook_type);
+  console.log('hook_count:', concept.hook_count);
+  console.log('spoken_hook_options:', concept.spoken_hook_options);
 
   const { data, error } = await supabase
     .from('brief_concepts')
@@ -351,6 +358,10 @@ export async function updateBriefConcept(concept: Partial<BriefConcept> & { id: 
   const updatedConcept: any = {
     ...data,
     body_content_structured: data.body_content_structured as unknown as Scene[],
+    // Make sure we include the hook fields in the returned concept
+    hook_type: data.hook_type,
+    hook_count: data.hook_count,
+    spoken_hook_options: data.spoken_hook_options
   };
   
   // Ensure the object meets the BriefConcept interface
