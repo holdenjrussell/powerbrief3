@@ -46,7 +46,7 @@ export default function AppLayout({ children }) {
                 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}>
 
                 <div className="h-16 flex items-center justify-between px-4 border-b">
-                    <div className="relative h-8 w-auto">
+                    <div className="flex items-center">
                         <Image 
                             src="/images/powerbrief-logo.png" 
                             alt={productName || "PowerBrief"} 
