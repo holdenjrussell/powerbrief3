@@ -135,6 +135,16 @@ export async function POST(request: NextRequest) {
       enhancedCustomPrompt = `IMPORTANT INSTRUCTION: ${enhancedCustomPrompt.toUpperCase()}`;
     }
 
+    // Handle hook options if provided
+    let hookInstructions = '';
+    if (body.hookOptions) {
+      const { type, count } = body.hookOptions;
+      hookInstructions = `\nHOOK OPTIONS INSTRUCTIONS:
+- Generate ${count} unique hook options
+- Hook type to focus on: ${type === 'both' ? 'both caption and verbal hooks' : type === 'caption' ? 'only caption hooks' : 'only verbal hooks'}
+`;
+    }
+
     // Get the appropriate system instructions based on media type
     let systemPrompt = '';
     
@@ -165,7 +175,7 @@ IMPORTANT: Your response MUST be valid JSON and nothing else. Format:
     }
 
     // Construct user prompt
-    const userPrompt = `${enhancedCustomPrompt ? `${enhancedCustomPrompt}\n\n` : ''}
+    const userPrompt = `${enhancedCustomPrompt ? `${enhancedCustomPrompt}\n\n` : ''}${hookInstructions}
 BRAND CONTEXT:
 \`\`\`json
 ${brandContextStr}

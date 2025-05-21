@@ -54,6 +54,9 @@ export default function ConceptBriefingPage({ params }) {
     const [shareIsEditable, setShareIsEditable] = useState(false);
     const [sharingInProgress, setSharingInProgress] = useState(false);
     const [shareSuccess, setShareSuccess] = useState(false);
+    // New state variables for hook type and count
+    const [hookTypes, setHookTypes] = useState({});
+    const [hookCounts, setHookCounts] = useState({});
     // Extract params using React.use()
     const unwrappedParams = React.use(params);
     const { brandId, batchId } = unwrappedParams;
@@ -342,6 +345,10 @@ export default function ConceptBriefingPage({ params }) {
                 [conceptId]: true
             }));
             
+            // Get the hook type and count for this concept (default to 'both' and 3)
+            const hookType = hookTypes[conceptId] || 'both';
+            const hookCount = hookCounts[conceptId] || 3;
+            
             const request = {
                 brandContext: {
                     brand_info_data: brand.brand_info_data,
@@ -364,7 +371,12 @@ export default function ConceptBriefingPage({ params }) {
                     'body_content_structured_scenes',
                     'cta_script',
                     'cta_text_overlay'
-                ]
+                ],
+                // Add hook type and count to the request
+                hookOptions: {
+                    type: hookType,
+                    count: hookCount
+                }
             };
             const response = await fetch('/api/ai/generate-brief', {
                 method: 'POST',
@@ -413,6 +425,11 @@ export default function ConceptBriefingPage({ params }) {
                     }));
                     
                     console.log(`Generating AI brief for concept: ${concept.id} (${concept.concept_title})`);
+                    
+                    // Get the hook type and count for this concept (default to 'both' and 3)
+                    const hookType = hookTypes[concept.id] || 'both';
+                    const hookCount = hookCounts[concept.id] || 3;
+                    
                     await handleGenerateAI(concept.id);
                     successCount++;
                     console.log(`Successfully generated AI brief for concept: ${concept.id} (${successCount}/${concepts.length})`);
@@ -575,14 +592,18 @@ export default function ConceptBriefingPage({ params }) {
     }, [concepts]);
     // Debug prompt for a concept
     const handleDebugPrompt = async (conceptId) => {
-        var _a, _b;
-        if (!brand || !(user === null || user === void 0 ? void 0 : user.id))
-            return;
+        if (!brand || !user?.id) return;
+        
         const concept = concepts.find(c => c.id === conceptId);
-        if (!concept)
-            return;
-        // Use the local state value for the custom prompt
-        const customPrompt = localPrompts[conceptId] || concept.ai_custom_prompt || '';
+        if (!concept) return;
+        
+        // Get the current hook type and count
+        const hookType = hookTypes[conceptId] || 'both';
+        const hookCount = hookCounts[conceptId] || 3;
+        
+        // Set this specific concept as generating AI
+        setShowPromptDebugDialog(true);
+        
         // Construct the request object that would be sent to the API
         const request = {
             brandContext: {
@@ -590,7 +611,7 @@ export default function ConceptBriefingPage({ params }) {
                 target_audience_data: brand.target_audience_data,
                 competition_data: brand.competition_data
             },
-            conceptSpecificPrompt: customPrompt, // Use the local value
+            conceptSpecificPrompt: localPrompts[conceptId] || concept.ai_custom_prompt || '',
             conceptCurrentData: {
                 caption_hook_options: localCaptionHooks[conceptId] || concept.caption_hook_options || '',
                 body_content_structured: localScenes[conceptId] || concept.body_content_structured || [],
@@ -606,8 +627,14 @@ export default function ConceptBriefingPage({ params }) {
                 'body_content_structured_scenes',
                 'cta_script',
                 'cta_text_overlay'
-            ]
+            ],
+            // Add hook options to the request
+            hookOptions: {
+                type: hookType,
+                count: hookCount
+            }
         };
+        
         // Simulate the prompt construction similar to what happens in the API route
         const brandContextStr = JSON.stringify(request.brandContext, null, 2);
         const currentDataStr = request.conceptCurrentData ? JSON.stringify(request.conceptCurrentData, null, 2) : 'No current data provided';
@@ -616,8 +643,8 @@ export default function ConceptBriefingPage({ params }) {
         const hasMedia = request.media && request.media.url;
         const mediaInfo = hasMedia ?
             `MEDIA INFORMATION:
-Type: ${((_a = request.media) === null || _a === void 0 ? void 0 : _a.type) || 'unknown'}
-URL: ${(_b = request.media) === null || _b === void 0 ? void 0 : _b.url}
+Type: ${request.media.type || 'unknown'}
+URL: ${request.media.url}
 
 NOTE: In the actual API request, the media file is downloaded and sent as binary data directly to Gemini, 
 allowing it to properly analyze images and videos. This is just a text representation for debugging purposes.` :
@@ -665,7 +692,6 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
         // Set the debug prompt
         const fullPrompt = systemPrompt + "\n\n" + userPrompt;
         setDebugPrompt(fullPrompt);
-        setShowPromptDebugDialog(true);
     };
     // Handle copying to clipboard
     const handleCopyPrompt = () => {
@@ -1004,8 +1030,42 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
             }} rows={3} className="text-sm"/>
                                     </div>
                                     
+                                    {/* Hook Type and Count Settings */}
+                                    <div className="flex flex-wrap gap-3 items-center mt-2 mb-2">
+                                        <div className="flex items-center space-x-2">
+                                            <label className="text-xs font-medium">Hook Type:</label>
+                                            <select 
+                                                value={hookTypes[concept.id] || 'both'} 
+                                                onChange={(e) => setHookTypes(prev => ({ 
+                                                    ...prev, 
+                                                    [concept.id]: e.target.value 
+                                                }))}
+                                                className="text-xs p-1 border rounded"
+                                            >
+                                                <option value="caption">Caption Hook</option>
+                                                <option value="verbal">Verbal Hook</option>
+                                                <option value="both">Both</option>
+                                            </select>
+                                        </div>
+                                        
+                                        <div className="flex items-center space-x-2">
+                                            <label className="text-xs font-medium">Hook Options Count:</label>
+                                            <input 
+                                                type="number" 
+                                                min="1" 
+                                                max="10" 
+                                                value={hookCounts[concept.id] || 3} 
+                                                onChange={(e) => setHookCounts(prev => ({ 
+                                                    ...prev, 
+                                                    [concept.id]: parseInt(e.target.value) || 3 
+                                                }))}
+                                                className="text-xs p-1 border rounded w-16"
+                                            />
+                                        </div>
+                                    </div>
+                                    
                                     {/* AI Button */}
-                                    {concept.media_url && (<Button size="sm" className="ml-2 bg-primary-600 text-white hover:bg-primary-700 flex items-center" disabled={generatingConceptIds[concept.id]} onClick={() => handleGenerateAI(concept.id)}>
+                                    <Button size="sm" className="ml-2 bg-primary-600 text-white hover:bg-primary-700 flex items-center" disabled={generatingConceptIds[concept.id]} onClick={() => handleGenerateAI(concept.id)}>
                                             {generatingConceptIds[concept.id] ? (<>
                                                     <Loader2 className="h-4 w-4 mr-2 animate-spin"/>
                                                     Generating...
@@ -1013,7 +1073,7 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                                     <Sparkles className="h-4 w-4 mr-2"/>
                                                     Generate AI
                                                 </>)}
-                                        </Button>)}
+                                        </Button>
                                     
                                     {/* Debug Prompt Button */}
                                     <Button size="sm" className="ml-2 bg-gray-500 text-white hover:bg-gray-600 flex items-center" onClick={() => handleDebugPrompt(concept.id)}>

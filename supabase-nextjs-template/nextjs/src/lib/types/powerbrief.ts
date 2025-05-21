@@ -139,6 +139,10 @@ export interface AiBriefingRequest {
     type: string;
   };
   desiredOutputFields: string[];
+  hookOptions?: {
+    type: string;
+    count: number;
+  };
 }
 
 export interface AiBriefingResponse {
