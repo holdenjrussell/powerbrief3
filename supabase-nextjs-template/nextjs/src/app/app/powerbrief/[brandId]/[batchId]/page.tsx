@@ -17,6 +17,7 @@ import { Textarea } from '@/components/ui/textarea';
 import Link from 'next/link';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import MarkdownTextarea from '@/components/ui/markdown-textarea';
+import VoiceGenerator from '@/components/VoiceGenerator';
 
 // Helper to unwrap params safely
 type ParamsType = { brandId: string, batchId: string };
@@ -2160,6 +2161,12 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                                                     placeholder="Enter script content"
                                                                     rows={3}
                                                                     className="text-sm"
+                                                                />
+                                                                
+                                                                {/* Add VoiceGenerator component */}
+                                                                <VoiceGenerator
+                                                                    script={scene.script}
+                                                                    className="mt-3"
                                                                 />
                                                             </div>
                                                             
