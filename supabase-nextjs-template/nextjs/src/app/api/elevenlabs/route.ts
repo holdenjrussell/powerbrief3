@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { VoiceSettings, getVoices, textToSpeech } from 'elevenlabs-node';
+import { VoiceSettings, textToSpeech } from 'elevenlabs-node';
 
 // Ensure these environment variables are set in your .env.local file
 // ELEVENLABS_API_KEY=your_api_key
@@ -15,8 +15,18 @@ export async function GET() {
       );
     }
 
-    // Get all available voices
-    const voices = await getVoices(apiKey);
+    // Using a hardcoded list of voices since getVoices is not available
+    const voices = [
+      { voice_id: "21m00Tcm4TlvDq8ikWAM", name: "Rachel" },
+      { voice_id: "AZnzlk1XvdvUeBnXmlld", name: "Domi" },
+      { voice_id: "EXAVITQu4vr4xnSDxMaL", name: "Bella" },
+      { voice_id: "ErXwobaYiN019PkySvjV", name: "Antoni" },
+      { voice_id: "MF3mGyEYCl7XYWbV9V6O", name: "Elli" },
+      { voice_id: "TxGEqnHWrfWFTfGW9XjX", name: "Josh" },
+      { voice_id: "VR6AewLTigWG4xSOukaG", name: "Arnold" },
+      { voice_id: "pNInz6obpgDQGcFmaJgB", name: "Adam" },
+      { voice_id: "yoZ06aMxZJJ28mfd3POQ", name: "Sam" }
+    ];
     
     return NextResponse.json({ voices });
   } catch (error) {

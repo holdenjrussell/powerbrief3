@@ -17,7 +17,7 @@ import { Textarea } from '@/components/ui/textarea';
 import Link from 'next/link';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import MarkdownTextarea from '@/components/ui/markdown-textarea';
-import VoiceGenerator from '@/components/VoiceGenerator';
+import ConceptVoiceGenerator from '@/components/ConceptVoiceGenerator';
 
 // Helper to unwrap params safely
 type ParamsType = { brandId: string, batchId: string };
@@ -2162,12 +2162,6 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                                                     rows={3}
                                                                     className="text-sm"
                                                                 />
-                                                                
-                                                                {/* Add VoiceGenerator component */}
-                                                                <VoiceGenerator
-                                                                    script={scene.script}
-                                                                    className="mt-3"
-                                                                />
                                                             </div>
                                                             
                                                             <div>
@@ -2260,6 +2254,13 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                                 />
                                             </div>
                                         )}
+                                    </div>
+                                    
+                                    {/* Full Concept Voice Generator */}
+                                    <div className="mt-4 pt-4 border-t border-gray-100">
+                                        <ConceptVoiceGenerator 
+                                            scenes={localScenes[concept.id] || concept.body_content_structured || []}
+                                        />
                                     </div>
                                     
                                     {/* CTA Section */}
