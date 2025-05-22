@@ -108,6 +108,11 @@ CREATE POLICY "Users can delete their own ugc creator scripts"
     ON public.ugc_creator_scripts FOR DELETE
     USING (auth.uid() = user_id);
 
+-- Add policy for public access to shared scripts
+CREATE POLICY "Allow public access to shared scripts"
+    ON public.ugc_creator_scripts FOR SELECT
+    USING (public_share_id IS NOT NULL);
+
 -- Create indexes for faster queries
 CREATE INDEX IF NOT EXISTS ugc_creators_user_id_idx ON public.ugc_creators(user_id);
 CREATE INDEX IF NOT EXISTS ugc_creators_brand_id_idx ON public.ugc_creators(brand_id);
