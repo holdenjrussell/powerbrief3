@@ -7,7 +7,8 @@ import { Loader2, Play, Save, Volume2, RefreshCw, Pause, Database, FileAudio } f
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Scene } from '@/lib/types/powerbrief';
 import { Slider } from '@/components/ui/slider';
-import { Card } from '@/components/ui/card';
+import { Textarea } from '@/components/ui/textarea';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 type Voice = {
@@ -68,21 +69,23 @@ type SavedVoiceover = {
   size: number;
 };
 
-type ConceptVoiceGeneratorProps = {
+type SharedVoiceGeneratorProps = {
   scenes: Scene[];
   spokenHooks?: string;
   ctaScript?: string;
   className?: string;
-  conceptId?: string;
+  conceptId: string;
+  isEditable?: boolean;
 };
 
-export default function ConceptVoiceGenerator({ 
+export default function SharedVoiceGenerator({ 
   scenes, 
   spokenHooks = '',
   ctaScript = '', 
   className = '',
-  conceptId = ''
-}: ConceptVoiceGeneratorProps) {
+  conceptId,
+  isEditable = false
+}: SharedVoiceGeneratorProps) {
   const [voices, setVoices] = useState<Voice[]>([]);
   const [selectedVoice, setSelectedVoice] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
@@ -90,6 +93,7 @@ export default function ConceptVoiceGenerator({
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
   const [combinedScript, setCombinedScript] = useState<string>('');
+  const [editableScript, setEditableScript] = useState<string>('');
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [savingToSupabase, setSavingToSupabase] = useState<boolean>(false);
   const [savedUrl, setSavedUrl] = useState<string | null>(null);
@@ -130,8 +134,6 @@ export default function ConceptVoiceGenerator({
 
   // Fetch saved voiceovers
   const fetchSavedVoiceovers = async () => {
-    if (!conceptId) return;
-    
     try {
       setLoadingSaved(true);
       const response = await fetch(`/api/supabase/get-saved-audio?conceptId=${conceptId}`);
@@ -179,14 +181,13 @@ export default function ConceptVoiceGenerator({
     }
     
     setCombinedScript(fullScript.trim());
+    setEditableScript(fullScript.trim());
   }, [scenes, spokenHooks, ctaScript]);
   
   // Add the useEffect to fetch voices on component mount
   useEffect(() => {
     fetchVoices();
-    if (conceptId) {
-      fetchSavedVoiceovers();
-    }
+    fetchSavedVoiceovers();
   }, [conceptId]);
 
   // Create audio element when URL changes
@@ -215,7 +216,7 @@ export default function ConceptVoiceGenerator({
   }, [audioUrl]);
 
   const handleGenerateVoice = async () => {
-    if (!combinedScript || !selectedVoice) return;
+    if (!editableScript || !selectedVoice) return;
     
     try {
       setLoading(true);
@@ -227,7 +228,7 @@ export default function ConceptVoiceGenerator({
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          text: combinedScript,
+          text: editableScript,
           voiceId: selectedVoice,
           fileName: 'concept-voiceover.mp3',
           // Include the new voice settings
@@ -323,27 +324,6 @@ export default function ConceptVoiceGenerator({
     }
   };
   
-  const handleResetValues = () => {
-    setSpeed(1);
-    setStability(0.5);
-    setSimilarity(0.75);
-  };
-
-  const formatDate = (dateString: string) => {
-    try {
-      const date = new Date(dateString);
-      return date.toLocaleString();
-    } catch {
-      return dateString;
-    }
-  };
-
-  const formatFileSize = (bytes: number) => {
-    if (bytes < 1024) return bytes + ' bytes';
-    if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
-    return (bytes / 1048576).toFixed(1) + ' MB';
-  };
-
   const handleSaveToSupabase = async () => {
     if (!audioUrl || !conceptId) return;
     
@@ -385,20 +365,40 @@ export default function ConceptVoiceGenerator({
       setSavingToSupabase(false);
     }
   };
+  
+  const handleResetValues = () => {
+    setSpeed(1);
+    setStability(0.5);
+    setSimilarity(0.75);
+  };
 
-  // If there are no scenes with script content, don't render anything
-  if (!combinedScript) {
-    return null;
+  const formatDate = (dateString: string) => {
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleString();
+    } catch (e) {
+      return dateString;
+    }
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return bytes + ' bytes';
+    if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / 1048576).toFixed(1) + ' MB';
+  };
+
+  if (!conceptId) {
+    return <div>Concept ID is required</div>;
   }
 
   return (
     <div className={`space-y-3 ${className}`}>
-      <h3 className="font-medium text-sm">AI Voiceover Generator</h3>
+      <h3 className="font-medium text-lg mb-2">AI Voiceover Generator</h3>
       
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="mb-4">
           <TabsTrigger value="generate">Generate Voice</TabsTrigger>
-          {conceptId && <TabsTrigger value="saved">Saved Voiceovers</TabsTrigger>}
+          <TabsTrigger value="saved">Saved Voiceovers</TabsTrigger>
         </TabsList>
         
         <TabsContent value="generate" className="space-y-4">
@@ -407,6 +407,22 @@ export default function ConceptVoiceGenerator({
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
+          
+          {/* Editable Script */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm">Script</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Textarea 
+                value={editableScript}
+                onChange={e => setEditableScript(e.target.value)}
+                placeholder="Enter or edit script for voiceover..."
+                rows={10}
+                className="w-full"
+              />
+            </CardContent>
+          </Card>
           
           <div className="flex items-center space-x-2">
             <Select value={selectedVoice} onValueChange={setSelectedVoice} disabled={loading || voices.length === 0}>
@@ -553,7 +569,7 @@ export default function ConceptVoiceGenerator({
           
           <Button 
             onClick={handleGenerateVoice} 
-            disabled={loading || !selectedVoice || !combinedScript}
+            disabled={loading || !selectedVoice || !editableScript}
             className="bg-primary-600 text-white hover:bg-primary-700"
           >
             {loading ? (
@@ -598,26 +614,24 @@ export default function ConceptVoiceGenerator({
                 Download
               </Button>
               
-              {conceptId && (
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={handleSaveToSupabase}
-                  disabled={savingToSupabase}
-                >
-                  {savingToSupabase ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      <Database className="h-4 w-4 mr-1" />
-                      Save to Library
-                    </>
-                  )}
-                </Button>
-              )}
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleSaveToSupabase}
+                disabled={savingToSupabase}
+              >
+                {savingToSupabase ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Database className="h-4 w-4 mr-1" />
+                    Save to Library
+                  </>
+                )}
+              </Button>
             </div>
           )}
           
@@ -626,84 +640,82 @@ export default function ConceptVoiceGenerator({
             <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded text-sm">
               <div className="font-medium text-green-700">Audio saved to library</div>
               <p className="text-xs text-green-600">
-                This voiceover has been saved to your library and will be available in the &quot;Saved Voiceovers&quot; tab.
+                This voiceover has been saved to your library and will be available in the "Saved Voiceovers" tab.
               </p>
             </div>
           )}
         </TabsContent>
         
-        {conceptId && (
-          <TabsContent value="saved" className="space-y-4">
-            {loadingSaved ? (
-              <div className="flex justify-center p-8">
-                <Loader2 className="h-6 w-6 animate-spin text-primary" />
-              </div>
-            ) : savedVoiceovers.length === 0 ? (
-              <div className="text-center p-6 bg-gray-50 rounded">
-                <FileAudio className="h-8 w-8 mx-auto text-gray-400 mb-2" />
-                <p className="text-gray-500">No saved voiceovers yet</p>
-                <p className="text-sm text-gray-400 mt-1">
-                  Generate a voice and click &quot;Save to Library&quot; to save it here
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {savedVoiceovers.map((voiceover, index) => (
-                  <Card key={index} className="overflow-hidden">
-                    <div className="flex items-center p-3">
-                      <div className="flex-1">
-                        <h4 className="font-medium text-sm">{voiceover.name.split('-').pop()}</h4>
-                        <div className="flex space-x-4 text-xs text-gray-500 mt-1">
-                          <span>{formatDate(voiceover.created_at)}</span>
-                          <span>{formatFileSize(voiceover.size)}</span>
-                        </div>
-                      </div>
-                      <div className="flex space-x-2">
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => handlePlayAudio(voiceover.url)}
-                        >
-                          {isPlaying && currentPlayingUrl === voiceover.url ? (
-                            <>
-                              <Pause className="h-4 w-4 mr-1" />
-                              Pause
-                            </>
-                          ) : (
-                            <>
-                              <Play className="h-4 w-4 mr-1" />
-                              Play
-                            </>
-                          )}
-                        </Button>
-                        <a 
-                          href={voiceover.url}
-                          download
-                          target="_blank"
-                          className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-3"
-                        >
-                          <Save className="h-4 w-4 mr-1" />
-                          Download
-                        </a>
+        <TabsContent value="saved" className="space-y-4">
+          {loadingSaved ? (
+            <div className="flex justify-center p-8">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            </div>
+          ) : savedVoiceovers.length === 0 ? (
+            <div className="text-center p-6 bg-gray-50 rounded">
+              <FileAudio className="h-8 w-8 mx-auto text-gray-400 mb-2" />
+              <p className="text-gray-500">No saved voiceovers yet</p>
+              <p className="text-sm text-gray-400 mt-1">
+                Generate a voice and click "Save to Library" to save it here
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {savedVoiceovers.map((voiceover, index) => (
+                <Card key={index} className="overflow-hidden">
+                  <div className="flex items-center p-3">
+                    <div className="flex-1">
+                      <h4 className="font-medium text-sm">{voiceover.name.split('-').pop()}</h4>
+                      <div className="flex space-x-4 text-xs text-gray-500 mt-1">
+                        <span>{formatDate(voiceover.created_at)}</span>
+                        <span>{formatFileSize(voiceover.size)}</span>
                       </div>
                     </div>
-                  </Card>
-                ))}
-                <div className="flex justify-end">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={fetchSavedVoiceovers}
-                    className="mt-2"
-                  >
-                    <RefreshCw className="h-4 w-4 mr-1" />
-                    Refresh
-                  </Button>
-                </div>
+                    <div className="flex space-x-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => handlePlayAudio(voiceover.url)}
+                      >
+                        {isPlaying && currentPlayingUrl === voiceover.url ? (
+                          <>
+                            <Pause className="h-4 w-4 mr-1" />
+                            Pause
+                          </>
+                        ) : (
+                          <>
+                            <Play className="h-4 w-4 mr-1" />
+                            Play
+                          </>
+                        )}
+                      </Button>
+                      <a 
+                        href={voiceover.url}
+                        download
+                        target="_blank"
+                        className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-3"
+                      >
+                        <Save className="h-4 w-4 mr-1" />
+                        Download
+                      </a>
+                    </div>
+                  </div>
+                </Card>
+              ))}
+              <div className="flex justify-end">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={fetchSavedVoiceovers}
+                  className="mt-2"
+                >
+                  <RefreshCw className="h-4 w-4 mr-1" />
+                  Refresh
+                </Button>
               </div>
-            )}
-          </TabsContent>
-        )}
+            </div>
+          )}
+        </TabsContent>
       </Tabs>
     </div>
   );

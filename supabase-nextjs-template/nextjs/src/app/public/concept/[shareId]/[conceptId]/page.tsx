@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label';
 import { toast } from '@/components/ui/use-toast';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import SharedVoiceGenerator from '@/components/SharedVoiceGenerator';
 
 // Extended BriefConcept interface to include the properties we need
 interface ExtendedBriefConcept extends Omit<BriefConcept, 'review_status'> {
@@ -658,6 +659,18 @@ export default function SharedSingleConceptPage({ params }: { params: ParamsType
             </Card>
           )}
 
+          {/* Spoken hooks */}
+          {concept.spoken_hook_options && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Spoken Hook Options</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="whitespace-pre-wrap">{concept.spoken_hook_options}</p>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Body content - scenes */}
           {concept.body_content_structured && concept.body_content_structured.length > 0 && (
             <Card>
@@ -708,6 +721,24 @@ export default function SharedSingleConceptPage({ params }: { params: ParamsType
                     </div>
                   )}
                 </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Voice Generator Section */}
+          {concept.media_type === 'video' && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">AI Voiceover Generator</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <SharedVoiceGenerator
+                  scenes={concept.body_content_structured || []}
+                  spokenHooks={concept.spoken_hook_options || ''}
+                  ctaScript={concept.cta_script || ''}
+                  conceptId={concept.id}
+                  isEditable={isEditable}
+                />
               </CardContent>
             </Card>
           )}

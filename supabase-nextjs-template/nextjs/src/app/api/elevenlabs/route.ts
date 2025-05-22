@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { text, voiceId, fileName } = await request.json();
+    const { text, voiceId, fileName, speed, stability, similarity, modelId } = await request.json();
 
     if (!text || !voiceId) {
       return NextResponse.json(
@@ -78,11 +78,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Define voice settings
+    // Define voice settings with defaults if not provided
     const voiceSettings = {
-      stability: 0.5,
-      similarity_boost: 0.75
+      stability: stability !== undefined ? stability : 0.5,
+      similarity_boost: similarity !== undefined ? similarity : 0.75
     };
+
+    // Create model options with the selected model or default
+    const modelOptions = {
+      model_id: modelId || "eleven_monolingual_v1",
+      voice_settings: voiceSettings,
+    };
+
+    // If speed is provided, add it to the request
+    if (speed !== undefined) {
+      modelOptions['speed'] = speed;
+    }
 
     // Use the ElevenLabs API directly
     const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
@@ -93,8 +104,7 @@ export async function POST(request: NextRequest) {
       },
       body: JSON.stringify({
         text,
-        voice_settings: voiceSettings,
-        model_id: "eleven_monolingual_v1"
+        ...modelOptions
       })
     });
 

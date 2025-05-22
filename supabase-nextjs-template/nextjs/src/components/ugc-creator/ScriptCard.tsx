@@ -230,10 +230,10 @@ export default function ScriptCard({
       <CardContent>
         <div className="space-y-2">
           {script.creator_id && (
-            <div className="text-sm">
-              <span className="font-medium">Creator:</span>
+            <div className="text-sm flex items-start">
+              <span className="font-medium whitespace-nowrap">Creator:</span>
               {script.status === 'CREATOR_REASSIGNMENT' || script.creator_id === TBD_CREATOR_ID ? (
-                <span className="ml-2 text-amber-600 font-medium">
+                <span className="ml-2 text-amber-600 font-medium inline-block">
                   {script.status === 'CREATOR_REASSIGNMENT' ? 'TBD (Needs Reassignment)' : 'TBD (To Be Determined)'}
                 </span>
               ) : (
@@ -243,8 +243,8 @@ export default function ScriptCard({
           )}
           
           {script.creative_strategist && (
-            <div className="text-sm">
-              <span className="font-medium">Creative Strategist:</span>
+            <div className="text-sm flex items-start">
+              <span className="font-medium whitespace-nowrap">Creative Strategist:</span>
               <span className="ml-2">{script.creative_strategist}</span>
             </div>
           )}
@@ -320,15 +320,15 @@ export default function ScriptCard({
           )}
           
           {script.hook_body && (
-            <div className="text-sm">
-              <span className="font-medium">Hook:</span>
+            <div className="text-sm flex items-start">
+              <span className="font-medium whitespace-nowrap">Hook:</span>
               <span className="ml-2 line-clamp-1">{script.hook_body}</span>
             </div>
           )}
           
           {script.final_content_link && (
-            <div className="text-sm">
-              <span className="font-medium">Content:</span>
+            <div className="text-sm flex items-start">
+              <span className="font-medium whitespace-nowrap">Content:</span>
               <a 
                 href={script.final_content_link} 
                 target="_blank" 
@@ -341,8 +341,8 @@ export default function ScriptCard({
           )}
           
           {script.public_share_id && (
-            <div className="text-sm">
-              <span className="font-medium">Public Link:</span>
+            <div className="text-sm flex items-start">
+              <span className="font-medium whitespace-nowrap">Public Link:</span>
               <a 
                 href={`/public/ugc-script/${script.public_share_id}`} 
                 target="_blank" 

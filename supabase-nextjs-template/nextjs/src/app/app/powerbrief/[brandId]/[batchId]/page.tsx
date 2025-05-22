@@ -2256,34 +2256,25 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                         )}
                                     </div>
                                     
-                                    {/* Full Concept Voice Generator */}
-                                    <div className="mt-4 pt-4 border-t border-gray-100">
-                                        <ConceptVoiceGenerator 
-                                            scenes={localScenes[concept.id] || concept.body_content_structured || []}
-                                            spokenHooks={localSpokenHooks[concept.id] || concept.spoken_hook_options || ''}
-                                            ctaScript={localCtaScript[concept.id] || concept.cta_script || ''}
-                                        />
-                                    </div>
-                                    
                                     {/* CTA Section */}
                                     <div className="space-y-2">
                                         <h3 className="font-medium text-sm">CTA (Call to Action)</h3>
                                         
                                         <div>
                                             <label className="block text-xs font-medium mb-1">Script:</label>
-                                            <Textarea
+                                            <MarkdownTextarea
                                                 value={localCtaScript[concept.id] || ''}
-                                                onChange={(e) => {
+                                                onChange={(value) => {
                                                     // Update local state immediately for responsive typing
                                                     setLocalCtaScript(prev => ({
                                                         ...prev,
-                                                        [concept.id]: e.target.value
+                                                        [concept.id]: value
                                                     }));
                                                     
                                                     // Debounce the actual save operation
                                                     const updatedConcept = {
                                                         ...concept,
-                                                        cta_script: e.target.value
+                                                        cta_script: value
                                                     };
                                                     debouncedUpdateConcept(updatedConcept);
                                                 }}
@@ -2302,25 +2293,24 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                                 }}
                                                 placeholder="Enter CTA script"
                                                 className="text-sm w-full min-h-fit"
-                                                style={{ height: 'auto', overflow: 'hidden' }}
                                             />
                                         </div>
                                         
                                         <div>
                                             <label className="block text-xs font-medium mb-1">Text overlay:</label>
-                                            <Textarea
+                                            <MarkdownTextarea
                                                 value={localCtaTextOverlay[concept.id] || ''}
-                                                onChange={(e) => {
+                                                onChange={(value) => {
                                                     // Update local state immediately for responsive typing
                                                     setLocalCtaTextOverlay(prev => ({
                                                         ...prev,
-                                                        [concept.id]: e.target.value
+                                                        [concept.id]: value
                                                     }));
                                                     
                                                     // Debounce the actual save operation
                                                     const updatedConcept = {
                                                         ...concept,
-                                                        cta_text_overlay: e.target.value
+                                                        cta_text_overlay: value
                                                     };
                                                     debouncedUpdateConcept(updatedConcept);
                                                 }}
@@ -2339,9 +2329,18 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                                 }}
                                                 placeholder="Enter text overlay"
                                                 className="text-sm w-full min-h-fit"
-                                                style={{ height: 'auto', overflow: 'hidden', resize: 'none' }}
                                             />
                                         </div>
+                                    </div>
+                                    
+                                    {/* Voice Generator - moved below CTA */}
+                                    <div className="mt-4 pt-4 border-t border-gray-100">
+                                        <ConceptVoiceGenerator 
+                                            scenes={localScenes[concept.id] || concept.body_content_structured || []}
+                                            spokenHooks={localSpokenHooks[concept.id] || concept.spoken_hook_options || ''}
+                                            ctaScript={localCtaScript[concept.id] || concept.cta_script || ''}
+                                            conceptId={concept.id}
+                                        />
                                     </div>
                                     
                                     {/* Creative Instructions Section */}

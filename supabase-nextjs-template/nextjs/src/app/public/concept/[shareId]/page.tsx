@@ -12,6 +12,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { toast } from '@/components/ui/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import SharedVoiceGenerator from '@/components/SharedVoiceGenerator';
 
 // Add these types above export default function SharedConceptPage
 interface BrandWithResources {
@@ -47,6 +50,7 @@ interface ConceptWithShareSettings {
   brief_batches?: {
     brands: BrandWithResources;
   };
+  spoken_hook_options?: string;
   [key: string]: any; // Allow any other properties
 }
 
@@ -591,6 +595,18 @@ export default function SharedConceptPage({ params }: { params: ParamsType | Pro
             </Card>
           )}
 
+          {/* Spoken hooks */}
+          {concept.spoken_hook_options && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Spoken Hook Options</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="whitespace-pre-wrap">{concept.spoken_hook_options}</p>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Body content - scenes */}
           {concept.body_content_structured && concept.body_content_structured.length > 0 && (
             <Card>
@@ -641,6 +657,24 @@ export default function SharedConceptPage({ params }: { params: ParamsType | Pro
                     </div>
                   )}
                 </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Voice Generator Section */}
+          {concept.media_type === 'video' && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">AI Voiceover Generator</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <SharedVoiceGenerator
+                  scenes={concept.body_content_structured || []}
+                  spokenHooks={concept.spoken_hook_options || ''}
+                  ctaScript={concept.cta_script || ''}
+                  conceptId={concept.id}
+                  isEditable={isEditable}
+                />
               </CardContent>
             </Card>
           )}
