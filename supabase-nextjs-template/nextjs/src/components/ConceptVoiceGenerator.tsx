@@ -15,10 +15,17 @@ type Voice = {
 
 type ConceptVoiceGeneratorProps = {
   scenes: Scene[];
+  spokenHooks?: string;
+  ctaScript?: string;
   className?: string;
 };
 
-export default function ConceptVoiceGenerator({ scenes, className = '' }: ConceptVoiceGeneratorProps) {
+export default function ConceptVoiceGenerator({ 
+  scenes, 
+  spokenHooks = '',
+  ctaScript = '', 
+  className = '' 
+}: ConceptVoiceGeneratorProps) {
   const [voices, setVoices] = useState<Voice[]>([]);
   const [selectedVoice, setSelectedVoice] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
@@ -27,19 +34,36 @@ export default function ConceptVoiceGenerator({ scenes, className = '' }: Concep
   const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
   const [combinedScript, setCombinedScript] = useState<string>('');
 
-  // Create the combined script from all scenes
+  // Create the combined script from all scenes, hooks, and CTA
   useEffect(() => {
-    if (!scenes || scenes.length === 0) return;
+    // Start with hooks if available
+    let fullScript = '';
     
-    const scriptParts = scenes.map(scene => {
-      if (!scene.script) return '';
-      // Just include the script content without titles
-      return `${scene.script.trim()}\n\n`;
-    });
+    if (spokenHooks && spokenHooks.trim()) {
+      // Use the first hook only (assuming hooks are separated by newlines)
+      const firstHook = spokenHooks.split('\n')[0]?.trim();
+      if (firstHook) {
+        fullScript += `${firstHook}\n\n`;
+      }
+    }
     
-    const combined = scriptParts.join('').trim();
-    setCombinedScript(combined);
-  }, [scenes]);
+    // Add scene scripts
+    if (scenes && scenes.length > 0) {
+      const scriptParts = scenes.map(scene => {
+        if (!scene.script) return '';
+        return `${scene.script.trim()}\n\n`;
+      });
+      
+      fullScript += scriptParts.join('').trim();
+    }
+    
+    // Add CTA at the end if available
+    if (ctaScript && ctaScript.trim()) {
+      fullScript += `\n\n${ctaScript.trim()}`;
+    }
+    
+    setCombinedScript(fullScript.trim());
+  }, [scenes, spokenHooks, ctaScript]);
 
   // Fetch available voices on component mount
   useEffect(() => {

@@ -2260,6 +2260,8 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                     <div className="mt-4 pt-4 border-t border-gray-100">
                                         <ConceptVoiceGenerator 
                                             scenes={localScenes[concept.id] || concept.body_content_structured || []}
+                                            spokenHooks={localSpokenHooks[concept.id] || concept.spoken_hook_options || ''}
+                                            ctaScript={localCtaScript[concept.id] || concept.cta_script || ''}
                                         />
                                     </div>
                                     
