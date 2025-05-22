@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { VoiceSettings, textToSpeech } from 'elevenlabs-node';
 
 // Ensure these environment variables are set in your .env.local file
 // ELEVENLABS_API_KEY=your_api_key
@@ -58,16 +57,40 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const voiceSettings: VoiceSettings = {
+    // Define voice settings
+    const voiceSettings = {
       stability: 0.5,
       similarity_boost: 0.75
     };
 
-    // Generate audio from text
-    const audioBuffer = await textToSpeech(apiKey, voiceId, voiceSettings, text);
+    // Use the ElevenLabs API directly
+    const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'xi-api-key': apiKey
+      },
+      body: JSON.stringify({
+        text,
+        voice_settings: voiceSettings,
+        model_id: "eleven_monolingual_v1"
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('ElevenLabs API error:', errorText);
+      return NextResponse.json(
+        { error: `ElevenLabs API error: ${response.status} ${response.statusText}` },
+        { status: response.status }
+      );
+    }
     
-    // Convert Buffer to Base64 for easy transport
-    const base64Audio = Buffer.from(audioBuffer).toString('base64');
+    // Get the audio as an array buffer
+    const audioArrayBuffer = await response.arrayBuffer();
+    
+    // Convert array buffer to base64
+    const base64Audio = Buffer.from(audioArrayBuffer).toString('base64');
     
     return NextResponse.json({
       audio: base64Audio,
