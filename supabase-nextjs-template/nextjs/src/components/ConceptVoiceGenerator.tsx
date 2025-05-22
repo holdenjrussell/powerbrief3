@@ -31,13 +31,10 @@ export default function ConceptVoiceGenerator({ scenes, className = '' }: Concep
   useEffect(() => {
     if (!scenes || scenes.length === 0) return;
     
-    const scriptParts = scenes.map((scene, index) => {
+    const scriptParts = scenes.map(scene => {
       if (!scene.script) return '';
-      
-      // Add scene title if available
-      const sceneTitle = scene.scene_title ? `Scene ${index + 1}: ${scene.scene_title}\n` : `Scene ${index + 1}:\n`;
-      
-      return `${sceneTitle}${scene.script}\n\n`;
+      // Just include the script content without titles
+      return `${scene.script.trim()}\n\n`;
     });
     
     const combined = scriptParts.join('').trim();
