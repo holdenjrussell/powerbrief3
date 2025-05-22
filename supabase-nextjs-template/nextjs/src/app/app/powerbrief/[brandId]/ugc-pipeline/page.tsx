@@ -616,6 +616,19 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
     }
   };
 
+  // Handle script deletion
+  const handleDeleteScript = async (scriptId: string) => {
+    try {
+      console.log(`Script ${scriptId} deleted, refreshing scripts list`);
+      // Refresh scripts list after deletion
+      const updatedScripts = await getUgcCreatorScriptsByConceptStatus(brandId, activeStatus);
+      setScripts(updatedScripts);
+    } catch (err: unknown) {
+      console.error('Failed to refresh scripts after deletion:', err);
+      setError(`Failed to refresh scripts: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
+  };
+
   // Handle creator selection
   const handleCreatorSelection = (creatorId: string) => {
     // Check if this is a toggle action
@@ -927,6 +940,7 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
                           handleCreatorApprove : undefined}
                         onCreatorReject={activeStatus === 'Send Script to Creator' ?
                           handleCreatorReject : undefined}
+                        onDelete={handleDeleteScript}
                         creators={creators}
                         brandId={brandId}
                       />

@@ -41,6 +41,7 @@ interface ScriptCardProps {
   onAssign?: (scriptId: string, creatorIds: string[]) => void;
   onCreatorApprove?: (scriptId: string) => void;
   onCreatorReject?: (scriptId: string, notes: string) => void;
+  onDelete?: (scriptId: string) => void;
   creators?: UgcCreator[];
 }
 
@@ -53,6 +54,7 @@ export default function ScriptCard({
   onAssign,
   onCreatorApprove,
   onCreatorReject,
+  onDelete,
   creators = []
 }: ScriptCardProps) {
   const router = useRouter();
@@ -179,8 +181,13 @@ export default function ScriptCard({
       // Close dialog
       setShowDeleteDialog(false);
       
-      // Refresh the page to show updated list
-      router.refresh();
+      // If onDelete callback is provided, call it
+      if (onDelete) {
+        onDelete(script.id);
+      } else {
+        // Fallback to refresh if no callback provided
+        router.refresh();
+      }
       
     } catch (error) {
       console.error('Error deleting script:', error);
