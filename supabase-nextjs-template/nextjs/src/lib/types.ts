@@ -82,6 +82,7 @@ export type Database = {
           default_designer_instructions?: string
           system_instructions_image?: string
           system_instructions_video?: string
+          elevenlabs_api_key?: string
           created_at: string
           updated_at: string
         }
@@ -99,6 +100,7 @@ export type Database = {
           default_designer_instructions?: string
           system_instructions_image?: string
           system_instructions_video?: string
+          elevenlabs_api_key?: string
           created_at?: string
           updated_at?: string
         }
@@ -116,6 +118,7 @@ export type Database = {
           default_designer_instructions?: string
           system_instructions_image?: string
           system_instructions_video?: string
+          elevenlabs_api_key?: string
           created_at?: string
           updated_at?: string
         }

@@ -61,6 +61,7 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
     const [defaultDesignerInstructions, setDefaultDesignerInstructions] = useState<string>('');
     const [systemInstructionsImage, setSystemInstructionsImage] = useState<string>('');
     const [systemInstructionsVideo, setSystemInstructionsVideo] = useState<string>('');
+    const [elevenLabsApiKey, setElevenLabsApiKey] = useState<string>('');
 
     // New state for editing resources, resource logins, and dos/donts
     const [editingResources, setEditingResources] = useState<EditingResource[]>([]);
@@ -111,6 +112,7 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
                 setDefaultDesignerInstructions(brandData.default_designer_instructions || '');
                 setSystemInstructionsImage(brandData.system_instructions_image || '');
                 setSystemInstructionsVideo(brandData.system_instructions_video || '');
+                setElevenLabsApiKey(brandData.elevenlabs_api_key || '');
                 
                 // Set new data fields
                 setEditingResources(brandData.editing_resources || []);
@@ -153,7 +155,8 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
                 default_video_instructions: defaultVideoInstructions,
                 default_designer_instructions: defaultDesignerInstructions,
                 system_instructions_image: systemInstructionsImage,
-                system_instructions_video: systemInstructionsVideo
+                system_instructions_video: systemInstructionsVideo,
+                elevenlabs_api_key: elevenLabsApiKey
             });
             
             setBrand(updatedBrand);
@@ -487,6 +490,19 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
                                 onChange={(value) => setSystemInstructionsVideo(value)}
                                 placeholder="Enter system instructions for video generation..."
                             />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-1">ElevenLabs API Key</label>
+                            <Input
+                                type="password"
+                                value={elevenLabsApiKey}
+                                onChange={(e) => setElevenLabsApiKey(e.target.value)}
+                                placeholder="Enter ElevenLabs API Key for voice generation"
+                                className="font-mono"
+                            />
+                            <p className="text-xs text-gray-500 mt-1">
+                                This key will be used for voice generation. If not provided, the system will use the default key.
+                            </p>
                         </div>
                     </CardContent>
                 </Card>

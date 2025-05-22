@@ -76,6 +76,7 @@ type SharedVoiceGeneratorProps = {
   className?: string;
   conceptId: string;
   isEditable?: boolean;
+  brandId?: string;
 };
 
 export default function SharedVoiceGenerator({ 
@@ -84,7 +85,8 @@ export default function SharedVoiceGenerator({
   ctaScript = '', 
   className = '',
   conceptId,
-  isEditable = false
+  isEditable = false,
+  brandId = ''
 }: SharedVoiceGeneratorProps) {
   const [voices, setVoices] = useState<Voice[]>([]);
   const [selectedVoice, setSelectedVoice] = useState<string>('');
@@ -112,7 +114,7 @@ export default function SharedVoiceGenerator({
   const fetchVoices = async () => {
     try {
       setError(null);
-      const response = await fetch('/api/elevenlabs');
+      const response = await fetch(`/api/elevenlabs${brandId ? `?brandId=${brandId}` : ''}`);
       const data = await response.json();
       
       if (data.error) {
@@ -235,7 +237,8 @@ export default function SharedVoiceGenerator({
           speed,
           stability,
           similarity,
-          modelId: selectedModel
+          modelId: selectedModel,
+          brandId: brandId || undefined
         }),
       });
       

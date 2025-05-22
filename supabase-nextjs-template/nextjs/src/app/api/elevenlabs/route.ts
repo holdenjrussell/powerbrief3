@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-// Ensure these environment variables are set in your .env.local file
-// ELEVENLABS_API_KEY=your_api_key
+import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import { cookies } from 'next/headers';
 
 // Add ElevenLabs voice type
 type ElevenLabsVoice = {
@@ -12,13 +11,85 @@ type ElevenLabsVoice = {
   labels?: Record<string, string>;
 };
 
-export async function GET() {
+// Get API key from brand settings
+async function getApiKey(brandId: string) {
   try {
-    const apiKey = process.env.ELEVENLABS_API_KEY;
+    const supabase = createServerComponentClient({ cookies });
+    
+    const { data, error } = await supabase
+      .from('brands')
+      .select('elevenlabs_api_key')
+      .eq('id', brandId)
+      .single();
+    
+    if (error) {
+      console.error('Error fetching brand API key:', error);
+      return null;
+    }
+    
+    // If brand doesn't have an API key set, fall back to environment variable
+    if (!data?.elevenlabs_api_key) {
+      return process.env.ELEVENLABS_API_KEY || null;
+    }
+    
+    return data.elevenlabs_api_key;
+  } catch (err) {
+    console.error('Error getting API key:', err);
+    return process.env.ELEVENLABS_API_KEY || null;
+  }
+}
+
+export async function GET(request: NextRequest) {
+  try {
+    // Get brandId from query parameters
+    const { searchParams } = new URL(request.url);
+    const brandId = searchParams.get('brandId');
+    
+    if (!brandId) {
+      // Fall back to environment variable if no brandId provided
+      const apiKey = process.env.ELEVENLABS_API_KEY;
+      
+      if (!apiKey) {
+        return NextResponse.json(
+          { error: 'ElevenLabs API key not configured and no brandId provided' }, 
+          { status: 500 }
+        );
+      }
+      
+      // Fetch available voices from ElevenLabs API using env variable
+      const response = await fetch('https://api.elevenlabs.io/v1/voices', {
+        headers: {
+          'xi-api-key': apiKey
+        }
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('ElevenLabs API error:', errorText);
+        return NextResponse.json(
+          { error: `ElevenLabs API error: ${response.status} ${response.statusText}` },
+          { status: response.status }
+        );
+      }
+      
+      const data = await response.json();
+      
+      // Format the response to match our expected structure
+      const voices = data.voices.map((voice: ElevenLabsVoice) => ({
+        voice_id: voice.voice_id,
+        name: voice.name,
+        category: voice.category
+      }));
+      
+      return NextResponse.json({ voices });
+    }
+    
+    // Get API key from brand settings
+    const apiKey = await getApiKey(brandId);
     
     if (!apiKey) {
       return NextResponse.json(
-        { error: 'ElevenLabs API key not configured' }, 
+        { error: 'ElevenLabs API key not configured for this brand' }, 
         { status: 500 }
       );
     }
@@ -60,21 +131,22 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const apiKey = process.env.ELEVENLABS_API_KEY;
-    
-    if (!apiKey) {
-      return NextResponse.json(
-        { error: 'ElevenLabs API key not configured' }, 
-        { status: 500 }
-      );
-    }
-
-    const { text, voiceId, fileName, speed, stability, similarity, modelId } = await request.json();
+    const { text, voiceId, fileName, speed, stability, similarity, modelId, brandId } = await request.json();
 
     if (!text || !voiceId) {
       return NextResponse.json(
         { error: 'Missing required parameters: text, voiceId' },
         { status: 400 }
+      );
+    }
+    
+    // Get API key from brand settings if brandId is provided
+    const apiKey = brandId ? await getApiKey(brandId) : process.env.ELEVENLABS_API_KEY;
+    
+    if (!apiKey) {
+      return NextResponse.json(
+        { error: 'ElevenLabs API key not configured' }, 
+        { status: 500 }
       );
     }
 

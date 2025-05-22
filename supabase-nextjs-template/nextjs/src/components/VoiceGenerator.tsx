@@ -16,9 +16,10 @@ type VoiceGeneratorProps = {
   script: string;
   onVoiceGenerated?: (audioUrl: string) => void;
   className?: string;
+  brandId?: string;
 };
 
-export default function VoiceGenerator({ script, onVoiceGenerated, className = '' }: VoiceGeneratorProps) {
+export default function VoiceGenerator({ script, onVoiceGenerated, className = '', brandId = '' }: VoiceGeneratorProps) {
   const [voices, setVoices] = useState<Voice[]>([]);
   const [selectedVoice, setSelectedVoice] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
@@ -30,7 +31,7 @@ export default function VoiceGenerator({ script, onVoiceGenerated, className = '
   useEffect(() => {
     const fetchVoices = async () => {
       try {
-        const response = await fetch('/api/elevenlabs');
+        const response = await fetch(`/api/elevenlabs${brandId ? `?brandId=${brandId}` : ''}`);
         const data = await response.json();
         
         if (data.error) {
@@ -51,7 +52,7 @@ export default function VoiceGenerator({ script, onVoiceGenerated, className = '
     };
 
     fetchVoices();
-  }, []);
+  }, [brandId]);
 
   // Create audio element when URL changes
   useEffect(() => {
@@ -82,7 +83,8 @@ export default function VoiceGenerator({ script, onVoiceGenerated, className = '
         body: JSON.stringify({
           text: script,
           voiceId: selectedVoice,
-          fileName: 'concept-voiceover.mp3'
+          fileName: 'concept-voiceover.mp3',
+          brandId: brandId || undefined
         }),
       });
       
