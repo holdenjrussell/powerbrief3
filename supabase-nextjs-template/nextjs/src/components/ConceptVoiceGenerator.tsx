@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Play, Save, Volume2 } from 'lucide-react';
+import { Loader2, Play, Save, Volume2, RefreshCw } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Scene } from '@/lib/types/powerbrief';
 
@@ -11,6 +11,7 @@ type Voice = {
   voice_id: string;
   name: string;
   category?: string;
+  description?: string;
 };
 
 type ConceptVoiceGeneratorProps = {
@@ -33,6 +34,30 @@ export default function ConceptVoiceGenerator({
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
   const [combinedScript, setCombinedScript] = useState<string>('');
+
+  // Add the fetchVoices function here
+  const fetchVoices = async () => {
+    try {
+      setError(null);
+      const response = await fetch('/api/elevenlabs');
+      const data = await response.json();
+      
+      if (data.error) {
+        setError(data.error);
+        return;
+      }
+      
+      setVoices(data.voices);
+      
+      // Set default voice if available
+      if (data.voices && data.voices.length > 0) {
+        setSelectedVoice(data.voices[0].voice_id);
+      }
+    } catch (err) {
+      console.error('Failed to fetch voices:', err);
+      setError('Failed to load available voices. Please try again.');
+    }
+  };
 
   // Create the combined script from all scenes, hooks, and CTA
   useEffect(() => {
@@ -64,31 +89,9 @@ export default function ConceptVoiceGenerator({
     
     setCombinedScript(fullScript.trim());
   }, [scenes, spokenHooks, ctaScript]);
-
-  // Fetch available voices on component mount
+  
+  // Add the useEffect to fetch voices on component mount
   useEffect(() => {
-    const fetchVoices = async () => {
-      try {
-        const response = await fetch('/api/elevenlabs');
-        const data = await response.json();
-        
-        if (data.error) {
-          setError(data.error);
-          return;
-        }
-        
-        setVoices(data.voices);
-        
-        // Set default voice if available
-        if (data.voices && data.voices.length > 0) {
-          setSelectedVoice(data.voices[0].voice_id);
-        }
-      } catch (err) {
-        console.error('Failed to fetch voices:', err);
-        setError('Failed to load available voices. Please try again.');
-      }
-    };
-
     fetchVoices();
   }, []);
 
@@ -185,38 +188,65 @@ export default function ConceptVoiceGenerator({
         </Alert>
       )}
       
-      <div className="flex items-center space-x-2">
+      <div className="flex items-center">
         <Select value={selectedVoice} onValueChange={setSelectedVoice} disabled={loading || voices.length === 0}>
           <SelectTrigger className="w-[200px]">
             <SelectValue placeholder="Select voice" />
           </SelectTrigger>
-          <SelectContent>
-            {voices.map(voice => (
-              <SelectItem key={voice.voice_id} value={voice.voice_id}>
-                {voice.name}
-              </SelectItem>
+          <SelectContent className="max-h-[300px]">
+            {/* Group voices by category */}
+            {Object.entries(
+              voices.reduce((groups, voice) => {
+                // Create a default category if none exists
+                const category = voice.category || 'Other';
+                if (!groups[category]) {
+                  groups[category] = [];
+                }
+                groups[category].push(voice);
+                return groups;
+              }, {} as Record<string, Voice[]>)
+            ).map(([category, groupVoices]) => (
+              <div key={category} className="mb-2">
+                <div className="pl-2 py-1.5 text-xs font-semibold text-gray-500 border-b">
+                  {category}
+                </div>
+                {groupVoices.map(voice => (
+                  <SelectItem key={voice.voice_id} value={voice.voice_id}>
+                    {voice.name}
+                  </SelectItem>
+                ))}
+              </div>
             ))}
           </SelectContent>
         </Select>
-        
         <Button 
-          onClick={handleGenerateVoice} 
-          disabled={loading || !selectedVoice || !combinedScript}
-          className="bg-primary-600 text-white hover:bg-primary-700"
+          variant="ghost" 
+          size="icon" 
+          onClick={fetchVoices} 
+          className="ml-1" 
+          title="Refresh voices"
         >
-          {loading ? (
-            <>
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              Generating...
-            </>
-          ) : (
-            <>
-              <Volume2 className="h-4 w-4 mr-2" />
-              Generate Full Concept Voice
-            </>
-          )}
+          <RefreshCw className="h-4 w-4" />
         </Button>
       </div>
+      
+      <Button 
+        onClick={handleGenerateVoice} 
+        disabled={loading || !selectedVoice || !combinedScript}
+        className="bg-primary-600 text-white hover:bg-primary-700"
+      >
+        {loading ? (
+          <>
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            Generating...
+          </>
+        ) : (
+          <>
+            <Volume2 className="h-4 w-4 mr-2" />
+            Generate Full Concept Voice
+          </>
+        )}
+      </Button>
       
       {audioUrl && (
         <div className="flex items-center space-x-2 mt-2">
