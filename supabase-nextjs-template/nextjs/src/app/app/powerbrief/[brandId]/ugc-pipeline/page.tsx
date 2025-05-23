@@ -629,6 +629,61 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
     }
   };
 
+  // Handle content approval
+  const handleApproveContent = async (scriptId: string) => {
+    try {
+      const response = await fetch(`/api/ugc/scripts/${scriptId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          status: 'COMPLETED',
+          concept_status: 'To Edit' 
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Server error: ${response.status}`);
+      }
+      
+      // Refresh scripts list
+      const updatedScripts = await getUgcCreatorScriptsByConceptStatus(brandId, activeStatus);
+      setScripts(updatedScripts);
+      
+    } catch (err: unknown) {
+      console.error('Failed to approve content:', err);
+      setError(`Failed to approve content: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
+  };
+
+  // Handle content revision request
+  const handleRequestContentRevision = async (scriptId: string, revisionNotes: string) => {
+    try {
+      const response = await fetch(`/api/ugc/scripts/${scriptId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          status: 'CONTENT_REVISION_REQUESTED',
+          concept_status: 'Creator Shooting',
+          revision_notes: revisionNotes
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Server error: ${response.status}`);
+      }
+      
+      // Refresh scripts list
+      const updatedScripts = await getUgcCreatorScriptsByConceptStatus(brandId, activeStatus);
+      setScripts(updatedScripts);
+      
+    } catch (err: unknown) {
+      console.error('Failed to request content revision:', err);
+      setError(`Failed to request content revision: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
+  };
+
   // Handle creator selection
   const handleCreatorSelection = (creatorId: string) => {
     // Check if this is a toggle action
@@ -940,6 +995,10 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
                           handleCreatorApprove : undefined}
                         onCreatorReject={activeStatus === 'Send Script to Creator' ?
                           handleCreatorReject : undefined}
+                        onApproveContent={activeStatus === 'Content Approval' ?
+                          handleApproveContent : undefined}
+                        onRequestContentRevision={activeStatus === 'Content Approval' ?
+                          handleRequestContentRevision : undefined}
                         onDelete={handleDeleteScript}
                         creators={creators}
                         brandId={brandId}

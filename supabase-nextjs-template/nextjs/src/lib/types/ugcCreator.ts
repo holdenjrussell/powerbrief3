@@ -73,6 +73,13 @@ export interface UgcCreatorScript {
   inspiration_video_notes?: string | null;
   is_ai_generated?: boolean;
   creative_strategist?: string | null;
+  // Payment tracking fields
+  payment_status?: string | null;
+  deposit_amount?: number | null;
+  final_payment_amount?: number | null;
+  payment_notes?: string | null;
+  deposit_paid_date?: string | null;
+  final_payment_paid_date?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -150,6 +157,13 @@ export type DbUgcCreatorScript = {
   inspiration_video_notes?: string | null;
   is_ai_generated?: boolean;
   creative_strategist?: string | null;
+  // Payment tracking fields
+  payment_status?: string | null;
+  deposit_amount?: number | null;
+  final_payment_amount?: number | null;
+  payment_notes?: string | null;
+  deposit_paid_date?: string | null;
+  final_payment_paid_date?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -196,23 +210,27 @@ export const UGC_CREATOR_PRODUCT_SHIPMENT_STATUSES = [
 ];
 
 export const UGC_CREATOR_SCRIPT_STATUSES = [
+  'PENDING_APPROVAL',
+  'REVISION_REQUESTED', 
+  'APPROVED',
+  'CREATOR_REASSIGNMENT',
+  'SCRIPT_ASSIGNED',
+  'CREATOR_APPROVED',
+  'CONTENT_REVISION_REQUESTED',
+  'CONTENT_SUBMITTED',
+  'COMPLETED'
+];
+
+export const UGC_CREATOR_ONBOARDING_STATUSES = [
   'NEW CREATOR SUBMISSION',
   'COLD OUTREACH',
   'PRIMARY SCREEN',
   'BACKLOG',
   'APPROVED FOR NEXT STEPS',
   'SCHEDULE CALL',
+  'SCHEDULE CALL ATTEMPTED',
   'CALL SCHEDULED',
-  'SCRIPT ASSIGNMENT',
-  'SCRIPT ASSIGNED',
-  'CONTRACT SENT',
-  'PRODUCT SHIPMENT',
-  'CREATOR FILMING',
-  'FINAL CONTENT UPLOAD',
-  'CONTENT UPLOADED',
-  'READY FOR PAYMENT',
-  'COMPLETED',
-  'INACTIVE/REJECTED'
+  'READY FOR SCRIPTS'
 ];
 
 export const UGC_CREATOR_SCRIPT_CONCEPT_STATUSES = [
@@ -222,6 +240,14 @@ export const UGC_CREATOR_SCRIPT_CONCEPT_STATUSES = [
   'Creator Shooting',
   'Content Approval',
   'To Edit'
+];
+
+export const UGC_SCRIPT_PAYMENT_STATUSES = [
+  'No Payment Due',
+  'Deposit Due', 
+  'Deposit Paid',
+  'Final Payment Due',
+  'Fully Paid'
 ];
 
 export const UGC_CREATOR_GENDERS = [

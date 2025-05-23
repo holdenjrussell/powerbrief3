@@ -279,22 +279,22 @@ export async function getUgcCreatorScriptsByStatus(brandId: string, status: stri
 export async function getUgcCreatorScriptsByConceptStatus(brandId: string, conceptStatus: string): Promise<UgcCreatorScript[]> {
   let statusFilter;
   
-  // Map concept status to corresponding script statuses
+  // Map concept status to corresponding script statuses (not creator onboarding statuses)
   switch (conceptStatus) {
     case 'Script Approval':
-      statusFilter = ['NEW CREATOR SUBMISSION', 'COLD OUTREACH', 'PRIMARY SCREEN', 'BACKLOG', 'APPROVED FOR NEXT STEPS', 'PENDING_APPROVAL', 'REVISION_REQUESTED'];
+      statusFilter = ['PENDING_APPROVAL', 'REVISION_REQUESTED'];
       break;
     case 'Creator Assignment':
-      statusFilter = ['SCHEDULE CALL', 'CALL SCHEDULED', 'SCRIPT ASSIGNMENT', 'APPROVED'];
+      statusFilter = ['APPROVED', 'CREATOR_REASSIGNMENT'];
       break;
     case 'Send Script to Creator':
       statusFilter = ['SCRIPT_ASSIGNED'];
       break;
     case 'Creator Shooting':
-      statusFilter = ['CONTRACT SENT', 'PRODUCT SHIPMENT', 'CREATOR FILMING', 'CREATOR_APPROVED'];
+      statusFilter = ['CREATOR_APPROVED', 'CONTENT_REVISION_REQUESTED'];
       break;
     case 'Content Approval':
-      statusFilter = ['FINAL CONTENT UPLOAD', 'CONTENT UPLOADED', 'READY FOR PAYMENT'];
+      statusFilter = ['CONTENT_SUBMITTED'];
       break;
     case 'To Edit':
       statusFilter = ['COMPLETED'];

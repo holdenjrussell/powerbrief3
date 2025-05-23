@@ -5,8 +5,8 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { getUgcCreatorScriptByShareId } from '@/lib/services/ugcCreatorService';
 import { UgcCreatorScript, ScriptSegment } from '@/lib/types/ugcCreator';
-import { Loader2 } from 'lucide-react';
-import { Alert, AlertDescription } from '@/components/ui';
+import { Loader2, CheckCircle, LinkIcon, AlertCircle } from 'lucide-react';
+import { Alert, AlertDescription, Card, CardHeader, CardTitle, CardContent, Button, Input, Label, CardDescription } from '@/components/ui';
 
 // Helper to unwrap params safely
 type ParamsType = { shareId: string };
@@ -66,6 +66,8 @@ export default function PublicUgcScriptPage({ params }: { params: ParamsType | P
   const [script, setScript] = useState<UgcCreatorScript | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [contentLink, setContentLink] = useState('');
+  const [submittingContent, setSubmittingContent] = useState(false);
 
   // Unwrap params using React.use()
   const unwrappedParams = params instanceof Promise ? React.use(params) : params;
@@ -89,6 +91,43 @@ export default function PublicUgcScriptPage({ params }: { params: ParamsType | P
 
     fetchScript();
   }, [shareId]);
+
+  const handleSubmitContent = async () => {
+    if (!script || !contentLink.trim()) return;
+    
+    try {
+      setSubmittingContent(true);
+      setError(null);
+      
+      const response = await fetch(`/api/ugc/scripts/${script.id}/submit-content`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          final_content_link: contentLink.trim(),
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to submit content');
+      }
+      
+      const result = await response.json();
+      
+      // Update local script state
+      setScript(result.script);
+      
+      // Clear the input
+      setContentLink('');
+    } catch (err) {
+      console.error('Error submitting content:', err);
+      setError(err instanceof Error ? err.message : 'Failed to submit content');
+    } finally {
+      setSubmittingContent(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -175,6 +214,91 @@ export default function PublicUgcScriptPage({ params }: { params: ParamsType | P
             </div>
           </div>
 
+          {/* Content Submission Section */}
+          {script && (script.concept_status === 'Creator Shooting' || script.revision_notes) && (
+            <Card className="mb-8">
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <LinkIcon className="h-5 w-5 mr-2" />
+                  Submit Your Content
+                </CardTitle>
+                <CardDescription>
+                  {script.final_content_link && !script.revision_notes ? 
+                    'Content has been submitted and is under review.' : 
+                    script.revision_notes ?
+                    'Please resubmit your content with the requested revisions.' :
+                    'Ready to share your content? Paste the link below.'}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {/* Show revision feedback if it exists */}
+                {script.revision_notes && (
+                  <Alert className="mb-4 border-yellow-200 bg-yellow-50">
+                    <AlertCircle className="h-4 w-4 text-yellow-600" />
+                    <AlertDescription className="text-yellow-800">
+                      <div className="font-medium mb-2">Revision Feedback:</div>
+                      <div className="text-sm">{script.revision_notes}</div>
+                    </AlertDescription>
+                  </Alert>
+                )}
+                
+                {script.final_content_link && !script.revision_notes ? (
+                  <div className="text-center py-6">
+                    <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">Content Submitted Successfully!</h3>
+                    <p className="text-gray-600">Your content is being reviewed. You will be notified of any updates.</p>
+                    <p className="text-sm text-gray-500 mt-2">
+                      Submitted link: <a href={script.final_content_link} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">{script.final_content_link}</a>
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div>
+                      <Label htmlFor="content-link">Content Link</Label>
+                      <Input
+                        id="content-link"
+                        type="url"
+                        value={contentLink}
+                        onChange={(e) => setContentLink(e.target.value)}
+                        placeholder="https://..."
+                        className="mt-1"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        Share a link to your content (Google Drive, Dropbox, Frame.io, etc.)
+                      </p>
+                    </div>
+                    
+                    {script.final_content_link && script.revision_notes && (
+                      <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
+                        <p className="text-sm text-blue-800">
+                          <strong>Previous submission:</strong> <a href={script.final_content_link} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">{script.final_content_link}</a>
+                        </p>
+                      </div>
+                    )}
+                    
+                    <Button 
+                      onClick={handleSubmitContent}
+                      disabled={!contentLink.trim() || submittingContent}
+                      className="w-full"
+                    >
+                      {submittingContent ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Submitting...
+                        </>
+                      ) : (
+                        <>
+                          <LinkIcon className="h-4 w-4 mr-2" />
+                          {script.revision_notes ? 'Resubmit Content' : 'Submit Content'}
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
           {/* Content */}
           <div className="p-6">
             {/* About the Company */}
@@ -212,9 +336,6 @@ export default function PublicUgcScriptPage({ params }: { params: ParamsType | P
                 </div>
               </div>
             )}
-
-            {/* Script Section Header */}
-            <h2 className="text-xl font-semibold mb-4">📝 SCRIPT:</h2>
 
             {/* Inspiration Video - Moved right above the script content */}
             {script.inspiration_video_url && (

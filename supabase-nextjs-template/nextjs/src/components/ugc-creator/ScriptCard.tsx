@@ -23,10 +23,12 @@ import {
   SelectValue,
   Textarea,
   Alert,
-  AlertDescription
+  AlertDescription,
+  Input,
+  Label
 } from "@/components/ui";
-import { UgcCreatorScript, UgcCreator } from '@/lib/types/ugcCreator';
-import { ChevronRight, CheckCircle, AlertCircle, User, PenSquare, Trash2, Edit, Package, FileText, Sparkles } from 'lucide-react';
+import { UgcCreatorScript, UgcCreator, UGC_SCRIPT_PAYMENT_STATUSES } from '@/lib/types/ugcCreator';
+import { ChevronRight, CheckCircle, AlertCircle, User, PenSquare, Trash2, Edit, Package, FileText, Sparkles, DollarSign, Calendar } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 // Add a constant for the TBD creator ID (this is a reliable UUID that won't change)
@@ -41,6 +43,8 @@ interface ScriptCardProps {
   onAssign?: (scriptId: string, creatorIds: string[]) => void;
   onCreatorApprove?: (scriptId: string) => void;
   onCreatorReject?: (scriptId: string, notes: string) => void;
+  onApproveContent?: (scriptId: string) => void;
+  onRequestContentRevision?: (scriptId: string, notes: string) => void;
   onDelete?: (scriptId: string) => void;
   creators?: UgcCreator[];
 }
@@ -54,6 +58,8 @@ export default function ScriptCard({
   onAssign,
   onCreatorApprove,
   onCreatorReject,
+  onApproveContent,
+  onRequestContentRevision,
   onDelete,
   creators = []
 }: ScriptCardProps) {
@@ -66,6 +72,13 @@ export default function ScriptCard({
   const [isDeleting, setIsDeleting] = useState(false);
   const [showCreatorRejectDialog, setShowCreatorRejectDialog] = useState(false);
   const [creatorRejectionNotes, setCreatorRejectionNotes] = useState('');
+  const [showContentRevisionDialog, setShowContentRevisionDialog] = useState(false);
+  const [contentRevisionNotes, setContentRevisionNotes] = useState('');
+  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
+  const [depositAmount, setDepositAmount] = useState(script.deposit_amount?.toString() || '');
+  const [finalPaymentAmount, setFinalPaymentAmount] = useState(script.final_payment_amount?.toString() || '');
+  const [paymentNotes, setPaymentNotes] = useState(script.payment_notes || '');
+  const [paymentStatus, setPaymentStatus] = useState(script.payment_status || 'No Payment Due');
   
   // Function to get badge variant based on status
   const getStatusVariant = (status: string | undefined) => {
@@ -137,6 +150,91 @@ export default function ScriptCard({
       onCreatorReject(script.id, creatorRejectionNotes);
       setShowCreatorRejectDialog(false);
       setCreatorRejectionNotes('');
+    }
+  };
+
+  // Content approval handlers
+  const handleApproveContentClick = () => {
+    if (onApproveContent) {
+      onApproveContent(script.id);
+    }
+  };
+
+  const handleContentRevisionSubmit = () => {
+    if (onRequestContentRevision && contentRevisionNotes.trim()) {
+      onRequestContentRevision(script.id, contentRevisionNotes);
+      setShowContentRevisionDialog(false);
+      setContentRevisionNotes('');
+    }
+  };
+
+  // Payment handlers
+  const handleSavePaymentDetails = async () => {
+    try {
+      const response = await fetch(`/api/ugc/scripts/${script.id}/payment`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          payment_status: paymentStatus,
+          deposit_amount: depositAmount ? parseFloat(depositAmount) : null,
+          final_payment_amount: finalPaymentAmount ? parseFloat(finalPaymentAmount) : null,
+          payment_notes: paymentNotes || null
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to update payment details');
+      }
+      
+      setShowPaymentDialog(false);
+      
+      // Refresh the page to show updated payment information
+      window.location.reload();
+    } catch (error) {
+      console.error('Error saving payment details:', error);
+      // Handle error (could add error state)
+    }
+  };
+
+  const handleMarkDepositPaid = async () => {
+    try {
+      const response = await fetch(`/api/ugc/scripts/${script.id}/payment`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mark_deposit_paid: true
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to mark deposit as paid');
+      }
+      
+      // Refresh the page to show updated payment information
+      window.location.reload();
+    } catch (error) {
+      console.error('Error marking deposit as paid:', error);
+    }
+  };
+
+  const handleMarkFinalPaymentPaid = async () => {
+    try {
+      const response = await fetch(`/api/ugc/scripts/${script.id}/payment`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mark_final_payment_paid: true
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to mark final payment as paid');
+      }
+      
+      // Refresh the page to show updated payment information
+      window.location.reload();
+    } catch (error) {
+      console.error('Error marking final payment as paid:', error);
     }
   };
 
@@ -361,10 +459,170 @@ export default function ScriptCard({
             </div>
           )}
           
+          {script.concept_status === 'Creator Shooting' && script.revision_notes && (
+            <div className="mt-2 p-3 bg-yellow-50 border-l-4 border-yellow-400 rounded-md">
+              <p className="text-xs font-medium text-yellow-800 mb-1">Content Revision Feedback:</p>
+              <p className="text-xs text-gray-700">{script.revision_notes}</p>
+            </div>
+          )}
+          
           {script.status === 'CREATOR_REASSIGNMENT' && script.revision_notes && script.concept_status === 'Creator Assignment' && (
             <div className="mt-2 p-2 bg-amber-50 border-l-4 border-amber-400 rounded-md">
               <p className="text-xs font-medium text-amber-700 mb-1">Creator Rejection Notes:</p>
               <p className="text-xs text-gray-700">{script.revision_notes}</p>
+            </div>
+          )}
+          
+          {/* Payment Tracking Section */}
+          {script.concept_status && ['Send Script to Creator', 'Creator Shooting', 'Content Approval', 'To Edit'].includes(script.concept_status) && (
+            <div className="mt-2 p-3 bg-blue-50 border-l-4 border-blue-400 rounded-md">
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="text-xs font-medium text-blue-800 flex items-center">
+                  <DollarSign className="h-3 w-3 mr-1" />
+                  Payment Tracking
+                </h4>
+                <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-6 px-2 text-xs">
+                      <Edit className="h-3 w-3 mr-1" />
+                      Edit
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-md">
+                    <DialogHeader>
+                      <DialogTitle>Payment Details</DialogTitle>
+                      <DialogDescription>
+                        Manage payment information for this script.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                      <div>
+                        <Label htmlFor="payment-status">Payment Status</Label>
+                        <Select value={paymentStatus} onValueChange={setPaymentStatus}>
+                          <SelectTrigger className="mt-1">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {UGC_SCRIPT_PAYMENT_STATUSES.map((status) => (
+                              <SelectItem key={status} value={status}>
+                                {status}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="deposit-amount">Deposit Amount ($)</Label>
+                          <Input
+                            id="deposit-amount"
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={depositAmount}
+                            onChange={(e) => setDepositAmount(e.target.value)}
+                            placeholder="0.00"
+                            className="mt-1"
+                          />
+                        </div>
+                        
+                        <div>
+                          <Label htmlFor="final-payment">Final Payment ($)</Label>
+                          <Input
+                            id="final-payment"
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={finalPaymentAmount}
+                            onChange={(e) => setFinalPaymentAmount(e.target.value)}
+                            placeholder="0.00"
+                            className="mt-1"
+                          />
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <Label htmlFor="payment-notes">Payment Notes</Label>
+                        <Textarea
+                          id="payment-notes"
+                          value={paymentNotes}
+                          onChange={(e) => setPaymentNotes(e.target.value)}
+                          placeholder="Add payment notes..."
+                          className="mt-1"
+                          rows={3}
+                        />
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setShowPaymentDialog(false)}>
+                        Cancel
+                      </Button>
+                      <Button onClick={handleSavePaymentDetails}>
+                        Save Payment Details
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </div>
+              
+              <div className="space-y-1">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-blue-700">Status:</span>
+                  <Badge variant="outline" className="text-xs">
+                    {script.payment_status || 'No Payment Due'}
+                  </Badge>
+                </div>
+                
+                {(script.deposit_amount || script.final_payment_amount) && (
+                  <div className="text-xs text-blue-700 space-y-1">
+                    {script.deposit_amount && (
+                      <div className="flex justify-between items-center">
+                        <span>Deposit: ${script.deposit_amount.toFixed(2)}</span>
+                        <div className="flex items-center">
+                          {script.deposit_paid_date ? (
+                            <div className="flex items-center text-green-600">
+                              <Calendar className="h-3 w-3 mr-1" />
+                              <span className="text-xs">Paid</span>
+                            </div>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-5 px-2 text-xs"
+                              onClick={handleMarkDepositPaid}
+                            >
+                              Mark Paid
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    {script.final_payment_amount && (
+                      <div className="flex justify-between items-center">
+                        <span>Final: ${script.final_payment_amount.toFixed(2)}</span>
+                        <div className="flex items-center">
+                          {script.final_payment_paid_date ? (
+                            <div className="flex items-center text-green-600">
+                              <Calendar className="h-3 w-3 mr-1" />
+                              <span className="text-xs">Paid</span>
+                            </div>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-5 px-2 text-xs"
+                              onClick={handleMarkFinalPaymentPaid}
+                            >
+                              Mark Paid
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -654,6 +912,64 @@ export default function ScriptCard({
                 </div>
               );
             })()}
+          </div>
+        )}
+        
+        {/* Content Approval Section */}
+        {showActionButtons && script.concept_status === 'Content Approval' && onApproveContent && onRequestContentRevision && (
+          <div className="flex gap-2 w-full mb-2">
+            <Button 
+              variant="outline" 
+              size="sm"
+              className="flex-1 text-green-600 border-green-600 hover:bg-green-50"
+              onClick={handleApproveContentClick}
+            >
+              <CheckCircle className="h-4 w-4 mr-1" />
+              Approve Content
+            </Button>
+            
+            <Dialog open={showContentRevisionDialog} onOpenChange={setShowContentRevisionDialog}>
+              <DialogTrigger asChild>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  className="flex-1 text-red-600 border-red-600 hover:bg-red-50"
+                >
+                  <AlertCircle className="h-4 w-4 mr-1" />
+                  Request Revision
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Request Content Revision</DialogTitle>
+                  <DialogDescription>
+                    Provide detailed feedback on what needs to be revised in the submitted content.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="py-4">
+                  <Textarea
+                    value={contentRevisionNotes}
+                    onChange={(e) => setContentRevisionNotes(e.target.value)}
+                    placeholder="Enter revision feedback..."
+                    rows={5}
+                  />
+                </div>
+                <DialogFooter>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setShowContentRevisionDialog(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button 
+                    onClick={handleContentRevisionSubmit}
+                    disabled={!contentRevisionNotes.trim()}
+                  >
+                    Send Revision Request
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </div>
         )}
         
