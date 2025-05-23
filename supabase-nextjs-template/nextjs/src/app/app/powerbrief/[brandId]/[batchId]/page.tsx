@@ -33,7 +33,6 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
     const [showDeleteBatchDialog, setShowDeleteBatchDialog] = useState<boolean>(false);
     const [deletingBatch, setDeletingBatch] = useState<boolean>(false);
     const [activeConceptId, setActiveConceptId] = useState<string | null>(null);
-    const [saving, setSaving] = useState<boolean>(false);
     const [savingConceptId, setSavingConceptId] = useState<string | null>(null);
     const [generatingAI, setGeneratingAI] = useState<boolean>(false);
     const [generatingConceptIds, setGeneratingConceptIds] = useState<Record<string, boolean>>({});
@@ -222,8 +221,6 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
         if (!user?.id || !batch || !brand) return;
         
         try {
-            setSaving(true);
-            
             // Use the current starting number plus the existing concepts length
             const conceptNumber = startingConceptNumber + concepts.length;
             
@@ -271,7 +268,7 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
             console.error('Failed to create concept:', err);
             setError('Failed to create concept. Please try again.');
         } finally {
-            setSaving(false);
+            // Removed setSaving(false) as 'saving' state is no longer used
         }
     };
 
