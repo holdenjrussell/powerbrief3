@@ -100,6 +100,9 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
   const [defaultSystemInstructions, setDefaultSystemInstructions] = useState<string>('');
   const [savingSettings, setSavingSettings] = useState(false);
 
+  // Creative strategist state
+  const [creativeStrategist, setCreativeStrategist] = useState<string>('');
+
   // Reference video notes state
   const [referenceVideoNotes, setReferenceVideoNotes] = useState<string>('');
 
@@ -684,6 +687,33 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
     }
   };
 
+  // Handle content submission from backend (Creator Shooting status)
+  const handleSubmitContent = async (scriptId: string, contentLink: string) => {
+    try {
+      const response = await fetch(`/api/ugc/scripts/${scriptId}/submit-content`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          final_content_link: contentLink
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Server error: ${response.status}`);
+      }
+      
+      // Refresh scripts list
+      const updatedScripts = await getUgcCreatorScriptsByConceptStatus(brandId, activeStatus);
+      setScripts(updatedScripts);
+      
+    } catch (err: unknown) {
+      console.error('Failed to submit content:', err);
+      setError(`Failed to submit content: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      throw err; // Re-throw so the ScriptCard can handle the error state
+    }
+  };
+
   // Handle creator selection
   const handleCreatorSelection = (creatorId: string) => {
     // Check if this is a toggle action
@@ -751,6 +781,7 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
         company_description: companyDescription,
         guide_description: guideDescription,
         filming_instructions: filmingInstructions,
+        creative_strategist: creativeStrategist.trim() || null,
         // Use the permanent uploaded URL instead of the temporary blob URL
         inspiration_video_url: finalVideoUrl || null,
         inspiration_video_notes: referenceVideoNotes || null,
@@ -799,6 +830,7 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
       setBRollShotList([]);
       setHookBody('');
       setCta('');
+      setCreativeStrategist('');
       setReferenceVideo(null);
       setReferenceVideoUrl('');
       setReferenceVideoNotes('');
@@ -999,6 +1031,8 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
                           handleApproveContent : undefined}
                         onRequestContentRevision={activeStatus === 'Content Approval' ?
                           handleRequestContentRevision : undefined}
+                        onSubmitContent={activeStatus === 'Creator Shooting' ?
+                          handleSubmitContent : undefined}
                         onDelete={handleDeleteScript}
                         creators={creators}
                         brandId={brandId}
@@ -1459,6 +1493,20 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
                         </span>
                       </div>
                     </div>
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="creative-strategist">Creative Strategist (Optional)</Label>
+                    <Input
+                      id="creative-strategist"
+                      value={creativeStrategist}
+                      onChange={(e) => setCreativeStrategist(e.target.value)}
+                      placeholder="Enter creative strategist name"
+                      className="mt-1"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Name of the creative strategist assigned to this script.
+                    </p>
                   </div>
                   
                   <div>

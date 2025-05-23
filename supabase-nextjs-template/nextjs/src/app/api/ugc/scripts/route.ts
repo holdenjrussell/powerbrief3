@@ -49,6 +49,7 @@ export async function POST(request: NextRequest) {
       company_description: body.company_description || null,
       guide_description: body.guide_description || null,
       filming_instructions: body.filming_instructions || null,
+      creative_strategist: body.creative_strategist || null,
       inspiration_video_url: body.reference_video_url || body.inspiration_video_url || null,
       inspiration_video_notes: body.inspiration_video_notes || null,
       public_share_id: publicShareId,

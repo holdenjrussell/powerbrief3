@@ -45,6 +45,7 @@ interface ScriptCardProps {
   onCreatorReject?: (scriptId: string, notes: string) => void;
   onApproveContent?: (scriptId: string) => void;
   onRequestContentRevision?: (scriptId: string, notes: string) => void;
+  onSubmitContent?: (scriptId: string, contentLink: string) => void;
   onDelete?: (scriptId: string) => void;
   creators?: UgcCreator[];
 }
@@ -60,6 +61,7 @@ export default function ScriptCard({
   onCreatorReject,
   onApproveContent,
   onRequestContentRevision,
+  onSubmitContent,
   onDelete,
   creators = []
 }: ScriptCardProps) {
@@ -80,6 +82,11 @@ export default function ScriptCard({
   const [paymentNotes, setPaymentNotes] = useState(script.payment_notes || '');
   const [paymentStatus, setPaymentStatus] = useState(script.payment_status || 'No Payment Due');
   
+  // Content submission state for Creator Shooting
+  const [showContentSubmissionDialog, setShowContentSubmissionDialog] = useState(false);
+  const [contentSubmissionLink, setContentSubmissionLink] = useState('');
+  const [isSubmittingContent, setIsSubmittingContent] = useState(false);
+
   // Function to get badge variant based on status
   const getStatusVariant = (status: string | undefined) => {
     if (!status) return "default";
@@ -165,6 +172,23 @@ export default function ScriptCard({
       onRequestContentRevision(script.id, contentRevisionNotes);
       setShowContentRevisionDialog(false);
       setContentRevisionNotes('');
+    }
+  };
+
+  // Content submission handler for Creator Shooting status
+  const handleContentSubmissionSubmit = async () => {
+    if (onSubmitContent && contentSubmissionLink.trim()) {
+      setIsSubmittingContent(true);
+      try {
+        await onSubmitContent(script.id, contentSubmissionLink.trim());
+        setShowContentSubmissionDialog(false);
+        setContentSubmissionLink('');
+      } catch (error) {
+        console.error('Error submitting content:', error);
+        // Handle error state if needed
+      } finally {
+        setIsSubmittingContent(false);
+      }
     }
   };
 
@@ -912,6 +936,108 @@ export default function ScriptCard({
                 </div>
               );
             })()}
+          </div>
+        )}
+        
+        {/* Creator Shooting Section - Submit Content from Backend */}
+        {showActionButtons && script.concept_status === 'Creator Shooting' && onSubmitContent && (
+          <div className="w-full mb-2">
+            {script.final_content_link ? (
+              <div className="p-3 bg-green-50 border border-green-200 rounded-md">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-green-800">Content Submitted</p>
+                    <p className="text-xs text-green-600 mt-1">
+                      <a 
+                        href={script.final_content_link} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="hover:underline"
+                      >
+                        View submitted content
+                      </a>
+                    </p>
+                  </div>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    className="text-blue-600 border-blue-600 hover:bg-blue-50"
+                    onClick={() => setShowContentSubmissionDialog(true)}
+                  >
+                    Update Content
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <Button 
+                variant="outline" 
+                size="sm"
+                className="w-full text-blue-600 border-blue-600 hover:bg-blue-50"
+                onClick={() => setShowContentSubmissionDialog(true)}
+              >
+                <CheckCircle className="h-4 w-4 mr-1" />
+                Submit Content for Approval
+              </Button>
+            )}
+            
+            <Dialog open={showContentSubmissionDialog} onOpenChange={setShowContentSubmissionDialog}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Submit Creator Content</DialogTitle>
+                  <DialogDescription>
+                    {script.final_content_link 
+                      ? 'Update the content link for this script.'
+                      : 'Provide a link to the creator\'s finished content for approval.'
+                    }
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="py-4">
+                  {script.final_content_link && (
+                    <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                      <p className="text-sm text-blue-800">
+                        <strong>Current content:</strong>{' '}
+                        <a 
+                          href={script.final_content_link} 
+                          target="_blank" 
+                          rel="noopener noreferrer" 
+                          className="text-blue-600 hover:underline"
+                        >
+                          {script.final_content_link}
+                        </a>
+                      </p>
+                    </div>
+                  )}
+                  <div>
+                    <Label htmlFor="content-link">Content Link</Label>
+                    <Input
+                      id="content-link"
+                      type="url"
+                      value={contentSubmissionLink}
+                      onChange={(e) => setContentSubmissionLink(e.target.value)}
+                      placeholder="https://..."
+                      className="mt-1"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Share a link to the content (Google Drive, Dropbox, Frame.io, etc.)
+                    </p>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setShowContentSubmissionDialog(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button 
+                    onClick={handleContentSubmissionSubmit}
+                    disabled={!contentSubmissionLink.trim() || isSubmittingContent}
+                  >
+                    {isSubmittingContent ? 'Submitting...' : 'Submit Content'}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </div>
         )}
         
