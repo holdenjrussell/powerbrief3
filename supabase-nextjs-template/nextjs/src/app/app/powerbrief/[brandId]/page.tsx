@@ -10,7 +10,6 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import MarkdownTextarea from '@/components/ui/markdown-textarea';
 import Link from 'next/link';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -80,7 +79,7 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
     const [newVideoDont, setNewVideoDont] = useState<string>('');
 
     // Extract params using React.use()
-    const unwrappedParams = React.use(params as any) as ParamsType;
+    const unwrappedParams = params instanceof Promise ? React.use(params) : params;
     const { brandId } = unwrappedParams;
 
     // Fetch brand and batches data

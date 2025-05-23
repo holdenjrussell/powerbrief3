@@ -16,6 +16,8 @@ async function getApiKey(brandId: string) {
   try {
     const supabase = createServerComponentClient({ cookies });
     
+    console.log('Fetching API key for brandId:', brandId);
+    
     const { data, error } = await supabase
       .from('brands')
       .select('elevenlabs_api_key')
@@ -27,11 +29,15 @@ async function getApiKey(brandId: string) {
       return null;
     }
     
+    console.log('Brand data fetched:', { hasApiKey: !!data?.elevenlabs_api_key, apiKeyLength: data?.elevenlabs_api_key?.length || 0 });
+    
     // If brand doesn't have an API key set, fall back to environment variable
     if (!data?.elevenlabs_api_key) {
+      console.log('No API key found for brand, falling back to environment variable');
       return process.env.ELEVENLABS_API_KEY || null;
     }
     
+    console.log('Using brand-specific API key');
     return data.elevenlabs_api_key;
   } catch (err) {
     console.error('Error getting API key:', err);
@@ -89,7 +95,7 @@ export async function GET(request: NextRequest) {
     
     if (!apiKey) {
       return NextResponse.json(
-        { error: 'ElevenLabs API key not configured for this brand' }, 
+        { error: 'ElevenLabs API key not configured for this brand. Please check your brand settings and ensure you have saved the API key.' }, 
         { status: 500 }
       );
     }
@@ -145,7 +151,10 @@ export async function POST(request: NextRequest) {
     
     if (!apiKey) {
       return NextResponse.json(
-        { error: 'ElevenLabs API key not configured' }, 
+        { error: brandId 
+          ? 'ElevenLabs API key not configured for this brand. Please check your brand settings and ensure you have saved the API key.' 
+          : 'ElevenLabs API key not configured' 
+        }, 
         { status: 500 }
       );
     }

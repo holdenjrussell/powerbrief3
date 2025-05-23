@@ -4,14 +4,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useGlobal } from '@/lib/context/GlobalContext';
 import { useRouter } from 'next/navigation';
 import { getBriefBatchById, getBrandById, getBriefConcepts, createBriefConcept, updateBriefConcept, deleteBriefConcept, deleteBriefBatch, uploadMedia, shareBriefBatch, shareBriefConcept } from '@/lib/services/powerbriefService';
-import { Brand, BriefBatch, BriefConcept, Scene, AiBriefingRequest, ShareSettings } from '@/lib/types/powerbrief';
+import { Brand, BriefBatch, BriefConcept, Scene, Hook, AiBriefingRequest, ShareSettings } from '@/lib/types/powerbrief';
 import { 
-    Sparkles, Plus, X, FileUp, Trash2, Share2, MoveUp, MoveDown, Image, Video, 
-    Loader2, Check, Pencil, Bug, Film, FileImage, ArrowLeft, Copy, LinkIcon, Mail, Zap, Save
+    Sparkles, Plus, X, FileUp, Trash2, Share2, MoveUp, MoveDown, 
+    Loader2, Check, Pencil, Bug, Film, FileImage, ArrowLeft, Copy, LinkIcon, Mail
 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import Link from 'next/link';
@@ -71,9 +71,13 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
     const [localMediaTypes, setLocalMediaTypes] = useState<Record<string, 'video' | 'image'>>({});
     const [localHookTypes, setLocalHookTypes] = useState<Record<string, 'caption' | 'verbal' | 'both'>>({});
     const [localHookCounts, setLocalHookCounts] = useState<Record<string, number>>({});
+    
+    // Individual hooks state
+    const [localCaptionHooksList, setLocalCaptionHooksList] = useState<Record<string, Hook[]>>({});
+    const [localSpokenHooksList, setLocalSpokenHooksList] = useState<Record<string, Hook[]>>({});
 
     // Extract params using React.use()
-    const unwrappedParams = React.use(params as any) as ParamsType;
+    const unwrappedParams = params instanceof Promise ? React.use(params) : params;
     const { brandId, batchId } = unwrappedParams;
 
     // Fetch data
@@ -114,6 +118,8 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                 const initialLocalMediaTypes: Record<string, 'video' | 'image'> = {};
                 const initialLocalHookTypes: Record<string, 'caption' | 'verbal' | 'both'> = {};
                 const initialLocalHookCounts: Record<string, number> = {};
+                const initialLocalCaptionHooksList: Record<string, Hook[]> = {};
+                const initialLocalSpokenHooksList: Record<string, Hook[]> = {};
 
                 conceptsData.forEach(concept => {
                     initialLocalPrompts[concept.id] = concept.ai_custom_prompt || '';
@@ -131,6 +137,10 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                     initialLocalMediaTypes[concept.id] = concept.media_type === 'image' ? 'image' : 'video'; // Corrected line
                     initialLocalHookTypes[concept.id] = concept.hook_type || 'both';
                     initialLocalHookCounts[concept.id] = concept.hook_count || 5;
+                    
+                    // Parse existing hooks from strings into individual hook objects
+                    initialLocalCaptionHooksList[concept.id] = parseHooksFromString(concept.caption_hook_options || '');
+                    initialLocalSpokenHooksList[concept.id] = parseHooksFromString(concept.spoken_hook_options || '');
                 });
 
                 setLocalPrompts(initialLocalPrompts);
@@ -148,6 +158,8 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                 setLocalMediaTypes(initialLocalMediaTypes);
                 setLocalHookTypes(initialLocalHookTypes);
                 setLocalHookCounts(initialLocalHookCounts);
+                setLocalCaptionHooksList(initialLocalCaptionHooksList);
+                setLocalSpokenHooksList(initialLocalSpokenHooksList);
                 
                 if (conceptsData.length > 0 && !activeConceptId) {
                     setActiveConceptId(conceptsData[0].id);
@@ -587,26 +599,44 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
               
               // Update local caption and spoken hooks state
               if (aiResponse.caption_hook_options) {
+                  console.log('AI Response - Caption hooks received:', aiResponse.caption_hook_options);
                   setLocalCaptionHooks(prev => ({
                       ...prev,
                       [conceptId]: aiResponse.caption_hook_options
+                  }));
+                  // Also update the caption hooks list for the UI
+                  const parsedCaptionHooks = parseHooksFromString(aiResponse.caption_hook_options);
+                  console.log('Parsed caption hooks:', parsedCaptionHooks);
+                  setLocalCaptionHooksList(prev => ({
+                      ...prev,
+                      [conceptId]: parsedCaptionHooks
                   }));
               }
               
               // Update local spoken hooks state when received from AI
               if (aiResponse.spoken_hook_options) {
+                  console.log('AI Response - Spoken hooks received:', aiResponse.spoken_hook_options);
                   setLocalSpokenHooks(prev => ({
                       ...prev,
                       [conceptId]: aiResponse.spoken_hook_options
                   }));
+                  // Also update the spoken hooks list for the UI
+                  const parsedSpokenHooks = parseHooksFromString(aiResponse.spoken_hook_options);
+                  console.log('Parsed spoken hooks:', parsedSpokenHooks);
+                  setLocalSpokenHooksList(prev => ({
+                      ...prev,
+                      [conceptId]: parsedSpokenHooks
+                  }));
+              } else {
+                  console.log('AI Response - No spoken hooks received. Full AI response:', aiResponse);
               }
               
               setConcepts(prev => 
                   prev.map(c => c.id === updatedConceptWithAI.id ? updatedConceptWithAI : c)
               );
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error('Failed to generate AI brief:', err);
-            setError(`AI brief generation failed: ${err.message || 'Unknown error'}`);
+            setError(`AI brief generation failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
         } finally {
             // Clear the loading state for this specific concept
             setGeneratingConceptIds(prev => {
@@ -765,17 +795,35 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                     
                     // Update local state for hooks
                     if (aiResponse.caption_hook_options) {
+                        console.log(`Generate All AI - Caption hooks received for concept ${concept.id}:`, aiResponse.caption_hook_options);
                         setLocalCaptionHooks(prev => ({
                             ...prev,
                             [concept.id]: aiResponse.caption_hook_options
                         }));
+                        // Also update the caption hooks list for the UI
+                        const parsedCaptionHooks = parseHooksFromString(aiResponse.caption_hook_options);
+                        console.log(`Parsed caption hooks for concept ${concept.id}:`, parsedCaptionHooks);
+                        setLocalCaptionHooksList(prev => ({
+                            ...prev,
+                            [concept.id]: parsedCaptionHooks
+                        }));
                     }
                     
                     if (aiResponse.spoken_hook_options) {
+                        console.log(`Generate All AI - Spoken hooks received for concept ${concept.id}:`, aiResponse.spoken_hook_options);
                         setLocalSpokenHooks(prev => ({
                             ...prev,
                             [concept.id]: aiResponse.spoken_hook_options
                         }));
+                        // Also update the spoken hooks list for the UI
+                        const parsedSpokenHooks = parseHooksFromString(aiResponse.spoken_hook_options);
+                        console.log(`Parsed spoken hooks for concept ${concept.id}:`, parsedSpokenHooks);
+                        setLocalSpokenHooksList(prev => ({
+                            ...prev,
+                            [concept.id]: parsedSpokenHooks
+                        }));
+                    } else {
+                        console.log(`Generate All AI - No spoken hooks received for concept ${concept.id}. Full AI response:`, aiResponse);
                     }
                     
                     setConcepts(prev => 
@@ -787,7 +835,7 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                     
                     // Add a small delay between requests to prevent rate limiting
                     await new Promise(resolve => setTimeout(resolve, 500));
-                } catch (conceptErr: any) {
+                } catch (conceptErr: unknown) {
                     console.error(`Failed to generate AI brief for concept ${concept.id}:`, conceptErr);
                     failCount++;
                 } finally {
@@ -811,9 +859,9 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                 // No error if all succeeded
                 console.log(`Successfully generated AI briefs for all ${concepts.length} concepts.`);
             }
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error('Failed to generate AI briefs for all concepts:', err);
-            setError(`AI briefs generation failed: ${err.message || 'Unknown error'}`);
+            setError(`AI briefs generation failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
         } finally {
             setGeneratingAI(false);
         }
@@ -953,6 +1001,8 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
         const designerInstructionsMap: Record<string, string> = {};
         const mediaTypesMap: Record<string, 'video' | 'image'> = {};
         const descriptionsMap: Record<string, string> = {};
+        const captionHooksListMap: Record<string, Hook[]> = {};
+        const spokenHooksListMap: Record<string, Hook[]> = {};
         
         concepts.forEach(concept => {
             promptMap[concept.id] = concept.ai_custom_prompt || '';
@@ -968,6 +1018,8 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
             designerInstructionsMap[concept.id] = concept.designerInstructions || '';
             mediaTypesMap[concept.id] = (concept.media_type as 'video' | 'image') || 'video';
             descriptionsMap[concept.id] = concept.description || '';
+            captionHooksListMap[concept.id] = parseHooksFromString(concept.caption_hook_options || '');
+            spokenHooksListMap[concept.id] = parseHooksFromString(concept.spoken_hook_options || '');
         });
         
         setLocalPrompts(promptMap);
@@ -983,6 +1035,8 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
         setLocalDesignerInstructions(designerInstructionsMap);
         setLocalMediaTypes(mediaTypesMap);
         setLocalDescriptions(descriptionsMap);
+        setLocalCaptionHooksList(captionHooksListMap);
+        setLocalSpokenHooksList(spokenHooksListMap);
     }, [concepts]);
 
     // Debug prompt for a concept
@@ -1021,7 +1075,7 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
             },
             desiredOutputFields: mediaType === 'image' 
                 ? ['description', 'cta'] // For image briefs (using system_instructions_image format)
-                : ['caption_hook_options', 'body_content_structured_scenes', 'cta_script', 'cta_text_overlay'], // For video briefs
+                : ['caption_hook_options', 'spoken_hook_options', 'body_content_structured_scenes', 'cta_script', 'cta_text_overlay'], // For video briefs
             hookOptions: {
                 type: concept.hook_type || localHookTypes[conceptId] || 'both',
                 count: concept.hook_count || localHookCounts[conceptId] || 5
@@ -1286,6 +1340,192 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
         };
         
         handleUpdateConcept(updatedConcept);
+    };
+
+    // Hook handling functions
+    const parseHooksFromString = (hooksString: string): Hook[] => {
+        if (!hooksString) return [];
+        
+        // First, try to split by common separators
+        let hooks: string[] = [];
+        
+        // Try splitting by "OR" first (case insensitive)
+        if (hooksString.match(/\bOR\b/i)) {
+            hooks = hooksString.split(/\bOR\b/i).map(hook => hook.trim()).filter(hook => hook);
+        } 
+        // Try splitting by numbered patterns like "1.", "2.", etc.
+        else if (hooksString.match(/^\s*\d+\./m)) {
+            hooks = hooksString.split(/(?=^\s*\d+\.)/m).map(hook => hook.trim()).filter(hook => hook);
+        }
+        // Try splitting by bullet points like "-" or "*"
+        else if (hooksString.match(/^\s*[-*•]/m)) {
+            hooks = hooksString.split(/(?=^\s*[-*•])/m).map(hook => hook.trim()).filter(hook => hook);
+        }
+        // Fallback to newline splitting, but filter out common separators
+        else {
+            hooks = hooksString.split('\n')
+                .map(line => line.trim())
+                .filter(line => line && !line.match(/^(OR|and|&|\|)$/i));
+        }
+        
+        // Clean up each hook by removing leading numbers, bullets, or separators
+        hooks = hooks.map(hook => {
+            return hook
+                .replace(/^\s*\d+\.\s*/, '') // Remove leading numbers like "1. "
+                .replace(/^\s*[-*•]\s*/, '') // Remove leading bullets
+                .replace(/^\s*(OR|and|&|\|)\s*/i, '') // Remove leading separators
+                .trim();
+        }).filter(hook => hook && hook.length > 3); // Filter out very short hooks
+        
+        return hooks.map((hook, index) => ({
+            id: `hook-${Date.now()}-${index}`,
+            title: `Hook ${index + 1}`,
+            content: hook
+        }));
+    };
+
+    const convertHooksToString = (hooks: Hook[]): string => {
+        return hooks.map(hook => hook.content).join('\n');
+    };
+
+    // Add caption hook
+    const handleAddCaptionHook = (conceptId: string) => {
+        const currentHooks = localCaptionHooksList[conceptId] || [];
+        const newHook: Hook = {
+            id: `caption-hook-${Date.now()}`,
+            title: `Hook ${currentHooks.length + 1}`,
+            content: ''
+        };
+        
+        const updatedHooks = [...currentHooks, newHook];
+        setLocalCaptionHooksList(prev => ({
+            ...prev,
+            [conceptId]: updatedHooks
+        }));
+        
+        // Update the string version for database compatibility
+        const concept = concepts.find(c => c.id === conceptId);
+        if (concept) {
+            const updatedConcept = {
+                ...concept,
+                caption_hook_options: convertHooksToString(updatedHooks)
+            };
+            debouncedUpdateConcept(updatedConcept);
+        }
+    };
+
+    // Remove caption hook
+    const handleRemoveCaptionHook = (conceptId: string, hookId: string) => {
+        const currentHooks = localCaptionHooksList[conceptId] || [];
+        const updatedHooks = currentHooks.filter(hook => hook.id !== hookId);
+        
+        setLocalCaptionHooksList(prev => ({
+            ...prev,
+            [conceptId]: updatedHooks
+        }));
+        
+        // Update the string version for database compatibility
+        const concept = concepts.find(c => c.id === conceptId);
+        if (concept) {
+            const updatedConcept = {
+                ...concept,
+                caption_hook_options: convertHooksToString(updatedHooks)
+            };
+            handleUpdateConcept(updatedConcept);
+        }
+    };
+
+    // Update caption hook
+    const handleUpdateCaptionHook = (conceptId: string, hookId: string, content: string) => {
+        const currentHooks = localCaptionHooksList[conceptId] || [];
+        const updatedHooks = currentHooks.map(hook => 
+            hook.id === hookId ? { ...hook, content } : hook
+        );
+        
+        setLocalCaptionHooksList(prev => ({
+            ...prev,
+            [conceptId]: updatedHooks
+        }));
+        
+        // Update the string version for database compatibility
+        const concept = concepts.find(c => c.id === conceptId);
+        if (concept) {
+            const updatedConcept = {
+                ...concept,
+                caption_hook_options: convertHooksToString(updatedHooks)
+            };
+            debouncedUpdateConcept(updatedConcept);
+        }
+    };
+
+    // Add spoken hook
+    const handleAddSpokenHook = (conceptId: string) => {
+        const currentHooks = localSpokenHooksList[conceptId] || [];
+        const newHook: Hook = {
+            id: `spoken-hook-${Date.now()}`,
+            title: `Hook ${currentHooks.length + 1}`,
+            content: ''
+        };
+        
+        const updatedHooks = [...currentHooks, newHook];
+        setLocalSpokenHooksList(prev => ({
+            ...prev,
+            [conceptId]: updatedHooks
+        }));
+        
+        // Update the string version for database compatibility
+        const concept = concepts.find(c => c.id === conceptId);
+        if (concept) {
+            const updatedConcept = {
+                ...concept,
+                spoken_hook_options: convertHooksToString(updatedHooks)
+            };
+            debouncedUpdateConcept(updatedConcept);
+        }
+    };
+
+    // Remove spoken hook
+    const handleRemoveSpokenHook = (conceptId: string, hookId: string) => {
+        const currentHooks = localSpokenHooksList[conceptId] || [];
+        const updatedHooks = currentHooks.filter(hook => hook.id !== hookId);
+        
+        setLocalSpokenHooksList(prev => ({
+            ...prev,
+            [conceptId]: updatedHooks
+        }));
+        
+        // Update the string version for database compatibility
+        const concept = concepts.find(c => c.id === conceptId);
+        if (concept) {
+            const updatedConcept = {
+                ...concept,
+                spoken_hook_options: convertHooksToString(updatedHooks)
+            };
+            handleUpdateConcept(updatedConcept);
+        }
+    };
+
+    // Update spoken hook
+    const handleUpdateSpokenHook = (conceptId: string, hookId: string, content: string) => {
+        const currentHooks = localSpokenHooksList[conceptId] || [];
+        const updatedHooks = currentHooks.map(hook => 
+            hook.id === hookId ? { ...hook, content } : hook
+        );
+        
+        setLocalSpokenHooksList(prev => ({
+            ...prev,
+            [conceptId]: updatedHooks
+        }));
+        
+        // Update the string version for database compatibility
+        const concept = concepts.find(c => c.id === conceptId);
+        if (concept) {
+            const updatedConcept = {
+                ...concept,
+                spoken_hook_options: convertHooksToString(updatedHooks)
+            };
+            debouncedUpdateConcept(updatedConcept);
+        }
     };
 
     if (loading) {
@@ -1848,9 +2088,10 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                                                 }));
                                                                 
                                                                 // Update concept in database
+                                                                const hookTypeCaption = 'caption' as const;
                                                                 const updatedConcept = {
                                                                     ...concept,
-                                                                    hook_type: 'caption' as 'caption'
+                                                                    hook_type: hookTypeCaption
                                                                 };
                                                                 handleUpdateConcept(updatedConcept);
                                                             }}
@@ -1869,9 +2110,10 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                                                 }));
                                                                 
                                                                 // Update concept in database
+                                                                const hookTypeVerbal = 'verbal' as const;
                                                                 const updatedConcept = {
                                                                     ...concept,
-                                                                    hook_type: 'verbal' as 'verbal'
+                                                                    hook_type: hookTypeVerbal
                                                                 };
                                                                 handleUpdateConcept(updatedConcept);
                                                             }}
@@ -1890,9 +2132,10 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                                                 }));
                                                                 
                                                                 // Update concept in database
+                                                                const hookTypeBoth = 'both' as const;
                                                                 const updatedConcept = {
                                                                     ...concept,
-                                                                    hook_type: 'both' as 'both'
+                                                                    hook_type: hookTypeBoth
                                                                 };
                                                                 handleUpdateConcept(updatedConcept);
                                                             }}
@@ -1934,80 +2177,112 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                     {/* Caption Hook Box - Moved Below Generate AI */}
                                     {localMediaTypes[concept.id] === 'video' && (
                                         <div className="mt-4">
-                                            <h3 className="font-medium text-sm mb-1">Caption Hook options (with emojis)</h3>
-                                            <Textarea
-                                                value={localCaptionHooks[concept.id] || ''}
-                                                onChange={(e) => {
-                                                    // Update local state immediately for responsive typing
-                                                    setLocalCaptionHooks(prev => ({
-                                                        ...prev,
-                                                        [concept.id]: e.target.value
-                                                    }));
-                                                    
-                                                    // Debounce the actual save operation
-                                                    const updatedConcept = {
-                                                        ...concept,
-                                                        caption_hook_options: e.target.value
-                                                    };
-                                                    debouncedUpdateConcept(updatedConcept);
-                                                }}
-                                                onBlur={() => {
-                                                    // Save immediately on blur
-                                                    if (saveTimeoutRef.current) {
-                                                        clearTimeout(saveTimeoutRef.current);
-                                                        saveTimeoutRef.current = null;
-                                                    }
-                                                    
-                                                    const updatedConcept = {
-                                                        ...concept,
-                                                        caption_hook_options: localCaptionHooks[concept.id] || ''
-                                                    };
-                                                    handleUpdateConcept(updatedConcept);
-                                                }}
-                                                placeholder="Enter caption hook options with emojis"
-                                                className="text-sm w-full min-h-fit"
-                                                style={{ height: 'auto', overflow: 'hidden' }}
-                                            />
+                                            <div className="flex justify-between items-center mb-2">
+                                                <h3 className="font-medium text-sm">Caption Hook options (with emojis)</h3>
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleAddCaptionHook(concept.id);
+                                                    }}
+                                                >
+                                                    <Plus className="h-3 w-3 mr-1" />
+                                                    Add Hook
+                                                </Button>
+                                            </div>
+                                            
+                                            {(localCaptionHooksList[concept.id] || []).length === 0 ? (
+                                                <div className="p-4 bg-gray-50 rounded text-sm text-gray-500 text-center">
+                                                    No caption hooks yet. Add a hook or use AI to generate content.
+                                                </div>
+                                            ) : (
+                                                <div className="space-y-2">
+                                                    {(localCaptionHooksList[concept.id] || []).map((hook) => (
+                                                        <div key={hook.id} className="p-3 border rounded space-y-2">
+                                                            <div className="flex justify-between items-center">
+                                                                <span className="text-xs font-medium text-gray-600">{hook.title}</span>
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    className="h-6 w-6 text-red-500"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        handleRemoveCaptionHook(concept.id, hook.id);
+                                                                    }}
+                                                                >
+                                                                    <X className="h-3 w-3" />
+                                                                </Button>
+                                                            </div>
+                                                            <Textarea
+                                                                value={hook.content}
+                                                                onChange={(e) => {
+                                                                    handleUpdateCaptionHook(concept.id, hook.id, e.target.value);
+                                                                }}
+                                                                placeholder="Enter caption hook with emojis"
+                                                                className="text-sm w-full min-h-fit"
+                                                                style={{ height: 'auto', overflow: 'hidden' }}
+                                                            />
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                     
                                     {/* Spoken Hook Box - Moved Below Generate AI */}
                                     {localMediaTypes[concept.id] === 'video' && (
                                         <div className="mt-2">
-                                            <h3 className="font-medium text-sm mb-1">Spoken Hook options</h3>
-                                            <Textarea
-                                                value={localSpokenHooks[concept.id] || ''}
-                                                onChange={(e) => {
-                                                    // Update local state immediately for responsive typing
-                                                    setLocalSpokenHooks(prev => ({
-                                                        ...prev,
-                                                        [concept.id]: e.target.value
-                                                    }));
-                                                    
-                                                    // Debounce the actual save operation
-                                                    const updatedConcept = {
-                                                        ...concept,
-                                                        spoken_hook_options: e.target.value
-                                                    };
-                                                    debouncedUpdateConcept(updatedConcept);
-                                                }}
-                                                onBlur={() => {
-                                                    // Save immediately on blur
-                                                    if (saveTimeoutRef.current) {
-                                                        clearTimeout(saveTimeoutRef.current);
-                                                        saveTimeoutRef.current = null;
-                                                    }
-                                                    
-                                                    const updatedConcept = {
-                                                        ...concept,
-                                                        spoken_hook_options: localSpokenHooks[concept.id] || ''
-                                                    };
-                                                    handleUpdateConcept(updatedConcept);
-                                                }}
-                                                placeholder="Enter spoken hook options"
-                                                className="text-sm w-full min-h-fit"
-                                                style={{ height: 'auto', overflow: 'hidden' }}
-                                            />
+                                            <div className="flex justify-between items-center mb-2">
+                                                <h3 className="font-medium text-sm">Spoken Hook options</h3>
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleAddSpokenHook(concept.id);
+                                                    }}
+                                                >
+                                                    <Plus className="h-3 w-3 mr-1" />
+                                                    Add Hook
+                                                </Button>
+                                            </div>
+                                            
+                                            {(localSpokenHooksList[concept.id] || []).length === 0 ? (
+                                                <div className="p-4 bg-gray-50 rounded text-sm text-gray-500 text-center">
+                                                    No spoken hooks yet. Add a hook or use AI to generate content.
+                                                </div>
+                                            ) : (
+                                                <div className="space-y-2">
+                                                    {(localSpokenHooksList[concept.id] || []).map((hook) => (
+                                                        <div key={hook.id} className="p-3 border rounded space-y-2">
+                                                            <div className="flex justify-between items-center">
+                                                                <span className="text-xs font-medium text-gray-600">{hook.title}</span>
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    className="h-6 w-6 text-red-500"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        handleRemoveSpokenHook(concept.id, hook.id);
+                                                                    }}
+                                                                >
+                                                                    <X className="h-3 w-3" />
+                                                                </Button>
+                                                            </div>
+                                                            <Textarea
+                                                                value={hook.content}
+                                                                onChange={(e) => {
+                                                                    handleUpdateSpokenHook(concept.id, hook.id, e.target.value);
+                                                                }}
+                                                                placeholder="Enter spoken hook"
+                                                                className="text-sm w-full min-h-fit"
+                                                                style={{ height: 'auto', overflow: 'hidden' }}
+                                                            />
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                     
@@ -2340,6 +2615,7 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                             spokenHooks={localSpokenHooks[concept.id] || concept.spoken_hook_options || ''}
                                             ctaScript={localCtaScript[concept.id] || concept.cta_script || ''}
                                             conceptId={concept.id}
+                                            brandId={brandId}
                                         />
                                     </div>
                                     

@@ -293,9 +293,20 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
       });
       
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        console.error('Video upload failed with status:', response.status, errorData);
-        throw new Error(errorData.error || `Failed to upload video (HTTP ${response.status})`);
+        let errorMessage = `Server error: ${response.status}`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch {
+          // If we can't parse the error response as JSON, try to get it as text
+          try {
+            const errorText = await response.text();
+            errorMessage = errorText || errorMessage;
+          } catch {
+            // If all else fails, use the status-based message
+          }
+        }
+        throw new Error(errorMessage);
       }
       
       const data = await response.json();
@@ -368,8 +379,20 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
       });
       
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `Server error: ${response.status}`);
+        let errorMessage = `Server error: ${response.status}`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch {
+          // If we can't parse the error response as JSON, try to get it as text
+          try {
+            const errorText = await response.text();
+            errorMessage = errorText || errorMessage;
+          } catch {
+            // If all else fails, use the status-based message
+          }
+        }
+        throw new Error(errorMessage);
       }
       
       const data = await response.json();
@@ -481,8 +504,20 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
       });
       
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `Server error: ${response.status}`);
+        let errorMessage = `Server error: ${response.status}`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch {
+          // If we can't parse the error response as JSON, try to get it as text
+          try {
+            const errorText = await response.text();
+            errorMessage = errorText || errorMessage;
+          } catch {
+            // If all else fails, use the status-based message
+          }
+        }
+        throw new Error(errorMessage);
       }
       
       // Refresh scripts list
@@ -508,8 +543,20 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
       });
       
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `Server error: ${response.status}`);
+        let errorMessage = `Server error: ${response.status}`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch {
+          // If we can't parse the error response as JSON, try to get it as text
+          try {
+            const errorText = await response.text();
+            errorMessage = errorText || errorMessage;
+          } catch {
+            // If all else fails, use the status-based message
+          }
+        }
+        throw new Error(errorMessage);
       }
       
       // Refresh scripts list
@@ -536,8 +583,20 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
       });
       
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `Server error: ${response.status}`);
+        let errorMessage = `Server error: ${response.status}`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch {
+          // If we can't parse the error response as JSON, try to get it as text
+          try {
+            const errorText = await response.text();
+            errorMessage = errorText || errorMessage;
+          } catch {
+            // If all else fails, use the status-based message
+          }
+        }
+        throw new Error(errorMessage);
       }
       
       // Refresh scripts list
@@ -563,8 +622,20 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
       });
       
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `Server error: ${response.status}`);
+        let errorMessage = `Server error: ${response.status}`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch {
+          // If we can't parse the error response as JSON, try to get it as text
+          try {
+            const errorText = await response.text();
+            errorMessage = errorText || errorMessage;
+          } catch {
+            // If all else fails, use the status-based message
+          }
+        }
+        throw new Error(errorMessage);
       }
       
       // Refresh scripts list
@@ -587,8 +658,20 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
       });
       
       if (!scriptResponse.ok) {
-        const errorData = await scriptResponse.json();
-        throw new Error(errorData.error || `Server error: ${scriptResponse.status}`);
+        let errorMessage = `Server error: ${scriptResponse.status}`;
+        try {
+          const errorData = await scriptResponse.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch {
+          // If we can't parse the error response as JSON, try to get it as text
+          try {
+            const errorText = await scriptResponse.text();
+            errorMessage = errorText || errorMessage;
+          } catch {
+            // If all else fails, use the status-based message
+          }
+        }
+        throw new Error(errorMessage);
       }
       
       // We don't actually need the script data, just fetching to make sure it exists
@@ -605,8 +688,20 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
       });
       
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `Server error: ${response.status}`);
+        let errorMessage = `Server error: ${response.status}`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch {
+          // If we can't parse the error response as JSON, try to get it as text
+          try {
+            const errorText = await response.text();
+            errorMessage = errorText || errorMessage;
+          } catch {
+            // If all else fails, use the status-based message
+          }
+        }
+        throw new Error(errorMessage);
       }
       
       // Refresh scripts list
@@ -645,8 +740,20 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
       });
       
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `Server error: ${response.status}`);
+        let errorMessage = `Server error: ${response.status}`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch {
+          // If we can't parse the error response as JSON, try to get it as text
+          try {
+            const errorText = await response.text();
+            errorMessage = errorText || errorMessage;
+          } catch {
+            // If all else fails, use the status-based message
+          }
+        }
+        throw new Error(errorMessage);
       }
       
       // Refresh scripts list
@@ -673,8 +780,20 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
       });
       
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `Server error: ${response.status}`);
+        let errorMessage = `Server error: ${response.status}`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch {
+          // If we can't parse the error response as JSON, try to get it as text
+          try {
+            const errorText = await response.text();
+            errorMessage = errorText || errorMessage;
+          } catch {
+            // If all else fails, use the status-based message
+          }
+        }
+        throw new Error(errorMessage);
       }
       
       // Refresh scripts list
@@ -699,8 +818,20 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
       });
       
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `Server error: ${response.status}`);
+        let errorMessage = `Server error: ${response.status}`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch {
+          // If we can't parse the error response as JSON, try to get it as text
+          try {
+            const errorText = await response.text();
+            errorMessage = errorText || errorMessage;
+          } catch {
+            // If all else fails, use the status-based message
+          }
+        }
+        throw new Error(errorMessage);
       }
       
       // Refresh scripts list
@@ -814,7 +945,20 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
       
       if (!response.ok) {
         console.error('Script creation failed:', responseData);
-        throw new Error(responseData.error || responseData.message || `Server error: ${response.status}`);
+        let errorMessage = `Server error: ${response.status}`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch {
+          // If we can't parse the error response as JSON, try to get it as text
+          try {
+            const errorText = await response.text();
+            errorMessage = errorText || errorMessage;
+          } catch {
+            // If all else fails, use the status-based message
+          }
+        }
+        throw new Error(errorMessage);
       }
       
       console.log('Script created successfully:', responseData);

@@ -2,7 +2,7 @@ import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/ge
 import { NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
 // Use the correct model name as shown in the endpoint
-const MODEL_NAME = 'gemini-2.5-flash-preview-04-17';
+const MODEL_NAME = 'gemini-2.5-pro-preview-05-06';
 // Helper to get more specific mime types
 const getProperMimeType = (mediaType, fileUrl) => {
     if (!mediaType) {

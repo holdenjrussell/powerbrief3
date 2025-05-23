@@ -368,6 +368,7 @@ export default function ConceptBriefingPage({ params }) {
                 },
                 desiredOutputFields: [
                     'caption_hook_options',
+                    'spoken_hook_options',
                     'body_content_structured_scenes',
                     'cta_script',
                     'cta_text_overlay'
@@ -624,6 +625,7 @@ export default function ConceptBriefingPage({ params }) {
             },
             desiredOutputFields: [
                 'caption_hook_options',
+                'spoken_hook_options',
                 'body_content_structured_scenes',
                 'cta_script',
                 'cta_text_overlay'

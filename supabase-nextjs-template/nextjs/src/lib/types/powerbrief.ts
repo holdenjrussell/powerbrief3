@@ -88,6 +88,12 @@ export interface Scene {
   [key: string]: Json | undefined;
 }
 
+export interface Hook {
+  id: string;
+  title: string;
+  content: string;
+}
+
 export interface BriefConcept {
   id: string;
   brief_batch_id: string;
