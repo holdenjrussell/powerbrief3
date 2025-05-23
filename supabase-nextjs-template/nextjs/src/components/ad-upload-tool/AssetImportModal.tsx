@@ -1,0 +1,358 @@
+"use client";
+import React, { useState, useCallback, ChangeEvent } from 'react';
+import { X, UploadCloud, Check, Trash2, Loader2 } from 'lucide-react';
+import { createSPAClient } from '@/lib/supabase/client';
+import { useGlobal } from '@/lib/context/GlobalContext';
+
+interface AssetFile {
+  file: File;
+  id: string;
+  previewUrl?: string; // For image previews, if implemented
+  uploading?: boolean; // To indicate upload in progress
+  uploadError?: string | null; // To store upload error message
+  supabaseUrl?: string; // To store the Supabase URL after successful upload
+}
+
+interface ImportedAssetGroup {
+  // This structure will depend on how you want to feed it into AdDrafts
+  // For now, let's assume a primary name and a list of files in the group
+  groupName: string; 
+  files: Array<Omit<AssetFile, 'file'> & { name: string; supabaseUrl: string; type: 'image' | 'video' }>; // Files will now store URL not File object
+  aspectRatiosDetected?: string[]; // e.g. ['1x1', '9x16']
+}
+
+interface AssetImportModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onAssetsImported: (assetGroups: ImportedAssetGroup[]) => void;
+  brandId: string | null; // Added brandId prop
+}
+
+const DEFAULT_ASPECT_RATIO_IDENTIFIERS = ['1x1', '9x16', '16x9', '4x5', '2x3', '3x2'];
+const KNOWN_FILENAME_SUFFIXES_TO_REMOVE = ['_compressed', '-compressed', '_comp', '-comp']; // List of suffixes to remove before ratio detection
+
+interface ProcessedAssetFile extends AssetFile {
+  baseName?: string;
+  detectedRatio?: string | null;
+}
+
+// Helper function to extract base name and aspect ratio
+const getBaseNameAndRatio = (filename: string, identifiers: string[], suffixesToRemove: string[]): { baseName: string; detectedRatio: string | null } => {
+  let nameWorkInProgress = filename.substring(0, filename.lastIndexOf('.')) || filename;
+  
+  // Step 1: Remove known trailing suffixes (like _compressed)
+  for (const suffix of suffixesToRemove) {
+    if (nameWorkInProgress.endsWith(suffix)) {
+      nameWorkInProgress = nameWorkInProgress.substring(0, nameWorkInProgress.length - suffix.length);
+      // It's possible multiple suffixes could be chained, but for now, we assume one primary suffix like _compressed.
+      // If more complex suffix stripping is needed, this loop might need to be more sophisticated or run multiple times.
+      break; 
+    }
+  }
+
+  // Step 2: Look for aspect ratio identifiers
+  for (const id of identifiers) {
+    // Check for patterns like: "_1x1", "-1x1", " - 1x1", ":1x1", "(1x1)", "(1x1"
+    const patternsToTest = [
+      `_${id}`,
+      `-${id}`,
+      ` - ${id}`, // Accounts for space-hyphen-space before identifier
+      `:${id}`,   // Accounts for colon before identifier (e.g., Product:4x5)
+      `(${id})`, // Accounts for (identifier) (e.g., Product(4x5))
+      `(${id}`    // Accounts for (identifier (e.g., Product(4x5 (less common, but requested)
+    ];
+    
+    for (const pattern of patternsToTest) {
+        if (nameWorkInProgress.endsWith(pattern)) {
+            return {
+                baseName: nameWorkInProgress.substring(0, nameWorkInProgress.length - pattern.length).trim(), // Trim any trailing space from basename
+                detectedRatio: id
+            };
+        }
+    }
+  }
+  
+  // If no specific ratio pattern is found after cleaning suffixes,
+  // the remaining nameWorkInProgress is the baseName.
+  return { baseName: nameWorkInProgress.trim(), detectedRatio: null };
+};
+
+const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, onAssetsImported, brandId }) => {
+  const [selectedFiles, setSelectedFiles] = useState<AssetFile[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false); // For overall processing state
+  const { user } = useGlobal(); // Get user from global context
+
+  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files) {
+      const newFiles: AssetFile[] = Array.from(event.target.files).map(file => ({
+        file,
+        id: `${file.name}-${file.lastModified}-${file.size}`,
+        // previewUrl: URL.createObjectURL(file) // Create for images, remember to revoke
+      }));
+      setSelectedFiles(prev => [...prev, ...newFiles]);
+    }
+  };
+
+  const handleDrop = useCallback((event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setIsDragging(false);
+    if (event.dataTransfer.files && event.dataTransfer.files.length > 0) {
+      const newFiles: AssetFile[] = Array.from(event.dataTransfer.files).map(file => ({
+        file,
+        id: `${file.name}-${file.lastModified}-${file.size}`,
+      }));
+      setSelectedFiles(prev => [...prev, ...newFiles]);
+      event.dataTransfer.clearData();
+    }
+  }, []);
+
+  const handleDragOver = useCallback((event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!isDragging) setIsDragging(true);
+  }, [isDragging]);
+
+  const handleDragLeave = useCallback((event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setIsDragging(false);
+  }, []);
+
+  const removeFile = (fileId: string) => {
+    setSelectedFiles(prev => prev.filter(f => f.id !== fileId));
+  };
+
+  const processAndImport = async () => {
+    if (!user || !brandId) {
+        console.error("User or Brand ID is missing. Cannot upload.");
+        // Optionally, show an error to the user
+        alert("User or Brand ID is missing. Please ensure you are logged in and a brand is selected.");
+        return;
+    }
+    if (selectedFiles.length === 0) return;
+
+    setIsProcessing(true);
+    setSelectedFiles(prevFiles => prevFiles.map(sf => ({ ...sf, uploading: true, uploadError: null })));
+
+    const supabase = createSPAClient();
+    const processedAssetGroups: ImportedAssetGroup[] = [];
+
+    // Pre-process files to get base names and detected ratios
+    const processedSelectedFiles: ProcessedAssetFile[] = selectedFiles.map(sf => {
+      const { baseName, detectedRatio } = getBaseNameAndRatio(sf.file.name, DEFAULT_ASPECT_RATIO_IDENTIFIERS, KNOWN_FILENAME_SUFFIXES_TO_REMOVE);
+      return { ...sf, baseName, detectedRatio };
+    });
+
+    // Group files by the extracted baseName
+    const filesByBaseName: Record<string, ProcessedAssetFile[]> = {};
+    processedSelectedFiles.forEach(psf => {
+      const key = psf.baseName || psf.file.name; // Fallback to full filename if baseName is somehow empty
+      if (!filesByBaseName[key]) {
+        filesByBaseName[key] = [];
+      }
+      filesByBaseName[key].push(psf);
+    });
+    
+    for (const groupNameKey in filesByBaseName) { // groupNameKey is the baseName
+        const filesInGroup = filesByBaseName[groupNameKey];
+        const uploadedGroupFiles: ImportedAssetGroup['files'] = [];
+        const aspectRatiosInThisGroup: string[] = [];
+
+        for (const assetFile of filesInGroup) { // assetFile is ProcessedAssetFile here
+            const file = assetFile.file;
+            // Use groupNameKey for the asset group name, which is the common base name
+            const filePath = `${user.id}/${brandId}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '')}`;
+
+            try {
+                const { data, error } = await supabase.storage
+                    .from('ad-creatives') // Your bucket name
+                    .upload(filePath, file, {
+                        cacheControl: '3600',
+                        upsert: false, // true if you want to overwrite
+                    });
+
+                if (error) {
+                    throw error;
+                }
+
+                if (data) {
+                    // Get public URL (or construct it if your RLS allows public reads with a known path structure)
+                    const { data: { publicUrl } } = supabase.storage.from('ad-creatives').getPublicUrl(filePath);
+                    
+                    if (!publicUrl) {
+                        throw new Error('Could not get public URL for uploaded file.');
+                    }
+
+                    uploadedGroupFiles.push({
+                        id: assetFile.id,
+                        name: file.name,
+                        supabaseUrl: publicUrl,
+                        type: file.type.startsWith('image/') ? 'image' : 'video',
+                        // aspectRatios can be determined here if needed
+                    });
+                    
+                    // Collect detected ratios for the group
+                    if (assetFile.detectedRatio) {
+                        aspectRatiosInThisGroup.push(assetFile.detectedRatio);
+                    }
+
+                    setSelectedFiles(prev => prev.map(sf => sf.id === assetFile.id ? {...sf, uploading: false, supabaseUrl: publicUrl} : sf));
+                }
+            } catch (e: unknown) {
+                const uploadError = e as Error | { message: string } | string;
+                console.error(`Failed to upload ${file.name}:`, uploadError);
+                const errorMessage = typeof uploadError === 'string' ? uploadError : (uploadError as Error)?.message || 'Upload failed';
+                setSelectedFiles(prev => prev.map(sf => sf.id === assetFile.id ? {...sf, uploading: false, uploadError: errorMessage } : sf));
+                // Continue to next file, or handle error more globally for the group
+            }
+        }
+
+        if (uploadedGroupFiles.length > 0) {
+            processedAssetGroups.push({
+                groupName: groupNameKey, // Use the common baseName as the groupName
+                files: uploadedGroupFiles,
+                aspectRatiosDetected: [...new Set(aspectRatiosInThisGroup)] // Unique detected aspect ratios for this group
+            });
+        }
+    }
+    
+    onAssetsImported(processedAssetGroups);
+    setSelectedFiles([]); // Clear after successful import or if all failed but processed
+    setIsProcessing(false);
+    onClose();
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center z-50 p-4 transition-opacity duration-300 ease-in-out opacity-100">
+      <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-2xl transform transition-all duration-300 ease-in-out scale-100">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-semibold text-gray-800">Import Assets</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600" aria-label="Close modal">
+            <X size={24} />
+          </button>
+        </div>
+
+        <div className="space-y-6">
+          {/* File Upload Area */}
+          <div 
+            onDrop={handleDrop} 
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            className={`border-2 border-dashed rounded-md p-8 text-center cursor-pointer 
+                        ${isDragging ? 'border-primary-500 bg-primary-50' : 'border-gray-300 hover:border-gray-400'}`}
+          >
+            <input
+              type="file"
+              multiple
+              onChange={handleFileChange}
+              className="hidden"
+              id="file-upload-input"
+            />
+            <UploadCloud className={`mx-auto h-12 w-12 ${isDragging ? 'text-primary-600' : 'text-gray-400'}`} />
+            <label htmlFor="file-upload-input" className="mt-2 block text-sm font-medium text-primary-600 hover:text-primary-500 cursor-pointer">
+              <span>Click to upload</span> or drag and drop
+            </label>
+            <p className="mt-1 text-xs text-gray-500">Images or Videos (bulk select supported)</p>
+          </div>
+
+          {/* Selected Files Preview */}
+          {selectedFiles.length > 0 && (
+            <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-md p-3 space-y-2">
+                <h3 className="text-sm font-medium text-gray-700 mb-2">Selected Files: {selectedFiles.length}</h3>
+              {selectedFiles.map(assetFile => (
+                <div key={assetFile.id} className="flex items-center justify-between p-2 bg-gray-50 rounded text-sm">
+                  <div className="flex items-center">
+                    <span className="truncate text-gray-700 mr-2" title={assetFile.file.name}>{assetFile.file.name}</span>
+                    {assetFile.uploading && <Loader2 size={16} className="animate-spin text-primary-500" />}
+                    {assetFile.uploadError && <span className="text-xs text-red-500 ml-2">Error: {assetFile.uploadError}</span>}
+                    {assetFile.supabaseUrl && <Check size={16} className="text-green-500 ml-2" />}
+                  </div>
+                  <button 
+                    onClick={() => removeFile(assetFile.id)} 
+                    className="text-red-500 hover:text-red-700 ml-2" 
+                    aria-label={`Remove ${assetFile.file.name}`}
+                    disabled={assetFile.uploading || isProcessing}
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Grouping Options - This section can be removed or simplified as grouping is now name-based */}
+          {/* For now, let's hide it to simplify the UI, focusing on upload functionality */}
+          {/* 
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Asset Grouping</label>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mt-1">
+              {(Object.keys(groupingOptionsDisplay) as GroupingOption[]).map(key => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setGroupingOption(key)}
+                  className={`flex-1 sm:flex-initial flex items-center justify-center px-4 py-2.5 border rounded-md text-sm font-medium focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-primary-500 transition-colors
+                    ${groupingOption === key 
+                        ? 'bg-primary-600 text-white border-primary-600 shadow-sm' 
+                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
+                >
+                  {groupingOptionsDisplay[key].icon}
+                  {groupingOptionsDisplay[key].label}
+                </button>
+              ))}
+            </div>
+             <p className="mt-2 text-xs text-gray-500">{groupingOptionsDisplay[groupingOption].description}</p>
+          </div>
+          */}
+        </div>
+
+        {/* Action Buttons */}
+        <div className="mt-8 pt-5 border-t border-gray-200 flex justify-end space-x-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={processAndImport}
+            disabled={selectedFiles.length === 0 || isProcessing || selectedFiles.some(f => f.uploading)}
+            className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 border border-transparent rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isProcessing ? 
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing...</> : 
+                <><Check className="mr-2 h-4 w-4" /> Import {selectedFiles.length > 0 ? `(${selectedFiles.length})` : ''} Assets</>
+            }
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Commenting out or removing the old grouping options UI and logic
+// const groupingOptionsDisplay: Record<GroupingOption, {label: string, description: string, icon: React.ReactElement}> = {
+//   individual: {
+//     label: 'Individual Assets',
+//     description: 'Each file will be treated as a separate ad creative.',
+//     icon: <FileText size={18} className="mr-2"/>
+//   },
+//   pairs: {
+//     label: 'Group by Name (Pairs)',
+//     description: 'Group files by name for 2 aspect ratios (e.g., name_1x1, name_9x16). Assumes two files per group.',
+//     icon: <Users size={18} className="mr-2" />
+//   },
+//   triples: {
+//     label: 'Group by Name (Triples)',
+//     description: 'Group files by name for 3 aspect ratios. Assumes three files per group.',
+//     icon: <Users size={18} className="mr-2" />
+//   }
+// };
+
+export default AssetImportModal; 

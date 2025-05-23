@@ -11,6 +11,7 @@ import {
     ChevronDown,
     LogOut,
     Key, Presentation, Film,
+    UploadCloud,
 } from 'lucide-react';
 import { useGlobal } from "@/lib/context/GlobalContext";
 import { createSPASassClient } from "@/lib/supabase/client";
@@ -76,6 +77,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             icon: Film,
             badge: pendingReviewsCount > 0 ? pendingReviewsCount : null
         },
+        { name: 'Ad Upload Tool', href: '/app/ad-upload-tool', icon: UploadCloud },
         { name: 'User Settings', href: '/app/user-settings', icon: User },
     ];
 

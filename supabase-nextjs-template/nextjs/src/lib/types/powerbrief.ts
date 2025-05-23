@@ -63,6 +63,7 @@ export interface Brand {
   system_instructions_image?: string;
   system_instructions_video?: string;
   elevenlabs_api_key?: string;
+  adAccountId?: string;
   created_at: string;
   updated_at: string;
 }
