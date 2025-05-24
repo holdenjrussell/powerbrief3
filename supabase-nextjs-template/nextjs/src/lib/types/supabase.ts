@@ -57,6 +57,7 @@ export type Database = {
         Row: {
           ad_name: string
           ad_set_id: string | null
+          ad_batch_id: string | null
           app_status: string
           brand_id: string
           call_to_action: string | null
@@ -74,6 +75,7 @@ export type Database = {
         Insert: {
           ad_name: string
           ad_set_id?: string | null
+          ad_batch_id?: string | null
           app_status?: string
           brand_id: string
           call_to_action?: string | null
@@ -91,6 +93,7 @@ export type Database = {
         Update: {
           ad_name?: string
           ad_set_id?: string | null
+          ad_batch_id?: string | null
           app_status?: string
           brand_id?: string
           call_to_action?: string | null
@@ -111,6 +114,13 @@ export type Database = {
             columns: ["brand_id"]
             isOneToOne: false
             referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ad_drafts_ad_batch_id_fkey"
+            columns: ["ad_batch_id"]
+            isOneToOne: false
+            referencedRelation: "ad_batches"
             referencedColumns: ["id"]
           },
         ]

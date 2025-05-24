@@ -548,6 +548,7 @@ export type Database = {
           id: string
           user_id: string
           brand_id: string
+          ad_batch_id: string | null
           ad_name: string
           primary_text: string | null
           headline: string | null
@@ -565,6 +566,7 @@ export type Database = {
           id?: string
           user_id: string
           brand_id: string
+          ad_batch_id?: string | null
           ad_name: string
           primary_text?: string | null
           headline?: string | null
@@ -582,6 +584,7 @@ export type Database = {
           id?: string
           user_id?: string
           brand_id?: string
+          ad_batch_id?: string | null
           ad_name?: string
           primary_text?: string | null
           headline?: string | null
@@ -606,6 +609,12 @@ export type Database = {
             foreignKeyName: "ad_drafts_user_id_fkey"
             columns: ["user_id"]
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ad_drafts_ad_batch_id_fkey"
+            columns: ["ad_batch_id"]
+            referencedRelation: "ad_batches"
             referencedColumns: ["id"]
           }
         ]
