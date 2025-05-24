@@ -22,6 +22,10 @@ export async function getBrandById(brandId) {
         .eq('id', brandId)
         .single();
     if (error) {
+        // If the error is "no rows found", return null instead of throwing
+        if (error.code === 'PGRST116') {
+            return null;
+        }
         console.error('Error fetching brand:', error);
         throw error;
     }

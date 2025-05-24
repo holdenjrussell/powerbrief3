@@ -64,6 +64,16 @@ export interface Brand {
   system_instructions_video?: string;
   elevenlabs_api_key?: string;
   adAccountId?: string;
+  // Meta Integration fields
+  meta_access_token?: string | null;
+  meta_access_token_iv?: string | null;
+  meta_access_token_auth_tag?: string | null;
+  meta_access_token_expires_at?: string | null;
+  meta_user_id?: string | null;
+  meta_ad_account_id?: string | null;
+  meta_facebook_page_id?: string | null;
+  meta_instagram_actor_id?: string | null;
+  meta_pixel_id?: string | null;
   created_at: string;
   updated_at: string;
 }

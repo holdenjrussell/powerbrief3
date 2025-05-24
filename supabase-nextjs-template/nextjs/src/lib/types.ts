@@ -83,6 +83,21 @@ export type Database = {
           system_instructions_image?: string
           system_instructions_video?: string
           elevenlabs_api_key?: string
+          ad_account_id?: string
+          meta_access_token?: string
+          meta_access_token_iv?: string
+          meta_access_token_auth_tag?: string
+          meta_access_token_expires_at?: string
+          meta_user_id?: string
+          meta_ad_account_id?: string
+          meta_facebook_page_id?: string
+          meta_instagram_account_id?: string
+          meta_pixel_id?: string
+          organization_id?: string
+          ugc_filming_instructions?: string
+          ugc_company_description?: string
+          ugc_default_system_instructions?: string
+          ugc_guide_description?: string
           created_at: string
           updated_at: string
         }
@@ -101,6 +116,21 @@ export type Database = {
           system_instructions_image?: string
           system_instructions_video?: string
           elevenlabs_api_key?: string
+          ad_account_id?: string
+          meta_access_token?: string
+          meta_access_token_iv?: string
+          meta_access_token_auth_tag?: string
+          meta_access_token_expires_at?: string
+          meta_user_id?: string
+          meta_ad_account_id?: string
+          meta_facebook_page_id?: string
+          meta_instagram_account_id?: string
+          meta_pixel_id?: string
+          organization_id?: string
+          ugc_filming_instructions?: string
+          ugc_company_description?: string
+          ugc_default_system_instructions?: string
+          ugc_guide_description?: string
           created_at?: string
           updated_at?: string
         }
@@ -119,6 +149,21 @@ export type Database = {
           system_instructions_image?: string
           system_instructions_video?: string
           elevenlabs_api_key?: string
+          ad_account_id?: string
+          meta_access_token?: string
+          meta_access_token_iv?: string
+          meta_access_token_auth_tag?: string
+          meta_access_token_expires_at?: string
+          meta_user_id?: string
+          meta_ad_account_id?: string
+          meta_facebook_page_id?: string
+          meta_instagram_account_id?: string
+          meta_pixel_id?: string
+          organization_id?: string
+          ugc_filming_instructions?: string
+          ugc_company_description?: string
+          ugc_default_system_instructions?: string
+          ugc_guide_description?: string
           created_at?: string
           updated_at?: string
         }
@@ -494,6 +539,116 @@ export type Database = {
             foreignKeyName: "ugc_creator_scripts_linked_brief_batch_id_fkey"
             columns: ["linked_brief_batch_id"]
             referencedRelation: "brief_batches"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      ad_drafts: {
+        Row: {
+          id: string
+          user_id: string
+          brand_id: string
+          ad_name: string
+          primary_text: string | null
+          headline: string | null
+          description: string | null
+          campaign_id: string | null
+          ad_set_id: string | null
+          destination_url: string | null
+          call_to_action: string | null
+          meta_status: string
+          app_status: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          brand_id: string
+          ad_name: string
+          primary_text?: string | null
+          headline?: string | null
+          description?: string | null
+          campaign_id?: string | null
+          ad_set_id?: string | null
+          destination_url?: string | null
+          call_to_action?: string | null
+          meta_status: string
+          app_status?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          brand_id?: string
+          ad_name?: string
+          primary_text?: string | null
+          headline?: string | null
+          description?: string | null
+          campaign_id?: string | null
+          ad_set_id?: string | null
+          destination_url?: string | null
+          call_to_action?: string | null
+          meta_status?: string
+          app_status?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ad_drafts_brand_id_fkey"
+            columns: ["brand_id"]
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ad_drafts_user_id_fkey"
+            columns: ["user_id"]
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      ad_draft_assets: {
+        Row: {
+          id: string
+          ad_draft_id: string
+          name: string
+          supabase_url: string
+          type: string
+          meta_hash: string | null
+          meta_video_id: string | null
+          meta_upload_error: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          ad_draft_id: string
+          name: string
+          supabase_url: string
+          type: string
+          meta_hash?: string | null
+          meta_video_id?: string | null
+          meta_upload_error?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          ad_draft_id?: string
+          name?: string
+          supabase_url?: string
+          type?: string
+          meta_hash?: string | null
+          meta_video_id?: string | null
+          meta_upload_error?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ad_draft_assets_ad_draft_id_fkey"
+            columns: ["ad_draft_id"]
+            referencedRelation: "ad_drafts"
             referencedColumns: ["id"]
           }
         ]

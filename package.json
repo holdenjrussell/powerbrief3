@@ -20,6 +20,7 @@
     "gen-migrations": "npx supabase gen types typescript --local --schema public > supabase-nextjs-template/nextjs/src/lib/supabase/types.ts"
   },
   "devDependencies": {
-    "@tailwindcss/typography": "^0.5.16"
+    "@tailwindcss/typography": "^0.5.16",
+    "@types/node": "^22.15.21"
   }
 }

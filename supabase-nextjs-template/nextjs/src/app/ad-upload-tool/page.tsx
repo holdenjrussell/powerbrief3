@@ -3,14 +3,20 @@ import React, { useState } from 'react';
 import AdBatchCreator from '@/components/ad-upload-tool/AdBatchCreator';
 import AdSheetView from '@/components/ad-upload-tool/AdSheetView';
 
-// Define DefaultValues interface (can be moved to a types file later)
+// Updated DefaultValues interface to match AdBatchCreator and AdSheetView
 interface DefaultValues {
   brandId: string | null;
+  adAccountId: string | null;
   fbPage: string;
   igAccount: string;
   urlParams: string;
   pixel: string;
   status: 'ACTIVE' | 'PAUSED';
+  primaryText: string; 
+  headline: string;    
+  description: string; 
+  destinationUrl: string; 
+  callToAction: string;  
 }
 
 const AdUploadToolPage = () => {
@@ -24,7 +30,7 @@ const AdUploadToolPage = () => {
 
   const handleGoBackToConfig = () => {
     setShowSheet(false);
-    setCurrentDefaults(null);
+    setCurrentDefaults(null); // Optionally clear defaults when going back
   };
 
   return (
@@ -39,6 +45,8 @@ const AdUploadToolPage = () => {
       ) : (
         currentDefaults && <AdSheetView defaults={currentDefaults} onGoBack={handleGoBackToConfig} />
       )}
+      
+      {/* The back button is now part of AdSheetView to keep related controls together */}
     </div>
   );
 };

@@ -1,9 +1,11 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-import { ChevronDown, Facebook, Instagram, Link as LinkIcon, Activity, CheckCircle, Settings, Type, AlignLeft, Maximize2, MessageSquare } from 'lucide-react';
+import { ChevronDown, Facebook, Instagram, Link as LinkIcon, Activity, CheckCircle, Settings, Type, AlignLeft, Maximize2, MessageSquare, Target } from 'lucide-react';
 import { getBrands } from '@/lib/services/powerbriefService'; // Import getBrands
 import { useGlobal } from '@/lib/context/GlobalContext'; // Import useGlobal to get user ID
 import { Brand as PowerBriefBrand } from '@/lib/types/powerbrief'; // Import the Brand type from powerbrief
+import MetaCampaignSelector from './MetaCampaignSelector'; // Import new component
+import MetaAdSetSelector from './MetaAdSetSelector'; // Import new component
 
 // Mock data for brands - replace with actual data fetching later
 // const mockBrands = [
@@ -25,6 +27,8 @@ interface Brand {
 interface DefaultValues {
   brandId: string | null;
   adAccountId: string | null;
+  campaignId: string | null; // Added campaignId
+  adSetId: string | null;    // Added adSetId
   fbPage: string;
   igAccount: string;
   urlParams: string;
@@ -53,9 +57,13 @@ const AdBatchCreator: React.FC<AdBatchCreatorProps> = ({ onDefaultsSet }) => {
   const [brands, setBrands] = useState<Brand[]>([]); // Initialize with empty array
   const [isLoadingBrands, setIsLoadingBrands] = useState<boolean>(true);
   const [selectedBrand, setSelectedBrand] = useState<Brand | null>(null);
+  const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null); // New state
+  const [selectedAdSetId, setSelectedAdSetId] = useState<string | null>(null);    // New state
   const [defaultValues, setDefaultValues] = useState<DefaultValues>({
     brandId: null,
     adAccountId: null,
+    campaignId: null, // Initialize new field
+    adSetId: null,    // Initialize new field
     fbPage: '',
     igAccount: '',
     urlParams: '',
@@ -84,11 +92,11 @@ const AdBatchCreator: React.FC<AdBatchCreatorProps> = ({ onDefaultsSet }) => {
           const mappedBrands: Brand[] = fetchedBrands.map(b => ({
             id: b.id,
             name: b.name,
-            // Adjusted mappings based on the PowerBriefBrand structure:
-            fbPage: '', // No direct equivalent in PowerBriefBrand, set to empty or adjust as needed
-            igAccount: '', // No direct equivalent in PowerBriefBrand, set to empty or adjust as needed
-            pixel: '', // No direct equivalent in PowerBriefBrand, set to empty or adjust as needed
-            adAccountId: b.adAccountId || '', // Use adAccountId from PowerBriefBrand
+            // Use Meta integration fields from PowerBriefBrand:
+            fbPage: b.meta_facebook_page_id || '', // Use Meta Facebook Page ID
+            igAccount: b.meta_instagram_actor_id || '', // Use Meta Instagram Account ID
+            pixel: b.meta_pixel_id || '', // Use Meta Pixel ID
+            adAccountId: b.meta_ad_account_id || '', // Use Meta Ad Account ID
           }));
           setBrands(mappedBrands);
         } catch (error) {
@@ -106,10 +114,14 @@ const AdBatchCreator: React.FC<AdBatchCreatorProps> = ({ onDefaultsSet }) => {
     const brand = brands.find(b => b.id === brandId);
     if (brand) {
       setSelectedBrand(brand);
+      setSelectedCampaignId(null); // Reset campaign on brand change
+      setSelectedAdSetId(null);    // Reset ad set on brand change
       setDefaultValues(prev => ({
         ...prev,
         brandId: brand.id,
         adAccountId: brand.adAccountId,
+        campaignId: null, // Reset campaignId in defaults
+        adSetId: null,    // Reset adSetId in defaults
         fbPage: brand.fbPage,       // Pre-fill from brand data
         igAccount: brand.igAccount, // Pre-fill from brand data
         pixel: brand.pixel,         // Pre-fill from brand data
@@ -119,7 +131,39 @@ const AdBatchCreator: React.FC<AdBatchCreatorProps> = ({ onDefaultsSet }) => {
         destinationUrl: prev.destinationUrl,
         callToAction: prev.callToAction,
       }));
+    } else {
+      setSelectedBrand(null);
+      setSelectedCampaignId(null);
+      setSelectedAdSetId(null);
+      setDefaultValues(prev => ({
+        ...prev,
+        brandId: null,
+        adAccountId: null,
+        campaignId: null,
+        adSetId: null,
+        fbPage: '',
+        igAccount: '',
+        pixel: '',
+      }));
     }
+  };
+
+  const handleCampaignSelect = (campaignId: string | null) => {
+    setSelectedCampaignId(campaignId);
+    setSelectedAdSetId(null); // Reset ad set when campaign changes
+    setDefaultValues(prev => ({
+      ...prev,
+      campaignId: campaignId,
+      adSetId: null, // Reset adSetId in defaults
+    }));
+  };
+
+  const handleAdSetSelect = (adSetId: string | null) => {
+    setSelectedAdSetId(adSetId);
+    setDefaultValues(prev => ({
+      ...prev,
+      adSetId: adSetId,
+    }));
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -133,8 +177,17 @@ const AdBatchCreator: React.FC<AdBatchCreatorProps> = ({ onDefaultsSet }) => {
       alert('Please select a brand.'); // Replace with better UI feedback
       return;
     }
-    console.log('Default values set:', defaultValues);
-    onDefaultsSet(defaultValues);
+    if (!selectedCampaignId) { // Ensure campaign is selected
+        alert('Please select a campaign.');
+        return;
+    }
+    // Ad set selection could be optional depending on requirements
+    // if (!selectedAdSetId) {
+    //   alert('Please select an ad set.');
+    //   return;
+    // }
+    console.log('Default values set:', { ...defaultValues, campaignId: selectedCampaignId, adSetId: selectedAdSetId });
+    onDefaultsSet({ ...defaultValues, campaignId: selectedCampaignId, adSetId: selectedAdSetId });
   };
 
   return (
@@ -170,52 +223,109 @@ const AdBatchCreator: React.FC<AdBatchCreatorProps> = ({ onDefaultsSet }) => {
         {selectedBrand && (
           <>
             <h3 className="text-xl font-medium text-gray-600 mt-8 mb-4 border-b pb-2">Configure Default Ad Values</h3>
+            
+            {/* Meta Assets Section */}
+            <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <h4 className="text-sm font-medium text-blue-800 mb-3 flex items-center">
+                <Facebook className="h-4 w-4 mr-2" />
+                Meta Integration Assets
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <Target className="inline-block mr-2 h-4 w-4 text-green-500" /> Ad Account ID
+                  </label>
+                  <div className="p-2 bg-white border border-gray-200 rounded-md text-sm text-gray-600">
+                    {defaultValues.adAccountId || 'Not connected - Please set up Meta integration in brand settings'}
+                  </div>
+                </div>
+                {/* Campaign Selector - Moved here, after Ad Account ID */}
+                {defaultValues.adAccountId && selectedBrand && (
+                    <div className="mb-0"> {/* Adjusted margin for inline feel if needed */}
+                    <MetaCampaignSelector
+                        brandId={selectedBrand.id}
+                        adAccountId={defaultValues.adAccountId}
+                        selectedCampaignId={selectedCampaignId}
+                        onCampaignSelect={handleCampaignSelect}
+                        disabled={!defaultValues.adAccountId}
+                    />
+                    </div>
+                )}
+                {/* Ad Set Selector - Moved here, after Campaign Selector */}
+                {selectedCampaignId && defaultValues.adAccountId && selectedBrand && (
+                    <div className="mb-0"> {/* Adjusted margin */}
+                    <MetaAdSetSelector
+                        brandId={selectedBrand.id}
+                        adAccountId={defaultValues.adAccountId}
+                        campaignId={selectedCampaignId}
+                        selectedAdSetId={selectedAdSetId}
+                        onAdSetSelect={handleAdSetSelect}
+                        disabled={!selectedCampaignId}
+                    />
+                    </div>
+                )}
+                 <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <Facebook className="inline-block mr-2 h-4 w-4 text-blue-600" /> Facebook Page
+                  </label>
+                  <div className="p-2 bg-white border border-gray-200 rounded-md text-sm text-gray-600">
+                    {defaultValues.fbPage || 'Not connected - Please set up Meta integration in brand settings'}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <Instagram className="inline-block mr-2 h-4 w-4 text-pink-500" /> Instagram Account
+                  </label>
+                  <div className="p-2 bg-white border border-gray-200 rounded-md text-sm text-gray-600">
+                    {defaultValues.igAccount || 'Not connected - Please set up Meta integration in brand settings'}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <Activity className="inline-block mr-2 h-4 w-4 text-red-500" /> Facebook Pixel ID
+                  </label>
+                  <div className="p-2 bg-white border border-gray-200 rounded-md text-sm text-gray-600">
+                    {defaultValues.pixel || 'Not connected - Please set up Meta integration in brand settings'}
+                  </div>
+                </div>
+              </div>
+              {(!defaultValues.fbPage || !defaultValues.igAccount || !defaultValues.pixel || !defaultValues.adAccountId) && (
+                <div className="mt-3 p-2 bg-yellow-50 border border-yellow-200 rounded-md">
+                  <p className="text-xs text-yellow-800">
+                    ⚠️ Some Meta assets are missing. Please complete the Meta integration in your brand settings to enable full functionality.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Campaign Selector - Conditionally Rendered */}
+            {defaultValues.adAccountId && (
+              <div className="mb-4">
+                 <MetaCampaignSelector
+                  brandId={selectedBrand.id}
+                  adAccountId={defaultValues.adAccountId}
+                  selectedCampaignId={selectedCampaignId}
+                  onCampaignSelect={handleCampaignSelect}
+                  disabled={!defaultValues.adAccountId}
+                />
+              </div>
+            )}
+
+            {/* Ad Set Selector - Conditionally Rendered */}
+            {selectedCampaignId && defaultValues.adAccountId && (
+              <div className="mb-4">
+                <MetaAdSetSelector
+                  brandId={selectedBrand.id}
+                  adAccountId={defaultValues.adAccountId} // Pass adAccountId for completeness or future use
+                  campaignId={selectedCampaignId}
+                  selectedAdSetId={selectedAdSetId}
+                  onAdSetSelect={handleAdSetSelect}
+                  disabled={!selectedCampaignId}
+                />
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
-              <div>
-                <label htmlFor="fbPage" className="block text-sm font-medium text-gray-700 mb-1">
-                  <Facebook className="inline-block mr-2 h-4 w-4 text-blue-600" /> Facebook Page
-                </label>
-                <input
-                  type="text"
-                  name="fbPage"
-                  id="fbPage"
-                  value={defaultValues.fbPage}
-                  onChange={handleInputChange}
-                  className="default-input"
-                  placeholder="Your Facebook Page"
-                  required
-                />
-              </div>
-              <div>
-                <label htmlFor="igAccount" className="block text-sm font-medium text-gray-700 mb-1">
-                  <Instagram className="inline-block mr-2 h-4 w-4 text-pink-500" /> Instagram Account
-                </label>
-                <input
-                  type="text"
-                  name="igAccount"
-                  id="igAccount"
-                  value={defaultValues.igAccount}
-                  onChange={handleInputChange}
-                  className="default-input"
-                  placeholder="Your Instagram Handle"
-                  required
-                />
-              </div>
-              <div>
-                <label htmlFor="pixel" className="block text-sm font-medium text-gray-700 mb-1">
-                  <Activity className="inline-block mr-2 h-4 w-4 text-red-500" /> Facebook Pixel ID
-                </label>
-                <input
-                  type="text"
-                  name="pixel"
-                  id="pixel"
-                  value={defaultValues.pixel}
-                  onChange={handleInputChange}
-                  className="default-input"
-                  placeholder="Pixel ID"
-                  required
-                />
-              </div>
               <div>
                 <label htmlFor="destinationUrl" className="block text-sm font-medium text-gray-700 mb-1">
                   <LinkIcon className="inline-block mr-2 h-4 w-4 text-gray-500" /> Default Destination URL
@@ -337,7 +447,7 @@ const AdBatchCreator: React.FC<AdBatchCreatorProps> = ({ onDefaultsSet }) => {
         <div className="pt-6 text-right">
           <button
             type="submit"
-            disabled={!selectedBrand}
+            disabled={!selectedBrand || !selectedCampaignId } // Also disable if campaign not selected
             className="inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <CheckCircle className="mr-2 h-5 w-5" />
