@@ -24,6 +24,10 @@ interface AdBatch {
   last_accessed_at?: string;
   created_at?: string;
   updated_at?: string;
+  // New Meta features
+  site_links?: any;
+  info_labels?: any;
+  advantage_plus_creative?: any;
 }
 
 // GET - Fetch ad batches for a brand or user's active batch

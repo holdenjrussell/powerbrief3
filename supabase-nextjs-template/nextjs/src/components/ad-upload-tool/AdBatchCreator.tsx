@@ -6,6 +6,9 @@ import { useGlobal } from '@/lib/context/GlobalContext'; // Import useGlobal to 
 import { Brand as PowerBriefBrand } from '@/lib/types/powerbrief'; // Import the Brand type from powerbrief
 import MetaCampaignSelector from './MetaCampaignSelector'; // Import new component
 import MetaAdSetSelector from './MetaAdSetSelector'; // Import new component
+import SiteLinksManager from './SiteLinksManager';
+import AdvantageCreativeManager from './AdvantageCreativeManager';
+import { SiteLink, AdvantageCreativeEnhancements } from './adUploadTypes';
 
 // Updated Brand interface to match PowerBriefBrand structure for necessary fields
 interface Brand {
@@ -32,7 +35,10 @@ interface DefaultValues {
   headline: string;
   description: string;
   destinationUrl: string;
-  callToAction: string; 
+  callToAction: string;
+  // New Meta features
+  siteLinks: SiteLink[];
+  advantageCreative: AdvantageCreativeEnhancements;
 }
 
 interface AdBatch {
@@ -92,6 +98,25 @@ const AdBatchCreator: React.FC<AdBatchCreatorProps> = ({ onDefaultsSet, initialD
     description: '',                     // Optional, so can be empty
     destinationUrl: 'https://example.com', // Example default
     callToAction: callToActionOptions[0], // Default to first CTA
+    // Initialize new Meta features
+    siteLinks: [],
+    advantageCreative: {
+      inline_comment: false,
+      image_templates: false,
+      image_touchups: false,
+      video_auto_crop: false,
+      image_brightness_and_contrast: false,
+      enhance_cta: false,
+      text_optimizations: false,
+      image_background_gen: false,
+      image_uncrop: false,
+      adapt_to_placement: false,
+      media_type_automation: false,
+      product_extensions: false,
+      description_automation: false,
+      add_text_overlay: false,
+      site_extensions: false
+    }
   });
 
   // Effect to load initial defaults when provided
@@ -481,6 +506,27 @@ const AdBatchCreator: React.FC<AdBatchCreatorProps> = ({ onDefaultsSet, initialD
                   onChange={handleInputChange}
                   className="default-input"
                   placeholder="Short description..."
+                />
+              </div>
+            </div>
+
+            {/* Meta Features Section */}
+            <div className="mt-8 space-y-6">
+              <h3 className="text-xl font-medium text-gray-600 border-b pb-2">Advanced Meta Features</h3>
+              
+              {/* Site Links */}
+              <div className="bg-white p-4 border border-gray-200 rounded-lg">
+                <SiteLinksManager
+                  siteLinks={defaultValues.siteLinks}
+                  onChange={(siteLinks) => setDefaultValues(prev => ({ ...prev, siteLinks }))}
+                />
+              </div>
+
+              {/* Advantage+ Creative */}
+              <div className="bg-white p-4 border border-gray-200 rounded-lg">
+                <AdvantageCreativeManager
+                  advantageCreative={defaultValues.advantageCreative}
+                  onChange={(advantageCreative) => setDefaultValues(prev => ({ ...prev, advantageCreative }))}
                 />
               </div>
             </div>

@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { AdDraft, AdDraftAsset } from '@/components/ad-upload-tool/adUploadTypes';
 import { createSSRClient } from '@/lib/supabase/server';
 import { decryptToken } from '@/lib/utils/tokenEncryption';
-import { Database } from '@/lib/types'; 
-import { SupabaseClient } from '@supabase/supabase-js'; // Import SupabaseClient for explicit typing
 
 interface LaunchAdsRequestBody {
   drafts: AdDraft[];
@@ -29,18 +27,6 @@ interface ProcessedAdDraftAsset extends AdDraftAsset {
   metaUploadError?: string;
 }
 
-// Add new interface for Ad Creative response
-interface AdCreativeResponse {
-  id?: string;
-  error?: { // More specific error typing
-    message: string;
-    type: string;
-    code: number;
-    error_subcode?: number;
-    fbtrace_id?: string;
-  };
-}
-
 // Add new interface for Ad response
 interface AdResponse {
   id?: string;
@@ -54,6 +40,30 @@ interface AdResponse {
 }
 
 const META_API_VERSION = process.env.META_API_VERSION || 'v22.0';
+
+// Helper function to extract aspect ratio from filename as fallback
+const detectAspectRatioFromFilename = (filename: string): string | null => {
+  const identifiers = ['1x1', '9x16', '16x9', '4x5', '2x3', '3x2', '1:1', '9:16', '16:9', '4:5', '2:3', '3:2'];
+  
+  for (const id of identifiers) {
+    const patternsToTest = [
+      `_${id}`,
+      `-${id}`,
+      ` - ${id}`,
+      `:${id}`,
+      `(${id})`,
+      `(${id}`
+    ];
+    
+    for (const pattern of patternsToTest) {
+      if (filename.includes(pattern)) {
+        return id;
+      }
+    }
+  }
+  
+  return null;
+};
 
 export async function POST(req: NextRequest) {
   try {
@@ -90,7 +100,7 @@ export async function POST(req: NextRequest) {
       instagramUserIdLength: instagramUserId ? instagramUserId.length : 0
     });
 
-    const supabase: SupabaseClient<Database> = await createSSRClient(); // Explicitly type supabase client and await
+    const supabase = await createSSRClient(); // Supabase client
     
     const { data: brandData, error: brandError } = await supabase
       .from('brands')
@@ -241,141 +251,376 @@ export async function POST(req: NextRequest) {
 
     // Now, iterate through draftsWithMetaAssets to create Ad Creatives and Ads
     for (const draft of draftsWithMetaAssets) {
-      let adCreativeId: string | undefined = undefined;
       let adId: string | undefined = undefined;
       let finalStatus = 'ASSETS_PROCESSED'; // Default status after asset processing
-      let creativeError: string | undefined = undefined;
       let adError: string | undefined = undefined;
 
       console.log(`[Launch API] Processing for Ad/Creative creation: ${draft.adName}`);
 
-      // 1. Select Asset for Creative
-      const selectedAsset = draft.assets.find(
-        (asset: ProcessedAdDraftAsset) => (asset.metaHash || asset.metaVideoId) && !asset.metaUploadError
-      ) as ProcessedAdDraftAsset | undefined;
+      // Debug: Log all assets and their properties
+      console.log(`[Launch API]     Assets for ${draft.adName}:`);
+      (draft.assets as ProcessedAdDraftAsset[]).forEach((asset, index) => {
+        console.log(`[Launch API]       Asset ${index}: ${asset.name}`);
+        console.log(`[Launch API]         - Type: ${asset.type}`);
+        console.log(`[Launch API]         - AspectRatios: ${(asset as ProcessedAdDraftAsset).aspectRatios || 'N/A'}`);
+        console.log(`[Launch API]         - MetaHash: ${(asset as ProcessedAdDraftAsset).metaHash || 'N/A'}`);
+        console.log(`[Launch API]         - MetaVideoId: ${(asset as ProcessedAdDraftAsset).metaVideoId || 'N/A'}`);
+        console.log(`[Launch API]         - Upload Error: ${(asset as ProcessedAdDraftAsset).metaUploadError || 'None'}`);
+      });
 
-      if (!selectedAsset) {
-        console.error(`[Launch API] No successfully uploaded asset found for draft: ${draft.adName}`);
-        finalStatus = 'NO_VALID_ASSET_FOR_CREATIVE';
-        creativeError = 'No successfully uploaded asset found for creative creation.';
-      } else {
-        console.log(`[Launch API]   Selected asset for creative: ${selectedAsset.name} (Type: ${selectedAsset.type})`);
-        // 2. Create Ad Creative
-        try {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const creativePayload: any = {
-            name: `Creative for ${draft.adName}`,
-            access_token: accessToken,
-            object_story_spec: {
-              page_id: fbPageId,
-              link: draft.destinationUrl, // Ensure this is a valid URL
-              link_data: {
-                message: draft.primaryText,
-                link: draft.destinationUrl, // Repetition, but often required
-                call_to_action: {
-                  type: draft.callToAction?.toUpperCase().replace(/\s+/g, '_'), // Ensure CTA is valid enum
-                  value: { link: draft.destinationUrl },
-                },
-                name: draft.headline, // Headline for link ads
-                ...(draft.description && { description: draft.description }), // Optional description
-              },
-            },
-          };
+      // Group assets by aspect ratio for placement targeting
+      const feedAssets = (draft.assets as ProcessedAdDraftAsset[]).filter((asset: ProcessedAdDraftAsset) => {
+        if (!(asset.metaHash || asset.metaVideoId) || asset.metaUploadError) return false;
+        
+        // Use existing aspect ratios or detect from filename as fallback
+        const aspectRatios = asset.aspectRatios || [];
+        const detectedRatio = aspectRatios.length === 0 ? detectAspectRatioFromFilename(asset.name) : null;
+        const ratiosToCheck = aspectRatios.length > 0 ? aspectRatios : (detectedRatio ? [detectedRatio] : []);
+        
+        console.log(`[Launch API]         - ${asset.name}: Using ratios ${JSON.stringify(ratiosToCheck)} (detected: ${detectedRatio})`);
+        
+        return ratiosToCheck.length === 0 || ratiosToCheck.some(ratio => ['1:1', '4:5', '16:9', '1x1', '4x5', '16x9'].includes(ratio));
+      });
+      
+      const storyAssets = (draft.assets as ProcessedAdDraftAsset[]).filter((asset: ProcessedAdDraftAsset) => {
+        if (!(asset.metaHash || asset.metaVideoId) || asset.metaUploadError) return false;
+        
+        // Use existing aspect ratios or detect from filename as fallback
+        const aspectRatios = asset.aspectRatios || [];
+        const detectedRatio = aspectRatios.length === 0 ? detectAspectRatioFromFilename(asset.name) : null;
+        const ratiosToCheck = aspectRatios.length > 0 ? aspectRatios : (detectedRatio ? [detectedRatio] : []);
+        
+        return ratiosToCheck.some(ratio => ['9:16', '9x16'].includes(ratio));
+      });
 
-          if (selectedAsset.type === 'image' && selectedAsset.metaHash) {
-            creativePayload.object_story_spec.link_data.image_hash = selectedAsset.metaHash;
-          } else if (selectedAsset.type === 'video' && selectedAsset.metaVideoId) {
-            creativePayload.object_story_spec.link_data.video_id = selectedAsset.metaVideoId;
-            // For videos, call_to_action might be part of link_data directly or attachment
-            // Also, 'name' (headline) and 'description' might be at different levels for video creatives.
-            // Adjust if Meta API requires a different structure for video ads.
-            // Consider if title is needed for video_data if not using link_data structure.
-          } else {
-             throw new Error('Selected asset is missing metaHash (for image) or metaVideoId (for video).')
-          }
-          
-          // Only add Instagram User ID if it's a valid non-empty string
-          if (finalInstagramUserId && finalInstagramUserId.trim() !== '') {
-            console.log(`[Launch API]     Adding Instagram User ID to creative: ${finalInstagramUserId}`);
-            creativePayload.object_story_spec.instagram_user_id = finalInstagramUserId;
-          } else {
-            console.log(`[Launch API]     Skipping Instagram User ID - creating Facebook-only ad creative`);
-          }
-          
-          // For some objectives, like app installs, you might need 'object_type' and 'object_id' (e.g. for app store link)
-          // For lead forms, 'leadgen_form_id' is needed in object_story_spec
-          // This example assumes a common link click/conversion ad. Adjust for other types.
+      console.log(`[Launch API]     Found ${feedAssets.length} feed assets and ${storyAssets.length} story assets`);
+      
+      // Debug: Log which assets went into which category
+      console.log(`[Launch API]     Feed assets:`, feedAssets.map(a => ({ name: a.name, aspectRatios: a.aspectRatios })));
+      console.log(`[Launch API]     Story assets:`, storyAssets.map(a => ({ name: a.name, aspectRatios: a.aspectRatios })));
 
-          // Ensure adAccountId has the proper format (remove extra 'act_' if it exists)
-          const formattedAdAccountId = adAccountId.startsWith('act_') ? adAccountId.substring(4) : adAccountId;
-          const creativeApiUrl = `https://graph.facebook.com/${META_API_VERSION}/act_${formattedAdAccountId}/adcreatives`;
-          console.log(`[Launch API]     Creating Ad Creative for ${draft.adName}... URL: ${creativeApiUrl.split('?')[0]}`);
-
-          const creativeResponse = await fetch(creativeApiUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(creativePayload),
-          });
-          const creativeResult = await creativeResponse.json() as AdCreativeResponse;
-
-          if (!creativeResponse.ok || creativeResult.error) {
-            console.error(`[Launch API]     Error creating Ad Creative for ${draft.adName}:`, creativeResult.error || creativeResult);
-            throw new Error(creativeResult.error?.message || `Failed to create Ad Creative for ${draft.adName}. Response: ${JSON.stringify(creativeResult)}`);
-          }
-
-          adCreativeId = creativeResult.id;
-          if (!adCreativeId) {
-            console.error(`[Launch API]     Ad Creative ID not found in response for ${draft.adName}:`, creativeResult);
-            throw new Error('Ad Creative ID not found in Meta response.');
-          }
-          console.log(`[Launch API]     Ad Creative created for ${draft.adName}. ID: ${adCreativeId}`);
-          finalStatus = 'CREATIVE_CREATED';
-
-          // 3. Create Ad
-          try {
-            const adPayload = {
-              name: draft.adName,
-              adset_id: draft.adSetId,
-              creative: { creative_id: adCreativeId },
-              status: draft.status || 'PAUSED', // Default to PAUSED if not specified
-              access_token: accessToken,
-              // Optionally, include tracking_specs if a Meta Pixel ID is available
-              // tracking_specs: [{ 'action.type':['offsite_conversion'], 'fb_pixel':[YOUR_PIXEL_ID] }],
-            };
-
-            const adApiUrl = `https://graph.facebook.com/${META_API_VERSION}/${draft.adSetId}/ads`;
-            console.log(`[Launch API]     Creating Ad for ${draft.adName} under Ad Set ${draft.adSetId}... URL: ${adApiUrl.split('?')[0]}`);
-
-            const adResponse = await fetch(adApiUrl, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(adPayload),
-            });
-            const adResult = await adResponse.json() as AdResponse;
-
-            if (!adResponse.ok || adResult.error) {
-              console.error(`[Launch API]     Error creating Ad for ${draft.adName}:`, adResult.error || adResult);
-              throw new Error(adResult.error?.message || `Failed to create Ad for ${draft.adName}. Response: ${JSON.stringify(adResult)}`);
-            }
-            
-            adId = adResult.id;
-            if (!adId) {
-              console.error(`[Launch API]     Ad ID not found in response for ${draft.adName}:`, adResult);
-              throw new Error('Ad ID not found in Meta response.');
-            }
-            console.log(`[Launch API]     Ad created for ${draft.adName}. ID: ${adId}`);
-            finalStatus = 'AD_CREATED';
-
-          } catch (err) {
-            console.error(`[Launch API]     Ad creation failed for ${draft.adName}:`, err);
-            finalStatus = 'AD_CREATION_FAILED';
-            adError = (err as Error).message;
-          }
-        } catch (err) {
-          console.error(`[Launch API]     Ad Creative creation failed for ${draft.adName}:`, err);
-          finalStatus = 'CREATIVE_FAILED';
-          creativeError = (err as Error).message;
+      // 2. Prepare Ad Creative Data using Asset Feed Spec for placement customization
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const creativeSpec: any = {
+        name: `Creative for ${draft.adName}`,
+        asset_feed_spec: {
+          ad_formats: [],
+          bodies: [{ text: draft.primaryText }],
+          titles: [{ text: draft.headline || draft.adName }],
+          descriptions: draft.description ? [{ text: draft.description }] : [],
+          link_urls: [{
+            website_url: draft.destinationUrl,
+            display_url: draft.destinationUrl
+          }],
+          call_to_action_types: [draft.callToAction?.toUpperCase().replace(/\s+/g, '_') || 'LEARN_MORE'],
+          images: [],
+          videos: [],
+          asset_customization_rules: []
         }
+      };
+
+      // Add Site Links if available
+      if (draft.siteLinks && draft.siteLinks.length > 0) {
+        const validSiteLinks = draft.siteLinks.filter(link => 
+          link.site_link_title && link.site_link_url && 
+          link.site_link_title.trim() !== '' && link.site_link_url.trim() !== ''
+        );
+        
+        if (validSiteLinks.length > 0) {
+          console.log(`[Launch API]     Adding ${validSiteLinks.length} site links to creative`);
+          
+          // Add site links to creative_sourcing_spec
+          if (!creativeSpec.creative_sourcing_spec) {
+            creativeSpec.creative_sourcing_spec = {};
+          }
+          
+          creativeSpec.creative_sourcing_spec.site_links_spec = validSiteLinks.map(link => ({
+            site_link_title: link.site_link_title,
+            site_link_url: link.site_link_url,
+            ...(link.site_link_image_url && { site_link_image_url: link.site_link_image_url }),
+            ...(link.is_site_link_sticky !== undefined && { is_site_link_sticky: link.is_site_link_sticky })
+          }));
+          
+          // Enable site extensions in degrees_of_freedom_spec
+          if (!creativeSpec.degrees_of_freedom_spec) {
+            creativeSpec.degrees_of_freedom_spec = {};
+          }
+          if (!creativeSpec.degrees_of_freedom_spec.creative_features_spec) {
+            creativeSpec.degrees_of_freedom_spec.creative_features_spec = {};
+          }
+          
+          creativeSpec.degrees_of_freedom_spec.creative_features_spec.site_extensions = {
+            enroll_status: "OPT_IN"
+          };
+        }
+      }
+
+      // Add Advantage+ Creative Enhancements if any are enabled
+      if (draft.advantageCreative) {
+        const enabledEnhancements = Object.entries(draft.advantageCreative).filter(([, enabled]) => enabled);
+        
+        if (enabledEnhancements.length > 0) {
+          console.log(`[Launch API]     Adding ${enabledEnhancements.length} Advantage+ creative enhancements`);
+          
+          // Initialize degrees_of_freedom_spec if not exists
+          if (!creativeSpec.degrees_of_freedom_spec) {
+            creativeSpec.degrees_of_freedom_spec = {};
+          }
+          if (!creativeSpec.degrees_of_freedom_spec.creative_features_spec) {
+            creativeSpec.degrees_of_freedom_spec.creative_features_spec = {};
+          }
+          
+          // Map our enhancement keys to Meta's API format
+          const enhancementMapping: Record<string, string> = {
+            inline_comment: 'inline_comment',
+            image_templates: 'image_templates', 
+            image_touchups: 'image_touchups',
+            video_auto_crop: 'video_auto_crop',
+            image_brightness_and_contrast: 'image_brightness_and_contrast',
+            enhance_cta: 'enhance_cta',
+            text_optimizations: 'text_optimizations',
+            image_background_gen: 'image_background_gen',
+            image_uncrop: 'image_uncrop',
+            adapt_to_placement: 'adapt_to_placement',
+            media_type_automation: 'media_type_automation',
+            product_extensions: 'product_extensions',
+            description_automation: 'description_automation',
+            add_text_overlay: 'add_text_overlay',
+            site_extensions: 'site_extensions'
+          };
+          
+          // Add enabled enhancements
+          enabledEnhancements.forEach(([key]) => {
+            const metaKey = enhancementMapping[key];
+            if (metaKey) {
+              creativeSpec.degrees_of_freedom_spec.creative_features_spec[metaKey] = {
+                enroll_status: "OPT_IN"
+              };
+            }
+          });
+        }
+      }
+
+      // Only add Instagram User ID if it's a valid non-empty string
+      if (finalInstagramUserId && finalInstagramUserId.trim() !== '') {
+        console.log(`[Launch API]     Adding Instagram User ID to creative: ${finalInstagramUserId}`);
+        creativeSpec.object_story_spec = {
+          page_id: fbPageId,
+          instagram_user_id: finalInstagramUserId,
+          link: draft.destinationUrl
+        };
+      } else {
+        console.log(`[Launch API]     Creating Facebook-only ad creative`);
+        creativeSpec.object_story_spec = {
+          page_id: fbPageId,
+          link: draft.destinationUrl
+        };
+      }
+
+      // If we have assets for different placements, use placement asset customization
+      if (feedAssets.length > 0 && storyAssets.length > 0) {
+        console.log(`[Launch API]     Using placement asset customization for multiple aspect ratios`);
+        
+        // Add feed assets
+        feedAssets.forEach((asset: ProcessedAdDraftAsset, index: number) => {
+          const assetLabel = `feed_asset_${index}`;
+          if (asset.type === 'image' && asset.metaHash) {
+            creativeSpec.asset_feed_spec.images.push({
+              hash: asset.metaHash,
+              adlabels: [{ name: assetLabel }]
+            });
+            creativeSpec.asset_feed_spec.ad_formats.push('SINGLE_IMAGE');
+          } else if (asset.type === 'video' && asset.metaVideoId) {
+            creativeSpec.asset_feed_spec.videos.push({
+              video_id: asset.metaVideoId,
+              adlabels: [{ name: assetLabel }]
+            });
+            creativeSpec.asset_feed_spec.ad_formats.push('SINGLE_VIDEO');
+          }
+
+          // Add customization rule for feed placements
+          creativeSpec.asset_feed_spec.asset_customization_rules.push({
+            customization_spec: {
+              publisher_platforms: ['facebook', 'instagram'],
+              facebook_positions: ['feed', 'video_feeds'],
+              instagram_positions: ['stream', 'explore']
+            },
+            [asset.type === 'image' ? 'image_label' : 'video_label']: { name: assetLabel }
+          });
+        });
+
+        // Add story assets
+        storyAssets.forEach((asset: ProcessedAdDraftAsset, index: number) => {
+          const assetLabel = `story_asset_${index}`;
+          if (asset.type === 'image' && asset.metaHash) {
+            creativeSpec.asset_feed_spec.images.push({
+              hash: asset.metaHash,
+              adlabels: [{ name: assetLabel }]
+            });
+            if (!creativeSpec.asset_feed_spec.ad_formats.includes('SINGLE_IMAGE')) {
+              creativeSpec.asset_feed_spec.ad_formats.push('SINGLE_IMAGE');
+            }
+          } else if (asset.type === 'video' && asset.metaVideoId) {
+            creativeSpec.asset_feed_spec.videos.push({
+              video_id: asset.metaVideoId,
+              adlabels: [{ name: assetLabel }]
+            });
+            if (!creativeSpec.asset_feed_spec.ad_formats.includes('SINGLE_VIDEO')) {
+              creativeSpec.asset_feed_spec.ad_formats.push('SINGLE_VIDEO');
+            }
+          }
+
+          // Add customization rule for story placements
+          creativeSpec.asset_feed_spec.asset_customization_rules.push({
+            customization_spec: {
+              publisher_platforms: ['facebook', 'instagram'],
+              facebook_positions: ['story'],
+              instagram_positions: ['story']
+            },
+            [asset.type === 'image' ? 'image_label' : 'video_label']: { name: assetLabel }
+          });
+        });
+
+      } else if (feedAssets.length > 0 || storyAssets.length > 0) {
+        // Use the first available asset (fallback to simple approach)
+        const availableAssets = feedAssets.length > 0 ? feedAssets : storyAssets;
+        const selectedAsset = availableAssets[0];
+        
+        console.log(`[Launch API]     Using single asset approach with: ${selectedAsset.name}`);
+        
+        // Use the traditional object_story_spec approach for single asset
+        if (selectedAsset.type === 'image' && selectedAsset.metaHash) {
+          creativeSpec.object_story_spec.link_data = {
+            message: draft.primaryText,
+            link: draft.destinationUrl,
+            call_to_action: {
+              type: draft.callToAction?.toUpperCase().replace(/\s+/g, '_'),
+              value: { link: draft.destinationUrl },
+            },
+            name: draft.headline,
+            ...(draft.description && { description: draft.description }),
+            image_hash: selectedAsset.metaHash
+          };
+        } else if (selectedAsset.type === 'video' && selectedAsset.metaVideoId) {
+          creativeSpec.object_story_spec.link_data = {
+            message: draft.primaryText,
+            link: draft.destinationUrl,
+            call_to_action: {
+              type: draft.callToAction?.toUpperCase().replace(/\s+/g, '_'),
+              value: { link: draft.destinationUrl },
+            },
+            name: draft.headline,
+            ...(draft.description && { description: draft.description }),
+            video_id: selectedAsset.metaVideoId
+          };
+        }
+        
+        // Remove asset_feed_spec for single asset approach
+        delete creativeSpec.asset_feed_spec;
+      } else {
+        throw new Error('No valid assets found for creative creation');
+      }
+
+      // Validate ad set exists and get its campaign info for logging
+      try {
+        // Step 1: Get ad set data including campaign_id
+        const adSetApiUrl = `https://graph.facebook.com/${META_API_VERSION}/${draft.adSetId}?fields=id,name,status,effective_status,campaign_id,dsa_payor,dsa_beneficiary&access_token=${encodeURIComponent(accessToken)}`;
+        console.log(`[Launch API]     Fetching ad set data from: ${adSetApiUrl.split('?')[0]}`);
+        
+        const adSetResponse = await fetch(adSetApiUrl);
+        const adSetData = await adSetResponse.json();
+        
+        if (!adSetResponse.ok || adSetData.error) {
+          console.error(`[Launch API]     ERROR: Could not fetch ad set data:`, adSetData.error || adSetData);
+          
+          // If we can't access the ad set, this explains the "object doesn't exist" error
+          if (adSetData.error?.code === 100 && adSetData.error?.error_subcode === 33) {
+            throw new Error(`Ad Set ${draft.adSetId} does not exist or you don't have permission to access it. Please check the ad set ID and your access token permissions.`);
+          } else {
+            throw new Error(`Failed to validate ad set ${draft.adSetId}: ${adSetData.error?.message || 'Unknown error'}`);
+          }
+        }
+
+        console.log(`[Launch API]     Ad Set data:`, adSetData);
+        
+        // Check if ad set is in a valid state for creating ads
+        if (adSetData.status === 'DELETED' || adSetData.status === 'ARCHIVED') {
+          throw new Error(`Ad Set ${draft.adSetId} is ${adSetData.status} and cannot be used for creating ads`);
+        }
+
+        // Step 2: Get campaign data for logging
+        if (adSetData.campaign_id) {
+          const campaignApiUrl = `https://graph.facebook.com/${META_API_VERSION}/${adSetData.campaign_id}?fields=id,name,special_ad_categories&access_token=${encodeURIComponent(accessToken)}`;
+          console.log(`[Launch API]     Fetching campaign data from: ${campaignApiUrl.split('?')[0]}`);
+          
+          const campaignResponse = await fetch(campaignApiUrl);
+          const campaignData = await campaignResponse.json();
+          
+          if (campaignResponse.ok && !campaignData.error) {
+            console.log(`[Launch API]     Campaign data:`, campaignData);
+          } else {
+            console.warn(`[Launch API]     Could not fetch campaign data:`, campaignData?.error || campaignData);
+          }
+        }
+        
+        console.log(`[Launch API]     Creating ad with inline creative to inherit DSA compliance from Ad Set: ${draft.adSetId}`);
+        
+      } catch (fetchError) {
+        console.error(`[Launch API]     Error validating ad set:`, fetchError);
+        throw fetchError; // Re-throw to stop ad creation
+      }
+
+      // 3. Create Ad with Inline Creative (NEW WORKFLOW)
+      try {
+        const adPayload = {
+          name: draft.adName,
+          adset_id: draft.adSetId,
+          creative: creativeSpec, // Pass creative spec directly, not creative_id
+          status: draft.status || 'PAUSED', // Default to PAUSED if not specified
+        };
+
+        // Create ads under the ad account
+        const formattedAdAccountId = adAccountId.startsWith('act_') ? adAccountId.substring(4) : adAccountId;
+        const adApiUrl = `https://graph.facebook.com/${META_API_VERSION}/act_${formattedAdAccountId}/ads?access_token=${encodeURIComponent(accessToken)}`;
+        console.log(`[Launch API]     Creating Ad with inline creative for ${draft.adName} under Ad Set ${draft.adSetId}... URL: ${adApiUrl.split('?')[0]}`);
+
+        const adResponse = await fetch(adApiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(adPayload),
+        });
+        const adResult = await adResponse.json() as AdResponse;
+
+        if (!adResponse.ok || adResult.error) {
+          console.error(`[Launch API]     Error creating Ad with inline creative for ${draft.adName}:`, adResult.error || adResult);
+          // Log additional debug information
+          console.error(`[Launch API]     Ad creation debug info:`, {
+            adSetId: draft.adSetId,
+            adAccountId: adAccountId,
+            formattedAdAccountId: formattedAdAccountId,
+            url: adApiUrl.split('?')[0],
+            status: adResponse.status,
+            statusText: adResponse.statusText
+          });
+          throw new Error(adResult.error?.message || `Failed to create Ad for ${draft.adName}. Response: ${JSON.stringify(adResult)}`);
+        }
+        
+        adId = adResult.id;
+        if (!adId) {
+          console.error(`[Launch API]     Ad ID not found in response for ${draft.adName}:`, adResult);
+          throw new Error('Ad ID not found in Meta response.');
+        }
+        console.log(`[Launch API]     Ad created successfully for ${draft.adName}. ID: ${adId}`);
+        finalStatus = 'AD_CREATED';
+        
+        // The creative was created inline, so we don't have a separate creative ID
+        // but we can note that the creative was created successfully as part of the ad
+        console.log(`[Launch API]     Ad Creative created inline as part of ad creation`);
+
+      } catch (err) {
+        console.error(`[Launch API]     Ad creation with inline creative failed for ${draft.adName}:`, err);
+        finalStatus = 'AD_CREATION_FAILED';
+        adError = (err as Error).message;
       }
 
       // Update processingResults with the outcome of this draft
@@ -392,9 +637,7 @@ export async function POST(req: NextRequest) {
         })),
         campaignId: draft.campaignId,
         adSetId: draft.adSetId,
-        adCreativeId: adCreativeId,
         adId: adId,
-        creativeError: creativeError,
         adError: adError,
       });
 
@@ -429,4 +672,4 @@ export async function POST(req: NextRequest) {
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred processing the launch request.';
     return NextResponse.json({ message: 'Failed to process ad launch request.', error: errorMessage }, { status: 500 });
   }
-} 
+}

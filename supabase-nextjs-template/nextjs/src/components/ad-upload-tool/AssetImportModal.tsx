@@ -3,6 +3,7 @@ import React, { useState, useCallback, ChangeEvent, useMemo } from 'react';
 import { X, UploadCloud, Check, Trash2, Loader2, Square, CheckSquare } from 'lucide-react';
 import { createSPAClient } from '@/lib/supabase/client';
 import { useGlobal } from '@/lib/context/GlobalContext';
+import { ImportedAssetGroup } from './adUploadTypes';
 
 interface AssetFile {
   file: File;
@@ -11,21 +12,6 @@ interface AssetFile {
   uploading?: boolean; // To indicate upload in progress
   uploadError?: string | null; // To store upload error message
   supabaseUrl?: string; // To store the Supabase URL after successful upload
-}
-
-interface ImportedAssetGroup {
-  // This structure will depend on how you want to feed it into AdDrafts
-  // For now, let's assume a primary name and a list of files in the group
-  groupName: string; 
-  files: Array<Omit<AssetFile, 'file'> & { name: string; supabaseUrl: string; type: 'image' | 'video' }>; // Files will now store URL not File object
-  aspectRatiosDetected?: string[]; // e.g. ['1x1', '9x16']
-}
-
-interface AssetImportModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onAssetsImported: (assetGroups: ImportedAssetGroup[]) => void;
-  brandId: string | null; // Added brandId prop
 }
 
 const DEFAULT_ASPECT_RATIO_IDENTIFIERS = ['1x1', '9x16', '16x9', '4x5', '2x3', '3x2'];
@@ -76,6 +62,13 @@ const getBaseNameAndRatio = (filename: string, identifiers: string[], suffixesTo
   // the remaining nameWorkInProgress is the baseName.
   return { baseName: nameWorkInProgress.trim(), detectedRatio: null };
 };
+
+interface AssetImportModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onAssetsImported: (assetGroups: ImportedAssetGroup[]) => void;
+  brandId: string | null; // Added brandId prop
+}
 
 const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, onAssetsImported, brandId }) => {
   const [selectedFiles, setSelectedFiles] = useState<AssetFile[]>([]);
@@ -223,7 +216,7 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
                         name: file.name,
                         supabaseUrl: publicUrl,
                         type: file.type.startsWith('image/') ? 'image' : 'video',
-                        // aspectRatios can be determined here if needed
+                        detectedAspectRatio: assetFile.detectedRatio || undefined,
                     });
                     
                     // Collect detected ratios for the group

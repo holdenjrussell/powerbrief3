@@ -21,6 +21,9 @@ export interface AdDraft {
   assets: AdDraftAsset[];
   status: AdCreativeStatus;
   appStatus?: AppAdDraftStatus;
+  // New Meta features
+  siteLinks?: SiteLink[];
+  advantageCreative?: AdvantageCreativeEnhancements;
 }
 
 export const callToActionOptions: readonly string[] = [
@@ -66,7 +69,7 @@ export interface ColumnDef<TData> {
 // Used by AssetImportModal and AdSheetView
 export interface ImportedAssetGroup {
   groupName: string;
-  files: Array<{ id: string; name: string; supabaseUrl: string; type: 'image' | 'video' }>;
+  files: Array<{ id: string; name: string; supabaseUrl: string; type: 'image' | 'video'; detectedAspectRatio?: string }>;
   aspectRatiosDetected?: string[];
 }
 
@@ -86,5 +89,37 @@ export interface AdSheetDefaultValues {
   headline: string;    
   description: string; 
   destinationUrl: string; 
-  callToAction: string; 
+  callToAction: string;
+  // New Meta features
+  siteLinks: SiteLink[];
+  advantageCreative: AdvantageCreativeEnhancements;
+}
+
+// New interfaces for Meta advertising features
+export interface SiteLink {
+  site_link_title: string;
+  site_link_url: string;
+  site_link_image_hash?: string;
+  site_link_image_url?: string;
+  is_site_link_sticky?: boolean;  // Added from official docs
+  site_link_hash?: string;        // Added from official docs (computed during creation)
+}
+
+export interface AdvantageCreativeEnhancements {
+  // Advantage+ Creative features that can be opted-in
+  inline_comment: boolean;           // Relevant comments
+  image_templates: boolean;          // Add overlays  
+  image_touchups: boolean;           // Visual touch-ups
+  video_auto_crop: boolean;          // Visual touch-ups for video
+  image_brightness_and_contrast: boolean; // Adjust brightness and contrast
+  enhance_cta: boolean;              // Enhance CTA
+  text_optimizations: boolean;       // Text improvements
+  image_background_gen: boolean;     // Generate backgrounds
+  image_uncrop: boolean;             // Expand image
+  adapt_to_placement: boolean;       // Adapt to placement
+  media_type_automation: boolean;    // Dynamic media
+  product_extensions: boolean;       // Add catalog items
+  description_automation: boolean;   // Description automation
+  add_text_overlay: boolean;         // Add Dynamic Overlays
+  site_extensions: boolean;          // Add site links
 } 

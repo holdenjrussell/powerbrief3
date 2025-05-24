@@ -4,8 +4,9 @@ import AdBatchCreator from '@/components/ad-upload-tool/AdBatchCreator';
 import AdSheetView from '@/components/ad-upload-tool/AdSheetView';
 import { useGlobal } from '@/lib/context/GlobalContext';
 import { Loader2, ChevronLeft, Trash2 } from 'lucide-react';
+import { SiteLink, AdvantageCreativeEnhancements } from '@/components/ad-upload-tool/adUploadTypes';
 
-// Updated DefaultValues interface
+// Updated DefaultValues interface to include Meta features
 interface DefaultValues {
   brandId: string | null;
   adAccountId: string | null;
@@ -20,7 +21,10 @@ interface DefaultValues {
   headline: string;    
   description: string; 
   destinationUrl: string; 
-  callToAction: string;  
+  callToAction: string;
+  // New Meta features
+  siteLinks: SiteLink[];
+  advantageCreative: AdvantageCreativeEnhancements;
 }
 
 interface AdBatch {
@@ -43,6 +47,9 @@ interface AdBatch {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  // New Meta features
+  site_links?: SiteLink[];
+  advantage_plus_creative?: AdvantageCreativeEnhancements;
 }
 
 const AdUploadToolPage = () => {
@@ -89,6 +96,24 @@ const AdUploadToolPage = () => {
             description: batch.description || '',
             destinationUrl: batch.destination_url || '',
             callToAction: batch.call_to_action || '',
+            siteLinks: batch.site_links || [],
+            advantageCreative: batch.advantage_plus_creative || {
+              inline_comment: false,
+              image_templates: false,
+              image_touchups: false,
+              video_auto_crop: false,
+              image_brightness_and_contrast: false,
+              enhance_cta: false,
+              text_optimizations: false,
+              image_background_gen: false,
+              image_uncrop: false,
+              adapt_to_placement: false,
+              media_type_automation: false,
+              product_extensions: false,
+              description_automation: false,
+              add_text_overlay: false,
+              site_extensions: false
+            },
           };
           
           setCurrentDefaults(defaults);
@@ -128,6 +153,24 @@ const AdUploadToolPage = () => {
         primary_text: defaults.primaryText || null,
         headline: defaults.headline || null,
         description: defaults.description || null,
+        site_links: defaults.siteLinks || [],
+        advantage_plus_creative: defaults.advantageCreative || {
+          inline_comment: false,
+          image_templates: false,
+          image_touchups: false,
+          video_auto_crop: false,
+          image_brightness_and_contrast: false,
+          enhance_cta: false,
+          text_optimizations: false,
+          image_background_gen: false,
+          image_uncrop: false,
+          adapt_to_placement: false,
+          media_type_automation: false,
+          product_extensions: false,
+          description_automation: false,
+          add_text_overlay: false,
+          site_extensions: false
+        },
       };
 
       const response = await fetch('/api/ad-batches', {
@@ -180,6 +223,24 @@ const AdUploadToolPage = () => {
       description: batch.description || '',
       destinationUrl: batch.destination_url || '',
       callToAction: batch.call_to_action || '',
+      siteLinks: batch.site_links || [],
+      advantageCreative: batch.advantage_plus_creative || {
+        inline_comment: false,
+        image_templates: false,
+        image_touchups: false,
+        video_auto_crop: false,
+        image_brightness_and_contrast: false,
+        enhance_cta: false,
+        text_optimizations: false,
+        image_background_gen: false,
+        image_uncrop: false,
+        adapt_to_placement: false,
+        media_type_automation: false,
+        product_extensions: false,
+        description_automation: false,
+        add_text_overlay: false,
+        site_extensions: false
+      },
     };
     
     setCurrentDefaults(defaults);

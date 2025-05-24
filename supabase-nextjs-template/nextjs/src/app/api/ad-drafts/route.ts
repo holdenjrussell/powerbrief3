@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSSRClient } from '@/lib/supabase/server';
-import { AdDraft, AppAdDraftStatus, AdCreativeStatus } from '@/components/ad-upload-tool/adUploadTypes';
+import { AdDraft, AppAdDraftStatus, AdCreativeStatus, SiteLink, AdvantageCreativeEnhancements } from '@/components/ad-upload-tool/adUploadTypes';
 import { Database } from '@/lib/types';
 import { SupabaseClient } from '@supabase/supabase-js';
 
 // Interface for the expected structure of an ad_drafts table row
 // This should align with your DB schema now for ad_drafts
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 interface AdDraftRowFromDB {
   id: string;
   ad_name: string;
@@ -21,6 +22,8 @@ interface AdDraftRowFromDB {
   ad_batch_id: string | null;
   ad_draft_assets: AdDraftAssetRowFromDB[]; // Nested assets
   // user_id and brand_id are not directly mapped back to AdDraft type, but used for query
+  site_links?: SiteLink[];
+  advantage_plus_creative?: AdvantageCreativeEnhancements;
 }
 
 // Interface for ad_draft_assets table row from DB
@@ -51,6 +54,9 @@ interface AdDraftInsertRow {
   call_to_action?: string | null;
   meta_status: AdCreativeStatus;
   app_status: AppAdDraftStatus;
+  // New Meta features
+  site_links?: SiteLink[];
+  advantage_plus_creative?: AdvantageCreativeEnhancements;
 }
 
 // Interface for ad_draft_assets when inserting
@@ -103,7 +109,9 @@ export async function GET(req: NextRequest) {
           meta_hash,
           meta_video_id,
           meta_upload_error
-        )
+        ),
+        site_links,
+        advantage_plus_creative
       `)
       .eq('brand_id', brandId)
       .eq('user_id', user.id)
@@ -125,6 +133,8 @@ export async function GET(req: NextRequest) {
     }
 
     // Explicitly type draftRow based on the expected structure from the database query
+    // Note: Proper typing will work after the database migration is applied
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const drafts: AdDraft[] = draftsData.map((draftRow: any) => ({
       id: draftRow.id,
       brandId: brandId, // Add brandId to the response object, it's used in the frontend context
@@ -144,6 +154,25 @@ export async function GET(req: NextRequest) {
         type: assetRow.type,
         // aspectRatios is not stored/retrieved here
       })),
+      // Include new Meta features
+      siteLinks: draftRow.site_links || [],
+      advantageCreative: draftRow.advantage_plus_creative || {
+        inline_comment: false,
+        image_templates: false,
+        image_touchups: false,
+        video_auto_crop: false,
+        image_brightness_and_contrast: false,
+        enhance_cta: false,
+        text_optimizations: false,
+        image_background_gen: false,
+        image_uncrop: false,
+        adapt_to_placement: false,
+        media_type_automation: false,
+        product_extensions: false,
+        description_automation: false,
+        add_text_overlay: false,
+        site_extensions: false
+      }
     }));
 
     return NextResponse.json(drafts, { status: 200 });
@@ -194,6 +223,24 @@ export async function POST(req: NextRequest) {
         call_to_action: draft.callToAction || null,
         meta_status: draft.status, 
         app_status: draft.appStatus || 'DRAFT',
+        site_links: draft.siteLinks || [],
+        advantage_plus_creative: draft.advantageCreative || {
+          inline_comment: false,
+          image_templates: false,
+          image_touchups: false,
+          video_auto_crop: false,
+          image_brightness_and_contrast: false,
+          enhance_cta: false,
+          text_optimizations: false,
+          image_background_gen: false,
+          image_uncrop: false,
+          adapt_to_placement: false,
+          media_type_automation: false,
+          product_extensions: false,
+          description_automation: false,
+          add_text_overlay: false,
+          site_extensions: false
+        }
       };
 
       /* eslint-disable @typescript-eslint/no-explicit-any */

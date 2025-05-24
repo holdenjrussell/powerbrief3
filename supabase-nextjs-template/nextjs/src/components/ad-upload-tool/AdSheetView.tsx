@@ -216,6 +216,10 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBat
       assets: [],
       status: defaults.status as AdCreativeStatus,
       appStatus: 'DRAFT', // Default meta upload status
+      // Add new Meta features from defaults
+      siteLinks: [...(defaults.siteLinks || [])],
+      infoLabels: [...(defaults.infoLabels || [])],
+      advantageCreative: { ...defaults.advantageCreative }
     };
     setAdDrafts(prev => [...prev, newDraft]);
   };
@@ -238,10 +242,14 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBat
                 name: asset.name,
                 supabaseUrl: asset.supabaseUrl,
                 type: asset.type,
-                aspectRatios: group.aspectRatiosDetected,
+                aspectRatios: asset.detectedAspectRatio ? [asset.detectedAspectRatio] : undefined,
             })),
             status: defaults.status as AdCreativeStatus,
             appStatus: 'DRAFT', // Default meta upload status
+            // Add new Meta features from defaults
+            siteLinks: [...(defaults.siteLinks || [])],
+            infoLabels: [...(defaults.infoLabels || [])],
+            advantageCreative: { ...defaults.advantageCreative }
         };
     });
     setAdDrafts(prev => [...prev, ...newAdDrafts]);
@@ -673,6 +681,14 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBat
                 <p>Dest. URL: <span className="font-medium text-gray-600">{defaults.destinationUrl}</span> | CTA: <span className="font-medium text-gray-600">{defaults.callToAction.replace(/_/g, ' ')}</span></p>
                 <p>Primary Text: <span className="font-medium text-gray-600 truncate w-60 inline-block" title={defaults.primaryText}>{defaults.primaryText}</span></p>
                 <p>Headline: <span className="font-medium text-gray-600">{defaults.headline}</span></p>
+                
+                {/* New Meta Features Summary */}
+                <div className="mt-2 pt-2 border-t border-gray-200">
+                  <p className="font-medium text-gray-700 text-sm mb-1">🔧 Advanced Meta Features:</p>
+                  <p>Site Links: <span className="font-medium text-gray-600">{defaults.siteLinks?.length || 0} configured</span></p>
+                  <p>Info Labels: <span className="font-medium text-gray-600">{defaults.infoLabels?.filter(label => label.enabled).length || 0} enabled</span></p>
+                  <p>Advantage+ Creative: <span className="font-medium text-gray-600">{Object.values(defaults.advantageCreative || {}).filter(Boolean).length} enhancements</span></p>
+                </div>
             </div>
              <div className="flex items-center justify-between mb-4">
               <div className="flex items-center space-x-2">
