@@ -1,6 +1,6 @@
 "use client";
-import React, { useState, useCallback, ChangeEvent } from 'react';
-import { X, UploadCloud, Check, Trash2, Loader2 } from 'lucide-react';
+import React, { useState, useCallback, ChangeEvent, useMemo } from 'react';
+import { X, UploadCloud, Check, Trash2, Loader2, Square, CheckSquare } from 'lucide-react';
 import { createSPAClient } from '@/lib/supabase/client';
 import { useGlobal } from '@/lib/context/GlobalContext';
 
@@ -82,6 +82,7 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
   const [isDragging, setIsDragging] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false); // For overall processing state
   const { user } = useGlobal(); // Get user from global context
+  const [checkedFileIds, setCheckedFileIds] = useState<Set<string>>(new Set()); // New state for checked files
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
@@ -122,7 +123,39 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
 
   const removeFile = (fileId: string) => {
     setSelectedFiles(prev => prev.filter(f => f.id !== fileId));
+    setCheckedFileIds(prev => { // Also remove from checked if it was checked
+      const newSet = new Set(prev);
+      newSet.delete(fileId);
+      return newSet;
+    });
   };
+
+  const toggleFileChecked = (fileId: string) => {
+    setCheckedFileIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(fileId)) {
+        newSet.delete(fileId);
+      } else {
+        newSet.add(fileId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleSelectAllToggle = () => {
+    if (checkedFileIds.size === selectedFiles.length) {
+      setCheckedFileIds(new Set()); // Deselect all
+    } else {
+      setCheckedFileIds(new Set(selectedFiles.map(sf => sf.id))); // Select all
+    }
+  };
+
+  const handleBulkRemove = () => {
+    setSelectedFiles(prev => prev.filter(sf => !checkedFileIds.has(sf.id)));
+    setCheckedFileIds(new Set()); // Clear selection after removal
+  };
+
+  const allFilesChecked = useMemo(() => selectedFiles.length > 0 && checkedFileIds.size === selectedFiles.length, [selectedFiles, checkedFileIds]);
 
   const processAndImport = async () => {
     if (!user || !brandId) {
@@ -261,19 +294,45 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
 
           {/* Selected Files Preview */}
           {selectedFiles.length > 0 && (
-            <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-md p-3 space-y-2">
-                <h3 className="text-sm font-medium text-gray-700 mb-2">Selected Files: {selectedFiles.length}</h3>
+            <div className="max-h-60 overflow-y-auto border border-gray-200 rounded-md p-3 space-y-2">
+                <div className="flex justify-between items-center mb-2">
+                    <h3 className="text-sm font-medium text-gray-700">
+                        Selected Files: {selectedFiles.length} ({checkedFileIds.size} checked)
+                    </h3>
+                    <div className="flex items-center space-x-2">
+                        <button
+                            onClick={handleBulkRemove}
+                            disabled={checkedFileIds.size === 0 || isProcessing}
+                            className="px-2 py-1 text-xs font-medium text-red-600 hover:text-red-800 border border-red-300 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+                            title="Remove selected files"
+                        >
+                            <Trash2 size={14} className="inline mr-1" />
+                            Bulk Remove ({checkedFileIds.size})
+                        </button>
+                        <button 
+                            onClick={handleSelectAllToggle}
+                            className="px-2 py-1 text-xs font-medium text-gray-700 hover:text-gray-900 border border-gray-300 rounded-md"
+                            title={allFilesChecked ? "Deselect All" : "Select All"}
+                        >
+                            {allFilesChecked ? <CheckSquare size={14} className="inline mr-1" /> : <Square size={14} className="inline mr-1" />}
+                            {allFilesChecked ? 'Deselect All' : 'Select All'}
+                        </button>
+                    </div>
+                </div>
               {selectedFiles.map(assetFile => (
-                <div key={assetFile.id} className="flex items-center justify-between p-2 bg-gray-50 rounded text-sm">
-                  <div className="flex items-center">
+                <div key={assetFile.id} className={`flex items-center justify-between p-2 rounded text-sm ${checkedFileIds.has(assetFile.id) ? 'bg-primary-50 ring-2 ring-primary-300' : 'bg-gray-50'}`}>
+                  <div className="flex items-center flex-grow overflow-hidden">
+                    <button onClick={() => toggleFileChecked(assetFile.id)} className="mr-2 p-1 focus:outline-none">
+                        {checkedFileIds.has(assetFile.id) ? <CheckSquare size={18} className="text-primary-600" /> : <Square size={18} className="text-gray-400" />}
+                    </button>
                     <span className="truncate text-gray-700 mr-2" title={assetFile.file.name}>{assetFile.file.name}</span>
-                    {assetFile.uploading && <Loader2 size={16} className="animate-spin text-primary-500" />}
-                    {assetFile.uploadError && <span className="text-xs text-red-500 ml-2">Error: {assetFile.uploadError}</span>}
-                    {assetFile.supabaseUrl && <Check size={16} className="text-green-500 ml-2" />}
+                    {assetFile.uploading && <Loader2 size={16} className="animate-spin text-primary-500 flex-shrink-0" />}
+                    {assetFile.uploadError && <span className="text-xs text-red-500 ml-2 flex-shrink-0">Error: {assetFile.uploadError}</span>}
+                    {assetFile.supabaseUrl && <Check size={16} className="text-green-500 ml-2 flex-shrink-0" />}
                   </div>
                   <button 
                     onClick={() => removeFile(assetFile.id)} 
-                    className="text-red-500 hover:text-red-700 ml-2" 
+                    className="text-red-500 hover:text-red-700 ml-2 flex-shrink-0"
                     aria-label={`Remove ${assetFile.file.name}`}
                     disabled={assetFile.uploading || isProcessing}
                   >

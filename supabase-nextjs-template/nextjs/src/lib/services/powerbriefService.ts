@@ -1,11 +1,12 @@
-import { createSPAClient } from '@/lib/supabase/client';
+import { createSSRClient } from '@/lib/supabase/server';
 import { Brand, BriefBatch, BriefConcept, DbBrand, DbBriefConcept, DbBriefBatch, ShareSettings, ShareResult, Scene } from '@/lib/types/powerbrief';
 import { v4 as uuidv4 } from 'uuid';
 
-const supabase = createSPAClient();
+const getSupabaseClient = async () => await createSSRClient();
 
 // Brand Services
 export async function getBrands(userId: string): Promise<Brand[]> {
+  const supabase = await getSupabaseClient();
   const { data, error } = await supabase
     .from('brands')
     .select('*')
@@ -27,19 +28,34 @@ export async function getBrands(userId: string): Promise<Brand[]> {
 }
 
 export async function getBrandById(brandId: string): Promise<Brand | null> {
+  console.log('getBrandById called with brandId:', brandId);
+  
+  const supabase = await getSupabaseClient();
   const { data, error } = await supabase
     .from('brands')
     .select('*')
     .eq('id', brandId)
     .single();
 
+  console.log('getBrandById query result:', { data: !!data, error: error?.code, errorMessage: error?.message });
+
   if (error) {
+    // If the error is "no rows found", return null instead of throwing
+    if (error.code === 'PGRST116') {
+      console.log('getBrandById: No rows found (PGRST116), returning null');
+      return null;
+    }
     console.error('Error fetching brand:', error);
     throw error;
   }
 
-  if (!data) return null;
+  if (!data) {
+    console.log('getBrandById: No data returned, returning null');
+    return null;
+  }
 
+  console.log('getBrandById: Brand found successfully, transforming data');
+  
   // Transform from DB format to app format
   return {
     ...data,
@@ -50,6 +66,7 @@ export async function getBrandById(brandId: string): Promise<Brand | null> {
 }
 
 export async function createBrand(brand: Omit<Brand, 'id' | 'created_at' | 'updated_at'>): Promise<Brand> {
+  const supabase = await getSupabaseClient();
   const dbBrand = {
     ...brand,
     id: uuidv4(),
@@ -78,6 +95,7 @@ export async function createBrand(brand: Omit<Brand, 'id' | 'created_at' | 'upda
 }
 
 export async function updateBrand(brand: Partial<Brand> & { id: string }): Promise<Brand> {
+  const supabase = await getSupabaseClient();
   const dbBrand = {
     ...brand,
     updated_at: new Date().toISOString(),
@@ -105,6 +123,7 @@ export async function updateBrand(brand: Partial<Brand> & { id: string }): Promi
 }
 
 export async function deleteBrand(brandId: string): Promise<void> {
+  const supabase = await getSupabaseClient();
   const { error } = await supabase
     .from('brands')
     .delete()
@@ -118,6 +137,7 @@ export async function deleteBrand(brandId: string): Promise<void> {
 
 // Brief Batch Services
 export async function getBriefBatches(brandId: string): Promise<BriefBatch[]> {
+  const supabase = await getSupabaseClient();
   const { data, error } = await supabase
     .from('brief_batches')
     .select('*')
@@ -133,6 +153,7 @@ export async function getBriefBatches(brandId: string): Promise<BriefBatch[]> {
 }
 
 export async function getBriefBatchById(batchId: string): Promise<BriefBatch | null> {
+  const supabase = await getSupabaseClient();
   const { data, error } = await supabase
     .from('brief_batches')
     .select('*')
@@ -140,6 +161,10 @@ export async function getBriefBatchById(batchId: string): Promise<BriefBatch | n
     .single();
 
   if (error) {
+    // If the error is "no rows found", return null instead of throwing
+    if (error.code === 'PGRST116') {
+      return null;
+    }
     console.error('Error fetching brief batch:', error);
     throw error;
   }
@@ -148,6 +173,7 @@ export async function getBriefBatchById(batchId: string): Promise<BriefBatch | n
 }
 
 export async function createBriefBatch(batch: Omit<BriefBatch, 'id' | 'created_at' | 'updated_at'>): Promise<BriefBatch> {
+  const supabase = await getSupabaseClient();
   const newBatch = {
     ...batch,
     id: uuidv4(),
@@ -170,6 +196,7 @@ export async function createBriefBatch(batch: Omit<BriefBatch, 'id' | 'created_a
 }
 
 export async function updateBriefBatch(batch: Partial<BriefBatch> & { id: string }): Promise<BriefBatch> {
+  const supabase = await getSupabaseClient();
   const { data, error } = await supabase
     .from('brief_batches')
     .update({
@@ -189,6 +216,7 @@ export async function updateBriefBatch(batch: Partial<BriefBatch> & { id: string
 }
 
 export async function deleteBriefBatch(batchId: string): Promise<void> {
+  const supabase = await getSupabaseClient();
   const { error } = await supabase
     .from('brief_batches')
     .delete()
@@ -202,6 +230,7 @@ export async function deleteBriefBatch(batchId: string): Promise<void> {
 
 // Brief Concept Services
 export async function getBriefConcepts(batchId: string): Promise<BriefConcept[]> {
+  const supabase = await getSupabaseClient();
   const { data, error } = await supabase
     .from('brief_concepts')
     .select('*')
@@ -226,6 +255,7 @@ export async function getBriefConcepts(batchId: string): Promise<BriefConcept[]>
 }
 
 export async function getBriefConceptById(conceptId: string): Promise<BriefConcept | null> {
+  const supabase = await getSupabaseClient();
   const { data, error } = await supabase
     .from('brief_concepts')
     .select('*')
@@ -233,6 +263,10 @@ export async function getBriefConceptById(conceptId: string): Promise<BriefConce
     .single();
 
   if (error) {
+    // If the error is "no rows found", return null instead of throwing
+    if (error.code === 'PGRST116') {
+      return null;
+    }
     console.error('Error fetching concept:', error);
     throw error;
   }
@@ -257,7 +291,8 @@ export async function createBriefConcept(concept: Omit<BriefConcept, 'id' | 'cre
   if (concept.brief_batch_id) {
     try {
       // First, get the batch to find the brand_id
-      const { data: batchData } = await supabase
+      const batchSupabase = await getSupabaseClient();
+      const { data: batchData } = await batchSupabase
         .from('brief_batches')
         .select('brand_id')
         .eq('id', concept.brief_batch_id)
@@ -265,7 +300,8 @@ export async function createBriefConcept(concept: Omit<BriefConcept, 'id' | 'cre
       
       if (batchData?.brand_id) {
         // Then get the brand to find the default instructions
-        const { data: brandData } = await supabase
+        const brandSupabase = await getSupabaseClient();
+        const { data: brandData } = await brandSupabase
           .from('brands')
           .select('*')
           .eq('id', batchData.brand_id)
@@ -285,6 +321,7 @@ export async function createBriefConcept(concept: Omit<BriefConcept, 'id' | 'cre
   }
 
   // Create the concept with defaults
+  const supabase = await getSupabaseClient();
   const dbConcept: any = {
     ...concept,
     id: uuidv4(),
@@ -329,6 +366,7 @@ export async function createBriefConcept(concept: Omit<BriefConcept, 'id' | 'cre
 
 export async function updateBriefConcept(concept: Partial<BriefConcept> & { id: string }): Promise<BriefConcept> {
   // Use type casting to avoid issues with potentially missing fields
+  const supabase = await getSupabaseClient();
   const dbConcept: any = {
     ...concept,
     updated_at: new Date().toISOString()
@@ -369,6 +407,7 @@ export async function updateBriefConcept(concept: Partial<BriefConcept> & { id: 
 }
 
 export async function deleteBriefConcept(conceptId: string): Promise<void> {
+  const supabase = await getSupabaseClient();
   const { error } = await supabase
     .from('brief_concepts')
     .delete()
@@ -382,6 +421,7 @@ export async function deleteBriefConcept(conceptId: string): Promise<void> {
 
 // Media Upload Service
 export async function uploadMedia(file: File, userId: string): Promise<string> {
+  const supabase = await getSupabaseClient();
   const fileExt = file.name.split('.').pop();
   const filePath = `${userId}/${uuidv4()}.${fileExt}`;
 
@@ -414,7 +454,7 @@ export async function shareBriefBatch(
   shareType: 'link' | 'email',
   shareSettings: ShareSettings
 ): Promise<ShareResult> {
-  const supabase = createSPAClient();
+  const supabase = await getSupabaseClient();
   
   // Generate a unique share ID
   const shareId = crypto.randomUUID();
@@ -482,7 +522,7 @@ export async function shareBriefConcept(
   shareType: 'link' | 'email',
   shareSettings: ShareSettings
 ): Promise<ShareResult> {
-  const supabase = createSPAClient();
+  const supabase = await getSupabaseClient();
   
   // Generate a unique share ID
   const shareId = crypto.randomUUID();
@@ -543,7 +583,7 @@ export async function shareBriefConcept(
  * @returns The count of concepts that need review
  */
 export async function getPendingReviewsCount(): Promise<number> {
-  const supabase = createSPAClient();
+  const supabase = await getSupabaseClient();
   
   const { count, error } = await supabase
     .from('brief_concepts')

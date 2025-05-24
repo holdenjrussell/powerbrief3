@@ -5,14 +5,15 @@ import { useGlobal } from '@/lib/context/GlobalContext';
 import { useRouter } from 'next/navigation';
 import { getBrandById, updateBrand, deleteBrand, getBriefBatches, createBriefBatch } from '@/lib/services/powerbriefService';
 import { Brand, BriefBatch, EditingResource, ResourceLogin, DosAndDonts } from '@/lib/types/powerbrief';
-import { Loader2, ArrowLeft, Save, Trash2, Plus, Folder } from 'lucide-react';
+import { Loader2, ArrowLeft, Save, Trash2, Plus, Folder, Facebook } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import MarkdownTextarea from '@/components/ui/markdown-textarea';
 import Link from 'next/link';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import MetaAssetsSelector from '@/components/MetaAssetsSelector';
 
 // Helper to unwrap params safely
 type ParamsType = { brandId: string };
@@ -78,9 +79,85 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
     const [newVideoDo, setNewVideoDo] = useState<string>('');
     const [newVideoDont, setNewVideoDont] = useState<string>('');
 
+    // Meta Integration State
+    const [metaConnectionStatus, setMetaConnectionStatus] = useState<string>('Not Connected'); // Example states: 'Connected', 'Error'
+    const [disconnectingMeta, setDisconnectingMeta] = useState<boolean>(false);
+
     // Extract params using React.use()
     const unwrappedParams = params instanceof Promise ? React.use(params) : params;
     const { brandId } = unwrappedParams;
+
+    // Check Meta connection status based on brand data
+    const checkMetaConnectionStatus = (brandData: Brand) => {
+        // Check if brand has encrypted token and it's not expired
+        if (brandData.meta_access_token && 
+            brandData.meta_access_token_expires_at) {
+            const expirationDate = new Date(brandData.meta_access_token_expires_at);
+            const now = new Date();
+            
+            if (expirationDate > now) {
+                setMetaConnectionStatus('Connected');
+            } else {
+                setMetaConnectionStatus('Expired');
+            }
+        } else {
+            setMetaConnectionStatus('Not Connected');
+        }
+    };
+
+    // Handle Meta Assets Saved
+    const handleMetaAssetsSaved = async () => {
+        // Refresh brand data to get updated Meta assets
+        try {
+            const updatedBrand = await getBrandById(brandId);
+            if (updatedBrand) {
+                setBrand(updatedBrand);
+            }
+        } catch (err) {
+            console.error('Error refreshing brand data:', err);
+        }
+    };
+
+    // Handle Meta Disconnection
+    const handleDisconnectMeta = async () => {
+        if (!brand) return;
+        
+        try {
+            setDisconnectingMeta(true);
+            
+            const response = await fetch('/api/meta/disconnect', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ brandId: brand.id }),
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to disconnect Meta integration');
+            }
+
+            // Update the brand state to reflect disconnection
+            setBrand({
+                ...brand,
+                meta_access_token: null,
+                meta_access_token_expires_at: null,
+                meta_user_id: null,
+                meta_ad_account_id: null,
+                meta_facebook_page_id: null,
+                meta_instagram_actor_id: null,
+                meta_pixel_id: null
+            });
+            
+            setMetaConnectionStatus('Not Connected');
+            setError(null);
+        } catch (err) {
+            console.error('Error disconnecting Meta:', err);
+            setError('Failed to disconnect Meta integration. Please try again.');
+        } finally {
+            setDisconnectingMeta(false);
+        }
+    };
 
     // Fetch brand and batches data
     useEffect(() => {
@@ -101,6 +178,9 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
                 
                 setBrand(brandData);
                 setBatches(batchesData);
+                
+                // Check Meta connection status
+                checkMetaConnectionStatus(brandData);
                 
                 // Set form fields
                 setBrandName(brandData.name);
@@ -134,6 +214,26 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
         
         fetchData();
     }, [user?.id, brandId, router]);
+
+    // Handle meta_connected URL parameter
+    useEffect(() => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const metaConnected = urlParams.get('meta_connected');
+        
+        if (metaConnected === 'true' && brand) {
+            // Refetch brand data to get the updated connection status
+            getBrandById(brandId).then((updatedBrand) => {
+                if (updatedBrand) {
+                    setBrand(updatedBrand);
+                    checkMetaConnectionStatus(updatedBrand);
+                }
+            });
+            
+            // Clean up URL parameters
+            const newUrl = window.location.pathname;
+            window.history.replaceState({}, '', newUrl);
+        }
+    }, [brand, brandId]);
 
     // Save brand changes
     const handleSaveBrand = async () => {
@@ -209,6 +309,44 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
         } finally {
             setCreatingBatch(false);
         }
+    };
+
+    // Handle Meta Connection
+    const handleConnectMeta = () => {
+        const metaAppId = process.env.NEXT_PUBLIC_META_APP_ID;
+        if (!metaAppId) {
+            setError("Meta App ID is not configured. Please check environment variables.");
+            console.error("NEXT_PUBLIC_META_APP_ID is not set.");
+            return;
+        }
+
+        // Use the same redirect URI logic as the backend for consistency
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
+        const redirectUri = encodeURIComponent(`${baseUrl}/api/auth/meta/callback`);
+        
+        // Define the scopes your application needs
+        // ads_management: Manage ads for ad accounts you have access to.
+        // pages_show_list: Get a list of Pages that a person manages.
+        // instagram_basic: Get basic metadata about an Instagram Business or Creator Account.
+        // read_insights: Read insights data for Pages, Apps, and web properties you own. (Often used for Pixel data)
+        // business_management: Manage a business, including ad accounts, Pages, and other assets.
+        // TODO: review these scopes based on exact needs.
+        const scopes = [
+            'ads_management',
+            'pages_show_list',
+            'instagram_basic',
+            'read_insights',
+            'business_management' 
+        ].join(','); 
+
+        // Optional: Add a state parameter for CSRF protection
+        const state = encodeURIComponent(JSON.stringify({ brandId: brand?.id, userId: user?.id })); // Example state
+
+        const oauthUrl = `https://www.facebook.com/v19.0/dialog/oauth?client_id=${metaAppId}&redirect_uri=${redirectUri}&scope=${scopes}&state=${state}&response_type=code`;
+        
+        console.log('Redirecting to Meta OAuth:', oauthUrl);
+        console.log('Using redirect URI:', `${baseUrl}/api/auth/meta/callback`);
+        window.location.href = oauthUrl;
     };
 
     if (loading) {
@@ -647,10 +785,10 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
                     </CardContent>
                 </Card>
                 
-                {/* Do's and Don'ts Column */}
+                {/* Do&apos;s and Don&apos;ts Column */}
                 <Card className="min-w-[420px] max-w-[420px] flex-shrink-0">
                     <CardHeader>
-                        <CardTitle>Do's and Don'ts</CardTitle>
+                        <CardTitle>Do&apos;s and Don&apos;ts</CardTitle>
                         <CardDescription>Define guidelines for images and videos</CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -659,9 +797,9 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
                             <div className="space-y-4">
                                 <h3 className="text-md font-semibold">Image Guidelines</h3>
                                 
-                                {/* Image Do's */}
+                                {/* Image Do&apos;s */}
                                 <div className="space-y-2">
-                                    <h4 className="text-sm font-medium text-green-600">Do's</h4>
+                                    <h4 className="text-sm font-medium text-green-600">Do&apos;s</h4>
                                     <div className="space-y-2">
                                         {dosAndDonts.imagesDos.map((item, index) => (
                                             <div key={index} className="flex items-center justify-between p-2 rounded-md bg-green-50 border border-green-200">
@@ -705,9 +843,9 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
                                     </div>
                                 </div>
                                 
-                                {/* Image Don'ts */}
+                                {/* Image Don&apos;ts */}
                                 <div className="space-y-2">
-                                    <h4 className="text-sm font-medium text-red-600">Don'ts</h4>
+                                    <h4 className="text-sm font-medium text-red-600">Don&apos;ts</h4>
                                     <div className="space-y-2">
                                         {dosAndDonts.imagesDonts.map((item, index) => (
                                             <div key={index} className="flex items-center justify-between p-2 rounded-md bg-red-50 border border-red-200">
@@ -729,7 +867,7 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
                                             <Input
                                                 value={newImageDont}
                                                 onChange={(e) => setNewImageDont(e.target.value)}
-                                                placeholder="Add a new image Don't"
+                                                placeholder="Add a new image Don&apos;t"
                                                 className="w-full"
                                             />
                                             <Button 
@@ -756,9 +894,9 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
                             <div className="space-y-4">
                                 <h3 className="text-md font-semibold">Video Guidelines</h3>
                                 
-                                {/* Video Do's */}
+                                {/* Video Do&apos;s */}
                                 <div className="space-y-2">
-                                    <h4 className="text-sm font-medium text-green-600">Do's</h4>
+                                    <h4 className="text-sm font-medium text-green-600">Do&apos;s</h4>
                                     <div className="space-y-2">
                                         {dosAndDonts.videosDos.map((item, index) => (
                                             <div key={index} className="flex items-center justify-between p-2 rounded-md bg-green-50 border border-green-200">
@@ -802,9 +940,9 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
                                     </div>
                                 </div>
                                 
-                                {/* Video Don'ts */}
+                                {/* Video Don&apos;ts */}
                                 <div className="space-y-2">
-                                    <h4 className="text-sm font-medium text-red-600">Don'ts</h4>
+                                    <h4 className="text-sm font-medium text-red-600">Don&apos;ts</h4>
                                     <div className="space-y-2">
                                         {dosAndDonts.videosDonts.map((item, index) => (
                                             <div key={index} className="flex items-center justify-between p-2 rounded-md bg-red-50 border border-red-200">
@@ -826,7 +964,7 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
                                             <Input
                                                 value={newVideoDont}
                                                 onChange={(e) => setNewVideoDont(e.target.value)}
-                                                placeholder="Add a new video Don't"
+                                                placeholder="Add a new video Don&apos;t"
                                                 className="w-full"
                                             />
                                             <Button 
@@ -849,6 +987,115 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
                                 </div>
                             </div>
                         </div>
+                    </CardContent>
+                </Card>
+                
+                {/* Meta Integration Column */}
+                <Card className="min-w-[420px] max-w-[420px] flex-shrink-0">
+                    <CardHeader>
+                        <CardTitle>Meta Integration</CardTitle>
+                        <CardDescription>Connect your Meta Ad Account, Pages, and Pixels.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div>
+                            <p className="text-sm text-gray-600 mb-2">
+                                Status: <span className={`font-semibold ${
+                                    metaConnectionStatus === 'Connected' ? 'text-green-600' : 
+                                    metaConnectionStatus === 'Expired' ? 'text-orange-600' : 
+                                    'text-gray-600'
+                                }`}>{metaConnectionStatus}</span>
+                            </p>
+                            
+                            {metaConnectionStatus === 'Connected' && (
+                                <div className="space-y-3">
+                                    {/* Connected Account Details */}
+                                    <div className="p-3 border rounded-md bg-green-50 border-green-200">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <h4 className="text-sm font-medium text-green-800">Connected Account</h4>
+                                            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                        </div>
+                                        <div className="space-y-1 text-xs text-green-700">
+                                            {brand?.meta_user_id && (
+                                                <p><span className="font-medium">User ID:</span> {brand.meta_user_id}</p>
+                                            )}
+                                            {brand?.meta_access_token_expires_at && (
+                                                <p><span className="font-medium">Expires:</span> {new Date(brand.meta_access_token_expires_at).toLocaleDateString()}</p>
+                                            )}
+                                            {brand?.meta_ad_account_id && (
+                                                <p><span className="font-medium">Ad Account:</span> {brand.meta_ad_account_id}</p>
+                                            )}
+                                            {brand?.meta_facebook_page_id && (
+                                                <p><span className="font-medium">Facebook Page:</span> {brand.meta_facebook_page_id}</p>
+                                            )}
+                                            {brand?.meta_instagram_actor_id && (
+                                                <p><span className="font-medium">Instagram Account:</span> {brand.meta_instagram_actor_id}</p>
+                                            )}
+                                            {brand?.meta_pixel_id && (
+                                                <p><span className="font-medium">Pixel ID:</span> {brand.meta_pixel_id}</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                    
+                                    {/* Disconnect Button */}
+                                    <Button 
+                                        onClick={handleDisconnectMeta}
+                                        disabled={disconnectingMeta}
+                                        variant="outline"
+                                        className="w-full text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300"
+                                    >
+                                        {disconnectingMeta ? (
+                                            <>
+                                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                                Disconnecting...
+                                            </>
+                                        ) : (
+                                            'Disconnect Meta'
+                                        )}
+                                    </Button>
+                                </div>
+                            )}
+                            
+                            {metaConnectionStatus === 'Expired' && (
+                                <div className="space-y-3">
+                                    <div className="p-3 border rounded-md bg-orange-50 border-orange-200">
+                                        <p className="text-sm text-orange-800">
+                                            Your Meta access token has expired. Please reconnect to continue using Meta features.
+                                        </p>
+                                    </div>
+                                    <Button 
+                                        onClick={handleConnectMeta} 
+                                        className="w-full bg-blue-600 text-white hover:bg-blue-700"
+                                    >
+                                        <Facebook className="h-4 w-4 mr-2" />
+                                        Reconnect to Meta
+                                    </Button>
+                                </div>
+                            )}
+                            
+                            {metaConnectionStatus === 'Not Connected' && (
+                                <Button 
+                                    onClick={handleConnectMeta} 
+                                    className="w-full bg-blue-600 text-white hover:bg-blue-700"
+                                >
+                                    <Facebook className="h-4 w-4 mr-2" />
+                                    Connect to Meta
+                                </Button>
+                            )}
+                        </div>
+                        
+                        {/* Meta Assets Selection */}
+                        {metaConnectionStatus === 'Connected' && (
+                            <div className="mt-4">
+                                <MetaAssetsSelector
+                                    brandId={brandId}
+                                    currentAdAccountId={brand?.meta_ad_account_id}
+                                    currentFacebookPageId={brand?.meta_facebook_page_id}
+                                    currentInstagramAccountId={brand?.meta_instagram_actor_id}
+                                    currentPixelId={brand?.meta_pixel_id}
+                                    onAssetsSaved={handleMetaAssetsSaved}
+                                />
+                            </div>
+                        )}
                     </CardContent>
                 </Card>
                 
