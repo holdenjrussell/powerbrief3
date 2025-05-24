@@ -121,4 +121,8 @@ export interface AdvantageCreativeEnhancements {
   description_automation: boolean;   // Description automation
   add_text_overlay: boolean;         // Add text overlay
   site_extensions: boolean;          // Site extensions
+  // New enhancements
+  music: boolean;                    // Add music to videos
+  '3d_animation': boolean;           // Add 3D animation effects
+  translate_text: boolean;           // Translate text for different audiences
 } 

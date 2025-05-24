@@ -385,7 +385,10 @@ export async function POST(req: NextRequest) {
             product_extensions: 'product_extensions',
             description_automation: 'description_automation',
             add_text_overlay: 'add_text_overlay',
-            site_extensions: 'site_extensions'
+            site_extensions: 'site_extensions',
+            music: 'music',
+            '3d_animation': '3d_animation',
+            translate_text: 'translate_text'
           };
           
           // Add enabled enhancements

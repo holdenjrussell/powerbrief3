@@ -1,6 +1,6 @@
 "use client";
 import React from 'react';
-import { Sparkles, Palette, Volume2, Eye, MessageSquare, Type, Maximize2, MousePointer, Link } from 'lucide-react';
+import { Sparkles, Palette, Volume2, Eye, MessageSquare, Type, Maximize2, MousePointer, Link, Music, Zap, Globe } from 'lucide-react';
 import { AdvantageCreativeEnhancements } from './adUploadTypes';
 
 interface AdvantageCreativeManagerProps {
@@ -80,6 +80,33 @@ const CREATIVE_ENHANCEMENTS = [
     color: 'text-teal-500',
     bgColor: 'bg-teal-50',
     percentage: 'Site links provide additional navigation options'
+  },
+  {
+    key: 'music' as keyof AdvantageCreativeEnhancements,
+    label: 'Add Music',
+    description: 'Automatically add background music to video ads when likely to improve performance',
+    icon: Music,
+    color: 'text-red-500',
+    bgColor: 'bg-red-50',
+    percentage: 'Music can increase video engagement and emotional connection'
+  },
+  {
+    key: '3d_animation' as keyof AdvantageCreativeEnhancements,
+    label: '3D Animation',
+    description: 'Add 3D animation effects to static images and videos',
+    icon: Zap,
+    color: 'text-yellow-500',
+    bgColor: 'bg-yellow-50',
+    percentage: '3D effects can make ads more eye-catching and memorable'
+  },
+  {
+    key: 'translate_text' as keyof AdvantageCreativeEnhancements,
+    label: 'Translate Text',
+    description: 'Automatically translate ad text to reach audiences in different languages',
+    icon: Globe,
+    color: 'text-emerald-500',
+    bgColor: 'bg-emerald-50',
+    percentage: 'Multi-language ads can expand your reach significantly'
   }
 ];
 
@@ -98,7 +125,10 @@ const AdvantageCreativeManager: React.FC<AdvantageCreativeManagerProps> = ({
     product_extensions: false,
     description_automation: false,
     add_text_overlay: false,
-    site_extensions: false
+    site_extensions: false,
+    music: false,
+    '3d_animation': false,
+    translate_text: false
   }, 
   onChange 
 }) => {
@@ -117,7 +147,10 @@ const AdvantageCreativeManager: React.FC<AdvantageCreativeManagerProps> = ({
     product_extensions: false,
     description_automation: false,
     add_text_overlay: false,
-    site_extensions: false
+    site_extensions: false,
+    music: false,
+    '3d_animation': false,
+    translate_text: false
   };
 
   const toggleEnhancement = (key: keyof AdvantageCreativeEnhancements) => {
