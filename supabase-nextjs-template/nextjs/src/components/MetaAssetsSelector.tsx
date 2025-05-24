@@ -234,8 +234,8 @@ const MetaAssetsSelector: React.FC<MetaAssetsSelectorProps> = ({
                 <SelectValue placeholder="Select an ad account" />
               </SelectTrigger>
               <SelectContent>
-                {adAccounts.map((account) => (
-                  <SelectItem key={account.id} value={account.id}>
+                {adAccounts.map((account, index) => (
+                  <SelectItem key={`${account.id}-${index}`} value={account.id}>
                     <div className="flex flex-col">
                       <span className="font-medium">{account.name}</span>
                       <span className="text-xs text-gray-500">
@@ -263,8 +263,8 @@ const MetaAssetsSelector: React.FC<MetaAssetsSelectorProps> = ({
                 <SelectValue placeholder="Select a pixel" />
               </SelectTrigger>
               <SelectContent>
-                {pixels.map((pixel) => (
-                  <SelectItem key={pixel.id} value={pixel.id}>
+                {pixels.map((pixel, index) => (
+                  <SelectItem key={`${pixel.id}-${index}`} value={pixel.id}>
                     <div className="flex flex-col">
                       <span className="font-medium">{pixel.name}</span>
                       <span className="text-xs text-gray-500">ID: {pixel.id}</span>
@@ -290,8 +290,8 @@ const MetaAssetsSelector: React.FC<MetaAssetsSelectorProps> = ({
                 <SelectValue placeholder="Select a Facebook page" />
               </SelectTrigger>
               <SelectContent>
-                {pages.map((page) => (
-                  <SelectItem key={page.id} value={page.id}>
+                {pages.map((page, index) => (
+                  <SelectItem key={`${page.id}-${index}`} value={page.id}>
                     <div className="flex flex-col">
                       <span className="font-medium">{page.name}</span>
                       <span className="text-xs text-gray-500">{page.category}</span>

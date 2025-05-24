@@ -106,6 +106,7 @@ export async function GET(request: NextRequest) {
     
     // Then get pixels for each ad account
     const allPixels: MetaPixel[] = [];
+    const seenPixelIds = new Set<string>();
     
     for (const acc of adAccountsData.data) {
         console.log(`Processing pixels for ad account: ${acc.id} (${acc.name})`);
@@ -125,8 +126,12 @@ export async function GET(request: NextRequest) {
         const accountPixels: MetaPixel[] = pixelsData.data || [];
         console.log(`Found ${accountPixels.length} pixels for account ${acc.id}`);
 
+        // Only add pixels we haven't seen before to prevent duplicates
         accountPixels.forEach(pixel => {
-          allPixels.push(pixel);
+          if (!seenPixelIds.has(pixel.id)) {
+            seenPixelIds.add(pixel.id);
+            allPixels.push(pixel);
+          }
         });
     }
 
