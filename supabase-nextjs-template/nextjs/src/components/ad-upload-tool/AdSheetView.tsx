@@ -7,7 +7,9 @@ import {
   PlusCircle,
   Columns,
   Edit,
-  Rocket
+  Rocket,
+  ChevronLeft,
+  Loader2
 } from 'lucide-react';
 import AssetImportModal from './AssetImportModal';
 import MetaCampaignSelector from './MetaCampaignSelector';
@@ -24,6 +26,7 @@ import {
     BulkEditableAdDraftFields
 } from './adUploadTypes';
 import BulkEditModal from './BulkEditModal'; // Import BulkEditModal
+import { Button } from '@/components/ui/button';
 
 // DefaultValues interface is now imported and aliased
 // ColumnDef interface is now imported
@@ -87,6 +90,8 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBat
   const [isBulkEditModalOpen, setIsBulkEditModalOpen] = useState(false); // State for bulk edit modal
   const [draftsForBulkEdit, setDraftsForBulkEdit] = useState<AdDraft[]>([]); // State to hold drafts for modal
   const [isLaunching, setIsLaunching] = useState(false); // State for launch loading
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
   // Log active batch for debugging
   console.log('Active batch in AdSheetView:', activeBatch?.name || 'No active batch');
@@ -256,8 +261,24 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBat
     );
   };
 
-  const handleDeleteRow = (rowIndex: number) => {
+  const handleDeleteRow = async (rowIndex: number) => {
     const draftToRemove = adDrafts[rowIndex];
+    
+    // Delete from database first
+    try {
+      const response = await fetch('/api/ad-drafts', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ draftIds: [draftToRemove.id] }),
+      });
+      
+      if (!response.ok) throw new Error('Failed to delete draft from database');
+    } catch (error) {
+      console.error('Error deleting draft:', error);
+      return; // Don't update UI if database delete failed
+    }
+    
+    // Update local state after successful database delete
     setAdDrafts(prev => prev.filter((_, index) => index !== rowIndex));
     setCheckedDraftIds(prev => { 
         const newSet = new Set(prev);
@@ -479,6 +500,66 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBat
     }
   };
 
+  // Load existing ad drafts on component mount
+  useEffect(() => {
+    const loadAdDrafts = async () => {
+      if (!defaults.brandId) return;
+      
+      try {
+        setLoading(true);
+        const params = new URLSearchParams({
+          brandId: defaults.brandId
+        });
+        
+        // Filter by ad batch if available
+        if (activeBatch?.id) {
+          params.append('adBatchId', activeBatch.id);
+        }
+        
+        const response = await fetch(`/api/ad-drafts?${params}`);
+        if (!response.ok) throw new Error('Failed to load ad drafts');
+        
+        const existingDrafts: AdDraft[] = await response.json();
+        setAdDrafts(existingDrafts);
+      } catch (error) {
+        console.error('Error loading ad drafts:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadAdDrafts();
+  }, [defaults.brandId, activeBatch?.id]);
+
+  // Auto-save ad drafts when they change (debounced)
+  useEffect(() => {
+    const saveAdDrafts = async () => {
+      if (!defaults.brandId || adDrafts.length === 0 || loading) return;
+      
+      try {
+        setSaving(true);
+        const response = await fetch('/api/ad-drafts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            adDrafts: adDrafts,
+            adBatchId: activeBatch?.id || null
+          }),
+        });
+        
+        if (!response.ok) throw new Error('Failed to save ad drafts');
+      } catch (error) {
+        console.error('Error saving ad drafts:', error);
+      } finally {
+        setSaving(false);
+      }
+    };
+
+    // Debounce the save operation
+    const timeoutId = setTimeout(saveAdDrafts, 1000);
+    return () => clearTimeout(timeoutId);
+  }, [adDrafts, defaults.brandId, activeBatch?.id, loading]);
+
   return (
     <div className="mt-6 pb-16">
         <div className="bg-white p-4 sm:p-6 rounded-lg shadow mb-6">
@@ -495,12 +576,31 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBat
                 <p>Primary Text: <span className="font-medium text-gray-600 truncate w-60 inline-block" title={defaults.primaryText}>{defaults.primaryText}</span></p>
                 <p>Headline: <span className="font-medium text-gray-600">{defaults.headline}</span></p>
             </div>
-             <button 
-                onClick={onGoBack} 
-                className="mt-3 text-sm text-primary-600 hover:text-primary-800 focus:outline-none flex items-center"
-              >
-                &larr; Change Defaults
-            </button>
+             <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center space-x-2">
+                <Button onClick={onGoBack} variant="outline" size="sm">
+                  <ChevronLeft className="h-4 w-4 mr-1" />
+                  Back to Settings
+                </Button>
+                {activeBatch && (
+                  <span className="text-sm text-gray-600">
+                    Batch: {activeBatch.name}
+                  </span>
+                )}
+                {saving && (
+                  <span className="text-sm text-blue-600 flex items-center">
+                    <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                    Saving...
+                  </span>
+                )}
+                {loading && (
+                  <span className="text-sm text-gray-600 flex items-center">
+                    <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                    Loading drafts...
+                  </span>
+                )}
+              </div>
+            </div>
         </div>
 
       <div className="bg-white p-4 sm:p-6 rounded-lg shadow">

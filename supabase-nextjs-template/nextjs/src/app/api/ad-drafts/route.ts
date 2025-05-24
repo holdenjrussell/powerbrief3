@@ -18,6 +18,7 @@ interface AdDraftRowFromDB {
   call_to_action: string | null;
   meta_status: string; // DB stores it as string, will cast to AdCreativeStatus
   app_status: string;  // DB stores it as string, will cast to AppAdDraftStatus
+  ad_batch_id: string | null;
   ad_draft_assets: AdDraftAssetRowFromDB[]; // Nested assets
   // user_id and brand_id are not directly mapped back to AdDraft type, but used for query
 }
@@ -39,6 +40,7 @@ interface AdDraftInsertRow {
   id: string;
   user_id: string;
   brand_id: string;
+  ad_batch_id?: string | null;
   ad_name: string;
   primary_text?: string | null;
   headline?: string | null;
@@ -65,6 +67,7 @@ export async function GET(req: NextRequest) {
   const supabase = await createSSRClient();
   const { searchParams } = new URL(req.url);
   const brandId = searchParams.get('brandId');
+  const adBatchId = searchParams.get('adBatchId'); // Add support for ad batch filtering
 
   if (!brandId) {
     return NextResponse.json({ message: 'Brand ID is required.' }, { status: 400 });
@@ -76,8 +79,8 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // Supabase types should now correctly infer draftsData type if supabase.ts is updated
-    const { data: draftsData, error: draftsError } = await supabase
+    // Build query with optional ad_batch_id filter
+    let query = supabase
       .from('ad_drafts')
       .select(`
         id,
@@ -91,6 +94,7 @@ export async function GET(req: NextRequest) {
         call_to_action,
         meta_status,
         app_status,
+        ad_batch_id,
         ad_draft_assets (
           id,
           name,
@@ -105,6 +109,13 @@ export async function GET(req: NextRequest) {
       .eq('user_id', user.id)
       .order('created_at', { ascending: false });
 
+    // Filter by ad_batch_id if provided
+    if (adBatchId) {
+      query = query.eq('ad_batch_id', adBatchId);
+    }
+
+    const { data: draftsData, error: draftsError } = await query;
+
     if (draftsError) {
       console.error('[API AD_DRAFTS GET] Error fetching drafts:', draftsError);
       throw draftsError;
@@ -114,7 +125,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Explicitly type draftRow based on the expected structure from the database query
-    const drafts: AdDraft[] = draftsData.map((draftRow: AdDraftRowFromDB) => ({
+    const drafts: AdDraft[] = draftsData.map((draftRow: any) => ({
       id: draftRow.id,
       brandId: brandId, // Add brandId to the response object, it's used in the frontend context
       adName: draftRow.ad_name,
@@ -127,7 +138,7 @@ export async function GET(req: NextRequest) {
       callToAction: draftRow.call_to_action || '',
       status: draftRow.meta_status as AdCreativeStatus,
       appStatus: draftRow.app_status as AppAdDraftStatus,
-      assets: draftRow.ad_draft_assets.map((assetRow: AdDraftAssetRowFromDB) => ({
+      assets: (draftRow.ad_draft_assets || []).map((assetRow: AdDraftAssetRowFromDB) => ({
         name: assetRow.name,
         supabaseUrl: assetRow.supabase_url,
         type: assetRow.type,
@@ -153,14 +164,14 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const adDraftsToUpsert: AdDraft[] = await req.json();
-    if (!Array.isArray(adDraftsToUpsert) || adDraftsToUpsert.length === 0) {
+    const { adDrafts, adBatchId }: { adDrafts: AdDraft[], adBatchId?: string } = await req.json();
+    if (!Array.isArray(adDrafts) || adDrafts.length === 0) {
       return NextResponse.json({ message: 'No ad drafts provided or invalid format.' }, { status: 400 });
     }
     
     const results = [];
 
-    for (const draft of adDraftsToUpsert) {
+    for (const draft of adDrafts) {
       if (!draft.brandId) { 
          console.warn('[API AD_DRAFTS POST] Draft missing brandId:', draft.adName);
          results.push({ id: draft.id, success: false, message: 'Draft missing brandId.'});
@@ -172,6 +183,7 @@ export async function POST(req: NextRequest) {
         id: draft.id, 
         user_id: user.id, // user_id is part of AdDraftInsertRow now
         brand_id: draft.brandId,
+        ad_batch_id: adBatchId || null, // Associate with ad batch if provided
         ad_name: draft.adName,
         primary_text: draft.primaryText || null,
         headline: draft.headline || null,
@@ -184,6 +196,7 @@ export async function POST(req: NextRequest) {
         app_status: draft.appStatus || 'DRAFT',
       };
 
+      /* eslint-disable @typescript-eslint/no-explicit-any */
       const { data: upsertedDraft, error: draftError } = await supabase
         .from('ad_drafts')
         .upsert(adDraftRowToUpsert) // Pass the fully typed object
