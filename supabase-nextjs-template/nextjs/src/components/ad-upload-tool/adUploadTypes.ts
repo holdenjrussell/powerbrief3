@@ -114,12 +114,11 @@ export interface AdvantageCreativeEnhancements {
   image_brightness_and_contrast: boolean; // Adjust brightness and contrast
   enhance_cta: boolean;              // Enhance CTA
   text_optimizations: boolean;       // Text improvements
-  image_background_gen: boolean;     // Generate backgrounds
   image_uncrop: boolean;             // Expand image
   adapt_to_placement: boolean;       // Adapt to placement
-  media_type_automation: boolean;    // Dynamic media
-  product_extensions: boolean;       // Add catalog items
+  media_type_automation: boolean;    // Media type automation
+  product_extensions: boolean;       // Product extensions
   description_automation: boolean;   // Description automation
-  add_text_overlay: boolean;         // Add Dynamic Overlays
-  site_extensions: boolean;          // Add site links
+  add_text_overlay: boolean;         // Add text overlay
+  site_extensions: boolean;          // Site extensions
 } 

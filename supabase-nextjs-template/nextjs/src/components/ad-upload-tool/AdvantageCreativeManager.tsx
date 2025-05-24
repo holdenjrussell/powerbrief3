@@ -1,6 +1,6 @@
 "use client";
 import React from 'react';
-import { Sparkles, Palette, Volume2, Eye, Wand2, MessageSquare, Type, Maximize2, MousePointer, Link } from 'lucide-react';
+import { Sparkles, Palette, Volume2, Eye, MessageSquare, Type, Maximize2, MousePointer, Link } from 'lucide-react';
 import { AdvantageCreativeEnhancements } from './adUploadTypes';
 
 interface AdvantageCreativeManagerProps {
@@ -55,15 +55,6 @@ const CREATIVE_ENHANCEMENTS = [
     percentage: '75% of ecommerce businesses have turned on text improvements'
   },
   {
-    key: 'image_background_gen' as keyof AdvantageCreativeEnhancements,
-    label: 'Generate Backgrounds',
-    description: 'Create different backgrounds for product images using AI',
-    icon: Wand2,
-    color: 'text-yellow-500',
-    bgColor: 'bg-yellow-50',
-    percentage: 'AI-generated backgrounds can improve product visibility'
-  },
-  {
     key: 'image_uncrop' as keyof AdvantageCreativeEnhancements,
     label: 'Expand Image',
     description: 'Automatically expand images to fit more placements using AI',
@@ -101,7 +92,6 @@ const AdvantageCreativeManager: React.FC<AdvantageCreativeManagerProps> = ({
     image_brightness_and_contrast: false,
     enhance_cta: false,
     text_optimizations: false,
-    image_background_gen: false,
     image_uncrop: false,
     adapt_to_placement: false,
     media_type_automation: false,
@@ -121,7 +111,6 @@ const AdvantageCreativeManager: React.FC<AdvantageCreativeManagerProps> = ({
     image_brightness_and_contrast: false,
     enhance_cta: false,
     text_optimizations: false,
-    image_background_gen: false,
     image_uncrop: false,
     adapt_to_placement: false,
     media_type_automation: false,

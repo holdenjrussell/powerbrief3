@@ -108,7 +108,6 @@ const AdBatchCreator: React.FC<AdBatchCreatorProps> = ({ onDefaultsSet, initialD
       image_brightness_and_contrast: false,
       enhance_cta: false,
       text_optimizations: false,
-      image_background_gen: false,
       image_uncrop: false,
       adapt_to_placement: false,
       media_type_automation: false,

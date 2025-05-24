@@ -379,7 +379,6 @@ export async function POST(req: NextRequest) {
             image_brightness_and_contrast: 'image_brightness_and_contrast',
             enhance_cta: 'enhance_cta',
             text_optimizations: 'text_optimizations',
-            image_background_gen: 'image_background_gen',
             image_uncrop: 'image_uncrop',
             adapt_to_placement: 'adapt_to_placement',
             media_type_automation: 'media_type_automation',
