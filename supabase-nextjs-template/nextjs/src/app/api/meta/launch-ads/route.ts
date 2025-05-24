@@ -123,6 +123,18 @@ export async function POST(req: NextRequest) {
 
     console.log('[Launch API] Meta Access Token decrypted successfully.');
 
+    // First, update all drafts to UPLOADING status
+    const draftIds = drafts.map(draft => draft.id);
+    try {
+      await supabase
+        .from('ad_drafts')
+        .update({ app_status: 'UPLOADING' })
+        .in('id', draftIds);
+      console.log('[Launch API] Updated drafts to UPLOADING status');
+    } catch (error) {
+      console.error('[Launch API] Failed to update drafts to UPLOADING status:', error);
+    }
+
     const processingResults = [];
     // Use a new array to store drafts with updated asset info (meta IDs)
     const draftsWithMetaAssets: AdDraft[] = [];
@@ -145,11 +157,14 @@ export async function POST(req: NextRequest) {
           formData.append('access_token', accessToken);
           formData.append('source', assetBlob, asset.name);
 
+          // Ensure adAccountId has the proper format (remove extra 'act_' if it exists)
+          const formattedAdAccountId = adAccountId.startsWith('act_') ? adAccountId.substring(4) : adAccountId;
+          
           let metaUploadUrl = '';
           if (asset.type === 'image') {
-            metaUploadUrl = `https://graph.facebook.com/${META_API_VERSION}/${adAccountId}/adimages`;
+            metaUploadUrl = `https://graph.facebook.com/${META_API_VERSION}/act_${formattedAdAccountId}/adimages`;
           } else if (asset.type === 'video') {
-            metaUploadUrl = `https://graph.facebook.com/${META_API_VERSION}/${adAccountId}/advideos`;
+            metaUploadUrl = `https://graph.facebook.com/${META_API_VERSION}/act_${formattedAdAccountId}/advideos`;
           } else {
             console.warn(`[Launch API]     Unsupported asset type: ${asset.type} for asset ${asset.name}`);
             updatedAssets.push({ ...asset, metaUploadError: 'Unsupported type' });
@@ -266,7 +281,9 @@ export async function POST(req: NextRequest) {
           // For lead forms, 'leadgen_form_id' is needed in object_story_spec
           // This example assumes a common link click/conversion ad. Adjust for other types.
 
-          const creativeApiUrl = `https://graph.facebook.com/${META_API_VERSION}/act_${adAccountId}/adcreatives`;
+          // Ensure adAccountId has the proper format (remove extra 'act_' if it exists)
+          const formattedAdAccountId = adAccountId.startsWith('act_') ? adAccountId.substring(4) : adAccountId;
+          const creativeApiUrl = `https://graph.facebook.com/${META_API_VERSION}/act_${formattedAdAccountId}/adcreatives`;
           console.log(`[Launch API]     Creating Ad Creative for ${draft.adName}... URL: ${creativeApiUrl.split('?')[0]}`);
 
           const creativeResponse = await fetch(creativeApiUrl, {
@@ -355,6 +372,23 @@ export async function POST(req: NextRequest) {
         creativeError: creativeError,
         adError: adError,
       });
+
+      // Update the draft's app_status in the database based on the final result
+      try {
+        let dbStatus = 'ERROR'; // Default to ERROR
+        if (finalStatus === 'AD_CREATED') {
+          dbStatus = 'PUBLISHED';
+        }
+        
+        await supabase
+          .from('ad_drafts')
+          .update({ app_status: dbStatus })
+          .eq('id', draft.id);
+        
+        console.log(`[Launch API] Updated draft ${draft.adName} status to ${dbStatus}`);
+      } catch (error) {
+        console.error(`[Launch API] Failed to update draft ${draft.adName} status:`, error);
+      }
     }
 
     // The original asset upload loop result construction is now integrated into the main loop.

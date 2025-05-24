@@ -31,15 +31,13 @@ export const callToActionOptions: readonly string[] = [
 export const adCreativeStatusOptions: readonly AdCreativeStatus[] = ['DRAFT', 'PAUSED', 'ACTIVE', 'ARCHIVED'] as const;
 
 // New type and options for internal app status
-export type AppAdDraftStatus = 'DRAFT' | 'READY_FOR_LAUNCH' | 'LAUNCHING' | 'LAUNCHED' | 'FAILED_LAUNCH' | 'BACKLOG';
+export type AppAdDraftStatus = 'DRAFT' | 'UPLOADING' | 'PUBLISHED' | 'ERROR';
 
 export const appAdDraftStatusOptions: readonly AppAdDraftStatus[] = [
   'DRAFT',
-  'READY_FOR_LAUNCH',
-  'LAUNCHING',
-  'LAUNCHED',
-  'FAILED_LAUNCH',
-  'BACKLOG'
+  'UPLOADING', 
+  'PUBLISHED',
+  'ERROR'
 ] as const;
 
 // For the modal, specific to what can be edited in bulk
@@ -61,7 +59,7 @@ export interface ColumnDef<TData> {
   id: Extract<keyof TData, string> | 'actions' | 'select';
   label: string;
   visible: boolean;
-  type: 'text' | 'textarea' | 'select' | 'url' | 'custom' | 'status';
+  type: 'text' | 'textarea' | 'select' | 'url' | 'custom' | 'status' | 'appStatus';
   options?: string[]; // For select type columns
 }
 

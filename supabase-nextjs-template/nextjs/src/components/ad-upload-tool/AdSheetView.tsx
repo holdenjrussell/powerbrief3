@@ -19,6 +19,8 @@ import {
     AdDraft,
     AdCreativeStatus,
     adCreativeStatusOptions,
+    AppAdDraftStatus,
+    appAdDraftStatusOptions,
     callToActionOptions,
     ColumnDef,
     ImportedAssetGroup,
@@ -74,7 +76,8 @@ const initialColumns: ColumnDef<AdDraft>[] = [
     { id: 'destinationUrl', label: 'Destination URL', visible: true, type: 'url' as const },
     { id: 'callToAction', label: 'Call To Action', visible: true, type: 'select' as const, options: callToActionOptions.map(cta => cta.replace(/_/g, ' ')) },
     { id: 'assets', label: 'Assets', visible: true, type: 'custom' as const }, 
-    { id: 'status', label: 'Status', visible: true, type: 'status' as const }, 
+    { id: 'status', label: 'Ad Status', visible: true, type: 'status' as const }, 
+    { id: 'appStatus', label: 'Meta Upload Status', visible: true, type: 'appStatus' as const }, 
 ];
 
 // Define a more specific type for the value in handleCellValueChange
@@ -92,19 +95,26 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBat
   const [isLaunching, setIsLaunching] = useState(false); // State for launch loading
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [filterAppStatus, setFilterAppStatus] = useState<AppAdDraftStatus[]>(['DRAFT', 'UPLOADING', 'ERROR']); // Filter out PUBLISHED by default, but include ERROR
+  const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
 
   // Log active batch for debugging
   console.log('Active batch in AdSheetView:', activeBatch?.name || 'No active batch');
 
+  // Filter ads based on selected app statuses
+  const filteredAdDrafts = adDrafts.filter(draft => 
+    filterAppStatus.includes(draft.appStatus || 'DRAFT')
+  );
+
   const allDraftsChecked = useMemo(() => {
-    return adDrafts.length > 0 && checkedDraftIds.size === adDrafts.length;
-  }, [adDrafts, checkedDraftIds]);
+    return filteredAdDrafts.length > 0 && checkedDraftIds.size === filteredAdDrafts.length;
+  }, [filteredAdDrafts, checkedDraftIds]);
 
   const handleSelectAllDraftsToggle = () => {
     if (allDraftsChecked) {
       setCheckedDraftIds(new Set());
     } else {
-      setCheckedDraftIds(new Set(adDrafts.map(draft => draft.id)));
+      setCheckedDraftIds(new Set(filteredAdDrafts.map(draft => draft.id)));
     }
   };
 
@@ -125,7 +135,7 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBat
         alert("Please select at least one ad draft to edit.");
         return;
     }
-    const selectedDrafts = adDrafts.filter(draft => checkedDraftIds.has(draft.id));
+    const selectedDrafts = filteredAdDrafts.filter(draft => checkedDraftIds.has(draft.id));
     setDraftsForBulkEdit(selectedDrafts);
     setIsBulkEditModalOpen(true);
   };
@@ -202,7 +212,8 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBat
       destinationUrl: defaults.destinationUrl,  
       callToAction: defaults.callToAction, 
       assets: [],
-      status: defaults.status as AdCreativeStatus, 
+      status: defaults.status as AdCreativeStatus,
+      appStatus: 'DRAFT', // Default meta upload status
     };
     setAdDrafts(prev => [...prev, newDraft]);
   };
@@ -227,7 +238,8 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBat
                 type: asset.type,
                 aspectRatios: group.aspectRatiosDetected,
             })),
-            status: defaults.status as AdCreativeStatus, 
+            status: defaults.status as AdCreativeStatus,
+            appStatus: 'DRAFT', // Default meta upload status
         };
     });
     setAdDrafts(prev => [...prev, ...newAdDrafts]);
@@ -249,6 +261,10 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBat
           }
           if (columnId === 'status' && !adCreativeStatusOptions.includes(value as AdCreativeStatus)) {
             console.warn('Attempted to set invalid status:', value);
+            return draft; 
+          }
+          if (columnId === 'appStatus' && !appAdDraftStatusOptions.includes(value as AppAdDraftStatus)) {
+            console.warn('Attempted to set invalid app status:', value);
             return draft; 
           }
           if (columnId === 'callToAction' && !callToActionOptions.includes(value as string)){
@@ -273,7 +289,7 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBat
   };
 
   const handleDeleteRow = async (rowIndex: number) => {
-    const draftToRemove = adDrafts[rowIndex];
+    const draftToRemove = filteredAdDrafts[rowIndex];
     
     // Delete from database first
     try {
@@ -304,7 +320,7 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBat
       return;
     }
     setIsLaunching(true);
-    const draftsToLaunch = adDrafts.filter(draft => checkedDraftIds.has(draft.id));
+    const draftsToLaunch = filteredAdDrafts.filter(draft => checkedDraftIds.has(draft.id));
     console.log("Launching ads:", draftsToLaunch); 
 
     try {
@@ -414,6 +430,21 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBat
                     >
                         {adCreativeStatusOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                     </select>
+                );
+            case 'appStatus':
+                const appStatusColor = 
+                    draft.appStatus === 'DRAFT' ? 'bg-gray-100 text-gray-800' : 
+                    draft.appStatus === 'UPLOADING' ? 'bg-blue-100 text-blue-800' :
+                    draft.appStatus === 'PUBLISHED' ? 'bg-green-100 text-green-800' : 
+                    draft.appStatus === 'ERROR' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'; 
+                return (
+                  <span 
+                    className={`px-2 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full cursor-pointer hover:opacity-80 ${appStatusColor}`}
+                    onClick={() => setEditingCell({rowIndex, columnId: column.id as Extract<keyof AdDraft, string>})}
+                    title={`Click to edit meta upload status: ${draft.appStatus || 'DRAFT'}`}
+                    >
+                    {draft.appStatus || 'DRAFT'}
+                  </span>
                 );
             default: 
                 return (
@@ -698,12 +729,39 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBat
                     </div>
                 )}
             </div>
-            <button
-              onClick={() => alert('Filter functionality TBD')}
-              className="px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 flex items-center"
-            >
-              <Filter className="mr-2 h-4 w-4 text-gray-500" /> Filter
-            </button>
+            <div className="relative">
+              <button
+                onClick={() => setIsFilterDropdownOpen(!isFilterDropdownOpen)}
+                className="px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 flex items-center"
+              >
+                <Filter className="mr-2 h-4 w-4 text-gray-500" /> 
+                Filter ({filterAppStatus.length})
+              </button>
+              {isFilterDropdownOpen && (
+                <div className="absolute right-0 mt-2 w-64 bg-white rounded-md shadow-lg border z-10">
+                  <div className="py-1">
+                    <div className="px-3 py-2 text-sm font-medium text-gray-900 border-b">Meta Upload Status</div>
+                    {appAdDraftStatusOptions.map(status => (
+                      <label key={status} className="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 cursor-pointer">
+                        <input 
+                          type="checkbox" 
+                          checked={filterAppStatus.includes(status)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setFilterAppStatus(prev => [...prev, status]);
+                            } else {
+                              setFilterAppStatus(prev => prev.filter(s => s !== status));
+                            }
+                          }}
+                          className="mr-2 h-4 w-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                        />
+                        <span className="capitalize">{status}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -719,7 +777,7 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBat
                             onChange={handleSelectAllDraftsToggle}
                             className="h-4 w-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500 cursor-pointer"
                             aria-label="Select all drafts"
-                            disabled={adDrafts.length === 0}
+                            disabled={filteredAdDrafts.length === 0}
                         />
                     </th>
                 )}
@@ -740,7 +798,7 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBat
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {adDrafts.map((draft, rowIndex) => (
+              {filteredAdDrafts.map((draft, rowIndex) => (
                 <tr key={draft.id} className={`hover:bg-gray-50 ${checkedDraftIds.has(draft.id) ? 'bg-primary-50' : ''}`}>
                   {columns.find(c => c.id === 'select' && c.visible) && (
                      <td className="px-4 py-3 whitespace-nowrap align-top">
@@ -765,7 +823,7 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBat
                   </td>
                 </tr>
               ))}
-               {adDrafts.length === 0 && (
+               {filteredAdDrafts.length === 0 && (
                     <tr>
                         <td colSpan={columns.filter(c => c.visible).length + 1} className="text-center py-10 text-gray-500">
                             No ad drafts yet. Click &apos;Add Ad&apos; or &apos;Import Assets&apos; to get started.
