@@ -7,12 +7,6 @@ import { Brand as PowerBriefBrand } from '@/lib/types/powerbrief'; // Import the
 import MetaCampaignSelector from './MetaCampaignSelector'; // Import new component
 import MetaAdSetSelector from './MetaAdSetSelector'; // Import new component
 
-// Mock data for brands - replace with actual data fetching later
-// const mockBrands = [
-//   { id: 'brand1', name: 'Brand Alpha', fbPage: 'Alpha Page', igAccount: 'alpha_ig', pixel: 'PIXEL_ALPHA123', adAccountId: 'act_1234567890' },
-//   { id: 'brand2', name: 'Brand Beta', fbPage: 'Beta Page', igAccount: 'beta_ig', pixel: 'PIXEL_BETA456', adAccountId: 'act_0987654321' },
-// ];
-
 // Updated Brand interface to match PowerBriefBrand structure for necessary fields
 interface Brand {
   id: string;
@@ -41,6 +35,28 @@ interface DefaultValues {
   callToAction: string; 
 }
 
+interface AdBatch {
+  id: string;
+  name: string;
+  brand_id: string;
+  ad_account_id: string | null;
+  campaign_id: string | null;
+  ad_set_id: string | null;
+  fb_page_id: string | null;
+  ig_account_id: string | null;
+  pixel_id: string | null;
+  url_params: string | null;
+  destination_url: string | null;
+  call_to_action: string | null;
+  status: string;
+  primary_text: string | null;
+  headline: string | null;
+  description: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 // Mock CTA options (should come from API or config)
 const callToActionOptions = [
   'BOOK_TRAVEL', 'CALL_NOW', 'CONTACT_US', 'DOWNLOAD', 'GET_DIRECTIONS',
@@ -50,9 +66,11 @@ const callToActionOptions = [
 
 interface AdBatchCreatorProps {
   onDefaultsSet: (defaults: DefaultValues) => void; // Callback when defaults are configured
+  initialDefaults?: DefaultValues | null; // Pre-filled values from saved batch
+  activeBatch?: AdBatch | null; // Current active batch info
 }
 
-const AdBatchCreator: React.FC<AdBatchCreatorProps> = ({ onDefaultsSet }) => {
+const AdBatchCreator: React.FC<AdBatchCreatorProps> = ({ onDefaultsSet, initialDefaults, activeBatch }) => {
   const { user } = useGlobal(); // Get user from GlobalContext
   const [brands, setBrands] = useState<Brand[]>([]); // Initialize with empty array
   const [isLoadingBrands, setIsLoadingBrands] = useState<boolean>(true);
@@ -76,13 +94,24 @@ const AdBatchCreator: React.FC<AdBatchCreatorProps> = ({ onDefaultsSet }) => {
     callToAction: callToActionOptions[0], // Default to first CTA
   });
 
+  // Effect to load initial defaults when provided
   useEffect(() => {
-    // In a real app, fetch brands from your backend/Supabase
-    // For now, we use mockBrands
-    // if (brands.length > 0) {
-    //   // Optionally pre-select the first brand
-    //   // handleBrandChange(brands[0].id);
-    // }
+    if (initialDefaults) {
+      setDefaultValues(initialDefaults);
+      setSelectedCampaignId(initialDefaults.campaignId);
+      setSelectedAdSetId(initialDefaults.adSetId);
+      
+      // Find and set the selected brand
+      if (initialDefaults.brandId && brands.length > 0) {
+        const brand = brands.find(b => b.id === initialDefaults.brandId);
+        if (brand) {
+          setSelectedBrand(brand);
+        }
+      }
+    }
+  }, [initialDefaults, brands]);
+
+  useEffect(() => {
     const fetchBrands = async () => {
       if (user?.id) {
         setIsLoadingBrands(true);
@@ -192,7 +221,16 @@ const AdBatchCreator: React.FC<AdBatchCreatorProps> = ({ onDefaultsSet }) => {
 
   return (
     <div className="bg-white p-6 rounded-lg shadow-md">
-      <h2 className="text-2xl font-semibold text-gray-700 mb-6">1. Create New Ad Batch</h2>
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-2xl font-semibold text-gray-700">
+          {activeBatch ? `Edit Ad Batch: ${activeBatch.name}` : '1. Create New Ad Batch'}
+        </h2>
+        {activeBatch && (
+          <span className="text-sm text-gray-500">
+            Last saved: {new Date(activeBatch.updated_at).toLocaleString()}
+          </span>
+        )}
+      </div>
       
       <form onSubmit={handleSubmit} className="space-y-6">
         <div>
@@ -451,7 +489,7 @@ const AdBatchCreator: React.FC<AdBatchCreatorProps> = ({ onDefaultsSet }) => {
             className="inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <CheckCircle className="mr-2 h-5 w-5" />
-            Configure Ad Sheet & Proceed
+            {activeBatch ? 'Update Configuration & Proceed' : 'Configure Ad Sheet & Proceed'}
           </button>
         </div>
       </form>

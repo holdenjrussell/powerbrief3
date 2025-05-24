@@ -289,6 +289,8 @@ export default function FileManagementPage() {
                                     value={shareUrl}
                                     readOnly
                                     className="flex-1 p-2 border rounded bg-gray-50"
+                                    placeholder="Share URL will appear here"
+                                    aria-label="Generated share URL"
                                 />
                                 <button
                                     onClick={() => copyToClipboard(shareUrl)}

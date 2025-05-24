@@ -35,6 +35,29 @@ import BulkEditModal from './BulkEditModal'; // Import BulkEditModal
 interface AdSheetViewProps {
   defaults: DefaultValues; // Uses the imported and aliased DefaultValues
   onGoBack: () => void; 
+  activeBatch?: AdBatch | null; // Optional active batch info
+}
+
+interface AdBatch {
+  id: string;
+  name: string;
+  brand_id: string;
+  ad_account_id: string | null;
+  campaign_id: string | null;
+  ad_set_id: string | null;
+  fb_page_id: string | null;
+  ig_account_id: string | null;
+  pixel_id: string | null;
+  url_params: string | null;
+  destination_url: string | null;
+  call_to_action: string | null;
+  status: string;
+  primary_text: string | null;
+  headline: string | null;
+  description: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 const initialColumns: ColumnDef<AdDraft>[] = [
@@ -54,7 +77,7 @@ const initialColumns: ColumnDef<AdDraft>[] = [
 // Define a more specific type for the value in handleCellValueChange
 type AdDraftValue = AdDraft[keyof AdDraft];
 
-const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack }) => {
+const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBatch }) => {
   const [adDrafts, setAdDrafts] = useState<AdDraft[]>([]);
   const [columns, setColumns] = useState<ColumnDef<AdDraft>[]>(initialColumns);
   const [isColumnDropdownOpen, setColumnDropdownOpen] = useState(false);
@@ -64,6 +87,9 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack }) => {
   const [isBulkEditModalOpen, setIsBulkEditModalOpen] = useState(false); // State for bulk edit modal
   const [draftsForBulkEdit, setDraftsForBulkEdit] = useState<AdDraft[]>([]); // State to hold drafts for modal
   const [isLaunching, setIsLaunching] = useState(false); // State for launch loading
+
+  // Log active batch for debugging
+  console.log('Active batch in AdSheetView:', activeBatch?.name || 'No active batch');
 
   const allDraftsChecked = useMemo(() => {
     return adDrafts.length > 0 && checkedDraftIds.size === adDrafts.length;
