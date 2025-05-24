@@ -191,7 +191,7 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBat
 
   const handleAddRow = () => {
     const newDraft: AdDraft = {
-      id: `draft-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+      id: crypto.randomUUID(),
       brandId: defaults.brandId || undefined,
       adName: `New Ad ${adDrafts.length + 1}`,
       primaryText: defaults.primaryText,      
@@ -211,7 +211,7 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBat
     const newAdDrafts: AdDraft[] = importedAssetGroups.map((group, index) => {
         const adNameFromAsset = group.groupName.replace(/\.[^/.]+$/, "");
         return {
-            id: `imported-draft-${Date.now()}-${index}`,
+            id: crypto.randomUUID(),
             brandId: defaults.brandId || undefined,
             adName: `${adNameFromAsset} (Ad ${adDrafts.length + index + 1})`,
             primaryText: defaults.primaryText, 
