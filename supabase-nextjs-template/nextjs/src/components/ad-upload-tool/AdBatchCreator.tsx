@@ -332,6 +332,11 @@ const AdBatchCreator: React.FC<AdBatchCreatorProps> = ({ onDefaultsSet, initialD
                   <p className="text-xs text-yellow-800">
                     ⚠️ Some Meta assets are missing. Please complete the Meta integration in your brand settings to enable full functionality.
                   </p>
+                  {!defaultValues.igAccount && (
+                    <p className="text-xs text-yellow-800 mt-1">
+                      <strong>Note:</strong> Missing Instagram Account - ads will be created for Facebook placement only.
+                    </p>
+                  )}
                 </div>
               )}
             </div>

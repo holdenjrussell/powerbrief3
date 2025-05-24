@@ -10,7 +10,7 @@ interface LaunchAdsRequestBody {
   brandId: string;
   adAccountId: string;
   fbPageId: string;
-  instagramActorId?: string;
+  instagramUserId?: string;
 }
 
 // More specific type for the data we expect from the 'brands' table for token decryption
@@ -19,6 +19,7 @@ interface BrandTokenInfo {
   meta_access_token_iv: string | null;
   meta_access_token_auth_tag: string | null;
   meta_access_token_expires_at: string | null;
+  meta_instagram_actor_id: string | null;
 }
 
 // Type for assets after Meta processing attempt
@@ -52,12 +53,12 @@ interface AdResponse {
   };
 }
 
-const META_API_VERSION = process.env.META_API_VERSION || 'v19.0';
+const META_API_VERSION = process.env.META_API_VERSION || 'v22.0';
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json() as LaunchAdsRequestBody;
-    const { drafts, brandId, adAccountId, fbPageId, instagramActorId } = body;
+    const { drafts, brandId, adAccountId, fbPageId, instagramUserId } = body;
 
     if (!drafts || drafts.length === 0) {
       return NextResponse.json({ message: 'No ad drafts provided for launch.' }, { status: 400 });
@@ -73,15 +74,27 @@ export async function POST(req: NextRequest) {
     }
 
     console.log(`[Launch API] Received request to launch ${drafts.length} ads for brand ${brandId}, ad account ${adAccountId}, page ${fbPageId}`);
-    if (instagramActorId) {
-      console.log(`[Launch API] Instagram Actor ID: ${instagramActorId}`);
+    if (instagramUserId) {
+      console.log(`[Launch API] Instagram User ID: ${instagramUserId}`);
+    } else {
+      console.log(`[Launch API] No Instagram User ID provided - will create Facebook-only ads`);
     }
+    
+    // Debug: Log the exact values we received
+    console.log(`[Launch API] Request body debug:`, {
+      brandId,
+      adAccountId,
+      fbPageId,
+      instagramUserId: instagramUserId || 'undefined/null/empty',
+      instagramUserIdType: typeof instagramUserId,
+      instagramUserIdLength: instagramUserId ? instagramUserId.length : 0
+    });
 
     const supabase: SupabaseClient<Database> = await createSSRClient(); // Explicitly type supabase client and await
     
     const { data: brandData, error: brandError } = await supabase
       .from('brands')
-      .select('meta_access_token, meta_access_token_iv, meta_access_token_auth_tag, meta_access_token_expires_at')
+      .select('meta_access_token, meta_access_token_iv, meta_access_token_auth_tag, meta_access_token_expires_at, meta_instagram_actor_id')
       .eq('id', brandId)
       .single<BrandTokenInfo>(); // Use the more specific type here
 
@@ -122,6 +135,14 @@ export async function POST(req: NextRequest) {
     }
 
     console.log('[Launch API] Meta Access Token decrypted successfully.');
+
+    // Use Instagram User ID from request or fallback to brand data
+    const finalInstagramUserId = instagramUserId || brandData.meta_instagram_actor_id;
+    console.log(`[Launch API] Instagram User ID resolution:`, {
+      fromRequest: instagramUserId || 'not provided',
+      fromBrandData: brandData.meta_instagram_actor_id || 'not set',
+      finalValue: finalInstagramUserId || 'will skip Instagram',
+    });
 
     // First, update all drafts to UPLOADING status
     const draftIds = drafts.map(draft => draft.id);
@@ -273,8 +294,12 @@ export async function POST(req: NextRequest) {
              throw new Error('Selected asset is missing metaHash (for image) or metaVideoId (for video).')
           }
           
-          if (instagramActorId) {
-            creativePayload.object_story_spec.instagram_actor_id = instagramActorId;
+          // Only add Instagram User ID if it's a valid non-empty string
+          if (finalInstagramUserId && finalInstagramUserId.trim() !== '') {
+            console.log(`[Launch API]     Adding Instagram User ID to creative: ${finalInstagramUserId}`);
+            creativePayload.object_story_spec.instagram_user_id = finalInstagramUserId;
+          } else {
+            console.log(`[Launch API]     Skipping Instagram User ID - creating Facebook-only ad creative`);
           }
           
           // For some objectives, like app installs, you might need 'object_type' and 'object_id' (e.g. for app store link)

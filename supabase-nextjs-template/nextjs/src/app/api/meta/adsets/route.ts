@@ -3,7 +3,7 @@ import { createSSRClient } from '@/lib/supabase/server';
 import { decryptToken } from '@/lib/utils/tokenEncryption';
 import { AdSet, MetaApiResponse } from '@/lib/types/meta'; // AdSet type import
 
-const META_API_VERSION = process.env.META_API_VERSION || 'v19.0';
+const META_API_VERSION = process.env.META_API_VERSION || 'v22.0';
 
 export async function GET(request: NextRequest) {
   console.log('=== Meta Ad Sets API Called ===');

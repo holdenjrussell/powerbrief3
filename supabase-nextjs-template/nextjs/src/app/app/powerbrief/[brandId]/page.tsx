@@ -342,7 +342,7 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
         // Optional: Add a state parameter for CSRF protection
         const state = encodeURIComponent(JSON.stringify({ brandId: brand?.id, userId: user?.id })); // Example state
 
-        const oauthUrl = `https://www.facebook.com/v19.0/dialog/oauth?client_id=${metaAppId}&redirect_uri=${redirectUri}&scope=${scopes}&state=${state}&response_type=code`;
+        const oauthUrl = `https://www.facebook.com/v22.0/dialog/oauth?client_id=${metaAppId}&redirect_uri=${redirectUri}&scope=${scopes}&state=${state}&response_type=code`;
         
         console.log('Redirecting to Meta OAuth:', oauthUrl);
         console.log('Using redirect URI:', `${baseUrl}/api/auth/meta/callback`);

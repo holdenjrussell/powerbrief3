@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
 
     // Fetch Facebook pages from Meta Graph API
     const response = await fetch(
-      `https://graph.facebook.com/v19.0/me/accounts?access_token=${decryptedAccessToken}&fields=id,name,category,tasks,access_token,instagram_business_account{id,name,username}`
+      `https://graph.facebook.com/v22.0/me/accounts?access_token=${decryptedAccessToken}&fields=id,name,category,tasks,access_token,instagram_business_account{id,name,username}`
     );
 
     if (!response.ok) {

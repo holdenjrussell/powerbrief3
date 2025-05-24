@@ -9,7 +9,9 @@ import {
   Edit,
   Rocket,
   ChevronLeft,
-  Loader2
+  Loader2,
+  CheckCircle,
+  AlertCircle
 } from 'lucide-react';
 import AssetImportModal from './AssetImportModal';
 import MetaCampaignSelector from './MetaCampaignSelector';
@@ -319,21 +321,62 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBat
       alert("Please select at least one ad draft to launch.");
       return;
     }
+
+    // Validate required Meta assets before launching
+    const missingAssets = [];
+    if (!defaults.brandId) missingAssets.push('Brand ID');
+    if (!defaults.adAccountId) missingAssets.push('Ad Account ID');
+    if (!defaults.fbPage) missingAssets.push('Facebook Page ID');
+    
+    // Instagram User ID is optional - ads will be Facebook-only if missing
+    const hasInstagramUser = defaults.igAccount && defaults.igAccount.trim() !== '';
+
+    if (missingAssets.length > 0) {
+      alert(`Missing required Meta assets: ${missingAssets.join(', ')}. Please complete your Meta integration in brand settings.`);
+      return;
+    }
+
     setIsLaunching(true);
     const draftsToLaunch = filteredAdDrafts.filter(draft => checkedDraftIds.has(draft.id));
-    console.log("Launching ads:", draftsToLaunch); 
+    
+    // Enhanced logging for debugging
+    console.log("=== AD LAUNCH REQUEST DEBUG ===");
+    console.log("Drafts to launch:", draftsToLaunch.length);
+    console.log("Request payload validation:");
+    console.log("- Brand ID:", defaults.brandId);
+    console.log("- Ad Account ID:", defaults.adAccountId);
+    console.log("- Facebook Page ID:", defaults.fbPage);
+    console.log("- Instagram User ID:", defaults.igAccount || 'NOT SET (will create Facebook-only ads)');
+    console.log("- Has Instagram User:", hasInstagramUser);
+    
+    // Log each draft being launched
+    draftsToLaunch.forEach((draft, index) => {
+      console.log(`Draft ${index + 1}:`, {
+        id: draft.id,
+        adName: draft.adName,
+        campaignId: draft.campaignId,
+        adSetId: draft.adSetId,
+        assetsCount: draft.assets.length,
+        status: draft.status
+      });
+    });
+
+    const requestPayload = { 
+      drafts: draftsToLaunch, 
+      brandId: defaults.brandId, 
+      adAccountId: defaults.adAccountId,
+      fbPageId: defaults.fbPage,
+      instagramUserId: defaults.igAccount || undefined
+    };
+
+    console.log("Complete request payload:", requestPayload);
+    console.log("=== END DEBUG INFO ===");
 
     try {
       const response = await fetch('/api/meta/launch-ads', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          drafts: draftsToLaunch, 
-          brandId: defaults.brandId, 
-          adAccountId: defaults.adAccountId,
-          fbPageId: defaults.fbPage,
-          instagramActorId: defaults.igAccount || undefined
-        }),
+        body: JSON.stringify(requestPayload),
       });
       
       const result = await response.json(); // Always try to parse JSON
@@ -699,6 +742,24 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBat
                         </>
                     )}
                 </button>
+                
+                {/* Meta Integration Status Indicator */}
+                <div className="flex items-center text-xs">
+                  {defaults.brandId && defaults.adAccountId && defaults.fbPage ? (
+                    <div className="flex items-center text-green-600">
+                      <CheckCircle className="h-3 w-3 mr-1" />
+                      <span>Meta Ready</span>
+                      {defaults.igAccount && (
+                        <span className="ml-1 text-blue-600">(+Instagram)</span>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="flex items-center text-orange-600">
+                      <AlertCircle className="h-3 w-3 mr-1" />
+                      <span>Meta Setup Incomplete</span>
+                    </div>
+                  )}
+                </div>
             </div>
           
           <div className="flex items-center gap-2">

@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
   // For now, we proceed even if state parsing fails or state is not present, but this should be stricter.
 
   // --- Exchange Code for Access Token ---
-  const tokenUrl = `https://graph.facebook.com/v19.0/oauth/access_token`;
+  const tokenUrl = `https://graph.facebook.com/v22.0/oauth/access_token`;
   const tokenParams = new URLSearchParams({
     client_id: metaAppId,
     redirect_uri: redirectUri,
@@ -124,7 +124,7 @@ export async function GET(request: NextRequest) {
         // Fetch user's Meta profile to get user_id if available
         let metaUserId = null;
         try {
-          const meResponse = await fetch(`https://graph.facebook.com/v19.0/me?access_token=${accessToken}`);
+          const meResponse = await fetch(`https://graph.facebook.com/v22.0/me?access_token=${accessToken}`);
           const meData = await meResponse.json();
           metaUserId = meData.id;
           console.log('Meta User ID:', metaUserId);

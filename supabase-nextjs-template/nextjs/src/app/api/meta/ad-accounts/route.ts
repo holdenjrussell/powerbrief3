@@ -92,7 +92,7 @@ export async function GET(request: NextRequest) {
 
       // Fetch ad accounts from Meta Graph API
       console.log('Making Meta API call...');
-      const metaApiUrl = `https://graph.facebook.com/v19.0/me/adaccounts?access_token=${decryptedAccessToken}&fields=id,name,account_status,account_id,business_name,currency,timezone_name`;
+      const metaApiUrl = `https://graph.facebook.com/v22.0/me/adaccounts?access_token=${decryptedAccessToken}&fields=id,name,account_status,account_id,business_name,currency,timezone_name`;
       console.log('Meta API URL (token redacted):', metaApiUrl.replace(decryptedAccessToken, '[REDACTED]'));
       
       const response = await fetch(metaApiUrl);

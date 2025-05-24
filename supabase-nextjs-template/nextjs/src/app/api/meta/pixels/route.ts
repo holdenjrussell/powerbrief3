@@ -6,14 +6,8 @@ interface MetaPixel {
   id: string;
   name: string;
   creation_time?: string;
+  last_fired_time?: string;
   // Add other relevant pixel fields if needed, e.g., last_fired_time
-}
-
-interface AdAccount {
-  id: string; // This is the ad account ID, e.g., "act_xxxxxxxxxxxxxxx"
-  account_id: string; // This is the numeric account_id, often the same as id without "act_"
-  name: string;
-  // Add other ad account fields if needed
 }
 
 export async function GET(request: NextRequest) {
@@ -90,56 +84,50 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Step 1: Fetch Ad Accounts
-    console.log('Fetching ad accounts to find pixels...');
-    const adAccountsApiUrl = `https://graph.facebook.com/v19.0/me/adaccounts?access_token=${decryptedAccessToken}&fields=id,account_id,name`;
+    // First, get ad accounts for this user
+    const adAccountsApiUrl = `https://graph.facebook.com/v22.0/me/adaccounts?access_token=${decryptedAccessToken}&fields=id,account_id,name`;
+    console.log('Meta Ad Accounts API URL (token redacted):', adAccountsApiUrl.replace(decryptedAccessToken, '[REDACTED]'));
+    
     const adAccountsResponse = await fetch(adAccountsApiUrl);
-
+    
     if (!adAccountsResponse.ok) {
-      const errorData = await adAccountsResponse.json();
-      console.error('Failed to fetch ad accounts for pixels:', errorData);
-      return NextResponse.json(
-        { error: 'Failed to fetch ad accounts from Meta', details: errorData },
-        { status: adAccountsResponse.status }
-      );
+        const errorText = await adAccountsResponse.text();
+        console.error('Error response from Meta Ad Accounts API:', errorText);
+        throw new Error(`Meta Ad Accounts API error: ${adAccountsResponse.status} ${adAccountsResponse.statusText}`);
     }
-
+    
     const adAccountsData = await adAccountsResponse.json();
-    const adAccounts: AdAccount[] = adAccountsData.data || [];
-    console.log(`Found ${adAccounts.length} ad accounts.`);
-
-    if (adAccounts.length === 0) {
-      return NextResponse.json({ success: true, pixels: [] });
+    console.log('Ad Accounts response structure:', JSON.stringify(adAccountsData, null, 2));
+    
+    if (!adAccountsData.data || !Array.isArray(adAccountsData.data)) {
+        console.error('Unexpected ad accounts response structure:', adAccountsData);
+        throw new Error('Invalid ad accounts response structure');
     }
-
-    // Step 2: Fetch Pixels for each Ad Account
+    
+    // Then get pixels for each ad account
     const allPixels: MetaPixel[] = [];
-    const pixelIds = new Set<string>(); // To keep track of unique pixel IDs
+    
+    for (const acc of adAccountsData.data) {
+        console.log(`Processing pixels for ad account: ${acc.id} (${acc.name})`);
+        
+        const pixelsApiUrl = `https://graph.facebook.com/v22.0/${acc.id}/adspixels?access_token=${decryptedAccessToken}&fields=id,name,creation_time,last_fired_time`;
+        console.log(`Fetching pixels for ad account: ${acc.name} (${acc.id})`);
+        const pixelsResponse = await fetch(pixelsApiUrl);
 
-    console.log('Fetching pixels for each ad account...');
-    for (const acc of adAccounts) {
-      // Use acc.id which is typically act_{numeric_id}
-      const pixelsApiUrl = `https://graph.facebook.com/v19.0/${acc.id}/adspixels?access_token=${decryptedAccessToken}&fields=id,name,creation_time,last_fired_time`;
-      console.log(`Fetching pixels for ad account: ${acc.name} (${acc.id})`);
-      const pixelsResponse = await fetch(pixelsApiUrl);
-
-      if (!pixelsResponse.ok) {
-        const errorData = await pixelsResponse.json();
-        // Log error but continue to next ad account if one fails
-        console.warn(`Failed to fetch pixels for ad account ${acc.id}:`, errorData);
-        continue; 
-      }
-
-      const pixelsData = await pixelsResponse.json();
-      const accountPixels: MetaPixel[] = pixelsData.data || [];
-      console.log(`Found ${accountPixels.length} pixels for account ${acc.id}`);
-
-      accountPixels.forEach(pixel => {
-        if (!pixelIds.has(pixel.id)) {
-          allPixels.push(pixel);
-          pixelIds.add(pixel.id);
+        if (!pixelsResponse.ok) {
+          const errorData = await pixelsResponse.json();
+          // Log error but continue to next ad account if one fails
+          console.warn(`Failed to fetch pixels for ad account ${acc.id}:`, errorData);
+          continue; 
         }
-      });
+
+        const pixelsData = await pixelsResponse.json();
+        const accountPixels: MetaPixel[] = pixelsData.data || [];
+        console.log(`Found ${accountPixels.length} pixels for account ${acc.id}`);
+
+        accountPixels.forEach(pixel => {
+          allPixels.push(pixel);
+        });
     }
 
     console.log(`Total unique pixels found: ${allPixels.length}`);
