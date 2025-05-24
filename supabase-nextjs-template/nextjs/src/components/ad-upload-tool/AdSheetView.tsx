@@ -134,7 +134,11 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBat
     setAdDrafts(prevDrafts => 
         prevDrafts.map(draft => {
             if (checkedDraftIds.has(draft.id)) {
-                const newDraft = { ...draft }; 
+                const newDraft = { 
+                  ...draft,
+                  // Ensure brandId is preserved
+                  brandId: draft.brandId || defaults.brandId || undefined
+                }; 
 
                 // Iterate over the keys of BulkEditableAdDraftFields that are marked for update
                 let k: keyof BulkEditableAdDraftFields;
@@ -188,6 +192,7 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBat
   const handleAddRow = () => {
     const newDraft: AdDraft = {
       id: `draft-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+      brandId: defaults.brandId || undefined,
       adName: `New Ad ${adDrafts.length + 1}`,
       primaryText: defaults.primaryText,      
       headline: defaults.headline,       
@@ -207,6 +212,7 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBat
         const adNameFromAsset = group.groupName.replace(/\.[^/.]+$/, "");
         return {
             id: `imported-draft-${Date.now()}-${index}`,
+            brandId: defaults.brandId || undefined,
             adName: `${adNameFromAsset} (Ad ${adDrafts.length + index + 1})`,
             primaryText: defaults.primaryText, 
             headline: defaults.headline, 
@@ -232,7 +238,12 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBat
     setAdDrafts(prevDrafts => {
       const updatedDrafts = prevDrafts.map((draft, index) => {
         if (index === rowIndex) {
-          const newDraft = { ...draft, [columnId]: value };
+          const newDraft = { 
+            ...draft, 
+            [columnId]: value,
+            // Ensure brandId is preserved
+            brandId: draft.brandId || defaults.brandId || undefined
+          };
           if (columnId === 'campaignId') {
             newDraft.adSetId = null; 
           }
@@ -520,7 +531,14 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBat
         if (!response.ok) throw new Error('Failed to load ad drafts');
         
         const existingDrafts: AdDraft[] = await response.json();
-        setAdDrafts(existingDrafts);
+        
+        // Ensure all drafts have brandId set (safety check for existing drafts)
+        const draftsWithBrandId = existingDrafts.map(draft => ({
+          ...draft,
+          brandId: draft.brandId || defaults.brandId || undefined
+        }));
+        
+        setAdDrafts(draftsWithBrandId);
       } catch (error) {
         console.error('Error loading ad drafts:', error);
       } finally {
@@ -536,13 +554,19 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBat
     const saveAdDrafts = async () => {
       if (!defaults.brandId || adDrafts.length === 0 || loading) return;
       
+      // Ensure all drafts have brandId before saving
+      const draftsWithBrandId = adDrafts.map(draft => ({
+        ...draft,
+        brandId: draft.brandId || defaults.brandId || undefined
+      }));
+      
       try {
         setSaving(true);
         const response = await fetch('/api/ad-drafts', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            adDrafts: adDrafts,
+            adDrafts: draftsWithBrandId,
             adBatchId: activeBatch?.id || null
           }),
         });
