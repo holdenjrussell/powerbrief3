@@ -74,6 +74,10 @@ export interface Brand {
   meta_facebook_page_id?: string | null;
   meta_instagram_actor_id?: string | null;
   meta_pixel_id?: string | null;
+  // Slack Integration fields
+  slack_webhook_url?: string | null;
+  slack_channel_name?: string | null;
+  slack_notifications_enabled?: boolean;
   created_at: string;
   updated_at: string;
 }

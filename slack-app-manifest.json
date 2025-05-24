@@ -1,0 +1,29 @@
+{
+  "display_information": {
+    "name": "PowerBrief Notifications",
+    "description": "Get notified when new ad batches are published from PowerBrief",
+    "background_color": "#2563eb",
+    "long_description": "This app sends notifications to your Slack workspace when new ad batches are published through PowerBrief. Stay updated on your advertising campaigns and ad launches in real-time."
+  },
+  "features": {
+    "bot_user": {
+      "display_name": "PowerBrief",
+      "always_online": false
+    }
+  },
+  "oauth_config": {
+    "scopes": {
+      "bot": [
+        "incoming-webhook"
+      ]
+    }
+  },
+  "settings": {
+    "interactivity": {
+      "is_enabled": false
+    },
+    "org_deploy_enabled": false,
+    "socket_mode_enabled": false,
+    "token_rotation_enabled": false
+  }
+} 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { AdDraft, AdDraftAsset } from '@/components/ad-upload-tool/adUploadTypes';
 import { createSSRClient } from '@/lib/supabase/server';
 import { decryptToken } from '@/lib/utils/tokenEncryption';
+import { sendSlackNotification } from '@/lib/utils/slackNotifications';
 
 interface LaunchAdsRequestBody {
   drafts: AdDraft[];
@@ -663,6 +664,39 @@ export async function POST(req: NextRequest) {
 
     // The original asset upload loop result construction is now integrated into the main loop.
     // So, the old `processingResults.push(currentDraftResult);` is removed from the asset upload loop.
+
+    // Send Slack notification if any ads were successfully created
+    const successfulAds = processingResults.filter(result => result.status === 'AD_CREATED');
+    const failedAds = processingResults.filter(result => result.status !== 'AD_CREATED');
+    
+    if (successfulAds.length > 0) {
+      console.log(`[Launch API] Sending Slack notification for ${successfulAds.length} successful ads`);
+      
+      // Get campaign and ad set info from the first successful ad for the notification
+      const firstSuccessfulAd = successfulAds[0];
+      
+      try {
+        await sendSlackNotification({
+          brandId,
+          campaignId: firstSuccessfulAd.campaignId,
+          adSetId: firstSuccessfulAd.adSetId,
+          launchedAds: processingResults.map(result => ({
+            adName: result.adName,
+            status: result.status,
+            campaignId: result.campaignId,
+            adSetId: result.adSetId,
+            adId: result.adId,
+            adError: result.adError
+          })),
+          totalAds: processingResults.length,
+          successfulAds: successfulAds.length,
+          failedAds: failedAds.length
+        });
+      } catch (slackError) {
+        console.error('[Launch API] Failed to send Slack notification:', slackError);
+        // Don't fail the entire request if Slack notification fails
+      }
+    }
 
     return NextResponse.json({
       message: `Ad launch processing complete for ${drafts.length} ad draft(s).`,

@@ -14,6 +14,7 @@ import MarkdownTextarea from '@/components/ui/markdown-textarea';
 import Link from 'next/link';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import MetaAssetsSelector from '@/components/MetaAssetsSelector';
+import SlackIntegrationCard from '@/components/SlackIntegrationCard';
 
 // Helper to unwrap params safely
 type ParamsType = { brandId: string };
@@ -116,6 +117,11 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
         } catch (err) {
             console.error('Error refreshing brand data:', err);
         }
+    };
+
+    // Handle Slack Settings Updated
+    const handleSlackSettingsUpdated = (updatedBrand: Brand) => {
+        setBrand(updatedBrand);
     };
 
     // Handle Meta Disconnection
@@ -1098,6 +1104,12 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
                         )}
                     </CardContent>
                 </Card>
+                
+                {/* Slack Integration Column */}
+                <SlackIntegrationCard
+                    brand={brand}
+                    onSlackSettingsUpdated={handleSlackSettingsUpdated}
+                />
                 
                 {/* Briefs Column */}
                 <Card className="lg:col-span-1">
