@@ -1181,6 +1181,84 @@ export default function ReviewsPage() {
         }
     };
 
+    const handleRequestAdditionalRevisions = async (conceptId: string) => {
+        const revisionNotes = prompt('Please provide feedback for the additional revisions needed:');
+        
+        if (!revisionNotes?.trim()) {
+            toast({
+                title: "Notes Required",
+                description: "Please provide feedback when requesting additional revisions.",
+                variant: "destructive",
+                duration: 3000,
+            });
+            return;
+        }
+        
+        try {
+            setSendingToAds(prev => ({ ...prev, [conceptId]: true }));
+            
+            const { error } = await supabase
+                .from('brief_concepts' as any)
+                .update({
+                    review_status: 'needs_revisions',
+                    status: 'ADDITIONAL REVISIONS REQUESTED',
+                    reviewer_notes: revisionNotes,
+                    asset_upload_status: null, // Reset upload status
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', conceptId);
+            
+            if (error) throw error;
+            
+            // Find the concept to get additional data for Slack notification
+            const concept = [...approvedConcepts, ...uploadedAssetsConcepts].find(c => c.id === conceptId);
+            
+            // Send Slack notification for additional revision request
+            if (concept) {
+                try {
+                    await fetch('/api/slack/concept-revision', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            conceptId: conceptId,
+                            conceptTitle: concept.concept_title,
+                            batchName: concept.brief_batches?.name,
+                            brandId: concept.brief_batches?.brand_id,
+                            videoEditor: concept.video_editor,
+                            feedback: revisionNotes
+                        }),
+                    });
+                } catch (slackError) {
+                    console.error('Failed to send Slack notification for additional revision:', slackError);
+                    // Don't fail the revision request if Slack notification fails
+                }
+            }
+            
+            // Remove from approved concepts and uploaded assets lists
+            setApprovedConcepts(prev => prev.filter(item => item.id !== conceptId));
+            setUploadedAssetsConcepts(prev => prev.filter(item => item.id !== conceptId));
+            
+            toast({
+                title: "Additional Revisions Requested",
+                description: "The concept has been sent back for additional revisions.",
+                duration: 3000,
+            });
+            
+        } catch (err) {
+            console.error('Error requesting additional revisions:', err);
+            toast({
+                title: "Error",
+                description: "Failed to request additional revisions. Please try again.",
+                variant: "destructive",
+                duration: 3000,
+            });
+        } finally {
+            setSendingToAds(prev => ({ ...prev, [conceptId]: false }));
+        }
+    };
+
     // Filter and sort uploaded assets
     const getFilteredAndSortedAssets = () => {
         let filtered = [...uploadedAssetsConcepts];
@@ -1508,7 +1586,7 @@ export default function ReviewsPage() {
                                         <Button
                                             onClick={() => handleSendToAdBatch(concept.id)}
                                             className="bg-blue-600 hover:bg-blue-700 text-white"
-                                            title="Resend approved assets to Ad Upload Tool"
+                                            title={concept.asset_upload_status === 'sent_to_ad_upload' ? "Resend approved assets to Ad Upload Tool" : "Send approved assets to Ad Upload Tool"}
                                             disabled={sendingToAds[concept.id]}
                                         >
                                             {sendingToAds[concept.id] ? (
@@ -1516,7 +1594,22 @@ export default function ReviewsPage() {
                                             ) : (
                                                 <Upload className="h-4 w-4 mr-2" />
                                             )}
-                                            Resend to Ad Uploader
+                                            {concept.asset_upload_status === 'sent_to_ad_upload' ? 'Resend to Ad Uploader' : 'Send to Ad Uploader'}
+                                        </Button>
+                                        
+                                        <Button
+                                            onClick={() => handleRequestAdditionalRevisions(concept.id)}
+                                            variant="outline"
+                                            className="border-amber-300 text-amber-700 hover:bg-amber-50"
+                                            title="Request additional revisions from the editor"
+                                            disabled={sendingToAds[concept.id]}
+                                        >
+                                            {sendingToAds[concept.id] ? (
+                                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                            ) : (
+                                                <AlertTriangle className="h-4 w-4 mr-2" />
+                                            )}
+                                            Request More Revisions
                                         </Button>
                                     </div>
                                 </CardContent>
@@ -1741,6 +1834,23 @@ export default function ReviewsPage() {
                                                                         <Upload className="h-3 w-3 mr-1" />
                                                                     )}
                                                                     Resend to Ad Uploader
+                                                                </Button>
+                                                            )}
+                                                            
+                                                            {(concept.review_status === 'approved' || concept.asset_upload_status === 'sent_to_ad_upload') && (
+                                                                <Button
+                                                                    size="sm"
+                                                                    onClick={() => handleRequestAdditionalRevisions(concept.id)}
+                                                                    variant="outline"
+                                                                    className="border-amber-300 text-amber-700 hover:bg-amber-50"
+                                                                    disabled={sendingToAds[concept.id]}
+                                                                >
+                                                                    {sendingToAds[concept.id] ? (
+                                                                        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                                                    ) : (
+                                                                        <AlertTriangle className="h-3 w-3 mr-1" />
+                                                                    )}
+                                                                    Request More Revisions
                                                                 </Button>
                                                             )}
                                                         </div>
