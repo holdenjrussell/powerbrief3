@@ -1005,19 +1005,21 @@ export default function ReviewsPage() {
         setSendingToAds(prev => ({ ...prev, [conceptId]: true }));
         
         try {
-            const supabase = createSPAClient();
-            
-            // First, update the concept with the new asset grouping
-            const { error: updateError } = await supabase
-                .from('brief_concepts')
-                .update({ 
-                    uploaded_assets: assetGroups
-                })
-                .eq('id', conceptId);
+            // First, update the concept with the new asset grouping using the API
+            const updateResponse = await fetch('/api/powerbrief/update-asset-grouping', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ conceptId, assetGroups }),
+            });
 
-            if (updateError) {
-                throw new Error('Failed to update concept with new grouping');
+            if (!updateResponse.ok) {
+                const errorData = await updateResponse.json();
+                throw new Error(errorData.message || 'Failed to update asset grouping');
             }
+
+            console.log('Asset grouping updated successfully');
 
             // Then send to ad batch with the updated grouping
             const response = await fetch('/api/powerbrief/send-to-ad-batch', {
@@ -1079,19 +1081,31 @@ export default function ReviewsPage() {
         setSendingToAds(prev => ({ ...prev, [conceptId]: true }));
         
         try {
+            // First, update the concept with the new asset grouping using the API
+            const updateResponse = await fetch('/api/powerbrief/update-asset-grouping', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ conceptId, assetGroups }),
+            });
+
+            if (!updateResponse.ok) {
+                const errorData = await updateResponse.json();
+                throw new Error(errorData.message || 'Failed to update asset grouping');
+            }
+
+            console.log('Asset grouping updated successfully');
+
+            // Reset the asset upload status
             const supabase = createSPAClient();
-            
-            // First, update the concept with the new asset grouping
-            const { error: updateError } = await supabase
-                .from('brief_concepts')
-                .update({ 
-                    uploaded_assets: assetGroups,
-                    asset_upload_status: 'uploaded' 
-                })
+            const { error: resetError } = await supabase
+                .from('brief_concepts' as any)
+                .update({ asset_upload_status: 'uploaded' })
                 .eq('id', conceptId);
 
-            if (updateError) {
-                throw new Error('Failed to update concept with new grouping');
+            if (resetError) {
+                console.warn('Failed to reset concept status, but continuing:', resetError);
             }
 
             // Then send to ad batch with the updated grouping
