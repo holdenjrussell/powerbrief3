@@ -28,14 +28,15 @@ export default function MetaTokenManager({ brandId, isMetaConnected }: MetaToken
         body: JSON.stringify({ brandId }),
       });
 
-      const data = await response.json();
+      const data: { message?: string; daysUntilExpiration?: number; error?: string } = await response.json();
 
       if (response.ok) {
         if (data.message === 'Token refreshed successfully') {
           console.log('Meta token refreshed successfully');
+          const daysText = data.daysUntilExpiration ? `${data.daysUntilExpiration} more days` : 'an extended period';
           toast({
             title: 'Meta Token Refreshed',
-            description: `Your Meta integration has been automatically renewed for ${data.daysUntilExpiration} more days.`,
+            description: `Your Meta integration has been automatically renewed for ${daysText}.`,
             duration: 5000,
           });
         } else {
@@ -95,7 +96,7 @@ export default function MetaTokenManager({ brandId, isMetaConnected }: MetaToken
   useEffect(() => {
     // Store the manual refresh function on the window object for debugging
     if (typeof window !== 'undefined') {
-      (window as any).refreshMetaToken = manualRefresh;
+      (window as typeof window & { refreshMetaToken?: () => Promise<void> }).refreshMetaToken = manualRefresh;
     }
   }, []);
 

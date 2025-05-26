@@ -109,7 +109,7 @@ export async function GET(request: NextRequest) {
       // Use the long-lived token
       accessToken = longLivedTokenData.access_token;
       expiresIn = longLivedTokenData.expires_in; // Should be ~5184000 seconds (60 days)
-      console.log('Long-lived token received, expires in:', expiresIn, 'seconds (~', Math.round(expiresIn / 86400), 'days)');
+      console.log('Long-lived token received, expires in:', expiresIn, 'seconds (~', expiresIn ? Math.round(expiresIn / 86400) : 'unknown', 'days)');
     }
 
     // --- Encrypt and Store Token ---

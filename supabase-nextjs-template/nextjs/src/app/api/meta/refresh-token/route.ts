@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
     const newAccessToken = refreshData.access_token;
     const newExpiresIn = refreshData.expires_in;
     
-    console.log('New token received, expires in:', newExpiresIn, 'seconds (~', Math.round(newExpiresIn / 86400), 'days)');
+    console.log('New token received, expires in:', newExpiresIn, 'seconds (~', newExpiresIn ? Math.round(newExpiresIn / 86400) : 'unknown', 'days)');
 
     // Encrypt and store the new token
     const encryptedTokenData = encryptToken(newAccessToken);
@@ -128,11 +128,14 @@ export async function POST(request: NextRequest) {
 
     console.log('Successfully refreshed Meta token for brand:', brandId);
     
+    // Calculate days until expiration with proper null checking
+    const daysUntilExpiration = newExpiresIn ? Math.round(newExpiresIn / 86400) : 60; // Default to 60 days if expires_in is null
+    
     return NextResponse.json({
       success: true,
       message: 'Token refreshed successfully',
       expiresIn: newExpiresIn,
-      daysUntilExpiration: Math.round(newExpiresIn / 86400)
+      daysUntilExpiration: daysUntilExpiration
     });
 
   } catch (error) {
