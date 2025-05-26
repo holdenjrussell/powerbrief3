@@ -550,8 +550,9 @@ export default function SharedVoiceGenerator({
                 value={editableScript}
                 onChange={e => setEditableScript(e.target.value)}
                 placeholder="Enter or edit script for voiceover..."
-                rows={10}
-                className="w-full"
+                rows={12}
+                className="w-full resize-none overflow-y-auto"
+                style={{ minHeight: '300px', maxHeight: '400px' }}
               />
             </CardContent>
           </Card>
