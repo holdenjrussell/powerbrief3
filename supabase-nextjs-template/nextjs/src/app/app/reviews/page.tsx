@@ -5,7 +5,7 @@ import { useGlobal } from '@/lib/context/GlobalContext';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, ExternalLink, CheckCircle, Upload, AlertTriangle, ChevronDown, ChevronUp, Filter, SortAsc } from 'lucide-react';
+import { Loader2, ExternalLink, CheckCircle, Upload, AlertTriangle, ChevronDown, ChevronUp, Filter, SortAsc, X } from 'lucide-react';
 import { createSPAClient } from '@/lib/supabase/client';
 import { UploadedAssetGroup } from '@/lib/types/powerbrief';
 import Link from 'next/link';
@@ -47,6 +47,243 @@ interface Brand {
     name: string;
 }
 
+interface MediaModalProps {
+    isOpen: boolean;
+    onClose: () => void;
+    mediaUrl: string;
+    mediaType: 'image' | 'video';
+    mediaName: string;
+    conceptId?: string;
+    onAddComment?: (timestamp: number, comment: string) => void;
+    existingComments?: TimelineComment[];
+}
+
+interface TimelineComment {
+    id: string;
+    timestamp: number;
+    comment: string;
+    author: string;
+    created_at: string;
+}
+
+function MediaModal({ isOpen, onClose, mediaUrl, mediaType, mediaName, conceptId, onAddComment, existingComments = [] }: MediaModalProps) {
+    const [videoRef, setVideoRef] = useState<HTMLVideoElement | null>(null);
+    const [currentTime, setCurrentTime] = useState(0);
+    const [duration, setDuration] = useState(0);
+    const [showCommentForm, setShowCommentForm] = useState(false);
+    const [newComment, setNewComment] = useState('');
+    const [commentTimestamp, setCommentTimestamp] = useState(0);
+
+    useEffect(() => {
+        const handleEscape = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                onClose();
+            }
+        };
+
+        if (isOpen) {
+            document.addEventListener('keydown', handleEscape);
+            document.body.style.overflow = 'hidden';
+        }
+
+        return () => {
+            document.removeEventListener('keydown', handleEscape);
+            document.body.style.overflow = 'unset';
+        };
+    }, [isOpen, onClose]);
+
+    const formatTime = (seconds: number) => {
+        const mins = Math.floor(seconds / 60);
+        const secs = Math.floor(seconds % 60);
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
+    };
+
+    const handleVideoTimeUpdate = () => {
+        if (videoRef) {
+            setCurrentTime(videoRef.currentTime);
+        }
+    };
+
+    const handleVideoLoadedMetadata = () => {
+        if (videoRef) {
+            setDuration(videoRef.duration);
+        }
+    };
+
+    const handleAddCommentClick = () => {
+        if (videoRef) {
+            setCommentTimestamp(videoRef.currentTime);
+            setShowCommentForm(true);
+            videoRef.pause();
+        }
+    };
+
+    const handleSubmitComment = () => {
+        if (newComment.trim() && onAddComment && conceptId) {
+            onAddComment(commentTimestamp, newComment.trim());
+            setNewComment('');
+            setShowCommentForm(false);
+        }
+    };
+
+    const handleCancelComment = () => {
+        setNewComment('');
+        setShowCommentForm(false);
+    };
+
+    const jumpToTimestamp = (timestamp: number) => {
+        if (videoRef) {
+            videoRef.currentTime = timestamp;
+            setCurrentTime(timestamp);
+        }
+    };
+
+    const sortedComments = [...existingComments].sort((a, b) => a.timestamp - b.timestamp);
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75" onClick={onClose}>
+            <div className="relative max-w-7xl max-h-[95vh] w-full mx-4 flex" onClick={(e) => e.stopPropagation()}>
+                {/* Close button */}
+                <button
+                    onClick={onClose}
+                    title="Close modal"
+                    className="absolute top-4 right-4 z-10 bg-black bg-opacity-50 text-white rounded-full p-2 hover:bg-opacity-75 transition-all"
+                >
+                    <X className="h-6 w-6" />
+                </button>
+
+                {/* Main content area */}
+                <div className="bg-white rounded-lg overflow-hidden flex-1 mr-4">
+                    <div className="p-4 border-b">
+                        <h3 className="text-lg font-medium text-gray-900">{mediaName}</h3>
+                        {mediaType === 'video' && (
+                            <div className="text-sm text-gray-600 mt-1">
+                                {formatTime(currentTime)} / {formatTime(duration)}
+                            </div>
+                        )}
+                    </div>
+                    
+                    <div className="relative bg-gray-100 flex items-center justify-center min-h-[400px]">
+                        {mediaType === 'image' ? (
+                            <img
+                                src={mediaUrl}
+                                alt={mediaName}
+                                className="max-w-full max-h-[60vh] object-contain"
+                            />
+                        ) : (
+                            <video
+                                ref={setVideoRef}
+                                src={mediaUrl}
+                                className="max-w-full max-h-[60vh] object-contain"
+                                controls
+                                onTimeUpdate={handleVideoTimeUpdate}
+                                onLoadedMetadata={handleVideoLoadedMetadata}
+                            />
+                        )}
+                        
+                        {/* Add comment button for videos */}
+                        {mediaType === 'video' && conceptId && (
+                            <button
+                                onClick={handleAddCommentClick}
+                                className="absolute bottom-4 right-4 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-lg"
+                            >
+                                Add Comment at {formatTime(currentTime)}
+                            </button>
+                        )}
+                    </div>
+                    
+                    <div className="p-4 bg-gray-50 flex justify-between items-center">
+                        <div className="text-sm text-gray-600">
+                            Click outside or press ESC to close
+                        </div>
+                        <a
+                            href={mediaUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:underline text-sm flex items-center"
+                        >
+                            Open in new tab
+                            <ExternalLink className="h-3 w-3 ml-1" />
+                        </a>
+                    </div>
+                </div>
+
+                {/* Comments sidebar for videos */}
+                {mediaType === 'video' && conceptId && (
+                    <div className="w-80 bg-white rounded-lg overflow-hidden flex flex-col">
+                        <div className="p-4 border-b bg-gray-50">
+                            <h4 className="font-medium text-gray-900">Comments ({sortedComments.length})</h4>
+                        </div>
+                        
+                        <div className="flex-1 overflow-y-auto p-4 space-y-4 max-h-[60vh]">
+                            {sortedComments.length === 0 ? (
+                                <div className="text-center text-gray-500 py-8">
+                                    <div className="text-sm">No comments yet</div>
+                                    <div className="text-xs mt-1">Add a comment to start the conversation</div>
+                                </div>
+                            ) : (
+                                sortedComments.map((comment) => (
+                                    <div key={comment.id} className="border rounded-lg p-3 bg-gray-50">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <button
+                                                onClick={() => jumpToTimestamp(comment.timestamp)}
+                                                className="text-blue-600 hover:text-blue-800 font-medium text-sm"
+                                            >
+                                                {formatTime(comment.timestamp)}
+                                            </button>
+                                            <div className="text-xs text-gray-500">
+                                                {new Date(comment.created_at).toLocaleDateString()}
+                                            </div>
+                                        </div>
+                                        <div className="text-sm text-gray-900 mb-1">{comment.comment}</div>
+                                        <div className="text-xs text-gray-600">— {comment.author}</div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+
+                        {/* Comment form */}
+                        {showCommentForm && (
+                            <div className="border-t p-4 bg-gray-50">
+                                <div className="mb-2">
+                                    <div className="text-sm font-medium text-gray-700">
+                                        Comment at {formatTime(commentTimestamp)}
+                                    </div>
+                                </div>
+                                <textarea
+                                    value={newComment}
+                                    onChange={(e) => setNewComment(e.target.value)}
+                                    placeholder="Add your feedback..."
+                                    className="w-full p-2 border border-gray-300 rounded text-sm resize-none"
+                                    rows={3}
+                                    autoFocus
+                                />
+                                <div className="flex space-x-2 mt-2">
+                                    <button
+                                        onClick={handleSubmitComment}
+                                        disabled={!newComment.trim()}
+                                        className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-3 py-1 rounded text-sm"
+                                    >
+                                        Add Comment
+                                    </button>
+                                    <button
+                                        onClick={handleCancelComment}
+                                        className="bg-gray-300 hover:bg-gray-400 text-gray-700 px-3 py-1 rounded text-sm"
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+
 export default function ReviewsPage() {
     const { user } = useGlobal();
     const [loading, setLoading] = useState<boolean>(true);
@@ -67,7 +304,84 @@ export default function ReviewsPage() {
     const [selectedBrand, setSelectedBrand] = useState<string>('all');
     const [loadingAssets, setLoadingAssets] = useState<boolean>(false);
     
+    // Modal state
+    const [modalOpen, setModalOpen] = useState<boolean>(false);
+    const [modalMedia, setModalMedia] = useState<{
+        url: string;
+        type: 'image' | 'video';
+        name: string;
+        conceptId?: string;
+    } | null>(null);
+    
+    // Comments state
+    const [conceptComments, setConceptComments] = useState<Record<string, TimelineComment[]>>({});
+    
     const supabase = createSPAClient();
+
+    // Function to open media in modal
+    const openMediaModal = (url: string, type: 'image' | 'video', name: string, conceptId?: string) => {
+        setModalMedia({ url, type, name, conceptId });
+        setModalOpen(true);
+        
+        // Load comments for this concept if it's a video
+        if (type === 'video' && conceptId) {
+            fetchConceptComments(conceptId);
+        }
+    };
+
+    // Function to close modal
+    const closeModal = () => {
+        setModalOpen(false);
+        setModalMedia(null);
+    };
+
+    // Function to fetch comments for a concept
+    const fetchConceptComments = async (conceptId: string) => {
+        try {
+            // For now, we'll use a simple local storage approach
+            // In a real app, you'd fetch from your database
+            const stored = localStorage.getItem(`concept_comments_${conceptId}`);
+            if (stored) {
+                const comments = JSON.parse(stored);
+                setConceptComments(prev => ({ ...prev, [conceptId]: comments }));
+            }
+        } catch (error) {
+            console.error('Error fetching comments:', error);
+        }
+    };
+
+    // Function to add a comment
+    const handleAddComment = async (conceptId: string, timestamp: number, comment: string) => {
+        try {
+            const newComment: TimelineComment = {
+                id: Date.now().toString(),
+                timestamp,
+                comment,
+                author: user?.email || 'Anonymous',
+                created_at: new Date().toISOString()
+            };
+
+            const updatedComments = [...(conceptComments[conceptId] || []), newComment];
+            
+            // Update local state
+            setConceptComments(prev => ({ ...prev, [conceptId]: updatedComments }));
+            
+            // Store in localStorage for now (in a real app, save to database)
+            localStorage.setItem(`concept_comments_${conceptId}`, JSON.stringify(updatedComments));
+            
+            // You could also send to your backend here
+            // await supabase.from('concept_comments').insert({
+            //     concept_id: conceptId,
+            //     timestamp,
+            //     comment,
+            //     author: user?.email,
+            //     created_at: new Date().toISOString()
+            // });
+            
+        } catch (error) {
+            console.error('Error adding comment:', error);
+        }
+    };
 
     useEffect(() => {
         const fetchReviews = async () => {
@@ -525,13 +839,13 @@ export default function ReviewsPage() {
                                                                         src={asset.supabaseUrl}
                                                                         alt={asset.name}
                                                                         className="w-full h-20 object-cover rounded border cursor-pointer hover:opacity-80"
-                                                                        onClick={() => window.open(asset.supabaseUrl, '_blank')}
+                                                                        onClick={() => openMediaModal(asset.supabaseUrl, 'image', asset.name, concept.id)}
                                                                     />
                                                                 ) : (
                                                                     <video
                                                                         src={asset.supabaseUrl}
                                                                         className="w-full h-20 object-cover rounded border cursor-pointer hover:opacity-80"
-                                                                        onClick={() => window.open(asset.supabaseUrl, '_blank')}
+                                                                        onClick={() => openMediaModal(asset.supabaseUrl, 'video', asset.name, concept.id)}
                                                                     />
                                                                 )}
                                                                 <div className="absolute bottom-1 left-1 bg-black bg-opacity-75 text-white text-xs px-1 rounded">
@@ -671,13 +985,13 @@ export default function ReviewsPage() {
                                                                             src={asset.supabaseUrl}
                                                                             alt={asset.name}
                                                                             className="w-full h-20 object-cover rounded border cursor-pointer hover:opacity-80"
-                                                                            onClick={() => window.open(asset.supabaseUrl, '_blank')}
+                                                                            onClick={() => openMediaModal(asset.supabaseUrl, 'image', asset.name, concept.id)}
                                                                         />
                                                                     ) : (
                                                                         <video
                                                                             src={asset.supabaseUrl}
                                                                             className="w-full h-20 object-cover rounded border cursor-pointer hover:opacity-80"
-                                                                            onClick={() => window.open(asset.supabaseUrl, '_blank')}
+                                                                            onClick={() => openMediaModal(asset.supabaseUrl, 'video', asset.name, concept.id)}
                                                                         />
                                                                     )}
                                                                     <div className="absolute bottom-1 left-1 bg-black bg-opacity-75 text-white text-xs px-1 rounded">
@@ -901,13 +1215,13 @@ export default function ReviewsPage() {
                                                                                                 src={asset.supabaseUrl}
                                                                                                 alt={asset.name}
                                                                                                 className="w-full h-12 object-cover rounded border cursor-pointer hover:opacity-80"
-                                                                                                onClick={() => window.open(asset.supabaseUrl, '_blank')}
+                                                                                                onClick={() => openMediaModal(asset.supabaseUrl, 'image', asset.name, concept.id)}
                                                                                             />
                                                                                         ) : (
                                                                                             <video
                                                                                                 src={asset.supabaseUrl}
                                                                                                 className="w-full h-12 object-cover rounded border cursor-pointer hover:opacity-80"
-                                                                                                onClick={() => window.open(asset.supabaseUrl, '_blank')}
+                                                                                                onClick={() => openMediaModal(asset.supabaseUrl, 'video', asset.name, concept.id)}
                                                                                             />
                                                                                         )}
                                                                                         <div className="absolute bottom-0 left-0 bg-black bg-opacity-75 text-white text-xs px-1 rounded-br">
@@ -957,6 +1271,20 @@ export default function ReviewsPage() {
                     )}
                 </Card>
             </div>
+
+            {/* Media Modal */}
+            {modalMedia && (
+                <MediaModal
+                    isOpen={modalOpen}
+                    onClose={closeModal}
+                    mediaUrl={modalMedia.url}
+                    mediaType={modalMedia.type}
+                    mediaName={modalMedia.name}
+                    conceptId={modalMedia.conceptId}
+                    onAddComment={modalMedia.conceptId ? (timestamp: number, comment: string) => handleAddComment(modalMedia.conceptId!, timestamp, comment) : undefined}
+                    existingComments={modalMedia.conceptId ? conceptComments[modalMedia.conceptId] || [] : []}
+                />
+            )}
         </div>
     );
 } 
