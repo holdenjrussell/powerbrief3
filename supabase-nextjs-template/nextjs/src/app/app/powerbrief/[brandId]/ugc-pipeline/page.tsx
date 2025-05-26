@@ -873,6 +873,15 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
     return creators.filter(creator => creator.status === status).length;
   };
 
+  // Handle creator update from CreatorCard
+  const handleCreatorUpdate = (updatedCreator: UgcCreator) => {
+    setCreators(prev => 
+      prev.map(creator => 
+        creator.id === updatedCreator.id ? updatedCreator : creator
+      )
+    );
+  };
+
   // Submit script for approval
   const handleSubmitScript = async () => {
     if (!brand || !title) {
@@ -1818,7 +1827,7 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {filteredCreators.map((creator) => (
-                      <CreatorCard key={creator.id} creator={creator} brandId={brandId} />
+                      <CreatorCard key={creator.id} creator={creator} brandId={brandId} onUpdate={handleCreatorUpdate} />
                     ))}
                   </div>
                 )}
