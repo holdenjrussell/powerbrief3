@@ -3,11 +3,12 @@
 import React, { useState, useEffect } from 'react';
 import { createSPAClient } from '@/lib/supabase/client';
 import { Brand, BriefBatch, BriefConcept, Scene } from '@/lib/types/powerbrief';
-import { Loader2, Eye, EyeOff } from 'lucide-react';
+import { Loader2, Eye, EyeOff, X } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Input } from '@/components/ui/input';
@@ -36,6 +37,8 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
   const [batch, setBatch] = useState<any>(null);
   const [concepts, setConcepts] = useState<any[]>([]);
   const [isEditable, setIsEditable] = useState<boolean>(false);
+  const [sortBy, setSortBy] = useState<string>('default');
+  const [filterByEditor, setFilterByEditor] = useState<string>('all');
   
   // Login form states
   const [email, setEmail] = useState('');
@@ -47,6 +50,102 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
   // Unwrap params using React.use()
   const unwrappedParams = React.use(params as any) as { shareId: string };
   const { shareId } = unwrappedParams;
+
+  // Function to get editor display name from concept (handles all editor field types)
+  const getConceptEditorName = (concept: any): string | null => {
+    // Priority: saved editor > custom editor > legacy video_editor
+    if (concept.editor_id && concept.editor_name) {
+      return concept.editor_name; // This would come from a join with editors table
+    }
+    if (concept.custom_editor_name) {
+      return concept.custom_editor_name;
+    }
+    return concept.video_editor;
+  };
+
+  // Get unique editors from concepts for filter dropdown
+  const getUniqueEditors = (conceptList: any[]): string[] => {
+    const editors = new Set<string>();
+    conceptList.forEach(concept => {
+      const editorName = getConceptEditorName(concept);
+      if (editorName && editorName.trim()) {
+        editors.add(editorName.trim());
+      }
+    });
+    return Array.from(editors).sort();
+  };
+
+  // Function to filter concepts by editor
+  const filterConcepts = (conceptsToFilter: any[], editorFilter: string): any[] => {
+    if (editorFilter === 'all') {
+      return conceptsToFilter;
+    }
+    
+    if (editorFilter === 'unassigned') {
+      return conceptsToFilter.filter(concept => {
+        const editorName = getConceptEditorName(concept);
+        return !editorName || !editorName.trim();
+      });
+    }
+    
+    return conceptsToFilter.filter(concept => {
+      const editorName = getConceptEditorName(concept);
+      return editorName === editorFilter;
+    });
+  };
+
+  // Function to sort concepts based on selected criteria
+  const sortConcepts = (conceptsToSort: any[], sortCriteria: string) => {
+    const sorted = [...conceptsToSort];
+    
+    switch (sortCriteria) {
+      case 'editor-asc':
+        return sorted.sort((a, b) => {
+          const editorA = getConceptEditorName(a) || '';
+          const editorB = getConceptEditorName(b) || '';
+          return editorA.localeCompare(editorB);
+        });
+      case 'editor-desc':
+        return sorted.sort((a, b) => {
+          const editorA = getConceptEditorName(a) || '';
+          const editorB = getConceptEditorName(b) || '';
+          return editorB.localeCompare(editorA);
+        });
+      case 'status':
+        return sorted.sort((a, b) => {
+          const statusA = a.status || '';
+          const statusB = b.status || '';
+          return statusA.localeCompare(statusB);
+        });
+      case 'title':
+        return sorted.sort((a, b) => {
+          const titleA = a.concept_title || '';
+          const titleB = b.concept_title || '';
+          return titleA.localeCompare(titleB);
+        });
+      default:
+        // Default sorting: APPROVED to the end, then by order_in_batch
+        return sorted.sort((a, b) => {
+          if (a.status === "APPROVED" && b.status !== "APPROVED") return 1;
+          if (a.status !== "APPROVED" && b.status === "APPROVED") return -1;
+          return a.order_in_batch - b.order_in_batch;
+        });
+    }
+  };
+
+  // Get filtered and sorted concepts
+  const filteredConcepts = filterConcepts(concepts, filterByEditor);
+  const sortedAndFilteredConcepts = sortConcepts(filteredConcepts, sortBy);
+  const uniqueEditors = getUniqueEditors(concepts);
+
+  // Function to reset all filters and sorting
+  const resetFilters = () => {
+    setSortBy('default');
+    setFilterByEditor('all');
+  };
+
+  // Check if any filters are active
+  const hasActiveFilters = sortBy !== 'default' || filterByEditor !== 'all';
 
   useEffect(() => {
     const fetchSharedBatch = async () => {
@@ -277,101 +376,171 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
               <p className="text-gray-500">No concepts with status "ready for designer", "ready for editor", "revisions requested", or "approved" available in this batch.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {concepts.map((concept) => {
-                // Determine card styling based on status
-                const cardClass = concept.status === "REVISIONS REQUESTED" 
-                  ? "overflow-hidden border-amber-300 border-2 bg-amber-50" 
-                  : concept.status === "APPROVED" 
-                    ? "overflow-hidden border-green-300 border-2 bg-green-50" 
-                    : "overflow-hidden";
+            <>
+              {/* Sorting and Filtering Controls */}
+              <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+                <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+                  {/* Sort Controls */}
+                  <div className="flex items-center space-x-2">
+                    <Label htmlFor="sort-select" className="text-sm font-medium whitespace-nowrap">
+                      Sort by:
+                    </Label>
+                    <Select value={sortBy} onValueChange={setSortBy}>
+                      <SelectTrigger id="sort-select" className="w-48">
+                        <SelectValue placeholder="Select sorting option" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="default">Default (Status Priority)</SelectItem>
+                        <SelectItem value="editor-asc">Editor (A-Z)</SelectItem>
+                        <SelectItem value="editor-desc">Editor (Z-A)</SelectItem>
+                        <SelectItem value="status">Status</SelectItem>
+                        <SelectItem value="title">Title</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  {/* Filter Controls */}
+                  <div className="flex items-center space-x-2">
+                    <Label htmlFor="filter-select" className="text-sm font-medium whitespace-nowrap">
+                      Filter by Editor:
+                    </Label>
+                    <Select value={filterByEditor} onValueChange={setFilterByEditor}>
+                      <SelectTrigger id="filter-select" className="w-48">
+                        <SelectValue placeholder="All editors" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Editors</SelectItem>
+                        <SelectItem value="unassigned">Unassigned</SelectItem>
+                        {uniqueEditors.map((editor) => (
+                          <SelectItem key={editor} value={editor}>
+                            {editor}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  {/* Reset Filters Button */}
+                  {hasActiveFilters && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={resetFilters}
+                      className="flex items-center space-x-1"
+                    >
+                      <X className="h-4 w-4" />
+                      <span>Reset</span>
+                    </Button>
+                  )}
+                </div>
                 
-                return (
-                <Card key={concept.id} className={cardClass}>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-lg">{concept.concept_title}</CardTitle>
-                    {concept.status && (
-                      <CardDescription className={
-                        concept.status === "REVISIONS REQUESTED"
-                          ? "text-amber-700 font-medium"
-                          : concept.status === "APPROVED"
-                            ? "text-green-700 font-medium"
-                            : ""
-                      }>
-                        Status: {concept.status}
-                      </CardDescription>
-                    )}
-                    {concept.strategist && (
-                      <CardDescription>Strategist: {concept.strategist}</CardDescription>
-                    )}
-                    {concept.video_editor && (
-                      <CardDescription>Video Editor/Designer: {concept.video_editor}</CardDescription>
-                    )}
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {/* Media Preview */}
-                    {concept.media_url && (
-                      <div className="h-[150px] bg-gray-100 rounded flex items-center justify-center">
-                        {concept.media_type === 'video' ? (
-                          <video
-                            src={concept.media_url}
-                            controls
-                            className="h-full w-full object-contain"
-                          />
-                        ) : (
-                          <img
-                            src={concept.media_url}
-                            alt="Concept media"
-                            className="h-full w-full object-contain"
-                          />
-                        )}
+                {/* Results Count */}
+                <div className="text-sm text-gray-500">
+                  Showing {sortedAndFilteredConcepts.length} of {concepts.length} concepts
+                  {filterByEditor !== 'all' && (
+                    <span className="ml-1">
+                      (filtered by {filterByEditor === 'unassigned' ? 'unassigned' : `editor: ${filterByEditor}`})
+                    </span>
+                  )}
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {sortedAndFilteredConcepts.map((concept) => {
+                  // Determine card styling based on status
+                  const cardClass = concept.status === "REVISIONS REQUESTED" 
+                    ? "overflow-hidden border-amber-300 border-2 bg-amber-50" 
+                    : concept.status === "APPROVED" 
+                      ? "overflow-hidden border-green-300 border-2 bg-green-50" 
+                      : "overflow-hidden";
+                  
+                  return (
+                  <Card key={concept.id} className={cardClass}>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-lg">{concept.concept_title}</CardTitle>
+                      {concept.status && (
+                        <CardDescription className={
+                          concept.status === "REVISIONS REQUESTED"
+                            ? "text-amber-700 font-medium"
+                            : concept.status === "APPROVED"
+                              ? "text-green-700 font-medium"
+                              : ""
+                        }>
+                          Status: {concept.status}
+                        </CardDescription>
+                      )}
+                      {concept.strategist && (
+                        <CardDescription>Strategist: {concept.strategist}</CardDescription>
+                      )}
+                      {getConceptEditorName(concept) && (
+                        <CardDescription>Video Editor/Designer: {getConceptEditorName(concept)}</CardDescription>
+                      )}
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {/* Media Preview */}
+                      {concept.media_url && (
+                        <div className="h-[150px] bg-gray-100 rounded flex items-center justify-center">
+                          {concept.media_type === 'video' ? (
+                            <video
+                              src={concept.media_url}
+                              controls
+                              className="h-full w-full object-contain"
+                            />
+                          ) : (
+                            <img
+                              src={concept.media_url}
+                              alt="Concept media"
+                              className="h-full w-full object-contain"
+                            />
+                          )}
+                        </div>
+                      )}
+                      
+                      {/* Caption Hooks */}
+                      {concept.caption_hook_options && (
+                        <div>
+                          <h3 className="font-medium text-sm mb-1">Caption Hook options</h3>
+                          <p className="text-sm bg-gray-50 p-3 rounded">
+                            {concept.caption_hook_options}
+                          </p>
+                        </div>
+                      )}
+                      
+                      {/* Video Instructions - only for video media type */}
+                      {concept.videoInstructions && concept.media_type === 'video' && (
+                        <div>
+                          <h3 className="font-medium text-sm mb-1">Video Instructions</h3>
+                          <p className="text-sm bg-gray-50 p-3 rounded line-clamp-3">
+                            {concept.videoInstructions}
+                          </p>
+                        </div>
+                      )}
+                      
+                      {/* Designer Instructions - only for image media type */}
+                      {concept.designerInstructions && concept.media_type === 'image' && (
+                        <div>
+                          <h3 className="font-medium text-sm mb-1">Designer Instructions</h3>
+                          <p className="text-sm bg-gray-50 p-3 rounded line-clamp-3">
+                            {concept.designerInstructions}
+                          </p>
+                        </div>
+                      )}
+                      
+                      {/* View full concept link */}
+                      <div className="pt-2">
+                        <Link
+                          href={`/public/concept/${shareId}/${concept.id}`}
+                          className="text-blue-600 hover:underline text-sm"
+                        >
+                          View full concept details →
+                        </Link>
                       </div>
-                    )}
-                    
-                    {/* Caption Hooks */}
-                    {concept.caption_hook_options && (
-                      <div>
-                        <h3 className="font-medium text-sm mb-1">Caption Hook options</h3>
-                        <p className="text-sm bg-gray-50 p-3 rounded">
-                          {concept.caption_hook_options}
-                        </p>
-                      </div>
-                    )}
-                    
-                    {/* Video Instructions - only for video media type */}
-                    {concept.videoInstructions && concept.media_type === 'video' && (
-                      <div>
-                        <h3 className="font-medium text-sm mb-1">Video Instructions</h3>
-                        <p className="text-sm bg-gray-50 p-3 rounded line-clamp-3">
-                          {concept.videoInstructions}
-                        </p>
-                      </div>
-                    )}
-                    
-                    {/* Designer Instructions - only for image media type */}
-                    {concept.designerInstructions && concept.media_type === 'image' && (
-                      <div>
-                        <h3 className="font-medium text-sm mb-1">Designer Instructions</h3>
-                        <p className="text-sm bg-gray-50 p-3 rounded line-clamp-3">
-                          {concept.designerInstructions}
-                        </p>
-                      </div>
-                    )}
-                    
-                    {/* View full concept link */}
-                    <div className="pt-2">
-                      <Link
-                        href={`/public/concept/${shareId}/${concept.id}`}
-                        className="text-blue-600 hover:underline text-sm"
-                      >
-                        View full concept details →
-                      </Link>
-                    </div>
-                  </CardContent>
-                </Card>
-                );
-              })}
-            </div>
+                    </CardContent>
+                  </Card>
+                  );
+                })}
+              </div>
+            </>
           )}
         </TabsContent>
         

@@ -82,6 +82,21 @@ export interface Brand {
   updated_at: string;
 }
 
+// Editor interface for saved editors
+export interface Editor {
+  id: string;
+  brand_id: string;
+  user_id: string;
+  name: string;
+  email?: string;
+  role: 'editor' | 'designer' | 'video_editor' | 'both';
+  specialties?: string[]; // e.g., ['video', 'image', 'motion_graphics']
+  is_active: boolean;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+}
+
 // Brief Batch models
 export interface BriefBatch {
   id: string;
@@ -121,6 +136,8 @@ export interface BriefConcept {
   clickup_link: string | null;
   strategist: string | null;
   video_editor: string | null;
+  editor_id: string | null;
+  custom_editor_name: string | null;
   status: string | null;
   media_url: string | null;
   media_type: string | null;
@@ -225,6 +242,8 @@ export type DbBriefConcept = {
   clickup_link: string | null;
   strategist: string | null;
   video_editor: string | null;
+  editor_id: string | null;
+  custom_editor_name: string | null;
   status: string | null;
   media_url: string | null;
   media_type: string | null;
@@ -278,4 +297,43 @@ export interface UploadedAssetGroup {
   assets: UploadedAsset[];
   aspectRatios: string[];
   uploadedAt: string;
+}
+
+// Editor-related utility types and interfaces
+export interface EditorOption {
+  type: 'saved' | 'custom';
+  id?: string; // Only for saved editors
+  name: string;
+  email?: string;
+  role?: string;
+  specialties?: string[];
+}
+
+export interface ConceptEditorInfo {
+  concept_id: string;
+  brief_batch_id: string;
+  editor_name: string | null;
+  editor_type: 'saved' | 'custom' | 'legacy';
+  editor_id: string | null;
+  editor_email: string | null;
+  editor_role: string | null;
+  editor_specialties: string[] | null;
+}
+
+// Helper function type for getting editor display name
+export type GetEditorDisplayName = (concept: BriefConcept) => string | null;
+
+// Editor creation/update interfaces
+export interface CreateEditorRequest {
+  brand_id: string;
+  name: string;
+  email?: string;
+  role: 'editor' | 'designer' | 'video_editor' | 'both';
+  specialties?: string[];
+  notes?: string;
+}
+
+export interface UpdateEditorRequest extends Partial<CreateEditorRequest> {
+  id: string;
+  is_active?: boolean;
 } 
