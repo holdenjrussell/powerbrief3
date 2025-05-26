@@ -223,14 +223,20 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, activeBatch }) => {
                                 newDraft.status = updatedValues.status as AdCreativeStatus;
                             }
                         } else if (k === 'campaignId') {
+                            newDraft.campaignId = updatedValues.campaignId === undefined ? null : updatedValues.campaignId;
+                            newDraft.campaignName = updatedValues.campaignName === undefined ? null : updatedValues.campaignName;
                             newDraft.adSetId = null;
                             newDraft.adSetName = null; // Also reset ad set name when campaign changes
+                        } else if (k === 'campaignName') {
+                            newDraft.campaignName = updatedValues.campaignName === undefined ? null : updatedValues.campaignName;
                         } else if (k === 'adSetId' && fieldsToApply.campaignId === false) {
                             // Only update adSetId if campaignId is NOT being updated in the same bulk operation
                             // or if campaignId in formData matched the draft's original campaignId (more complex check)
                             // For simplicity now: if campaignId is bulk-edited, adSetId is reset above.
                             // This allows adSetId to be set if only it's selected for update.
                             newDraft.adSetId = updatedValues.adSetId === undefined ? null : updatedValues.adSetId;
+                        } else if (k === 'adSetName' && fieldsToApply.campaignId === false) {
+                            newDraft.adSetName = updatedValues.adSetName === undefined ? null : updatedValues.adSetName;
                         }
                         // Note: This explicit mapping can become long. 
                         // The previous dynamic approach is common but faces stricter linting.

@@ -55,7 +55,9 @@ export type BulkEditableAdDraftFields = {
   headline?: string;
   description?: string;
   campaignId?: string | null;
+  campaignName?: string | null;
   adSetId?: string | null;
+  adSetName?: string | null;
   destinationUrl?: string;
   callToAction?: string;
   status?: AdCreativeStatus;

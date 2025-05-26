@@ -37,17 +37,21 @@ const BulkEditModal: React.FC<BulkEditModalProps> = ({
     headline: false,
     description: false,
     campaignId: false,
+    campaignName: false,
     adSetId: false,
+    adSetName: false,
     destinationUrl: false,
     callToAction: false,
     status: false,
+    appStatus: false,
+    brandId: false,
   });
 
   useEffect(() => {
     setFormData({}); 
     setFieldsToUpdate({
         primaryText: false, headline: false, description: false, campaignId: false, adSetId: false,
-        destinationUrl: false, callToAction: false, status: false
+        destinationUrl: false, callToAction: false, status: false, campaignName: false, adSetName: false, appStatus: false, brandId: false
     });
   }, [draftsToEdit, isOpen]);
 
@@ -145,7 +149,12 @@ const BulkEditModal: React.FC<BulkEditModalProps> = ({
                     brandId={brandId}
                     adAccountId={adAccountId}
                     selectedCampaignId={formData.campaignId || null}
-                    onCampaignSelect={(campaignId) => handleInputChange('campaignId', campaignId)}
+                    selectedCampaignName={formData.campaignName || null}
+                    onCampaignSelect={(campaignId, campaignName) => {
+                      handleInputChange('campaignId', campaignId);
+                      // Also store the campaign name for proper display
+                      setFormData(prev => ({ ...prev, campaignName }));
+                    }}
                 />
             )}
             {type === 'adset' && brandId && adAccountId && (
@@ -154,7 +163,12 @@ const BulkEditModal: React.FC<BulkEditModalProps> = ({
                     adAccountId={adAccountId}
                     campaignId={formData.campaignId || null} 
                     selectedAdSetId={formData.adSetId || null}
-                    onAdSetSelect={(adSetId) => handleInputChange('adSetId', adSetId)}
+                    selectedAdSetName={formData.adSetName || null}
+                    onAdSetSelect={(adSetId, adSetName) => {
+                      handleInputChange('adSetId', adSetId);
+                      // Also store the ad set name for proper display
+                      setFormData(prev => ({ ...prev, adSetName }));
+                    }}
                     disabled={!formData.campaignId}
                 />
             )}
