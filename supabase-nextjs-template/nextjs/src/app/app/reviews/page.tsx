@@ -1657,5 +1657,3 @@ export default function ReviewsPage() {
         </div>
     );
 } 
-    );
-} 
