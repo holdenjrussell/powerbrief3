@@ -462,17 +462,34 @@ export async function shareBriefBatch(
   // Create the share URL based on the share type
   const shareUrl = `${window.location.origin}/public/brief/${shareId}`;
   
-  // Update the brief batch with the share settings
+  // First, get the current share_settings to merge with existing ones
+  const { data: currentBatch, error: fetchError } = await supabase
+    .from('brief_batches')
+    .select('share_settings')
+    .eq('id', batchId)
+    .single();
+  
+  if (fetchError) {
+    console.error('Error fetching current batch share settings:', fetchError);
+    throw new Error(`Failed to fetch current batch: ${fetchError.message}`);
+  }
+  
+  // Merge with existing share settings
+  const existingShareSettings = currentBatch?.share_settings || {};
+  const updatedShareSettings = {
+    ...existingShareSettings,
+    [shareId]: {
+      ...shareSettings,
+      created_at: new Date().toISOString(),
+      share_type: shareType
+    }
+  };
+  
+  // Update the brief batch with the merged share settings
   const { data, error } = await supabase
     .from('brief_batches')
     .update({
-      share_settings: {
-        [shareId]: {
-          ...shareSettings,
-          created_at: new Date().toISOString(),
-          share_type: shareType
-        }
-      }
+      share_settings: updatedShareSettings
     } as Partial<DbBriefBatch>)
     .eq('id', batchId)
     .select();
@@ -530,17 +547,34 @@ export async function shareBriefConcept(
   // Create the share URL based on the share type
   const shareUrl = `${window.location.origin}/public/concept/${shareId}`;
   
-  // Update the brief concept with the share settings
+  // First, get the current share_settings to merge with existing ones
+  const { data: currentConcept, error: fetchError } = await supabase
+    .from('brief_concepts')
+    .select('share_settings')
+    .eq('id', conceptId)
+    .single();
+  
+  if (fetchError) {
+    console.error('Error fetching current concept share settings:', fetchError);
+    throw new Error(`Failed to fetch current concept: ${fetchError.message}`);
+  }
+  
+  // Merge with existing share settings
+  const existingShareSettings = currentConcept?.share_settings || {};
+  const updatedShareSettings = {
+    ...existingShareSettings,
+    [shareId]: {
+      ...shareSettings,
+      created_at: new Date().toISOString(),
+      share_type: shareType
+    }
+  };
+  
+  // Update the brief concept with the merged share settings
   const { data, error } = await supabase
     .from('brief_concepts')
     .update({
-      share_settings: {
-        [shareId]: {
-          ...shareSettings,
-          created_at: new Date().toISOString(),
-          share_type: shareType
-        }
-      }
+      share_settings: updatedShareSettings
     } as Partial<DbBriefConcept>)
     .eq('id', conceptId)
     .select();

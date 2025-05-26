@@ -150,8 +150,9 @@ export async function POST(req: NextRequest) {
         call_to_action: settings.callToAction,
         campaign_id: settings.campaignId,
         ad_set_id: settings.adSetId,
-        meta_status: 'DRAFT',
-        app_status: 'DRAFT', // Mark as ready for upload
+        meta_status: 'DRAFT', // This is the Meta platform status (always starts as DRAFT)
+        app_status: 'DRAFT', // This is the Meta Upload Status (always starts as DRAFT)
+        status: settings.status, // This is the Ad Status (uses user's default: PAUSED, ACTIVE, etc.)
         site_links: settings.siteLinks,
         advantage_plus_creative: settings.advantageCreative,
         created_at: new Date().toISOString(),

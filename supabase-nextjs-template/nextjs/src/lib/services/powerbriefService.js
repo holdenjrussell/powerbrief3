@@ -255,7 +255,7 @@ export async function deleteBriefConcept(conceptId) {
 export async function uploadMedia(file, userId) {
     const fileExt = file.name.split('.').pop();
     const filePath = `${userId}/${uuidv4()}.${fileExt}`;
-    const { data, error } = await supabase.storage
+    const { error } = await supabase.storage
         .from('powerbrief-media')
         .upload(filePath, file);
     if (error) {
@@ -281,14 +281,32 @@ export async function shareBriefBatch(batchId, shareType, shareSettings) {
     const shareId = crypto.randomUUID();
     // Create the share URL based on the share type
     const shareUrl = `${window.location.origin}/public/brief/${shareId}`;
-    // Update the brief batch with the share settings
-    const { data, error } = await supabase
+    
+    // First, get the current share_settings to merge with existing ones
+    const { data: currentBatch, error: fetchError } = await supabase
+        .from('brief_batches')
+        .select('share_settings')
+        .eq('id', batchId)
+        .single();
+    
+    if (fetchError) {
+        console.error('Error fetching current batch share settings:', fetchError);
+        throw new Error(`Failed to fetch current batch: ${fetchError.message}`);
+    }
+    
+    // Merge with existing share settings
+    const existingShareSettings = currentBatch?.share_settings || {};
+    const updatedShareSettings = {
+        ...existingShareSettings,
+        [shareId]: Object.assign(Object.assign({}, shareSettings), { created_at: new Date().toISOString(), share_type: shareType })
+    };
+    
+    // Update the brief batch with the merged share settings
+    const { error } = await supabase
         .from('brief_batches')
         .update({
-        share_settings: {
-            [shareId]: Object.assign(Object.assign({}, shareSettings), { created_at: new Date().toISOString(), share_type: shareType })
-        }
-    })
+            share_settings: updatedShareSettings
+        })
         .eq('id', batchId)
         .select();
     if (error) {
@@ -335,14 +353,32 @@ export async function shareBriefConcept(conceptId, shareType, shareSettings) {
     const shareId = crypto.randomUUID();
     // Create the share URL based on the share type
     const shareUrl = `${window.location.origin}/public/concept/${shareId}`;
-    // Update the brief concept with the share settings
-    const { data, error } = await supabase
+    
+    // First, get the current share_settings to merge with existing ones
+    const { data: currentConcept, error: fetchError } = await supabase
+        .from('brief_concepts')
+        .select('share_settings')
+        .eq('id', conceptId)
+        .single();
+    
+    if (fetchError) {
+        console.error('Error fetching current concept share settings:', fetchError);
+        throw new Error(`Failed to fetch current concept: ${fetchError.message}`);
+    }
+    
+    // Merge with existing share settings
+    const existingShareSettings = currentConcept?.share_settings || {};
+    const updatedShareSettings = {
+        ...existingShareSettings,
+        [shareId]: Object.assign(Object.assign({}, shareSettings), { created_at: new Date().toISOString(), share_type: shareType })
+    };
+    
+    // Update the brief concept with the merged share settings
+    const { error } = await supabase
         .from('brief_concepts')
         .update({
-        share_settings: {
-            [shareId]: Object.assign(Object.assign({}, shareSettings), { created_at: new Date().toISOString(), share_type: shareType })
-        }
-    })
+            share_settings: updatedShareSettings
+        })
         .eq('id', conceptId)
         .select();
     if (error) {

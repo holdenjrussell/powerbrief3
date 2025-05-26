@@ -11,7 +11,9 @@ import {
   ChevronLeft,
   Loader2,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  X,
+  ExternalLink
 } from 'lucide-react';
 import AssetImportModal from './AssetImportModal';
 import MetaCampaignSelector from './MetaCampaignSelector';
@@ -19,6 +21,7 @@ import MetaAdSetSelector from './MetaAdSetSelector';
 // Import shared types
 import {
     AdDraft,
+    AdDraftAsset,
     AdCreativeStatus,
     adCreativeStatusOptions,
     AppAdDraftStatus,
@@ -99,6 +102,17 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBat
   const [saving, setSaving] = useState(false);
   const [filterAppStatus, setFilterAppStatus] = useState<AppAdDraftStatus[]>(['DRAFT', 'UPLOADING', 'UPLOADED', 'ERROR']); // Hide PUBLISHED by default
   const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
+  
+  // Asset preview modal state
+  const [assetPreviewModal, setAssetPreviewModal] = useState<{
+    isOpen: boolean;
+    assets: AdDraftAsset[];
+    currentIndex: number;
+  }>({
+    isOpen: false,
+    assets: [],
+    currentIndex: 0
+  });
 
   // Log active batch for debugging
   console.log('Active batch in AdSheetView:', activeBatch?.name || 'No active batch');
@@ -657,18 +671,79 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBat
         );
       case 'assets':
         return (
-          <div className="flex flex-wrap gap-1 cursor-pointer" onClick={() => {
-            setIsAssetModalOpen(true); 
-            }}
-          >
+          <div className="flex flex-wrap gap-2">
             {draft.assets.length > 0 ? (
-              draft.assets.map((asset, i) => (
-                <span key={i} className={`px-2 py-0.5 text-xs rounded-full ${asset.type === 'image' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}`}>
-                  {asset.name} ({asset.aspectRatios ? asset.aspectRatios.join('/') : asset.type})
-                </span>
-              ))
+              <>
+                {/* Show first 3 assets as thumbnails */}
+                {draft.assets.slice(0, 3).map((asset, i) => (
+                  <div
+                    key={i}
+                    className="relative cursor-pointer group"
+                    onClick={() => setAssetPreviewModal({
+                      isOpen: true,
+                      assets: draft.assets,
+                      currentIndex: i
+                    })}
+                  >
+                    {asset.type === 'image' ? (
+                      <img
+                        src={asset.supabaseUrl}
+                        alt={asset.name}
+                        className="w-12 h-12 object-cover rounded border-2 border-gray-200 hover:border-blue-400 transition-colors"
+                      />
+                    ) : (
+                      <div className="relative w-12 h-12">
+                        <video
+                          src={asset.supabaseUrl}
+                          className="w-full h-full object-cover rounded border-2 border-gray-200 hover:border-blue-400 transition-colors"
+                          muted
+                        />
+                        {/* Video play icon overlay */}
+                        <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-30 rounded">
+                          <div className="w-4 h-4 bg-white rounded-full flex items-center justify-center">
+                            <div className="w-0 h-0 border-l-2 border-l-gray-800 border-t-1 border-t-transparent border-b-1 border-b-transparent ml-0.5"></div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    {/* Asset type badge */}
+                    <div className={`absolute -top-1 -right-1 w-4 h-4 rounded-full text-xs flex items-center justify-center text-white font-bold ${
+                      asset.type === 'image' ? 'bg-blue-500' : 'bg-purple-500'
+                    }`}>
+                      {asset.type === 'image' ? 'I' : 'V'}
+                    </div>
+                  </div>
+                ))}
+                
+                {/* Show count if more than 3 assets */}
+                {draft.assets.length > 3 && (
+                  <div
+                    className="w-12 h-12 border-2 border-dashed border-gray-300 rounded flex items-center justify-center cursor-pointer hover:border-blue-400 transition-colors"
+                    onClick={() => setAssetPreviewModal({
+                      isOpen: true,
+                      assets: draft.assets,
+                      currentIndex: 3
+                    })}
+                  >
+                    <span className="text-xs text-gray-600 font-medium">+{draft.assets.length - 3}</span>
+                  </div>
+                )}
+                
+                {/* Add assets button */}
+                <div
+                  className="w-12 h-12 border-2 border-dashed border-gray-300 rounded flex items-center justify-center cursor-pointer hover:border-green-400 transition-colors"
+                  onClick={() => setIsAssetModalOpen(true)}
+                >
+                  <span className="text-gray-400 text-lg">+</span>
+                </div>
+              </>
             ) : (
-              <span className="text-xs text-gray-400 italic">(Click to import/add)</span>
+              <div
+                className="w-12 h-12 border-2 border-dashed border-gray-300 rounded flex items-center justify-center cursor-pointer hover:border-blue-400 transition-colors"
+                onClick={() => setIsAssetModalOpen(true)}
+              >
+                <span className="text-xs text-gray-400 text-center">Click to add</span>
+              </div>
             )}
           </div>
         );
@@ -749,6 +824,129 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBat
     const timeoutId = setTimeout(saveAdDrafts, 1000);
     return () => clearTimeout(timeoutId);
   }, [adDrafts, defaults.brandId, loading]); // Remove activeBatch?.id dependency
+
+  // Asset Preview Modal Component
+  const AssetPreviewModal = () => {
+    if (!assetPreviewModal.isOpen || assetPreviewModal.assets.length === 0) return null;
+
+    const currentAsset = assetPreviewModal.assets[assetPreviewModal.currentIndex];
+    const hasMultiple = assetPreviewModal.assets.length > 1;
+
+    const nextAsset = () => {
+      setAssetPreviewModal(prev => ({
+        ...prev,
+        currentIndex: (prev.currentIndex + 1) % prev.assets.length
+      }));
+    };
+
+    const prevAsset = () => {
+      setAssetPreviewModal(prev => ({
+        ...prev,
+        currentIndex: prev.currentIndex === 0 ? prev.assets.length - 1 : prev.currentIndex - 1
+      }));
+    };
+
+    const closeModal = () => {
+      setAssetPreviewModal({ isOpen: false, assets: [], currentIndex: 0 });
+    };
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75" onClick={closeModal}>
+        <div className="relative max-w-4xl max-h-[90vh] w-full mx-4" onClick={(e) => e.stopPropagation()}>
+          {/* Close button */}
+          <button
+            onClick={closeModal}
+            className="absolute top-4 right-4 z-10 bg-black bg-opacity-50 text-white rounded-full p-2 hover:bg-opacity-75 transition-all"
+          >
+            <X className="h-6 w-6" />
+          </button>
+
+          {/* Navigation arrows for multiple assets */}
+          {hasMultiple && (
+            <>
+              <button
+                onClick={prevAsset}
+                className="absolute left-4 top-1/2 transform -translate-y-1/2 z-10 bg-black bg-opacity-50 text-white rounded-full p-2 hover:bg-opacity-75 transition-all"
+                title="Previous asset"
+              >
+                ←
+              </button>
+              <button
+                onClick={nextAsset}
+                className="absolute right-4 top-1/2 transform -translate-y-1/2 z-10 bg-black bg-opacity-50 text-white rounded-full p-2 hover:bg-opacity-75 transition-all"
+                title="Next asset"
+              >
+                →
+              </button>
+            </>
+          )}
+
+          {/* Main content */}
+          <div className="bg-white rounded-lg overflow-hidden">
+            <div className="p-4 border-b">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-medium text-gray-900">{currentAsset.name}</h3>
+                {hasMultiple && (
+                  <span className="text-sm text-gray-500">
+                    {assetPreviewModal.currentIndex + 1} of {assetPreviewModal.assets.length}
+                  </span>
+                )}
+              </div>
+              <div className="text-sm text-gray-600 mt-1">
+                Type: {currentAsset.type} 
+                {currentAsset.aspectRatios && currentAsset.aspectRatios.length > 0 && (
+                  <span className="ml-2">• Aspect Ratios: {currentAsset.aspectRatios.join(', ')}</span>
+                )}
+              </div>
+            </div>
+            
+            <div className="relative bg-gray-100 flex items-center justify-center min-h-[400px]">
+              {currentAsset.type === 'image' ? (
+                <img
+                  src={currentAsset.supabaseUrl}
+                  alt={currentAsset.name}
+                  className="max-w-full max-h-[60vh] object-contain"
+                />
+              ) : (
+                <video
+                  src={currentAsset.supabaseUrl}
+                  className="max-w-full max-h-[60vh] object-contain"
+                  controls
+                />
+              )}
+            </div>
+            
+            <div className="p-4 bg-gray-50 flex justify-between items-center">
+              <div className="text-sm text-gray-600">
+                Click outside or press ESC to close
+              </div>
+              <a
+                href={currentAsset.supabaseUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 hover:underline text-sm flex items-center"
+              >
+                Open in new tab
+                <ExternalLink className="h-3 w-3 ml-1" />
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Handle ESC key for modal
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && assetPreviewModal.isOpen) {
+        setAssetPreviewModal({ isOpen: false, assets: [], currentIndex: 0 });
+      }
+    };
+
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [assetPreviewModal.isOpen]);
 
   return (
     <div className="mt-6 pb-16">
@@ -1055,6 +1253,7 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBat
             adAccountId={defaults.adAccountId}
         />
       )}
+      <AssetPreviewModal />
     </div>
   );
 };

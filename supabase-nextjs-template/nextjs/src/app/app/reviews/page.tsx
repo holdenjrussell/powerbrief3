@@ -517,25 +517,25 @@ function MediaModal({ isOpen, onClose, mediaUrl, mediaType, mediaName, conceptId
 
 export default function ReviewsPage() {
     const { user } = useGlobal();
-    const [loading, setLoading] = useState<boolean>(true);
     const [pendingReviews, setPendingReviews] = useState<ConceptForReview[]>([]);
     const [approvedConcepts, setApprovedConcepts] = useState<ConceptForReview[]>([]);
     const [uploadedAssetsConcepts, setUploadedAssetsConcepts] = useState<ConceptForReview[]>([]);
-    const [error, setError] = useState<string | null>(null);
-    const [reviewerNotes, setReviewerNotes] = useState<Record<string, string>>({});
-    const [reviewing, setReviewing] = useState<Record<string, boolean>>({});
-    const [selectedBatches, setSelectedBatches] = useState<Record<string, string>>({});
-    const [availableBatches, setAvailableBatches] = useState<Record<string, AdBatch[]>>({});
-    const [loadingBatches, setLoadingBatches] = useState<Record<string, boolean>>({});
-    
-    // Uploaded Assets Section State
-    const [showUploadedAssets, setShowUploadedAssets] = useState<boolean>(false);
-    const [assetFilter, setAssetFilter] = useState<string>('all'); // 'all', 'pending', 'approved', 'sent'
-    const [assetSort, setAssetSort] = useState<string>('newest'); // 'newest', 'oldest', 'batch'
-    const [selectedBrand, setSelectedBrand] = useState<string>('all');
+    const [loading, setLoading] = useState<boolean>(true);
     const [loadingAssets, setLoadingAssets] = useState<boolean>(false);
+    const [error, setError] = useState<string | null>(null);
+    const [reviewing, setReviewing] = useState<Record<string, boolean>>({});
+    const [reviewerNotes, setReviewerNotes] = useState<Record<string, string>>({});
+    const [showUploadedAssets, setShowUploadedAssets] = useState<boolean>(false);
     
-    // Modal state
+    // Filter and sort states for uploaded assets
+    const [assetFilter, setAssetFilter] = useState<string>('all');
+    const [selectedBrand, setSelectedBrand] = useState<string>('all');
+    const [assetSort, setAssetSort] = useState<string>('newest');
+    
+    // Sending to ad uploader state
+    const [sendingToAds, setSendingToAds] = useState<Record<string, boolean>>({});
+    
+    // Modal state for media viewing with comments
     const [modalOpen, setModalOpen] = useState<boolean>(false);
     const [modalMedia, setModalMedia] = useState<{
         url: string;
@@ -750,7 +750,7 @@ export default function ReviewsPage() {
                     .eq('review_status', 'approved')
                     .eq('user_id', user.id)
                     .not('uploaded_assets', 'is', null)
-                    .neq('asset_upload_status', 'sent_to_ad_batch')
+                    .neq('asset_upload_status', 'sent_to_ad_upload')
                     .order('updated_at', { ascending: false });
                 
                 if (approvedError) throw approvedError;
@@ -820,32 +820,6 @@ export default function ReviewsPage() {
         }
     };
 
-    const fetchBatches = async (brandId: string, conceptId: string) => {
-        if (availableBatches[conceptId]) return; // Already loaded
-        
-        try {
-            setLoadingBatches(prev => ({ ...prev, [conceptId]: true }));
-            
-            const response = await fetch(`/api/ad-batches?brandId=${brandId}`);
-            if (response.ok) {
-                const data = await response.json();
-                setAvailableBatches(prev => ({ ...prev, [conceptId]: data.batches || [] }));
-                
-                // Set default to newest batch (first in the list) or 'new'
-                if (data.batches && data.batches.length > 0) {
-                    setSelectedBatches(prev => ({ ...prev, [conceptId]: data.batches[0].id }));
-                } else {
-                    setSelectedBatches(prev => ({ ...prev, [conceptId]: 'new' }));
-                }
-            }
-        } catch (error) {
-            console.error('Error fetching batches:', error);
-            setSelectedBatches(prev => ({ ...prev, [conceptId]: 'new' }));
-        } finally {
-            setLoadingBatches(prev => ({ ...prev, [conceptId]: false }));
-        }
-    };
-
     const handleApprove = async (conceptId: string) => {
         try {
             setReviewing(prev => ({ ...prev, [conceptId]: true }));
@@ -892,6 +866,18 @@ export default function ReviewsPage() {
             
             // Remove from pending reviews
             setPendingReviews(prev => prev.filter(item => item.id !== conceptId));
+            
+            // Add to approved concepts if it has uploaded assets and hasn't been sent to ads yet
+            if (concept && concept.uploaded_assets && concept.uploaded_assets.length > 0) {
+                const updatedConcept = {
+                    ...concept,
+                    review_status: 'approved' as const,
+                    status: 'APPROVED',
+                    reviewer_notes: reviewerNotes[conceptId] || null,
+                    updated_at: new Date().toISOString()
+                };
+                setApprovedConcepts(prev => [...prev, updatedConcept]);
+            }
             
             toast({
                 title: "Approved",
@@ -989,55 +975,43 @@ export default function ReviewsPage() {
     };
 
     const handleSendToAdBatch = async (conceptId: string) => {
-        const selectedBatchId = selectedBatches[conceptId] || 'new';
-        
         try {
+            setSendingToAds(prev => ({ ...prev, [conceptId]: true }));
+            
             const response = await fetch('/api/powerbrief/send-to-ad-batch', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    conceptId,
-                    adBatchId: selectedBatchId
+                    conceptId
                 }),
             });
 
             if (response.ok) {
                 const result = await response.json();
                 
-                // Update the concept status to indicate it's been sent to ad batch
-                const { error: updateError } = await supabase
-                    .from('brief_concepts')
-                    .update({
-                        asset_upload_status: 'sent_to_ad_batch',
-                        updated_at: new Date().toISOString()
-                    })
-                    .eq('id', conceptId);
-
-                if (updateError) {
-                    console.error('Error updating concept status:', updateError);
-                }
-
                 // Remove from approved concepts list
                 setApprovedConcepts(prev => prev.filter(concept => concept.id !== conceptId));
 
                 toast({
                     title: "Success",
-                    description: `Assets have been sent to ${result.adBatchName || 'the Ad Upload Tool'} successfully.`,
+                    description: `Assets have been sent to the Ad Upload Tool successfully. ${result.totalDrafts} ad drafts created.`,
                     duration: 3000,
                 });
             } else {
-                throw new Error('Failed to send to ad batch');
+                throw new Error('Failed to send to ad uploader');
             }
         } catch (error) {
-            console.error('Error sending to ad batch:', error);
+            console.error('Error sending to ad uploader:', error);
             toast({
                 title: "Error",
                 description: "Failed to send assets to Ad Upload Tool. Please try again.",
                 variant: "destructive",
                 duration: 3000,
             });
+        } finally {
+            setSendingToAds(prev => ({ ...prev, [conceptId]: false }));
         }
     };
 
@@ -1052,9 +1026,9 @@ export default function ReviewsPage() {
                     case 'pending':
                         return concept.review_status === 'ready_for_review';
                     case 'approved':
-                        return concept.review_status === 'approved' && concept.asset_upload_status !== 'sent_to_ad_batch';
+                        return concept.review_status === 'approved' && concept.asset_upload_status !== 'sent_to_ad_upload';
                     case 'sent':
-                        return concept.asset_upload_status === 'sent_to_ad_batch';
+                        return concept.asset_upload_status === 'sent_to_ad_upload';
                     default:
                         return true;
                 }
@@ -1365,50 +1339,19 @@ export default function ReviewsPage() {
                                     
                                     {/* Send to Ad Batch button */}
                                     <div className="flex space-x-2">
-                                        {/* Batch Selection */}
-                                        <div className="flex-1">
-                                            <Label htmlFor={`batch-${concept.id}`} className="text-sm font-medium mb-1 block">
-                                                Select Ad Batch:
-                                            </Label>
-                                            <div className="flex space-x-2">
-                                                <select
-                                                    id={`batch-${concept.id}`}
-                                                    value={selectedBatches[concept.id] || 'new'}
-                                                    onChange={(e) => setSelectedBatches(prev => ({ ...prev, [concept.id]: e.target.value }))}
-                                                    onFocus={() => fetchBatches(concept.brief_batches.brand_id, concept.id)}
-                                                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                                    disabled={loadingBatches[concept.id]}
-                                                >
-                                                    <option value="new">Create New Batch</option>
-                                                    {availableBatches[concept.id]?.map((batch) => (
-                                                        <option key={batch.id} value={batch.id}>
-                                                            {batch.name} ({new Date(batch.updated_at).toLocaleDateString()})
-                                                        </option>
-                                                    ))}
-                                                </select>
-                                                
-                                                <Button
-                                                    onClick={() => handleSendToAdBatch(concept.id)}
-                                                    className="bg-blue-600 hover:bg-blue-700 text-white"
-                                                    title="Send approved assets to Ad Upload Tool"
-                                                    disabled={loadingBatches[concept.id]}
-                                                >
-                                                    {loadingBatches[concept.id] ? (
-                                                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                                    ) : (
-                                                        <Upload className="h-4 w-4 mr-2" />
-                                                    )}
-                                                    Send to Ads
-                                                </Button>
-                                            </div>
-                                        </div>
-                                        
-                                        <Link
-                                            href={`/app/powerbrief/${concept.brief_batches.brand_id}/${concept.brief_batch_id}`}
-                                            className="text-sm text-blue-600 hover:underline flex items-center mt-6"
+                                        <Button
+                                            onClick={() => handleSendToAdBatch(concept.id)}
+                                            className="bg-blue-600 hover:bg-blue-700 text-white"
+                                            title="Send approved assets to Ad Upload Tool"
+                                            disabled={sendingToAds[concept.id]}
                                         >
-                                            View in PowerBrief →
-                                        </Link>
+                                            {sendingToAds[concept.id] ? (
+                                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                            ) : (
+                                                <Upload className="h-4 w-4 mr-2" />
+                                            )}
+                                            Send to Ad Uploader
+                                        </Button>
                                     </div>
                                 </CardContent>
                             </Card>
@@ -1531,12 +1474,12 @@ export default function ReviewsPage() {
                                                                         Pending Review
                                                                     </span>
                                                                 )}
-                                                                {concept.review_status === 'approved' && concept.asset_upload_status !== 'sent_to_ad_batch' && (
+                                                                {concept.review_status === 'approved' && concept.asset_upload_status !== 'sent_to_ad_upload' && (
                                                                     <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
                                                                         Approved
                                                                     </span>
                                                                 )}
-                                                                {concept.asset_upload_status === 'sent_to_ad_batch' && (
+                                                                {concept.asset_upload_status === 'sent_to_ad_upload' && (
                                                                     <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
                                                                         Sent to Ads
                                                                     </span>
@@ -1608,14 +1551,14 @@ export default function ReviewsPage() {
                                                                 View in PowerBrief →
                                                             </Link>
                                                             
-                                                            {concept.review_status === 'approved' && concept.asset_upload_status !== 'sent_to_ad_batch' && (
+                                                            {concept.review_status === 'approved' && concept.asset_upload_status !== 'sent_to_ad_upload' && (
                                                                 <Button
                                                                     size="sm"
                                                                     onClick={() => handleSendToAdBatch(concept.id)}
                                                                     className="bg-blue-600 hover:bg-blue-700 text-white"
                                                                 >
                                                                     <Upload className="h-3 w-3 mr-1" />
-                                                                    Send to Ads
+                                                                    Send to Ad Uploader
                                                                 </Button>
                                                             )}
                                                         </div>

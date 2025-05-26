@@ -78,10 +78,39 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(new URL(`/app/powerbrief/${brandIdFromState || ''}?meta_error=token_exchange_failed`, request.url));
     }
 
-    const accessToken = tokenData.access_token;
-    const expiresIn = tokenData.expires_in; // Typically in seconds
+    let accessToken = tokenData.access_token;
+    let expiresIn = tokenData.expires_in; // Typically in seconds
     console.log('Meta Access Token Received:', accessToken);
     console.log('Expires In (seconds):', expiresIn);
+
+    // --- Exchange Short-lived Token for Long-lived Token ---
+    // Short-lived tokens expire in 1-2 hours, long-lived tokens last 60 days
+    console.log('Exchanging short-lived token for long-lived token...');
+    
+    const longLivedTokenUrl = `https://graph.facebook.com/v22.0/oauth/access_token`;
+    const longLivedTokenParams = new URLSearchParams({
+      grant_type: 'fb_exchange_token',
+      client_id: metaAppId,
+      client_secret: metaAppSecret,
+      fb_exchange_token: accessToken,
+    });
+
+    const longLivedTokenResponse = await fetch(`${longLivedTokenUrl}?${longLivedTokenParams.toString()}`, {
+      method: 'GET',
+    });
+
+    const longLivedTokenData = await longLivedTokenResponse.json();
+
+    if (!longLivedTokenResponse.ok || longLivedTokenData.error) {
+      console.error('Error exchanging for long-lived token:', longLivedTokenData.error || longLivedTokenData);
+      // Fall back to short-lived token if long-lived exchange fails
+      console.warn('Falling back to short-lived token');
+    } else {
+      // Use the long-lived token
+      accessToken = longLivedTokenData.access_token;
+      expiresIn = longLivedTokenData.expires_in; // Should be ~5184000 seconds (60 days)
+      console.log('Long-lived token received, expires in:', expiresIn, 'seconds (~', Math.round(expiresIn / 86400), 'days)');
+    }
 
     // --- Encrypt and Store Token ---
     if (brandIdFromState) {

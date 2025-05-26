@@ -15,6 +15,7 @@ import Link from 'next/link';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import MetaAssetsSelector from '@/components/MetaAssetsSelector';
 import SlackIntegrationCard from '@/components/SlackIntegrationCard';
+import MetaTokenManager from '@/components/MetaTokenManager';
 
 // Helper to unwrap params safely
 type ParamsType = { brandId: string };
@@ -425,6 +426,12 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
                     <AlertDescription>{error}</AlertDescription>
                 </Alert>
             )}
+            
+            {/* Meta Token Manager - handles automatic token refresh */}
+            <MetaTokenManager 
+                brandId={brandId} 
+                isMetaConnected={metaConnectionStatus === 'Connected'} 
+            />
             
             <div className="flex overflow-x-auto pb-4 space-x-6 hide-scrollbar" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
                 {/* Brand Info Column */}
