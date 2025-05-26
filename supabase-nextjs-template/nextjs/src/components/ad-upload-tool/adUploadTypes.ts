@@ -85,7 +85,9 @@ export interface AdSheetDefaultValues {
   brandId: string | null;
   adAccountId: string | null;
   campaignId: string | null;
+  campaignName?: string | null;
   adSetId: string | null;
+  adSetName?: string | null;
   fbPage: string;
   igAccount: string;
   urlParams: string;

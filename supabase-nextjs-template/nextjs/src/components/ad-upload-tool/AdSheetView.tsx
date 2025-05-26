@@ -223,8 +223,8 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, activeBatch }) => {
                                 newDraft.status = updatedValues.status as AdCreativeStatus;
                             }
                         } else if (k === 'campaignId') {
-                            newDraft.campaignId = updatedValues.campaignId === undefined ? null : updatedValues.campaignId; // Can be string or null
-                            newDraft.adSetId = null; // Always reset adSetId when campaign changes
+                            newDraft.adSetId = null;
+                            newDraft.adSetName = null; // Also reset ad set name when campaign changes
                         } else if (k === 'adSetId' && fieldsToApply.campaignId === false) {
                             // Only update adSetId if campaignId is NOT being updated in the same bulk operation
                             // or if campaignId in formData matched the draft's original campaignId (more complex check)
@@ -257,8 +257,10 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, activeBatch }) => {
       primaryText: defaults.primaryText,      
       headline: defaults.headline,       
       description: defaults.description,  
-      campaignId: defaults.campaignId, 
-      adSetId: defaults.adSetId,       
+      campaignId: defaults.campaignId,
+      campaignName: defaults.campaignName, // Include campaign name
+      adSetId: defaults.adSetId,
+      adSetName: defaults.adSetName, // Include ad set name       
       destinationUrl: defaults.destinationUrl,  
       callToAction: defaults.callToAction, 
       assets: [],
@@ -281,8 +283,10 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, activeBatch }) => {
             primaryText: defaults.primaryText, 
             headline: defaults.headline, 
             description: defaults.description,
-            campaignId: defaults.campaignId, 
-            adSetId: defaults.adSetId,       
+            campaignId: defaults.campaignId,
+            campaignName: defaults.campaignName, // Include campaign name
+            adSetId: defaults.adSetId,
+            adSetName: defaults.adSetName, // Include ad set name       
             destinationUrl: defaults.destinationUrl, 
             callToAction: defaults.callToAction, 
             assets: group.files.map(asset => ({
@@ -313,7 +317,8 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, activeBatch }) => {
             brandId: draft.brandId || defaults.brandId || undefined
           };
           if (columnId === 'campaignId') {
-            newDraft.adSetId = null; 
+            newDraft.adSetId = null;
+            newDraft.adSetName = null; // Also reset ad set name when campaign changes
           }
           if (columnId === 'status' && !adCreativeStatusOptions.includes(value as AdCreativeStatus)) {
             console.warn('Attempted to set invalid status:', value);

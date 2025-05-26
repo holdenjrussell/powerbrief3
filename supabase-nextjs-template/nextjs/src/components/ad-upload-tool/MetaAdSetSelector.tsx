@@ -109,9 +109,8 @@ const MetaAdSetSelector: React.FC<MetaAdSetSelectorProps> = ({
     setHasFetched(false);
     setAdSets([]);
     setError(null);
-    if (!campaignId) {
-      onAdSetSelect(null);
-    }
+    // Don't automatically reset ad set selection - let parent component handle this
+    // The parent component (AdSheetView) will reset adSetId when campaign changes
   }, [brandId, adAccountId, campaignId]);
 
   const filteredAdSets = useMemo(() => {
