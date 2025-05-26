@@ -1044,8 +1044,12 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, activeBatch }) => {
             <p className="text-sm text-gray-500 mb-1">Brand: <span className="font-medium text-gray-700">{defaults.brandId || 'N/A'}</span></p>
             <div className="text-xs text-gray-500 space-y-0.5">
                 <p>Ad Account: <span className="font-medium text-gray-600">{defaults.adAccountId || 'N/A'}</span></p>
-                <p>Default Campaign ID: <span className="font-medium text-gray-600">{defaults.campaignId || 'Not Set'}</span></p>
-                <p>Default Ad Set ID: <span className="font-medium text-gray-600">{defaults.adSetId || 'Not Set'}</span></p>
+                <p>Default Campaign: <span className="font-medium text-gray-600">
+                  {defaults.campaignName || (defaults.campaignId ? `Campaign ID: ${defaults.campaignId}` : 'Not Set')}
+                </span></p>
+                <p>Default Ad Set: <span className="font-medium text-gray-600">
+                  {defaults.adSetName || (defaults.adSetId ? `Ad Set ID: ${defaults.adSetId}` : 'Not Set')}
+                </span></p>
                 <p>FB Page: <span className="font-medium text-gray-600">{defaults.fbPage || 'N/A'}</span> | IG Account: <span className="font-medium text-gray-600">{defaults.igAccount || 'N/A'}</span></p>
                 <p>Pixel: <span className="font-medium text-gray-600">{defaults.pixel || 'N/A'}</span> | Default Status: <span className="font-medium text-gray-600">{defaults.status}</span></p>
                 {defaults.urlParams && <p>URL Params: <span className="font-medium text-gray-600">{defaults.urlParams}</span></p>}
