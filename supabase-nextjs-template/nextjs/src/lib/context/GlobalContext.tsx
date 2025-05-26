@@ -37,11 +37,15 @@ export function GlobalProvider({ children }: { children: React.ReactNode }) {
                         registered_at: new Date(user.created_at)
                     });
                 } else {
-                    throw new Error('User not found');
+                    // Don't throw error for unauthenticated users - just set user to null
+                    // This allows public pages to work without authentication
+                    setUser(null);
                 }
 
             } catch (error) {
                 console.error('Error loading data:', error);
+                // Set user to null on error instead of throwing
+                setUser(null);
             } finally {
                 setLoading(false);
             }
