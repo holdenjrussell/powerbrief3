@@ -2,6 +2,8 @@
 import React, { useState, useCallback, ChangeEvent } from 'react';
 import { X, UploadCloud, Check, Trash2, Loader2, FileVideo, FileImage, AlertCircle, Info } from 'lucide-react';
 import { createSPAClient } from '@/lib/supabase/client';
+import AssetGroupingPreview from './PowerBriefAssetGroupingPreview';
+import { UploadedAssetGroup, UploadedAsset } from '@/lib/types/powerbrief';
 
 // Logging utility
 const logger = {
@@ -47,6 +49,13 @@ interface AssetGroup {
   baseName: string;
   assets: UploadedAsset[];
   aspectRatios: string[];
+}
+
+interface UploadedAssetGroup {
+  baseName: string;
+  assets: UploadedAsset[];
+  aspectRatios: string[];
+  uploadedAt: string;
 }
 
 interface PowerBriefAssetUploadProps {
@@ -226,6 +235,7 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [showGroupingPreview, setShowGroupingPreview] = useState(false);
   const [previewGroups, setPreviewGroups] = useState<Record<string, AssetFile[]>>({});
+  const [previewAssetGroups, setPreviewAssetGroups] = useState<UploadedAssetGroup[]>([]);
 
   // Log component initialization
   React.useEffect(() => {
@@ -402,7 +412,24 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
       groups[groupKey].push(file);
     });
     
+    // Convert to UploadedAssetGroup format for the preview component
+    const assetGroups: UploadedAssetGroup[] = Object.entries(groups).map(([groupKey, files]) => ({
+      baseName: groupKey,
+      assets: files.map(file => ({
+        id: file.id,
+        name: file.file.name,
+        supabaseUrl: URL.createObjectURL(file.file), // Create temporary URL for preview
+        type: file.file.type.startsWith('image/') ? 'image' as const : 'video' as const,
+        aspectRatio: file.detectedRatio || 'unknown',
+        baseName: file.baseName || file.file.name,
+        uploadedAt: new Date().toISOString()
+      })),
+      aspectRatios: [...new Set(files.map(f => f.detectedRatio).filter(Boolean))],
+      uploadedAt: new Date().toISOString()
+    }));
+    
     setPreviewGroups(groups);
+    setPreviewAssetGroups(assetGroups);
     setShowGroupingPreview(true);
     
     logger.info('Showing grouping preview', { 
@@ -413,6 +440,30 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
         files: files.map(f => f.file.name)
       }))
     });
+  };
+
+  const handleConfirmGrouping = (updatedGroups: UploadedAssetGroup[]) => {
+    // Convert back to our internal format and update selectedFiles
+    const updatedFiles: AssetFile[] = [];
+    
+    updatedGroups.forEach(group => {
+      group.assets.forEach(asset => {
+        const originalFile = selectedFiles.find(f => f.id === asset.id);
+        if (originalFile) {
+          updatedFiles.push({
+            ...originalFile,
+            baseName: asset.baseName,
+            groupKey: group.baseName
+          });
+        }
+      });
+    });
+    
+    setSelectedFiles(updatedFiles);
+    setShowGroupingPreview(false);
+    
+    // Proceed with upload using the updated grouping
+    processAndUpload();
   };
 
   const proceedWithUpload = () => {
@@ -872,86 +923,13 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
 
       {/* Grouping Preview Modal */}
       {showGroupingPreview && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center z-60 p-4">
-          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold text-gray-800">Asset Grouping Preview</h2>
-              <button 
-                onClick={() => setShowGroupingPreview(false)} 
-                className="text-gray-400 hover:text-gray-600"
-                aria-label="Close preview modal"
-                title="Close preview modal"
-              >
-                <X size={24} />
-              </button>
-            </div>
-
-            <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <h3 className="font-medium text-blue-800 mb-2">How Assets Will Be Grouped</h3>
-              <p className="text-sm text-blue-700">
-                Assets are grouped by version (v1, v2, v3) so that different aspect ratios of the same concept variation are kept together. 
-                Each group will become a separate ad draft in the Ad Upload Tool.
-              </p>
-            </div>
-
-            <div className="space-y-4">
-              {Object.entries(previewGroups).map(([groupKey, files]) => (
-                <div key={groupKey} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
-                  <h4 className="font-medium text-gray-900 mb-3">
-                    Group: {groupKey} ({files.length} files)
-                  </h4>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    {files.map((file) => (
-                      <div key={file.id} className="border border-gray-300 rounded-lg p-2 bg-white">
-                        <div className="flex items-center space-x-2 mb-2">
-                          {file.file.type.startsWith('image/') ? (
-                            <FileImage className="h-4 w-4 text-blue-500" />
-                          ) : (
-                            <FileVideo className="h-4 w-4 text-purple-500" />
-                          )}
-                          <span className="text-xs font-medium text-gray-700 truncate">
-                            {file.file.name}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between text-xs text-gray-500">
-                          <span>{file.detectedRatio || 'unknown'}</span>
-                          <span>{(file.file.size / 1024 / 1024).toFixed(1)}MB</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="mt-2 text-xs text-gray-600">
-                    Aspect ratios: {[...new Set(files.map(f => f.detectedRatio).filter(Boolean))].join(', ') || 'unknown'}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="flex justify-end space-x-3 mt-6 pt-4 border-t">
-              <button
-                onClick={() => setShowGroupingPreview(false)}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
-                disabled={isProcessing}
-              >
-                Back to Files
-              </button>
-              <button
-                onClick={proceedWithUpload}
-                disabled={isProcessing}
-                className="px-4 py-2 text-sm font-medium text-white bg-primary-600 border border-transparent rounded-md hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
-              >
-                {isProcessing ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Uploading...
-                  </>
-                ) : (
-                  'Proceed with Upload'
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
+        <AssetGroupingPreview
+          isOpen={showGroupingPreview}
+          onClose={() => setShowGroupingPreview(false)}
+          assetGroups={previewAssetGroups}
+          conceptTitle="Asset Upload Preview"
+          onConfirmSend={handleConfirmGrouping}
+        />
       )}
     </div>
   );
