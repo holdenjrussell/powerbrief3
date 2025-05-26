@@ -39,7 +39,7 @@ export default function CreatorCard({ creator, brandId, onUpdate }: CreatorCardP
     }
     
     // In progress statuses
-    if (['Schedule Call Call Schedule Attempted', 'Backlog Approved for Next Steps'].includes(status)) {
+    if (['Schedule Call', 'Call Schedule Attempted', 'Backlog', 'Approved for Next Steps'].includes(status)) {
       return "default";
     }
     

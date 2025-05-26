@@ -225,8 +225,10 @@ export const UGC_CREATOR_ONBOARDING_STATUSES = [
   'New Creator Submission',
   'Cold Outreach',
   'Primary Screen',
-  'Backlog Approved for Next Steps',
-  'Schedule Call Call Schedule Attempted',
+  'Backlog',
+  'Approved for Next Steps',
+  'Schedule Call',
+  'Call Schedule Attempted',
   'Call Scheduled',
   'READY FOR SCRIPTS'
 ];

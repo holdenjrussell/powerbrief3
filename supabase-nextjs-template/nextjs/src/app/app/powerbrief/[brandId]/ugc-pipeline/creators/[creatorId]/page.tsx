@@ -104,7 +104,7 @@ export default function CreatorDetailPage({ params }: { params: ParamsType | Pro
     }
     
     // In progress statuses
-    if (['Schedule Call Call Schedule Attempted', 'Backlog Approved for Next Steps'].includes(status)) {
+    if (['Schedule Call', 'Call Schedule Attempted', 'Backlog', 'Approved for Next Steps'].includes(status)) {
       return "default";
     }
     
