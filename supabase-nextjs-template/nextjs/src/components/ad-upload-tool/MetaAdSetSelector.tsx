@@ -137,7 +137,7 @@ const MetaAdSetSelector: React.FC<MetaAdSetSelectorProps> = ({
   const getDisplayName = () => {
     if (!selectedAdSetId) return 'Select Ad Set';
     
-    // If we have the stored ad set name, use it
+    // If we have the stored ad set name, use it (this prevents unnecessary fetches)
     if (selectedAdSetName) {
       return selectedAdSetName;
     }
@@ -148,11 +148,8 @@ const MetaAdSetSelector: React.FC<MetaAdSetSelectorProps> = ({
       return adSet.name;
     }
     
-    // If we don't have the ad set data yet but have an ID, trigger fetch and show loading
-    if (selectedAdSetId && campaignId && !hasFetched && !isLoading) {
-      fetchAdSets();
-      return 'Loading ad set...';
-    }
+    // Only trigger fetch if we don't have a stored name AND user is actively trying to use the selector
+    // Don't auto-fetch on component mount/render - only when dropdown is opened
     
     // If we don't have the ad set data yet, just show the ID
     return `Ad Set ID: ${selectedAdSetId}`;

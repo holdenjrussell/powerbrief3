@@ -135,7 +135,7 @@ const MetaCampaignSelector: React.FC<MetaCampaignSelectorProps> = ({
   const getDisplayName = () => {
     if (!selectedCampaignId) return 'Select Campaign';
     
-    // If we have the stored campaign name, use it
+    // If we have the stored campaign name, use it (this prevents unnecessary fetches)
     if (selectedCampaignName) {
       return selectedCampaignName;
     }
@@ -146,11 +146,8 @@ const MetaCampaignSelector: React.FC<MetaCampaignSelectorProps> = ({
       return campaign.name;
     }
     
-    // If we don't have the campaign data yet but have an ID, trigger fetch and show loading
-    if (selectedCampaignId && !hasFetched && !isLoading) {
-      fetchCampaigns();
-      return 'Loading campaign...';
-    }
+    // Only trigger fetch if we don't have a stored name AND user is actively trying to use the selector
+    // Don't auto-fetch on component mount/render - only when dropdown is opened
     
     // If we don't have the campaign data yet, just show the ID
     return `Campaign ID: ${selectedCampaignId}`;
