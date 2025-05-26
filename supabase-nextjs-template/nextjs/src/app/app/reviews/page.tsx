@@ -2,17 +2,15 @@
 
 import React, { useState, useEffect } from 'react';
 import { useGlobal } from '@/lib/context/GlobalContext';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, ExternalLink, CheckCircle, XCircle, Upload, AlertTriangle, ChevronDown, ChevronUp, Filter, SortAsc } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { Loader2, ExternalLink, CheckCircle, Upload, AlertTriangle, ChevronDown, ChevronUp, Filter, SortAsc } from 'lucide-react';
 import { createSPAClient } from '@/lib/supabase/client';
-import { BriefConcept, UploadedAssetGroup } from '@/lib/types/powerbrief';
+import { UploadedAssetGroup } from '@/lib/types/powerbrief';
 import Link from 'next/link';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/components/ui/use-toast';
 
 interface ConceptForReview {
@@ -24,6 +22,7 @@ interface ConceptForReview {
     review_status?: string;
     uploaded_assets?: UploadedAssetGroup[];
     asset_upload_status?: string;
+    updated_at: string;
     brief_batches?: {
         id: string;
         name: string;
@@ -41,6 +40,11 @@ interface AdBatch {
     created_at: string;
     updated_at: string;
     last_accessed_at: string;
+}
+
+interface Brand {
+    id: string;
+    name: string;
 }
 
 export default function ReviewsPage() {
@@ -63,7 +67,6 @@ export default function ReviewsPage() {
     const [selectedBrand, setSelectedBrand] = useState<string>('all');
     const [loadingAssets, setLoadingAssets] = useState<boolean>(false);
     
-    const router = useRouter();
     const supabase = createSPAClient();
 
     useEffect(() => {
@@ -73,9 +76,9 @@ export default function ReviewsPage() {
             try {
                 setLoading(true);
                 
-                // Get all concepts that are ready for review
+                // Get all concepts that are ready for review for the current user
                 const { data: pendingConcepts, error: pendingError } = await supabase
-                    .from('brief_concepts')
+                    .from('brief_concepts' as any)
                     .select(`
                         *,
                         brief_batches:brief_batch_id (
@@ -89,13 +92,14 @@ export default function ReviewsPage() {
                         )
                     `)
                     .eq('review_status', 'ready_for_review')
+                    .eq('user_id', user.id)
                     .order('updated_at', { ascending: false });
                 
                 if (pendingError) throw pendingError;
                 
-                // Get approved concepts with uploaded assets that haven't been sent to ad batches yet
+                // Get approved concepts with uploaded assets that haven't been sent to ad batches yet for the current user
                 const { data: approvedConceptsData, error: approvedError } = await supabase
-                    .from('brief_concepts')
+                    .from('brief_concepts' as any)
                     .select(`
                         *,
                         brief_batches:brief_batch_id (
@@ -109,14 +113,15 @@ export default function ReviewsPage() {
                         )
                     `)
                     .eq('review_status', 'approved')
+                    .eq('user_id', user.id)
                     .not('uploaded_assets', 'is', null)
                     .neq('asset_upload_status', 'sent_to_ad_batch')
                     .order('updated_at', { ascending: false });
                 
                 if (approvedError) throw approvedError;
                 
-                setPendingReviews(pendingConcepts || []);
-                setApprovedConcepts(approvedConceptsData || []);
+                setPendingReviews((pendingConcepts || []) as ConceptForReview[]);
+                setApprovedConcepts((approvedConceptsData || []) as ConceptForReview[]);
                 
                 // Initialize reviewer notes
                 const notesObj: Record<string, string> = {};
@@ -143,9 +148,9 @@ export default function ReviewsPage() {
         try {
             setLoadingAssets(true);
             
-            // Get all concepts with uploaded assets
+            // Get all concepts with uploaded assets for the current user
             const { data: conceptsWithAssets, error: assetsError } = await supabase
-                .from('brief_concepts')
+                .from('brief_concepts' as any)
                 .select(`
                     *,
                     brief_batches:brief_batch_id (
@@ -158,12 +163,13 @@ export default function ReviewsPage() {
                         )
                     )
                 `)
+                .eq('user_id', user.id)
                 .not('uploaded_assets', 'is', null)
                 .order('updated_at', { ascending: false });
             
             if (assetsError) throw assetsError;
             
-            setUploadedAssetsConcepts(conceptsWithAssets || []);
+            setUploadedAssetsConcepts((conceptsWithAssets || []) as ConceptForReview[]);
         } catch (err) {
             console.error('Failed to fetch uploaded assets:', err);
         } finally {
