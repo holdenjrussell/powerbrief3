@@ -1,6 +1,6 @@
 "use client";
 import React from 'react';
-import { Sparkles, Palette, Volume2, Eye, MessageSquare, Type, Maximize2, MousePointer, Link, Music, Zap, Globe } from 'lucide-react';
+import { Sparkles, MessageSquare, Palette, Eye, Volume2, Type, Maximize2, MousePointer, Link, Zap, Globe } from 'lucide-react';
 import { AdvantageCreativeEnhancements } from './adUploadTypes';
 
 interface AdvantageCreativeManagerProps {
@@ -82,15 +82,6 @@ const CREATIVE_ENHANCEMENTS = [
     percentage: 'Site links provide additional navigation options'
   },
   {
-    key: 'music' as keyof AdvantageCreativeEnhancements,
-    label: 'Add Music',
-    description: 'Automatically add background music to video ads when likely to improve performance',
-    icon: Music,
-    color: 'text-red-500',
-    bgColor: 'bg-red-50',
-    percentage: 'Music can increase video engagement and emotional connection'
-  },
-  {
     key: '3d_animation' as keyof AdvantageCreativeEnhancements,
     label: '3D Animation',
     description: 'Add 3D animation effects to static images and videos',
@@ -126,7 +117,6 @@ const AdvantageCreativeManager: React.FC<AdvantageCreativeManagerProps> = ({
     description_automation: false,
     add_text_overlay: false,
     site_extensions: false,
-    music: false,
     '3d_animation': false,
     translate_text: false
   }, 
@@ -148,7 +138,6 @@ const AdvantageCreativeManager: React.FC<AdvantageCreativeManagerProps> = ({
     description_automation: false,
     add_text_overlay: false,
     site_extensions: false,
-    music: false,
     '3d_animation': false,
     translate_text: false
   };

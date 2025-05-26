@@ -115,7 +115,6 @@ const AdBatchCreator: React.FC<AdBatchCreatorProps> = ({ onDefaultsSet, initialD
       description_automation: false,
       add_text_overlay: false,
       site_extensions: false,
-      music: false,
       '3d_animation': false,
       translate_text: false
     }

@@ -14,7 +14,8 @@ import {
   X,
   ExternalLink,
   Sparkles,
-  Settings
+  Settings,
+  RefreshCw
 } from 'lucide-react';
 import AssetImportModal from './AssetImportModal';
 import MetaCampaignSelector from './MetaCampaignSelector';
@@ -1063,6 +1064,53 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, activeBatch }) => {
     }
   };
 
+  const handleApplyDefaultsToAll = () => {
+    if (adDrafts.length === 0) {
+      alert('No ad drafts to update.');
+      return;
+    }
+
+    const confirmMessage = `This will apply the current default settings to all ${adDrafts.length} ad draft(s). This includes:
+    
+• Campaign: ${defaults.campaignName || defaults.campaignId || 'Not Set'}
+• Ad Set: ${defaults.adSetName || defaults.adSetId || 'Not Set'}
+• Primary Text: ${defaults.primaryText}
+• Headline: ${defaults.headline}
+• Description: ${defaults.description}
+• Destination URL: ${defaults.destinationUrl}
+• Call to Action: ${defaults.callToAction}
+• Status: ${defaults.status}
+• Site Links: ${defaults.siteLinks?.length || 0} configured
+• Advantage+ Creative: ${Object.values(defaults.advantageCreative || {}).filter(Boolean).length} enhancements
+
+Are you sure you want to continue?`;
+
+    if (!confirm(confirmMessage)) {
+      return;
+    }
+
+    // Apply defaults to all ad drafts
+    const updatedDrafts = adDrafts.map(draft => ({
+      ...draft,
+      primaryText: defaults.primaryText,
+      headline: defaults.headline,
+      description: defaults.description,
+      campaignId: defaults.campaignId,
+      campaignName: defaults.campaignName,
+      adSetId: defaults.adSetId,
+      adSetName: defaults.adSetName,
+      destinationUrl: defaults.destinationUrl,
+      callToAction: defaults.callToAction,
+      status: defaults.status as AdCreativeStatus,
+      // Apply new Meta features from defaults
+      siteLinks: [...(defaults.siteLinks || [])],
+      advantageCreative: { ...defaults.advantageCreative }
+    }));
+
+    setAdDrafts(updatedDrafts);
+    alert(`Successfully applied defaults to ${updatedDrafts.length} ad draft(s).`);
+  };
+
   return (
     <div className="mt-6 pb-16">
         <div className="bg-white p-4 sm:p-6 rounded-lg shadow mb-6">
@@ -1142,6 +1190,13 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, activeBatch }) => {
                     title="Fetch and populate missing campaign and ad set names from Meta API"
                  >
                     <Settings className="mr-2 h-4 w-4" /> Populate Names
+                </button>
+                <button
+                    onClick={handleApplyDefaultsToAll}
+                    className="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-md shadow-sm flex items-center"
+                    title="Apply current defaults to all ad drafts"
+                 >
+                    <RefreshCw className="mr-2 h-4 w-4" /> Apply Defaults to All
                 </button>
                 <button
                     onClick={handleLaunch} 
