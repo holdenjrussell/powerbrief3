@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import { Database } from '@/lib/types/supabase';
 import { UploadedAssetGroup } from '@/lib/types/powerbrief';
+import { AdConfigurationSettings } from '@/lib/types/adConfigurations';
 
 // Create a Supabase client with the service role key for admin access
 const supabaseAdmin = createClient<Database>(
@@ -67,34 +68,62 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: 'Could not determine brand or user from concept.' }, { status: 400 });
     }
 
-    // Fetch user's ad upload settings for this brand
+    // Fetch user's default ad configuration for this brand
     let userSettings = null;
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: adBatch, error: settingsError } = await (supabaseAdmin as any)
-        .from('ad_batches')
-        .select('*')
+      // Look for default configuration first
+      const { data: defaultConfig, error: configError } = await supabaseAdmin
+        .from('ad_configurations')
+        .select('settings')
         .eq('user_id', userId)
         .eq('brand_id', brandId)
-        .eq('is_active', true)
-        .order('last_accessed_at', { ascending: false })
-        .limit(1)
+        .eq('is_default', true)
         .single();
 
-      if (!settingsError && adBatch) {
+      if (!configError && defaultConfig) {
+        const settings = defaultConfig.settings as unknown as AdConfigurationSettings;
         userSettings = {
-          primaryText: adBatch.primary_text || 'Check out our latest offer!',
-          headline: adBatch.headline || 'Amazing New Product',
-          description: adBatch.description || '',
-          destinationUrl: adBatch.destination_url || 'https://example.com',
-          callToAction: adBatch.call_to_action || 'LEARN_MORE',
-          status: adBatch.status || 'PAUSED',
-          urlParams: adBatch.url_params || '',
-          campaignId: adBatch.campaign_id,
-          adSetId: adBatch.ad_set_id,
-          siteLinks: adBatch.site_links || [],
-          advantageCreative: adBatch.advantage_plus_creative || {}
+          primaryText: settings.primaryText || 'Check out our latest offer!',
+          headline: settings.headline || 'Amazing New Product',
+          description: settings.description || '',
+          destinationUrl: settings.destinationUrl || 'https://example.com',
+          callToAction: settings.callToAction || 'LEARN_MORE',
+          status: settings.status || 'PAUSED',
+          urlParams: settings.urlParams || '',
+          campaignId: settings.campaignId,
+          adSetId: settings.adSetId,
+          siteLinks: settings.siteLinks || [],
+          advantageCreative: settings.advantageCreative || {}
         };
+        console.log('Using default ad configuration for brand:', brandId);
+      } else {
+        // Fallback to ad_batches for backward compatibility
+        const { data: adBatch, error: settingsError } = await supabaseAdmin
+          .from('ad_batches')
+          .select('*')
+          .eq('user_id', userId)
+          .eq('brand_id', brandId)
+          .eq('is_active', true)
+          .order('last_accessed_at', { ascending: false })
+          .limit(1)
+          .single();
+
+        if (!settingsError && adBatch) {
+          userSettings = {
+            primaryText: adBatch.primary_text || 'Check out our latest offer!',
+            headline: adBatch.headline || 'Amazing New Product',
+            description: adBatch.description || '',
+            destinationUrl: adBatch.destination_url || 'https://example.com',
+            callToAction: adBatch.call_to_action || 'LEARN_MORE',
+            status: adBatch.status || 'PAUSED',
+            urlParams: adBatch.url_params || '',
+            campaignId: adBatch.campaign_id,
+            adSetId: adBatch.ad_set_id,
+            siteLinks: adBatch.site_links || [],
+            advantageCreative: adBatch.advantage_plus_creative || {}
+          };
+          console.log('Using ad_batches fallback for brand:', brandId);
+        }
       }
     } catch (settingsError) {
       console.warn('Could not fetch user settings, using defaults:', settingsError);

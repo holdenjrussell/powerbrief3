@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import AdSheetView from '@/components/ad-upload-tool/AdSheetView';
 import { useGlobal } from '@/lib/context/GlobalContext';
-import { Loader2, Settings, ChevronDown, Save, Plus, Trash2 } from 'lucide-react';
+import { Loader2, Settings, ChevronDown, Save, Trash2 } from 'lucide-react';
 import { SiteLink, AdvantageCreativeEnhancements } from '@/components/ad-upload-tool/adUploadTypes';
 import { getBrands } from '@/lib/services/powerbriefService';
 import { Brand as PowerBriefBrand } from '@/lib/types/powerbrief';
@@ -507,6 +507,34 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ defaults, brand, onSave, 
             <div>
               <h3 className="text-lg font-medium text-gray-900 mb-4">Basic Settings</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Default Campaign ID
+                  </label>
+                  <input
+                    type="text"
+                    name="campaignId"
+                    value={formData.campaignId || ''}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                    placeholder="Enter campaign ID or leave blank"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Default Ad Set ID
+                  </label>
+                  <input
+                    type="text"
+                    name="adSetId"
+                    value={formData.adSetId || ''}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                    placeholder="Enter ad set ID or leave blank"
+                  />
+                </div>
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Destination URL
