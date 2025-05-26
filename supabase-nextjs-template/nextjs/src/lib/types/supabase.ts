@@ -247,6 +247,7 @@ export type Database = {
           name: string
           organization_id: string | null
           resource_logins: Json | null
+          slack_channel_config: Json | null
           slack_channel_name: string | null
           slack_notifications_enabled: boolean | null
           slack_webhook_url: string | null
@@ -283,6 +284,7 @@ export type Database = {
           name: string
           organization_id?: string | null
           resource_logins?: Json | null
+          slack_channel_config?: Json | null
           slack_channel_name?: string | null
           slack_notifications_enabled?: boolean | null
           slack_webhook_url?: string | null
@@ -319,6 +321,7 @@ export type Database = {
           name?: string
           organization_id?: string | null
           resource_logins?: Json | null
+          slack_channel_config?: Json | null
           slack_channel_name?: string | null
           slack_notifications_enabled?: boolean | null
           slack_webhook_url?: string | null
@@ -397,9 +400,11 @@ export type Database = {
           creator_footage: string | null
           cta_script: string | null
           cta_text_overlay: string | null
+          custom_editor_name: string | null
           description: string | null
           designer_instructions: string | null
           designerInstructions: string | null
+          editor_id: string | null
           hook_count: number | null
           hook_type: string | null
           id: string
@@ -436,9 +441,11 @@ export type Database = {
           creator_footage?: string | null
           cta_script?: string | null
           cta_text_overlay?: string | null
+          custom_editor_name?: string | null
           description?: string | null
           designer_instructions?: string | null
           designerInstructions?: string | null
+          editor_id?: string | null
           hook_count?: number | null
           hook_type?: string | null
           id?: string
@@ -475,9 +482,11 @@ export type Database = {
           creator_footage?: string | null
           cta_script?: string | null
           cta_text_overlay?: string | null
+          custom_editor_name?: string | null
           description?: string | null
           designer_instructions?: string | null
           designerInstructions?: string | null
+          editor_id?: string | null
           hook_count?: number | null
           hook_type?: string | null
           id?: string
@@ -510,10 +519,118 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "brief_concepts_editor_id_fkey"
+            columns: ["editor_id"]
+            isOneToOne: false
+            referencedRelation: "editors"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "brief_concepts_selected_ad_batch_id_fkey"
             columns: ["selected_ad_batch_id"]
             isOneToOne: false
             referencedRelation: "ad_batches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      concept_comments: {
+        Row: {
+          author_email: string | null
+          author_name: string
+          comment_text: string
+          concept_id: string
+          created_at: string
+          id: string
+          timestamp_seconds: number
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          author_email?: string | null
+          author_name: string
+          comment_text: string
+          concept_id: string
+          created_at?: string
+          id?: string
+          timestamp_seconds: number
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          author_email?: string | null
+          author_name?: string
+          comment_text?: string
+          concept_id?: string
+          created_at?: string
+          id?: string
+          timestamp_seconds?: number
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "concept_comments_concept_id_fkey"
+            columns: ["concept_id"]
+            isOneToOne: false
+            referencedRelation: "brief_concepts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "concept_comments_concept_id_fkey"
+            columns: ["concept_id"]
+            isOneToOne: false
+            referencedRelation: "concept_editors"
+            referencedColumns: ["concept_id"]
+          },
+        ]
+      }
+      editors: {
+        Row: {
+          brand_id: string
+          created_at: string
+          email: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          notes: string | null
+          role: string | null
+          specialties: string[] | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          brand_id: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          notes?: string | null
+          role?: string | null
+          specialties?: string[] | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          brand_id?: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          notes?: string | null
+          role?: string | null
+          specialties?: string[] | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "editors_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
             referencedColumns: ["id"]
           },
         ]
@@ -802,6 +919,13 @@ export type Database = {
             referencedRelation: "brief_concepts"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "ugc_creator_scripts_linked_brief_concept_id_fkey"
+            columns: ["linked_brief_concept_id"]
+            isOneToOne: false
+            referencedRelation: "concept_editors"
+            referencedColumns: ["concept_id"]
+          },
         ]
       }
       ugc_creators: {
@@ -955,7 +1079,34 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      concept_editors: {
+        Row: {
+          brief_batch_id: string | null
+          concept_id: string | null
+          editor_email: string | null
+          editor_id: string | null
+          editor_name: string | null
+          editor_role: string | null
+          editor_specialties: string[] | null
+          editor_type: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "brief_concepts_brief_batch_id_fkey"
+            columns: ["brief_batch_id"]
+            isOneToOne: false
+            referencedRelation: "brief_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "brief_concepts_editor_id_fkey"
+            columns: ["editor_id"]
+            isOneToOne: false
+            referencedRelation: "editors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       accept_invitation: {
@@ -1017,6 +1168,18 @@ export type Database = {
       get_accounts: {
         Args: Record<PropertyKey, never>
         Returns: Json
+      }
+      get_brand_editors: {
+        Args: { brand_uuid: string }
+        Returns: {
+          id: string
+          name: string
+          email: string
+          role: string
+          specialties: string[]
+          is_active: boolean
+          notes: string
+        }[]
       }
       get_my_todo_list: {
         Args: {

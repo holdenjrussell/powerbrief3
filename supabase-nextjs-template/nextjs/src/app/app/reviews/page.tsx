@@ -5,7 +5,7 @@ import { useGlobal } from '@/lib/context/GlobalContext';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, ExternalLink, CheckCircle, Upload, AlertTriangle, ChevronDown, ChevronUp, Filter, SortAsc, X } from 'lucide-react';
+import { Loader2, ExternalLink, CheckCircle, Upload, AlertTriangle, ChevronDown, ChevronUp, Filter, SortAsc, X, MessageCircle } from 'lucide-react';
 import { createSPAClient } from '@/lib/supabase/client';
 import { UploadedAssetGroup } from '@/lib/types/powerbrief';
 import Link from 'next/link';
@@ -47,6 +47,18 @@ interface Brand {
     name: string;
 }
 
+interface TimelineComment {
+    id: string;
+    timestamp: number;
+    comment: string;
+    author: string;
+    created_at: string;
+    updated_at?: string;
+    parent_id?: string | null;
+    user_id?: string | null;
+    replies?: TimelineComment[];
+}
+
 interface MediaModalProps {
     isOpen: boolean;
     onClose: () => void;
@@ -54,25 +66,23 @@ interface MediaModalProps {
     mediaType: 'image' | 'video';
     mediaName: string;
     conceptId?: string;
-    onAddComment?: (timestamp: number, comment: string) => void;
+    onAddComment?: (timestamp: number, comment: string, parentId?: string) => void;
+    onEditComment?: (commentId: string, comment: string) => void;
+    onDeleteComment?: (commentId: string) => void;
     existingComments?: TimelineComment[];
 }
 
-interface TimelineComment {
-    id: string;
-    timestamp: number;
-    comment: string;
-    author: string;
-    created_at: string;
-}
-
-function MediaModal({ isOpen, onClose, mediaUrl, mediaType, mediaName, conceptId, onAddComment, existingComments = [] }: MediaModalProps) {
+function MediaModal({ isOpen, onClose, mediaUrl, mediaType, mediaName, conceptId, onAddComment, onEditComment, onDeleteComment, existingComments = [] }: MediaModalProps) {
     const [videoRef, setVideoRef] = useState<HTMLVideoElement | null>(null);
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
     const [showCommentForm, setShowCommentForm] = useState(false);
     const [newComment, setNewComment] = useState('');
     const [commentTimestamp, setCommentTimestamp] = useState(0);
+    const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+    const [editingCommentText, setEditingCommentText] = useState('');
+    const [replyingToId, setReplyingToId] = useState<string | null>(null);
+    const [replyText, setReplyText] = useState('');
 
     useEffect(() => {
         const handleEscape = (e: KeyboardEvent) => {
@@ -114,6 +124,7 @@ function MediaModal({ isOpen, onClose, mediaUrl, mediaType, mediaName, conceptId
         if (videoRef) {
             setCommentTimestamp(videoRef.currentTime);
             setShowCommentForm(true);
+            setReplyingToId(null);
             videoRef.pause();
         }
     };
@@ -129,6 +140,44 @@ function MediaModal({ isOpen, onClose, mediaUrl, mediaType, mediaName, conceptId
     const handleCancelComment = () => {
         setNewComment('');
         setShowCommentForm(false);
+        setReplyingToId(null);
+        setReplyText('');
+    };
+
+    const handleEditComment = (commentId: string, currentText: string) => {
+        setEditingCommentId(commentId);
+        setEditingCommentText(currentText);
+    };
+
+    const handleSaveEdit = () => {
+        if (editingCommentId && editingCommentText.trim() && onEditComment) {
+            onEditComment(editingCommentId, editingCommentText.trim());
+            setEditingCommentId(null);
+            setEditingCommentText('');
+        }
+    };
+
+    const handleCancelEdit = () => {
+        setEditingCommentId(null);
+        setEditingCommentText('');
+    };
+
+    const handleReplyToComment = (commentId: string, timestamp: number) => {
+        setReplyingToId(commentId);
+        setCommentTimestamp(timestamp);
+        setReplyText('');
+        if (videoRef) {
+            videoRef.currentTime = timestamp;
+            videoRef.pause();
+        }
+    };
+
+    const handleSubmitReply = () => {
+        if (replyText.trim() && onAddComment && conceptId && replyingToId) {
+            onAddComment(commentTimestamp, replyText.trim(), replyingToId);
+            setReplyText('');
+            setReplyingToId(null);
+        }
     };
 
     const jumpToTimestamp = (timestamp: number) => {
@@ -138,7 +187,18 @@ function MediaModal({ isOpen, onClose, mediaUrl, mediaType, mediaName, conceptId
         }
     };
 
-    const sortedComments = [...existingComments].sort((a, b) => a.timestamp - b.timestamp);
+    // Organize comments into threads (parent comments with their replies)
+    const organizeComments = (comments: TimelineComment[]): TimelineComment[] => {
+        const parentComments = comments.filter(c => !c.parent_id);
+        const replies = comments.filter(c => c.parent_id);
+        
+        return parentComments.map(parent => ({
+            ...parent,
+            replies: replies.filter(reply => reply.parent_id === parent.id)
+        }));
+    };
+
+    const sortedComments = organizeComments([...existingComments].sort((a, b) => a.timestamp - b.timestamp));
 
     if (!isOpen) return null;
 
@@ -225,20 +285,191 @@ function MediaModal({ isOpen, onClose, mediaUrl, mediaType, mediaName, conceptId
                                 </div>
                             ) : (
                                 sortedComments.map((comment) => (
-                                    <div key={comment.id} className="border rounded-lg p-3 bg-gray-50">
-                                        <div className="flex items-center justify-between mb-2">
-                                            <button
-                                                onClick={() => jumpToTimestamp(comment.timestamp)}
-                                                className="text-blue-600 hover:text-blue-800 font-medium text-sm"
-                                            >
-                                                {formatTime(comment.timestamp)}
-                                            </button>
-                                            <div className="text-xs text-gray-500">
-                                                {new Date(comment.created_at).toLocaleDateString()}
+                                    <div key={comment.id} className="space-y-2">
+                                        {/* Main comment */}
+                                        <div className="border rounded-lg p-3 bg-gray-50">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <button
+                                                    onClick={() => jumpToTimestamp(comment.timestamp)}
+                                                    className="text-blue-600 hover:text-blue-800 font-medium text-sm"
+                                                >
+                                                    {formatTime(comment.timestamp)}
+                                                </button>
+                                                <div className="flex items-center space-x-2">
+                                                    <div className="text-xs text-gray-500">
+                                                        {new Date(comment.created_at).toLocaleDateString()}
+                                                        {comment.updated_at && comment.updated_at !== comment.created_at && (
+                                                            <span className="ml-1">(edited)</span>
+                                                        )}
+                                                    </div>
+                                                    {/* Action buttons */}
+                                                    <div className="flex space-x-1">
+                                                        <button
+                                                            onClick={() => handleReplyToComment(comment.id, comment.timestamp)}
+                                                            className="text-xs text-blue-600 hover:text-blue-800"
+                                                        >
+                                                            Reply
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleEditComment(comment.id, comment.comment)}
+                                                            className="text-xs text-gray-600 hover:text-gray-800"
+                                                        >
+                                                            Edit
+                                                        </button>
+                                                        {onDeleteComment && (
+                                                            <button
+                                                                onClick={() => onDeleteComment(comment.id)}
+                                                                className="text-xs text-red-600 hover:text-red-800"
+                                                            >
+                                                                Delete
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
                                             </div>
+                                            
+                                            {/* Comment text or edit form */}
+                                            {editingCommentId === comment.id ? (
+                                                <div className="space-y-2">
+                                                    <textarea
+                                                        value={editingCommentText}
+                                                        onChange={(e) => setEditingCommentText(e.target.value)}
+                                                        className="w-full p-2 border border-gray-300 rounded text-sm resize-none"
+                                                        rows={2}
+                                                        autoFocus
+                                                    />
+                                                    <div className="flex space-x-2">
+                                                        <button
+                                                            onClick={handleSaveEdit}
+                                                            disabled={!editingCommentText.trim()}
+                                                            className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-2 py-1 rounded text-xs"
+                                                        >
+                                                            Save
+                                                        </button>
+                                                        <button
+                                                            onClick={handleCancelEdit}
+                                                            className="bg-gray-300 hover:bg-gray-400 text-gray-700 px-2 py-1 rounded text-xs"
+                                                        >
+                                                            Cancel
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <>
+                                                    <div className="text-sm text-gray-900 mb-1">{comment.comment}</div>
+                                                    <div className="text-xs text-gray-600">— {comment.author}</div>
+                                                </>
+                                            )}
                                         </div>
-                                        <div className="text-sm text-gray-900 mb-1">{comment.comment}</div>
-                                        <div className="text-xs text-gray-600">— {comment.author}</div>
+
+                                        {/* Replies */}
+                                        {comment.replies && comment.replies.length > 0 && (
+                                            <div className="ml-6 space-y-2">
+                                                {comment.replies.map((reply) => (
+                                                    <div key={reply.id} className="border rounded-lg p-2 bg-blue-50">
+                                                        <div className="flex items-center justify-between mb-1">
+                                                            <button
+                                                                onClick={() => jumpToTimestamp(reply.timestamp)}
+                                                                className="text-blue-600 hover:text-blue-800 font-medium text-xs"
+                                                            >
+                                                                {formatTime(reply.timestamp)}
+                                                            </button>
+                                                            <div className="flex items-center space-x-2">
+                                                                <div className="text-xs text-gray-500">
+                                                                    {new Date(reply.created_at).toLocaleDateString()}
+                                                                    {reply.updated_at && reply.updated_at !== reply.created_at && (
+                                                                        <span className="ml-1">(edited)</span>
+                                                                    )}
+                                                                </div>
+                                                                <div className="flex space-x-1">
+                                                                    <button
+                                                                        onClick={() => handleEditComment(reply.id, reply.comment)}
+                                                                        className="text-xs text-gray-600 hover:text-gray-800"
+                                                                    >
+                                                                        Edit
+                                                                    </button>
+                                                                    {onDeleteComment && (
+                                                                        <button
+                                                                            onClick={() => onDeleteComment(reply.id)}
+                                                                            className="text-xs text-red-600 hover:text-red-800"
+                                                                        >
+                                                                            Delete
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        
+                                                        {/* Reply text or edit form */}
+                                                        {editingCommentId === reply.id ? (
+                                                            <div className="space-y-2">
+                                                                <textarea
+                                                                    value={editingCommentText}
+                                                                    onChange={(e) => setEditingCommentText(e.target.value)}
+                                                                    className="w-full p-2 border border-gray-300 rounded text-sm resize-none"
+                                                                    rows={2}
+                                                                    autoFocus
+                                                                />
+                                                                <div className="flex space-x-2">
+                                                                    <button
+                                                                        onClick={handleSaveEdit}
+                                                                        disabled={!editingCommentText.trim()}
+                                                                        className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-2 py-1 rounded text-xs"
+                                                                    >
+                                                                        Save
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={handleCancelEdit}
+                                                                        className="bg-gray-300 hover:bg-gray-400 text-gray-700 px-2 py-1 rounded text-xs"
+                                                                    >
+                                                                        Cancel
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        ) : (
+                                                            <>
+                                                                <div className="text-sm text-gray-900 mb-1">{reply.comment}</div>
+                                                                <div className="text-xs text-gray-600">— {reply.author}</div>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+
+                                        {/* Reply form */}
+                                        {replyingToId === comment.id && (
+                                            <div className="ml-6 border rounded-lg p-3 bg-blue-50">
+                                                <div className="mb-2">
+                                                    <div className="text-sm font-medium text-gray-700">
+                                                        Reply at {formatTime(commentTimestamp)}
+                                                    </div>
+                                                </div>
+                                                <textarea
+                                                    value={replyText}
+                                                    onChange={(e) => setReplyText(e.target.value)}
+                                                    placeholder="Add your reply..."
+                                                    className="w-full p-2 border border-gray-300 rounded text-sm resize-none"
+                                                    rows={2}
+                                                    autoFocus
+                                                />
+                                                <div className="flex space-x-2 mt-2">
+                                                    <button
+                                                        onClick={handleSubmitReply}
+                                                        disabled={!replyText.trim()}
+                                                        className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-3 py-1 rounded text-sm"
+                                                    >
+                                                        Reply
+                                                    </button>
+                                                    <button
+                                                        onClick={handleCancelComment}
+                                                        className="bg-gray-300 hover:bg-gray-400 text-gray-700 px-3 py-1 rounded text-sm"
+                                                    >
+                                                        Cancel
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                 ))
                             )}
@@ -335,14 +566,28 @@ export default function ReviewsPage() {
         setModalMedia(null);
     };
 
+    // Function to get comment count for video assets
+    const getCommentCount = (conceptId: string): number => {
+        const comments = conceptComments[conceptId] || [];
+        return comments.length;
+    };
+
     // Function to fetch comments for a concept
     const fetchConceptComments = async (conceptId: string) => {
         try {
-            // For now, we'll use a simple local storage approach
-            // In a real app, you'd fetch from your database
-            const stored = localStorage.getItem(`concept_comments_${conceptId}`);
-            if (stored) {
-                const comments = JSON.parse(stored);
+            const response = await fetch(`/api/concept-comments?conceptId=${conceptId}`);
+            if (response.ok) {
+                const data = await response.json();
+                const comments = data.comments.map((comment: any) => ({
+                    id: comment.id,
+                    timestamp: comment.timestamp_seconds,
+                    comment: comment.comment_text,
+                    author: comment.author_name,
+                    created_at: comment.created_at,
+                    updated_at: comment.updated_at,
+                    parent_id: comment.parent_id,
+                    user_id: comment.user_id
+                }));
                 setConceptComments(prev => ({ ...prev, [conceptId]: comments }));
             }
         } catch (error) {
@@ -351,35 +596,111 @@ export default function ReviewsPage() {
     };
 
     // Function to add a comment
-    const handleAddComment = async (conceptId: string, timestamp: number, comment: string) => {
+    const handleAddComment = async (conceptId: string, timestamp: number, comment: string, parentId?: string) => {
         try {
-            const newComment: TimelineComment = {
-                id: Date.now().toString(),
-                timestamp,
-                comment,
-                author: user?.email || 'Anonymous',
-                created_at: new Date().toISOString()
-            };
+            const response = await fetch('/api/concept-comments', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    conceptId,
+                    timestamp,
+                    comment,
+                    parentId
+                }),
+            });
 
-            const updatedComments = [...(conceptComments[conceptId] || []), newComment];
-            
-            // Update local state
-            setConceptComments(prev => ({ ...prev, [conceptId]: updatedComments }));
-            
-            // Store in localStorage for now (in a real app, save to database)
-            localStorage.setItem(`concept_comments_${conceptId}`, JSON.stringify(updatedComments));
-            
-            // You could also send to your backend here
-            // await supabase.from('concept_comments').insert({
-            //     concept_id: conceptId,
-            //     timestamp,
-            //     comment,
-            //     author: user?.email,
-            //     created_at: new Date().toISOString()
-            // });
-            
+            if (response.ok) {
+                const data = await response.json();
+                const newComment: TimelineComment = {
+                    id: data.comment.id,
+                    timestamp: data.comment.timestamp_seconds,
+                    comment: data.comment.comment_text,
+                    author: data.comment.author_name,
+                    created_at: data.comment.created_at,
+                    updated_at: data.comment.updated_at,
+                    parent_id: data.comment.parent_id,
+                    user_id: data.comment.user_id
+                };
+
+                const updatedComments = [...(conceptComments[conceptId] || []), newComment];
+                setConceptComments(prev => ({ ...prev, [conceptId]: updatedComments }));
+            } else {
+                console.error('Failed to add comment');
+            }
         } catch (error) {
             console.error('Error adding comment:', error);
+        }
+    };
+
+    // Function to edit a comment
+    const handleEditComment = async (commentId: string, comment: string) => {
+        try {
+            const response = await fetch('/api/concept-comments', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    commentId,
+                    comment
+                }),
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                // Update the comment in the local state
+                setConceptComments(prev => {
+                    const updated = { ...prev };
+                    Object.keys(updated).forEach(conceptId => {
+                        updated[conceptId] = updated[conceptId].map(c => 
+                            c.id === commentId 
+                                ? { 
+                                    ...c, 
+                                    comment: data.comment.comment_text,
+                                    updated_at: data.comment.updated_at
+                                }
+                                : c
+                        );
+                    });
+                    return updated;
+                });
+            } else {
+                console.error('Failed to edit comment');
+            }
+        } catch (error) {
+            console.error('Error editing comment:', error);
+        }
+    };
+
+    // Function to delete a comment
+    const handleDeleteComment = async (commentId: string) => {
+        if (!confirm('Are you sure you want to delete this comment?')) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/concept-comments?commentId=${commentId}`, {
+                method: 'DELETE',
+            });
+
+            if (response.ok) {
+                // Remove the comment and its replies from local state
+                setConceptComments(prev => {
+                    const updated = { ...prev };
+                    Object.keys(updated).forEach(conceptId => {
+                        updated[conceptId] = updated[conceptId].filter(c => 
+                            c.id !== commentId && c.parent_id !== commentId
+                        );
+                    });
+                    return updated;
+                });
+            } else {
+                console.error('Failed to delete comment');
+            }
+        } catch (error) {
+            console.error('Error deleting comment:', error);
         }
     };
 
@@ -455,6 +776,14 @@ export default function ReviewsPage() {
 
         fetchReviews();
     }, [user?.id]);
+
+    // Load comments for all concepts when they're fetched
+    useEffect(() => {
+        const allConcepts = [...pendingReviews, ...approvedConcepts];
+        allConcepts.forEach(concept => {
+            fetchConceptComments(concept.id);
+        });
+    }, [pendingReviews, approvedConcepts]);
 
     const fetchUploadedAssets = async () => {
         if (!user?.id) return;
@@ -851,6 +1180,16 @@ export default function ReviewsPage() {
                                                                 <div className="absolute bottom-1 left-1 bg-black bg-opacity-75 text-white text-xs px-1 rounded">
                                                                     {asset.aspectRatio}
                                                                 </div>
+                                                                {/* Comment count badge for videos */}
+                                                                {asset.type === 'video' && (
+                                                                    <div 
+                                                                        className="absolute top-1 right-1 bg-blue-600 text-white text-xs px-1.5 py-0.5 rounded-full flex items-center space-x-1 shadow-lg"
+                                                                        title={`${getCommentCount(concept.id)} comments`}
+                                                                    >
+                                                                        <MessageCircle className="h-3 w-3" />
+                                                                        <span>{getCommentCount(concept.id)}</span>
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         ))}
                                                     </div>
@@ -997,6 +1336,16 @@ export default function ReviewsPage() {
                                                                     <div className="absolute bottom-1 left-1 bg-black bg-opacity-75 text-white text-xs px-1 rounded">
                                                                         {asset.aspectRatio}
                                                                     </div>
+                                                                    {/* Comment count badge for videos */}
+                                                                    {asset.type === 'video' && (
+                                                                        <div 
+                                                                            className="absolute top-1 right-1 bg-blue-600 text-white text-xs px-1.5 py-0.5 rounded-full flex items-center space-x-1 shadow-lg"
+                                                                            title={`${getCommentCount(concept.id)} comments`}
+                                                                        >
+                                                                            <MessageCircle className="h-3 w-3" />
+                                                                            <span>{getCommentCount(concept.id)}</span>
+                                                                        </div>
+                                                                    )}
                                                                 </div>
                                                             ))}
                                                         </div>
@@ -1227,6 +1576,16 @@ export default function ReviewsPage() {
                                                                                         <div className="absolute bottom-0 left-0 bg-black bg-opacity-75 text-white text-xs px-1 rounded-br">
                                                                                             {asset.aspectRatio}
                                                                                         </div>
+                                                                                        {/* Comment count badge for videos */}
+                                                                                        {asset.type === 'video' && (
+                                                                                            <div 
+                                                                                                className="absolute top-0 right-0 bg-blue-600 text-white text-xs px-1 py-0.5 rounded-bl flex items-center space-x-1 shadow-lg"
+                                                                                                title={`${getCommentCount(concept.id)} comments`}
+                                                                                            >
+                                                                                                <MessageCircle className="h-2 w-2" />
+                                                                                                <span>{getCommentCount(concept.id)}</span>
+                                                                                            </div>
+                                                                                        )}
                                                                                     </div>
                                                                                 ))}
                                                                             </div>
@@ -1282,6 +1641,8 @@ export default function ReviewsPage() {
                     mediaName={modalMedia.name}
                     conceptId={modalMedia.conceptId}
                     onAddComment={modalMedia.conceptId ? (timestamp: number, comment: string) => handleAddComment(modalMedia.conceptId!, timestamp, comment) : undefined}
+                    onEditComment={modalMedia.conceptId ? (commentId: string, comment: string) => handleEditComment(commentId, comment) : undefined}
+                    onDeleteComment={modalMedia.conceptId ? (commentId: string) => handleDeleteComment(commentId) : undefined}
                     existingComments={modalMedia.conceptId ? conceptComments[modalMedia.conceptId] || [] : []}
                 />
             )}

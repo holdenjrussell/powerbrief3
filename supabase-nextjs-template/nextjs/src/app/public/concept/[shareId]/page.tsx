@@ -488,29 +488,43 @@ export default function SharedConceptPage({ params }: { params: ParamsType | Pro
             <CardTitle className="text-lg">Submit Revised Version</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div>
-              <Label htmlFor="revisedReviewLink">Updated Frame.io Review Link</Label>
-              <Input
-                id="revisedReviewLink"
-                placeholder="Paste your updated Frame.io link here"
-                value={reviewLink}
-                onChange={(e) => setReviewLink(e.target.value)}
-              />
-              <p className="text-sm text-gray-500 mt-1">
-                Please provide a link to the revised video on Frame.io for review
-              </p>
-            </div>
-          </CardContent>
-          <CardFooter>
+            <p className="text-sm text-gray-600">
+              Upload your revised creative assets (images and videos) for this concept. 
+              Include multiple versions and aspect ratios (4x5, 9x16) as needed.
+            </p>
             <Button 
-              onClick={handleResubmitForReview} 
-              disabled={updatingResubmission || !reviewLink.trim()} 
+              onClick={() => setShowAssetUpload(true)}
               className="bg-amber-600 hover:bg-amber-700 text-white"
             >
-              {updatingResubmission ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
-              Submit Revised Version
+              <UploadCloud className="h-4 w-4 mr-2" />
+              Upload Revised Assets
             </Button>
-          </CardFooter>
+            
+            {/* Alternative Frame.io option for revisions */}
+            <div className="pt-4 border-t">
+              <p className="text-sm text-gray-500 mb-2">Alternative: Submit Frame.io Link</p>
+              <div>
+                <Label htmlFor="revisedReviewLink">Updated Frame.io Review Link</Label>
+                <Input
+                  id="revisedReviewLink"
+                  placeholder="Paste your updated Frame.io link here"
+                  value={reviewLink}
+                  onChange={(e) => setReviewLink(e.target.value)}
+                />
+                <p className="text-sm text-gray-500 mt-1">
+                  Please provide a link to the revised video on Frame.io for review
+                </p>
+              </div>
+              <Button 
+                onClick={handleResubmitForReview} 
+                disabled={updatingResubmission || !reviewLink.trim()} 
+                className="bg-gray-600 hover:bg-gray-700 text-white mt-3"
+              >
+                {updatingResubmission ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                Submit Frame.io Link
+              </Button>
+            </div>
+          </CardContent>
         </Card>
       )}
 
@@ -597,7 +611,7 @@ export default function SharedConceptPage({ params }: { params: ParamsType | Pro
         />
       )}
 
-      {/* Legacy Frame.io Section - only show if no assets uploaded */}
+      {/* Legacy Frame.io Section - only show if no assets uploaded and not in revision state */}
       {isEditable && !concept?.uploaded_assets && !concept?.review_status && (
         <Card className="border-2 border-gray-300">
           <CardHeader>
@@ -620,10 +634,9 @@ export default function SharedConceptPage({ params }: { params: ParamsType | Pro
           <CardFooter>
             <Button 
               onClick={handleMarkReadyForReview} 
-              disabled={updatingReview || !reviewLink.trim()} 
+              disabled={!reviewLink.trim()} 
               className="bg-gray-600 hover:bg-gray-700"
             >
-              {updatingReview ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
               Mark as Ready for Review
             </Button>
           </CardFooter>
