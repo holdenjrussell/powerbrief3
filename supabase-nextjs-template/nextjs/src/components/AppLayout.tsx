@@ -32,7 +32,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         
         const fetchPendingReviewsCount = async () => {
             try {
-                const count = await getPendingReviewsCount();
+                const count = await getPendingReviewsCount(user.id);
                 setPendingReviewsCount(count);
             } catch (err) {
                 console.error('Error fetching pending reviews count:', err);
@@ -46,6 +46,25 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         
         return () => clearInterval(intervalId);
     }, [user?.id]);
+
+    // Refresh count when navigating away from reviews page (user likely completed reviews)
+    useEffect(() => {
+        if (!user?.id) return;
+        
+        // If user navigates away from reviews page, refresh the count
+        if (pathname !== '/app/reviews') {
+            const fetchPendingReviewsCount = async () => {
+                try {
+                    const count = await getPendingReviewsCount(user.id);
+                    setPendingReviewsCount(count);
+                } catch (err) {
+                    console.error('Error fetching pending reviews count:', err);
+                }
+            };
+            
+            fetchPendingReviewsCount();
+        }
+    }, [pathname, user?.id]);
 
     const handleLogout = async () => {
         try {

@@ -377,16 +377,18 @@ export async function shareBriefConcept(conceptId, shareType, shareSettings) {
     };
 }
 /**
- * Get count of concepts ready for review
- * @returns The count of concepts that need review
+ * Get count of concepts ready for review for a specific user
+ * @param userId - The ID of the user to get pending reviews for
+ * @returns The count of concepts that need review for the specified user
  */
-export async function getPendingReviewsCount() {
+export async function getPendingReviewsCount(userId) {
     const supabase = createSPAClient();
     
     const { count, error } = await supabase
         .from('brief_concepts')
         .select('*', { count: 'exact', head: true })
-        .eq('review_status', 'ready_for_review');
+        .eq('review_status', 'ready_for_review')
+        .eq('user_id', userId);
     
     if (error) {
         console.error('Error getting pending reviews count:', error);
