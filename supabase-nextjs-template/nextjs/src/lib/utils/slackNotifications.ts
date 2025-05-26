@@ -90,19 +90,20 @@ function getChannelForNotificationType(
 ): string | undefined {
   const channelConfig = brand.slack_channel_config || {};
   
-  console.log('DEBUG - getChannelForNotificationType called:', {
+  // DEBUG: Log the channel configuration lookup
+  console.log('DEBUG - getChannelForNotificationType:', {
     notificationType,
     channelConfig,
-    brand_slack_channel_name: brand.slack_channel_name
+    brandName: brand.name
   });
   
   // First, try to get the specific channel for this notification type
   const specificChannel = channelConfig[notificationType];
-  console.log('DEBUG - Specific channel for', notificationType, ':', specificChannel);
+  console.log('DEBUG - Specific channel found:', specificChannel);
   
   if (specificChannel) {
     const formattedChannel = specificChannel.startsWith('#') ? specificChannel : `#${specificChannel}`;
-    console.log('DEBUG - Using specific channel:', formattedChannel);
+    console.log('DEBUG - Returning formatted specific channel:', formattedChannel);
     return formattedChannel;
   }
   
@@ -112,17 +113,17 @@ function getChannelForNotificationType(
   
   if (defaultChannel) {
     const formattedDefault = defaultChannel.startsWith('#') ? defaultChannel : `#${defaultChannel}`;
-    console.log('DEBUG - Using default channel from config:', formattedDefault);
+    console.log('DEBUG - Returning formatted default channel:', formattedDefault);
     return formattedDefault;
   }
   
   // Fall back to the legacy channel name field
   if (brand.slack_channel_name) {
-    const formattedLegacy = brand.slack_channel_name.startsWith('#') 
+    const legacyChannel = brand.slack_channel_name.startsWith('#') 
       ? brand.slack_channel_name 
       : `#${brand.slack_channel_name}`;
-    console.log('DEBUG - Using legacy channel name:', formattedLegacy);
-    return formattedLegacy;
+    console.log('DEBUG - Returning legacy channel:', legacyChannel);
+    return legacyChannel;
   }
   
   // No channel override - use webhook default
@@ -438,9 +439,10 @@ export async function sendConceptReadyForEditorNotification(data: ConceptReadyFo
 
     const typedBrand = brand as unknown as BrandSlackSettings;
 
-    // Debug: Log the brand's slack configuration
+    // DEBUG: Log the brand slack configuration
     console.log('DEBUG - Brand Slack Config for concept ready for editor:', {
       brandId: data.brandId,
+      brandName: typedBrand.name,
       slack_channel_config: typedBrand.slack_channel_config,
       slack_channel_name: typedBrand.slack_channel_name
     });
@@ -464,16 +466,16 @@ export async function sendConceptReadyForEditorNotification(data: ConceptReadyFo
 
     // Add channel override for concept ready for editor notifications
     const channelOverride = getChannelForNotificationType(typedBrand, 'concept_ready_for_editor');
-    console.log('DEBUG - Channel override for concept_ready_for_editor:', channelOverride);
+    
+    // DEBUG: Log the channel override result
+    console.log('DEBUG - Channel override for concept_ready_for_editor:', {
+      channelOverride,
+      originalMessage: message
+    });
     
     if (channelOverride) {
       (message as { channel?: string }).channel = channelOverride;
-      console.log('DEBUG - Message with channel override:', { 
-        channel: (message as { channel?: string }).channel,
-        text: message.text 
-      });
-    } else {
-      console.log('DEBUG - No channel override found, using webhook default');
+      console.log('DEBUG - Message with channel override applied:', message);
     }
 
     // Send to Slack
