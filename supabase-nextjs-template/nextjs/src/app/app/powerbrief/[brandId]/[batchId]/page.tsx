@@ -295,6 +295,9 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
     // Update concept
     const handleUpdateConcept = async (concept: BriefConcept) => {
         try {
+            // Store the previous status to check if it changed
+            const previousStatus = concepts.find(c => c.id === concept.id)?.status;
+            
             // Synchronize review_status based on status
             if (concept.status === 'APPROVED' && concept.review_status !== 'approved') {
                 concept.review_status = 'approved';
@@ -308,6 +311,48 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
             setConcepts(prev => 
                 prev.map(c => c.id === updatedConcept.id ? updatedConcept : c)
             );
+            
+            // Send Slack notification if status changed to "READY FOR EDITOR"
+            if (previousStatus !== 'READY FOR EDITOR' && concept.status === 'READY FOR EDITOR' && batch) {
+                try {
+                    // Create share links for the concept and batch
+                    const conceptShareSettings = {
+                        is_editable: true,
+                        expires_at: null
+                    };
+                    
+                    const batchShareSettings = {
+                        is_editable: false,
+                        expires_at: null
+                    };
+                    
+                    const [conceptShareResult, batchShareResult] = await Promise.all([
+                        shareBriefConcept(concept.id, 'link', conceptShareSettings),
+                        shareBriefBatch(batch.id, 'link', batchShareSettings)
+                    ]);
+                    
+                    await fetch('/api/slack/concept-ready-for-editor', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            conceptId: concept.id,
+                            conceptTitle: concept.concept_title,
+                            batchName: batch.name,
+                            brandId: batch.brand_id,
+                            assignedEditor: concept.video_editor,
+                            assignedStrategist: concept.strategist,
+                            conceptShareUrl: conceptShareResult.share_url,
+                            batchShareUrl: batchShareResult.share_url
+                        }),
+                    });
+                } catch (slackError) {
+                    console.error('Failed to send Slack notification for concept ready for editor:', slackError);
+                    // Don't fail the status update if Slack notification fails
+                }
+            }
+            
             return updatedConcept;
         } catch (err) {
             console.error('Error updating concept:', err);
