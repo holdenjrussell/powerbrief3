@@ -53,7 +53,7 @@ const MetaAssetsSelector: React.FC<MetaAssetsSelectorProps> = ({
   currentPixelId,
   onAssetsSaved
 }) => {
-  const [loading, setLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
@@ -68,18 +68,104 @@ const MetaAssetsSelector: React.FC<MetaAssetsSelectorProps> = ({
   
   const [assetsLoaded, setAssetsLoaded] = useState(false);
 
+  // Exponential backoff retry logic for POST requests
+  const fetchWithRetryPost = async (url: string, body: Record<string, unknown>, maxRetries = 3): Promise<Response> => {
+    let lastError: Error;
+    
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(body),
+        });
+        
+        // If successful or client error (4xx), return immediately
+        if (response.ok || (response.status >= 400 && response.status < 500)) {
+          return response;
+        }
+        
+        // For server errors (5xx), retry with backoff
+        if (response.status >= 500 && attempt < maxRetries) {
+          const delay = Math.min(1000 * Math.pow(2, attempt), 10000); // Cap at 10 seconds
+          console.log(`Meta API server error (${response.status}), retrying in ${delay}ms... (attempt ${attempt + 1}/${maxRetries + 1})`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+        
+        // If we've exhausted retries, throw the error
+        throw new Error(`Meta API error: ${response.status} ${response.statusText}`);
+        
+      } catch (err) {
+        lastError = err instanceof Error ? err : new Error('Unknown error');
+        
+        // For network errors, retry with backoff
+        if (attempt < maxRetries) {
+          const delay = Math.min(1000 * Math.pow(2, attempt), 10000); // Cap at 10 seconds
+          console.log(`Meta API network error, retrying in ${delay}ms... (attempt ${attempt + 1}/${maxRetries + 1}):`, err);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+      }
+    }
+    
+    throw lastError!;
+  };
+
+  // Exponential backoff retry logic
+  const fetchWithRetry = async (url: string, maxRetries = 3): Promise<Response> => {
+    let lastError: Error;
+    
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const response = await fetch(url);
+        
+        // If successful or client error (4xx), return immediately
+        if (response.ok || (response.status >= 400 && response.status < 500)) {
+          return response;
+        }
+        
+        // For server errors (5xx), retry with backoff
+        if (response.status >= 500 && attempt < maxRetries) {
+          const delay = Math.min(1000 * Math.pow(2, attempt), 10000); // Cap at 10 seconds
+          console.log(`Meta API server error (${response.status}), retrying in ${delay}ms... (attempt ${attempt + 1}/${maxRetries + 1})`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+        
+        // If we've exhausted retries, throw the error
+        throw new Error(`Meta API error: ${response.status} ${response.statusText}`);
+        
+      } catch (err) {
+        lastError = err instanceof Error ? err : new Error('Unknown error');
+        
+        // For network errors, retry with backoff
+        if (attempt < maxRetries) {
+          const delay = Math.min(1000 * Math.pow(2, attempt), 10000); // Cap at 10 seconds
+          console.log(`Meta API network error, retrying in ${delay}ms... (attempt ${attempt + 1}/${maxRetries + 1}):`, err);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+      }
+    }
+    
+    throw lastError!;
+  };
+
   // Fetch all Meta assets
   const fetchMetaAssets = async () => {
-    setLoading(true);
+    setIsLoading(true);
     setError(null);
     
     console.log('MetaAssetsSelector: Starting to fetch assets for brandId:', brandId);
     
     try {
       const [adAccountsRes, pagesRes, pixelsRes] = await Promise.all([
-        fetch(`/api/meta/ad-accounts?brandId=${brandId}`),
-        fetch(`/api/meta/pages?brandId=${brandId}`),
-        fetch(`/api/meta/pixels?brandId=${brandId}`)
+        fetchWithRetry(`/api/meta/ad-accounts?brandId=${brandId}`),
+        fetchWithRetry(`/api/meta/pages?brandId=${brandId}`),
+        fetchWithRetry(`/api/meta/pixels?brandId=${brandId}`)
       ]);
       
       console.log('MetaAssetsSelector: Response statuses:', {
@@ -128,32 +214,27 @@ const MetaAssetsSelector: React.FC<MetaAssetsSelectorProps> = ({
       console.error('Error fetching Meta assets:', err);
       setError(err instanceof Error ? err.message : 'Failed to load Meta assets. Please try again.');
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
   // Save selected assets
   const handleSaveAssets = async () => {
-    setSaving(true);
-    setError(null);
-    
     try {
-      const response = await fetch('/api/meta/save-assets', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          brandId,
-          adAccountId: selectedAdAccount || undefined,
-          facebookPageId: selectedPage || undefined,
-          instagramAccountId: selectedInstagramAccount || undefined,
-          pixelId: selectedPixel || undefined,
-        }),
+      setSaving(true);
+      setError(null);
+
+      const response = await fetchWithRetryPost('/api/meta/save-assets', {
+        brandId,
+        adAccountId: selectedAdAccount || undefined,
+        facebookPageId: selectedPage || undefined,
+        instagramAccountId: selectedInstagramAccount || undefined,
+        pixelId: selectedPixel || undefined,
       });
       
       if (!response.ok) {
-        throw new Error('Failed to save Meta assets');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to save Meta assets');
       }
       
       onAssetsSaved();
@@ -184,7 +265,7 @@ const MetaAssetsSelector: React.FC<MetaAssetsSelectorProps> = ({
     fetchMetaAssets();
   }, [brandId]);
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex justify-center items-center p-8">
         <Loader2 className="h-6 w-6 animate-spin" />

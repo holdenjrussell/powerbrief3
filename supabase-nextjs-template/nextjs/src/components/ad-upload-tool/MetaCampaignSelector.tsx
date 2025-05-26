@@ -28,6 +28,46 @@ const MetaCampaignSelector: React.FC<MetaCampaignSelectorProps> = ({
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [hasFetched, setHasFetched] = useState<boolean>(false);
 
+  // Exponential backoff retry logic
+  const fetchWithRetry = async (url: string, maxRetries = 3): Promise<Response> => {
+    let lastError: Error;
+    
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const response = await fetch(url);
+        
+        // If successful or client error (4xx), return immediately
+        if (response.ok || (response.status >= 400 && response.status < 500)) {
+          return response;
+        }
+        
+        // For server errors (5xx), retry with backoff
+        if (response.status >= 500 && attempt < maxRetries) {
+          const delay = Math.min(1000 * Math.pow(2, attempt), 10000); // Cap at 10 seconds
+          console.log(`Meta API server error (${response.status}), retrying in ${delay}ms... (attempt ${attempt + 1}/${maxRetries + 1})`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+        
+        // If we've exhausted retries, throw the error
+        throw new Error(`Meta API error: ${response.status} ${response.statusText}`);
+        
+      } catch (err) {
+        lastError = err instanceof Error ? err : new Error('Unknown error');
+        
+        // For network errors, retry with backoff
+        if (attempt < maxRetries) {
+          const delay = Math.min(1000 * Math.pow(2, attempt), 10000); // Cap at 10 seconds
+          console.log(`Meta API network error, retrying in ${delay}ms... (attempt ${attempt + 1}/${maxRetries + 1}):`, err);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+      }
+    }
+    
+    throw lastError!;
+  };
+
   // Only fetch campaigns when dropdown is opened and we haven't fetched yet
   const fetchCampaigns = async () => {
     if (!brandId || !adAccountId || isLoading || hasFetched) return;
@@ -36,11 +76,13 @@ const MetaCampaignSelector: React.FC<MetaCampaignSelectorProps> = ({
     setError(null);
     
     try {
-      const res = await fetch(`/api/meta/campaigns?brandId=${brandId}&adAccountId=${adAccountId}`);
+      const res = await fetchWithRetry(`/api/meta/campaigns?brandId=${brandId}&adAccountId=${adAccountId}`);
+      
       if (!res.ok) {
-        const errorData = await res.json();
+        const errorData = await res.json().catch(() => ({}));
         throw new Error(errorData.error || `Failed to fetch campaigns: ${res.statusText}`);
       }
+      
       const data: Campaign[] = await res.json();
       setCampaigns(data);
       setHasFetched(true);

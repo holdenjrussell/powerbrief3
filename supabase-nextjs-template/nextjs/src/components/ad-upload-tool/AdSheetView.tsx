@@ -489,6 +489,50 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, activeBatch }) => {
       return;
     }
 
+    // Exponential backoff retry logic for launch API
+    const launchWithRetry = async (payload: Record<string, unknown>, maxRetries = 3): Promise<Response> => {
+      let lastError: Error;
+      
+      for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+          const response = await fetch('/api/meta/launch-ads', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          
+          // If successful or client error (4xx), return immediately
+          if (response.ok || (response.status >= 400 && response.status < 500)) {
+            return response;
+          }
+          
+          // For server errors (5xx), retry with backoff
+          if (response.status >= 500 && attempt < maxRetries) {
+            const delay = Math.min(2000 * Math.pow(2, attempt), 30000); // Cap at 30 seconds for launch
+            console.log(`Launch API server error (${response.status}), retrying in ${delay}ms... (attempt ${attempt + 1}/${maxRetries + 1})`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          }
+          
+          // If we've exhausted retries, throw the error
+          throw new Error(`Launch API error: ${response.status} ${response.statusText}`);
+          
+        } catch (err) {
+          lastError = err instanceof Error ? err : new Error('Unknown error');
+          
+          // For network errors, retry with backoff
+          if (attempt < maxRetries) {
+            const delay = Math.min(2000 * Math.pow(2, attempt), 30000); // Cap at 30 seconds for launch
+            console.log(`Launch API network error, retrying in ${delay}ms... (attempt ${attempt + 1}/${maxRetries + 1}):`, err);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          }
+        }
+      }
+      
+      throw lastError!;
+    };
+
     setIsLaunching(true);
     const draftsToLaunch = filteredAdDrafts.filter(draft => checkedDraftIds.has(draft.id));
     
@@ -526,11 +570,7 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, activeBatch }) => {
     console.log("=== END DEBUG INFO ===");
 
     try {
-      const response = await fetch('/api/meta/launch-ads', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestPayload),
-      });
+      const response = await launchWithRetry(requestPayload);
       
       const result = await response.json(); // Always try to parse JSON
 
