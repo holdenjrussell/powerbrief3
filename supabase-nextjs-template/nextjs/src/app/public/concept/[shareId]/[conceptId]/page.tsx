@@ -780,7 +780,29 @@ export default function SharedSingleConceptPage({ params }: { params: ParamsType
                 <CardTitle className="text-lg">Spoken Hook Options</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="whitespace-pre-wrap">{concept.spoken_hook_options}</p>
+                {(() => {
+                  // Parse and number the hooks
+                  const hooks = concept.spoken_hook_options
+                    .split(/\n\s*\n/)
+                    .flatMap(section => section.split('\n'))
+                    .map(hook => hook.trim())
+                    .filter(hook => hook.length > 0);
+                  
+                  return hooks.length > 0 ? (
+                    <div className="space-y-3">
+                      {hooks.map((hook, index) => (
+                        <div key={index} className="flex gap-3">
+                          <span className="flex-shrink-0 w-6 h-6 bg-blue-100 text-blue-800 rounded-full flex items-center justify-center text-sm font-medium">
+                            {index + 1}
+                          </span>
+                          <p className="flex-1 text-sm leading-relaxed">{hook}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="whitespace-pre-wrap">{concept.spoken_hook_options}</p>
+                  );
+                })()}
               </CardContent>
             </Card>
           )}
