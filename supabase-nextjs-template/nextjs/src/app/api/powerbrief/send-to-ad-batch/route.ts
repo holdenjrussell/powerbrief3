@@ -65,21 +65,95 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: 'Could not determine brand or user from concept.' }, { status: 400 });
     }
 
+    // Fetch user's ad upload settings for this brand
+    let userSettings = null;
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: adBatch, error: settingsError } = await (supabaseAdmin as any)
+        .from('ad_batches')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('brand_id', brandId)
+        .eq('is_active', true)
+        .order('last_accessed_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (!settingsError && adBatch) {
+        userSettings = {
+          primaryText: adBatch.primary_text || 'Check out our latest offer!',
+          headline: adBatch.headline || 'Amazing New Product',
+          description: adBatch.description || '',
+          destinationUrl: adBatch.destination_url || 'https://example.com',
+          callToAction: adBatch.call_to_action || 'LEARN_MORE',
+          status: adBatch.status || 'PAUSED',
+          urlParams: adBatch.url_params || '',
+          campaignId: adBatch.campaign_id,
+          adSetId: adBatch.ad_set_id,
+          siteLinks: adBatch.site_links || [],
+          advantageCreative: adBatch.advantage_plus_creative || {}
+        };
+      }
+    } catch (settingsError) {
+      console.warn('Could not fetch user settings, using defaults:', settingsError);
+    }
+
+    // Use user settings or fallback to defaults
+    const defaultSettings = {
+      primaryText: 'Check out our latest offer!',
+      headline: 'Amazing New Product',
+      description: '',
+      destinationUrl: 'https://example.com',
+      callToAction: 'LEARN_MORE',
+      status: 'PAUSED',
+      urlParams: '',
+      campaignId: null,
+      adSetId: null,
+      siteLinks: [],
+      advantageCreative: {
+        inline_comment: false,
+        image_templates: false,
+        image_touchups: false,
+        video_auto_crop: false,
+        image_brightness_and_contrast: false,
+        enhance_cta: false,
+        text_optimizations: false,
+        image_uncrop: false,
+        adapt_to_placement: false,
+        media_type_automation: false,
+        product_extensions: false,
+        description_automation: false,
+        add_text_overlay: false,
+        site_extensions: false,
+        music: false,
+        '3d_animation': false,
+        translate_text: false
+      }
+    };
+
+    const settings = userSettings || defaultSettings;
+
     // Convert PowerBrief assets to ad drafts (without batch association)
     const createdDrafts = [];
 
     for (const group of uploadedAssets) {
-      // Create an ad draft for each asset group
+      // Create an ad draft for each asset group using user's settings
       const adDraftData = {
         user_id: userId,
         brand_id: brandId,
         ad_batch_id: null, // No batch association
         ad_name: `${basicConcept.concept_title} - ${group.baseName}`,
-        primary_text: `Creative assets from PowerBrief concept: ${basicConcept.concept_title}`,
-        headline: basicConcept.concept_title,
-        description: `Assets: ${group.aspectRatios?.join(', ') || 'Multiple formats'}`,
+        primary_text: settings.primaryText,
+        headline: settings.headline || basicConcept.concept_title,
+        description: settings.description || `Assets: ${group.aspectRatios?.join(', ') || 'Multiple formats'}`,
+        destination_url: settings.destinationUrl,
+        call_to_action: settings.callToAction,
+        campaign_id: settings.campaignId,
+        ad_set_id: settings.adSetId,
         meta_status: 'DRAFT',
         app_status: 'DRAFT', // Mark as ready for upload
+        site_links: settings.siteLinks,
+        advantage_plus_creative: settings.advantageCreative,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
@@ -137,7 +211,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ 
       message: 'Assets sent to ad upload tool successfully',
       createdDrafts: createdDrafts,
-      totalDrafts: createdDrafts.length
+      totalDrafts: createdDrafts.length,
+      appliedSettings: userSettings ? 'User settings applied' : 'Default settings applied'
     }, { status: 200 });
 
   } catch (error) {

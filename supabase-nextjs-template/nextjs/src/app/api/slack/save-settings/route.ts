@@ -11,6 +11,7 @@ interface SaveSlackSettingsRequest {
     concept_submission?: string | null;
     concept_revision?: string | null;
     concept_approval?: string | null;
+    concept_ready_for_editor?: string | null;
     ad_launch?: string | null;
   };
 }
@@ -90,6 +91,7 @@ export async function POST(request: NextRequest) {
         concept_submission: channelConfig.concept_submission?.trim() || null,
         concept_revision: channelConfig.concept_revision?.trim() || null,
         concept_approval: channelConfig.concept_approval?.trim() || null,
+        concept_ready_for_editor: channelConfig.concept_ready_for_editor?.trim() || null,
         ad_launch: channelConfig.ad_launch?.trim() || null
       };
     }

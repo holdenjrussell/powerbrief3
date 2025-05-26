@@ -71,16 +71,80 @@ const AdUploadToolPage = () => {
       setBrands(mappedBrands);
       setIsLoadingBrands(false);
       
-      // Try to load saved settings
-      const savedSettings = localStorage.getItem(`ad-upload-settings-${user?.id}`);
-      if (savedSettings) {
-        const settings = JSON.parse(savedSettings);
-        setCurrentDefaults(settings);
-        
-        // Find and set the selected brand
-        const brand = mappedBrands.find(b => b.id === settings.brandId);
-        if (brand) {
-          setSelectedBrand(brand);
+      // Try to load saved settings from database first
+      let settingsLoaded = false;
+      try {
+        const response = await fetch('/api/ad-batches?active=true');
+        if (response.ok) {
+          const activeBatches = await response.json();
+          if (activeBatches && activeBatches.length > 0) {
+            const activeBatch = activeBatches[0];
+            const settings: DefaultValues = {
+              brandId: activeBatch.brand_id,
+              adAccountId: activeBatch.ad_account_id,
+              campaignId: activeBatch.campaign_id,
+              adSetId: activeBatch.ad_set_id,
+              fbPage: activeBatch.fb_page_id || '',
+              igAccount: activeBatch.ig_account_id || '',
+              urlParams: activeBatch.url_params || '',
+              pixel: activeBatch.pixel_id || '',
+              status: activeBatch.status || 'PAUSED',
+              primaryText: activeBatch.primary_text || 'Check out our latest offer!',
+              headline: activeBatch.headline || 'Amazing New Product',
+              description: activeBatch.description || '',
+              destinationUrl: activeBatch.destination_url || 'https://example.com',
+              callToAction: activeBatch.call_to_action || 'LEARN_MORE',
+              siteLinks: activeBatch.site_links || [],
+              advantageCreative: activeBatch.advantage_plus_creative || {
+                inline_comment: false,
+                image_templates: false,
+                image_touchups: false,
+                video_auto_crop: false,
+                image_brightness_and_contrast: false,
+                enhance_cta: false,
+                text_optimizations: false,
+                image_uncrop: false,
+                adapt_to_placement: false,
+                media_type_automation: false,
+                product_extensions: false,
+                description_automation: false,
+                add_text_overlay: false,
+                site_extensions: false,
+                music: false,
+                '3d_animation': false,
+                translate_text: false
+              }
+            };
+            
+            setCurrentDefaults(settings);
+            
+            // Find and set the selected brand
+            const brand = mappedBrands.find(b => b.id === settings.brandId);
+            if (brand) {
+              setSelectedBrand(brand);
+            }
+            
+            settingsLoaded = true;
+            console.log('Settings loaded from database');
+          }
+        }
+      } catch (dbError) {
+        console.warn('Failed to load settings from database, trying localStorage:', dbError);
+      }
+      
+      // Fallback to localStorage if database loading failed
+      if (!settingsLoaded) {
+        const savedSettings = localStorage.getItem(`ad-upload-settings-${user?.id}`);
+        if (savedSettings) {
+          const settings = JSON.parse(savedSettings);
+          setCurrentDefaults(settings);
+          
+          // Find and set the selected brand
+          const brand = mappedBrands.find(b => b.id === settings.brandId);
+          if (brand) {
+            setSelectedBrand(brand);
+          }
+          console.log('Settings loaded from localStorage');
         }
       }
     } catch (error) {
@@ -141,8 +205,45 @@ const AdUploadToolPage = () => {
 
   const saveSettings = async (defaults: DefaultValues) => {
     try {
+      // Save to localStorage for immediate access
       localStorage.setItem(`ad-upload-settings-${user?.id}`, JSON.stringify(defaults));
-      console.log('Settings saved successfully');
+      
+      // Also save to database via ad-batches API
+      if (defaults.brandId) {
+        const adBatchData = {
+          brand_id: defaults.brandId,
+          name: `Ad Settings for ${selectedBrand?.name || 'Brand'}`,
+          ad_account_id: defaults.adAccountId,
+          campaign_id: defaults.campaignId,
+          ad_set_id: defaults.adSetId,
+          fb_page_id: defaults.fbPage,
+          ig_account_id: defaults.igAccount,
+          pixel_id: defaults.pixel,
+          url_params: defaults.urlParams,
+          destination_url: defaults.destinationUrl,
+          call_to_action: defaults.callToAction,
+          status: defaults.status,
+          primary_text: defaults.primaryText,
+          headline: defaults.headline,
+          description: defaults.description,
+          site_links: defaults.siteLinks,
+          advantage_plus_creative: defaults.advantageCreative
+        };
+
+        const response = await fetch('/api/ad-batches', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(adBatchData),
+        });
+
+        if (!response.ok) {
+          console.warn('Failed to save settings to database, but localStorage saved');
+        } else {
+          console.log('Settings saved to both localStorage and database');
+        }
+      }
     } catch (error) {
       console.error('Error saving settings:', error);
     }

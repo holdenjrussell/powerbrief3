@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useGlobal } from '@/lib/context/GlobalContext';
 import { useRouter } from 'next/navigation';
-import { getBriefBatchById, getBrandById, getBriefConcepts, createBriefConcept, updateBriefConcept, deleteBriefConcept, deleteBriefBatch, uploadMedia, shareBriefBatch, shareBriefConcept } from '@/lib/services/powerbriefService';
+import { getBriefBatchById, getBrandById, getBriefConcepts, createBriefConcept, updateBriefConcept, deleteBriefConcept, deleteBriefBatch, updateBriefBatch, uploadMedia, shareBriefBatch, shareBriefConcept } from '@/lib/services/powerbriefService';
 import { Brand, BriefBatch, BriefConcept, Scene, Hook, AiBriefingRequest, ShareSettings } from '@/lib/types/powerbrief';
 import { 
     Sparkles, Plus, X, FileUp, Trash2, Share2, MoveUp, MoveDown, 
@@ -101,6 +101,9 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                 setBatch(batchData);
                 setConcepts(conceptsData);
 
+                // Set the starting concept number from the batch data, defaulting to 1 if not set
+                setStartingConceptNumber(batchData.starting_concept_number || 1);
+
                 // Initialize local states for each concept based on fetched data
                 const initialLocalPrompts: Record<string, string> = {};
                 const initialLocalCaptionHooks: Record<string, string> = {};
@@ -193,8 +196,8 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
     };
 
     // Update concept title with new numbering
-    const updateConceptNumbering = (startNumber: number) => {
-        if (!concepts.length) return;
+    const updateConceptNumbering = async (startNumber: number) => {
+        if (!concepts.length || !batch) return;
         
         const updatedConcepts = [...concepts].map((concept, index) => {
             return {
@@ -203,17 +206,25 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
             };
         });
         
-        // Update all concepts with new titles
-        const updatePromises = updatedConcepts.map(concept => updateBriefConcept(concept));
-        Promise.all(updatePromises)
-            .then(updatedConceptsList => {
-                setConcepts(updatedConceptsList);
-                setStartingConceptNumber(startNumber);
-            })
-            .catch(err => {
-                console.error('Failed to update concept numbering:', err);
-                setError('Failed to update concept numbering. Please try again.');
+        try {
+            // Update all concepts with new titles
+            const updatePromises = updatedConcepts.map(concept => updateBriefConcept(concept));
+            const updatedConceptsList = await Promise.all(updatePromises);
+            
+            // Update the batch with the new starting concept number
+            const updatedBatch = await updateBriefBatch({
+                ...batch,
+                starting_concept_number: startNumber
             });
+            
+            // Update local state
+            setConcepts(updatedConceptsList);
+            setBatch(updatedBatch);
+            setStartingConceptNumber(startNumber);
+        } catch (err) {
+            console.error('Failed to update concept numbering:', err);
+            setError('Failed to update concept numbering. Please try again.');
+        }
     };
 
     // Create new concept

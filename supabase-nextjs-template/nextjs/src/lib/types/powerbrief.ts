@@ -92,6 +92,7 @@ export interface BriefBatch {
   status?: string | null;
   shared_with?: string[] | null;
   share_settings?: Record<string, ShareSettings> | null;
+  starting_concept_number?: number;
   updated_at: string;
 }
 
@@ -211,6 +212,7 @@ export type DbBriefBatch = {
   status?: string | null;
   shared_with?: string[] | null;
   share_settings?: Record<string, ShareSettings> | null;
+  starting_concept_number?: number;
   updated_at: string;
 };
 

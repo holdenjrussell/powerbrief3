@@ -7,6 +7,31 @@ export type Json =
   | Json[]
 
 export type Database = {
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          operationName?: string
+          query?: string
+          variables?: Json
+          extensions?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       ad_batches: {
@@ -247,6 +272,7 @@ export type Database = {
           name: string
           organization_id: string | null
           resource_logins: Json | null
+          slack_channel_config: Json | null
           slack_channel_name: string | null
           slack_notifications_enabled: boolean | null
           slack_webhook_url: string | null
@@ -283,6 +309,7 @@ export type Database = {
           name: string
           organization_id?: string | null
           resource_logins?: Json | null
+          slack_channel_config?: Json | null
           slack_channel_name?: string | null
           slack_notifications_enabled?: boolean | null
           slack_webhook_url?: string | null
@@ -319,6 +346,7 @@ export type Database = {
           name?: string
           organization_id?: string | null
           resource_logins?: Json | null
+          slack_channel_config?: Json | null
           slack_channel_name?: string | null
           slack_notifications_enabled?: boolean | null
           slack_webhook_url?: string | null
@@ -1206,6 +1234,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {},
   },
