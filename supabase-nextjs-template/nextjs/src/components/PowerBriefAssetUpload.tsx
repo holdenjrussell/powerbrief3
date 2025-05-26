@@ -75,6 +75,7 @@ const getBaseNameRatioAndVersion = (filename: string): { baseName: string; detec
   logger.debug('Parsing filename', { filename });
   
   let nameWorkInProgress = filename.substring(0, filename.lastIndexOf('.')) || filename;
+  logger.debug('After removing extension', { nameWorkInProgress });
   
   // Remove known trailing suffixes first
   for (const suffix of KNOWN_FILENAME_SUFFIXES_TO_REMOVE) {
@@ -91,9 +92,11 @@ const getBaseNameRatioAndVersion = (filename: string): { baseName: string; detec
   for (const versionPattern of versionPatterns) {
     if (nameWorkInProgress.includes(versionPattern)) {
       version = versionPattern.substring(1); // Remove the _ or - prefix
+      logger.debug('Found version', { versionPattern, version });
       break;
     }
   }
+  logger.debug('Version detection result', { version });
 
   // Look for aspect ratio identifiers
   let detectedRatio: string | null = null;
@@ -113,11 +116,13 @@ const getBaseNameRatioAndVersion = (filename: string): { baseName: string; detec
       if (nameWorkInProgress.includes(pattern)) {
         detectedRatio = id;
         baseNameWithoutRatio = nameWorkInProgress.replace(pattern, '').trim();
+        logger.debug('Found aspect ratio', { pattern, detectedRatio, baseNameWithoutRatio });
         break;
       }
     }
     if (detectedRatio) break;
   }
+  logger.debug('Aspect ratio detection result', { detectedRatio, baseNameWithoutRatio });
 
   // Create a group key that combines base name and version
   // This ensures assets with same version but different aspect ratios are grouped together
@@ -126,8 +131,10 @@ const getBaseNameRatioAndVersion = (filename: string): { baseName: string; detec
     // Remove version from base name to get the core concept name
     const coreBaseName = baseNameWithoutRatio.replace(new RegExp(`[_-]?${version}$`), '').trim();
     groupKey = `${coreBaseName}_${version}`;
+    logger.debug('Created groupKey with version', { coreBaseName, version, groupKey });
   } else {
     groupKey = baseNameWithoutRatio;
+    logger.debug('Created groupKey without version', { groupKey });
   }
   
   const result = { 
@@ -136,7 +143,7 @@ const getBaseNameRatioAndVersion = (filename: string): { baseName: string; detec
     version,
     groupKey
   };
-  logger.debug('Parsed filename components', { filename, result });
+  logger.info('Final parsing result', { filename, result });
   return result;
 };
 
@@ -217,6 +224,8 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
   const [isProcessing, setIsProcessing] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  const [showGroupingPreview, setShowGroupingPreview] = useState(false);
+  const [previewGroups, setPreviewGroups] = useState<Record<string, AssetFile[]>>({});
 
   // Log component initialization
   React.useEffect(() => {
@@ -380,6 +389,35 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
       fileName: fileToRemove?.file.name,
       remainingCount: selectedFiles.length - 1
     });
+  };
+
+  const showGroupingPreviewModal = () => {
+    // Group files by their groupKey to show preview
+    const groups: Record<string, AssetFile[]> = {};
+    selectedFiles.forEach(file => {
+      const groupKey = file.groupKey || file.baseName || 'ungrouped';
+      if (!groups[groupKey]) {
+        groups[groupKey] = [];
+      }
+      groups[groupKey].push(file);
+    });
+    
+    setPreviewGroups(groups);
+    setShowGroupingPreview(true);
+    
+    logger.info('Showing grouping preview', { 
+      groupCount: Object.keys(groups).length,
+      groups: Object.entries(groups).map(([key, files]) => ({
+        groupKey: key,
+        fileCount: files.length,
+        files: files.map(f => f.file.name)
+      }))
+    });
+  };
+
+  const proceedWithUpload = () => {
+    setShowGroupingPreview(false);
+    processAndUpload();
   };
 
   const processAndUpload = async () => {
@@ -816,21 +854,105 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
             Cancel
           </button>
           <button
-            onClick={processAndUpload}
+            onClick={showGroupingPreviewModal}
             disabled={selectedFiles.length === 0 || isProcessing}
             className="px-4 py-2 text-sm font-medium text-white bg-primary-600 border border-transparent rounded-md hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
           >
             {isProcessing ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Uploading...
+                Showing Preview...
               </>
             ) : (
-              'Upload Assets'
+              'Show Preview'
             )}
           </button>
         </div>
       </div>
+
+      {/* Grouping Preview Modal */}
+      {showGroupingPreview && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center z-60 p-4">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold text-gray-800">Asset Grouping Preview</h2>
+              <button 
+                onClick={() => setShowGroupingPreview(false)} 
+                className="text-gray-400 hover:text-gray-600"
+                aria-label="Close preview modal"
+                title="Close preview modal"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <h3 className="font-medium text-blue-800 mb-2">How Assets Will Be Grouped</h3>
+              <p className="text-sm text-blue-700">
+                Assets are grouped by version (v1, v2, v3) so that different aspect ratios of the same concept variation are kept together. 
+                Each group will become a separate ad draft in the Ad Upload Tool.
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              {Object.entries(previewGroups).map(([groupKey, files]) => (
+                <div key={groupKey} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                  <h4 className="font-medium text-gray-900 mb-3">
+                    Group: {groupKey} ({files.length} files)
+                  </h4>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {files.map((file) => (
+                      <div key={file.id} className="border border-gray-300 rounded-lg p-2 bg-white">
+                        <div className="flex items-center space-x-2 mb-2">
+                          {file.file.type.startsWith('image/') ? (
+                            <FileImage className="h-4 w-4 text-blue-500" />
+                          ) : (
+                            <FileVideo className="h-4 w-4 text-purple-500" />
+                          )}
+                          <span className="text-xs font-medium text-gray-700 truncate">
+                            {file.file.name}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs text-gray-500">
+                          <span>{file.detectedRatio || 'unknown'}</span>
+                          <span>{(file.file.size / 1024 / 1024).toFixed(1)}MB</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-2 text-xs text-gray-600">
+                    Aspect ratios: {[...new Set(files.map(f => f.detectedRatio).filter(Boolean))].join(', ') || 'unknown'}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex justify-end space-x-3 mt-6 pt-4 border-t">
+              <button
+                onClick={() => setShowGroupingPreview(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+                disabled={isProcessing}
+              >
+                Back to Files
+              </button>
+              <button
+                onClick={proceedWithUpload}
+                disabled={isProcessing}
+                className="px-4 py-2 text-sm font-medium text-white bg-primary-600 border border-transparent rounded-md hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+              >
+                {isProcessing ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Uploading...
+                  </>
+                ) : (
+                  'Proceed with Upload'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
