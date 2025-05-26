@@ -97,7 +97,7 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBat
   const [isLaunching, setIsLaunching] = useState(false); // State for launch loading
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [filterAppStatus, setFilterAppStatus] = useState<AppAdDraftStatus[]>(['DRAFT', 'UPLOADING', 'UPLOADED', 'ERROR', 'PUBLISHED']); // Include UPLOADED by default
+  const [filterAppStatus, setFilterAppStatus] = useState<AppAdDraftStatus[]>(['DRAFT', 'UPLOADING', 'UPLOADED', 'ERROR']); // Hide PUBLISHED by default
   const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
 
   // Log active batch for debugging
@@ -851,71 +851,6 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBat
                     )}
                   </div>
                 </div>
-                
-                {/* Debug button to load all drafts */}
-                <button
-                    onClick={async () => {
-                      console.log('🔧 DEBUG: Loading ALL drafts for brand...');
-                      const response = await fetch(`/api/ad-drafts?brandId=${defaults.brandId}`);
-                      const allDrafts = await response.json();
-                      console.log('🔧 DEBUG: All drafts for brand:', allDrafts.length, allDrafts);
-                      allDrafts.forEach((draft: AdDraft & { ad_batch_id?: string }, index: number) => {
-                        console.log(`🔧 Draft ${index + 1}:`, {
-                          id: draft.id,
-                          adName: draft.adName,
-                          adBatchId: draft.ad_batch_id || 'NULL',
-                          appStatus: draft.appStatus
-                        });
-                      });
-                    }}
-                    className="px-3 py-2 text-xs font-medium text-gray-700 bg-yellow-100 hover:bg-yellow-200 rounded-md shadow-sm"
-                 >
-                    🔧 Debug: Show All Drafts
-                </button>
-                
-                {/* Manual refresh button */}
-                <button
-                    onClick={async () => {
-                      console.log('🔄 Manual refresh triggered...');
-                      await refreshAdDrafts();
-                    }}
-                    className="px-3 py-2 text-xs font-medium text-white bg-blue-500 hover:bg-blue-600 rounded-md shadow-sm"
-                 >
-                    🔄 Refresh Data
-                </button>
-                
-                {/* Reset filter button */}
-                <button
-                    onClick={() => {
-                      console.log('🔧 Resetting filter to show all statuses...');
-                      setFilterAppStatus(['DRAFT', 'UPLOADING', 'UPLOADED', 'ERROR', 'PUBLISHED']);
-                    }}
-                    className="px-3 py-2 text-xs font-medium text-white bg-orange-500 hover:bg-orange-600 rounded-md shadow-sm"
-                 >
-                    🔧 Reset Filter
-                </button>
-                
-                {/* Test filter button */}
-                <button
-                    onClick={() => {
-                      console.log('🧪 FILTER TEST:');
-                      console.log('Current filter state:', filterAppStatus);
-                      console.log('Current adDrafts:', adDrafts.length);
-                      console.log('Filtered result:', adDrafts.filter(draft => filterAppStatus.includes(draft.appStatus || 'DRAFT')));
-                      
-                      // Test changing filter
-                      if (filterAppStatus.includes('PUBLISHED')) {
-                        console.log('🧪 Removing PUBLISHED from filter...');
-                        setFilterAppStatus(['DRAFT', 'UPLOADING', 'ERROR']);
-                      } else {
-                        console.log('🧪 Adding PUBLISHED to filter...');
-                        setFilterAppStatus(['DRAFT', 'UPLOADING', 'ERROR', 'PUBLISHED']);
-                      }
-                    }}
-                    className="px-3 py-2 text-xs font-medium text-white bg-purple-600 hover:bg-purple-700 rounded-md shadow-sm"
-                 >
-                    🧪 Test Filter
-                </button>
                 
                 {/* Meta Integration Status Indicator */}
                 <div className="flex items-center text-xs">
