@@ -17,7 +17,9 @@ interface DefaultValues {
   brandId: string | null;
   adAccountId: string | null;
   campaignId: string | null;
+  campaignName?: string | null;
   adSetId: string | null;
+  adSetName?: string | null;
   fbPage: string;
   igAccount: string;
   urlParams: string;
@@ -160,7 +162,9 @@ const AdUploadToolPage = () => {
         brandId: brand.id,
         adAccountId: brand.adAccountId,
         campaignId: null,
+        campaignName: null,
         adSetId: null,
+        adSetName: null,
         fbPage: brand.fbPage,
         igAccount: brand.igAccount,
         urlParams: '',
@@ -478,16 +482,22 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ defaults, brand, onSave, 
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleCampaignSelect = (campaignId: string | null) => {
+  const handleCampaignSelect = (campaignId: string | null, campaignName?: string | null) => {
     setFormData(prev => ({ 
       ...prev, 
       campaignId,
-      adSetId: null // Reset ad set when campaign changes
+      campaignName,
+      adSetId: null, // Reset ad set when campaign changes
+      adSetName: null
     }));
   };
 
-  const handleAdSetSelect = (adSetId: string | null) => {
-    setFormData(prev => ({ ...prev, adSetId }));
+  const handleAdSetSelect = (adSetId: string | null, adSetName?: string | null) => {
+    setFormData(prev => ({ 
+      ...prev, 
+      adSetId,
+      adSetName
+    }));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -529,6 +539,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ defaults, brand, onSave, 
                     brandId={brand.id}
                     adAccountId={brand.adAccountId}
                     selectedCampaignId={formData.campaignId}
+                    selectedCampaignName={formData.campaignName}
                     onCampaignSelect={handleCampaignSelect}
                     disabled={!brand.adAccountId}
                   />
@@ -536,13 +547,14 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ defaults, brand, onSave, 
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Default Ad Set
+                    Default Ad Set ID
                   </label>
                   <MetaAdSetSelector
                     brandId={brand.id}
                     adAccountId={brand.adAccountId}
                     campaignId={formData.campaignId}
                     selectedAdSetId={formData.adSetId}
+                    selectedAdSetName={formData.adSetName}
                     onAdSetSelect={handleAdSetSelect}
                     disabled={!formData.campaignId}
                   />

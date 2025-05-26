@@ -9,7 +9,8 @@ interface MetaAdSetSelectorProps {
   adAccountId: string | null;
   campaignId: string | null;
   selectedAdSetId: string | null;
-  onAdSetSelect: (adSetId: string | null) => void;
+  selectedAdSetName?: string | null;
+  onAdSetSelect: (adSetId: string | null, adSetName?: string | null) => void;
   disabled?: boolean;
 }
 
@@ -18,6 +19,7 @@ const MetaAdSetSelector: React.FC<MetaAdSetSelectorProps> = ({
   adAccountId,
   campaignId,
   selectedAdSetId,
+  selectedAdSetName,
   onAdSetSelect,
   disabled = false,
 }) => {
@@ -44,6 +46,14 @@ const MetaAdSetSelector: React.FC<MetaAdSetSelectorProps> = ({
       const data: AdSet[] = await res.json();
       setAdSets(data);
       setHasFetched(true);
+      
+      // If we have a selected ad set ID but no name, auto-save the name
+      if (selectedAdSetId && !selectedAdSetName) {
+        const matchingAdSet = data.find(a => a.id === selectedAdSetId);
+        if (matchingAdSet) {
+          onAdSetSelect(selectedAdSetId, matchingAdSet.name);
+        }
+      }
     } catch (err: unknown) {
       console.error('Error fetching ad sets:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch ad sets');
@@ -76,13 +86,19 @@ const MetaAdSetSelector: React.FC<MetaAdSetSelectorProps> = ({
   };
 
   const handleSelect = (adSetId: string | null) => {
-    onAdSetSelect(adSetId);
+    const adSetName = adSetId ? adSets.find(a => a.id === adSetId)?.name : null;
+    onAdSetSelect(adSetId, adSetName);
     setIsOpen(false);
     setSearchTerm(''); // Clear search term on selection
   };
 
-  const selectedAdSetName = useMemo(() => {
+  const getDisplayName = () => {
     if (!selectedAdSetId) return 'Select Ad Set';
+    
+    // If we have the stored ad set name, use it
+    if (selectedAdSetName) {
+      return selectedAdSetName;
+    }
     
     // If we have the ad set data, show the name
     const adSet = adSets.find(a => a.id === selectedAdSetId);
@@ -90,9 +106,15 @@ const MetaAdSetSelector: React.FC<MetaAdSetSelectorProps> = ({
       return adSet.name;
     }
     
+    // If we don't have the ad set data yet but have an ID, trigger fetch and show loading
+    if (selectedAdSetId && campaignId && !hasFetched && !isLoading) {
+      fetchAdSets();
+      return 'Loading ad set...';
+    }
+    
     // If we don't have the ad set data yet, just show the ID
     return `Ad Set ID: ${selectedAdSetId}`;
-  }, [adSets, selectedAdSetId]);
+  };
 
   return (
     <div className="relative w-full">
@@ -106,7 +128,7 @@ const MetaAdSetSelector: React.FC<MetaAdSetSelectorProps> = ({
         onClick={handleToggleOpen}
         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500 bg-white text-left flex items-center justify-between"
       >
-        <span className="truncate">{selectedAdSetName}</span>
+        <span className="truncate">{getDisplayName()}</span>
         <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 

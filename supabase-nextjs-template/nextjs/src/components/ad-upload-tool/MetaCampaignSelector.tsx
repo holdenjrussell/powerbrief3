@@ -8,7 +8,8 @@ interface MetaCampaignSelectorProps {
   brandId: string | null;
   adAccountId: string | null;
   selectedCampaignId: string | null;
-  onCampaignSelect: (campaignId: string | null) => void;
+  selectedCampaignName?: string | null;
+  onCampaignSelect: (campaignId: string | null, campaignName?: string | null) => void;
   disabled?: boolean;
 }
 
@@ -16,6 +17,7 @@ const MetaCampaignSelector: React.FC<MetaCampaignSelectorProps> = ({
   brandId,
   adAccountId,
   selectedCampaignId,
+  selectedCampaignName,
   onCampaignSelect,
   disabled = false,
 }) => {
@@ -42,6 +44,14 @@ const MetaCampaignSelector: React.FC<MetaCampaignSelectorProps> = ({
       const data: Campaign[] = await res.json();
       setCampaigns(data);
       setHasFetched(true);
+      
+      // If we have a selected campaign ID but no name, auto-save the name
+      if (selectedCampaignId && !selectedCampaignName) {
+        const matchingCampaign = data.find(c => c.id === selectedCampaignId);
+        if (matchingCampaign) {
+          onCampaignSelect(selectedCampaignId, matchingCampaign.name);
+        }
+      }
     } catch (err: unknown) {
       console.error('Error fetching campaigns:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch campaigns');
@@ -74,13 +84,19 @@ const MetaCampaignSelector: React.FC<MetaCampaignSelectorProps> = ({
   };
 
   const handleSelect = (campaignId: string | null) => {
-    onCampaignSelect(campaignId);
+    const campaignName = campaignId ? campaigns.find(c => c.id === campaignId)?.name : null;
+    onCampaignSelect(campaignId, campaignName);
     setIsOpen(false);
     setSearchTerm(''); // Clear search term on selection
   };
 
-  const selectedCampaignName = useMemo(() => {
+  const getDisplayName = () => {
     if (!selectedCampaignId) return 'Select Campaign';
+    
+    // If we have the stored campaign name, use it
+    if (selectedCampaignName) {
+      return selectedCampaignName;
+    }
     
     // If we have the campaign data, show the name
     const campaign = campaigns.find(c => c.id === selectedCampaignId);
@@ -88,9 +104,15 @@ const MetaCampaignSelector: React.FC<MetaCampaignSelectorProps> = ({
       return campaign.name;
     }
     
+    // If we don't have the campaign data yet but have an ID, trigger fetch and show loading
+    if (selectedCampaignId && !hasFetched && !isLoading) {
+      fetchCampaigns();
+      return 'Loading campaign...';
+    }
+    
     // If we don't have the campaign data yet, just show the ID
     return `Campaign ID: ${selectedCampaignId}`;
-  }, [campaigns, selectedCampaignId]);
+  };
 
   return (
     <div className="relative w-full">
@@ -104,7 +126,7 @@ const MetaCampaignSelector: React.FC<MetaCampaignSelectorProps> = ({
         onClick={handleToggleOpen}
         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500 bg-white text-left flex items-center justify-between"
       >
-        <span className="truncate">{selectedCampaignName}</span>
+        <span className="truncate">{getDisplayName()}</span>
         <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 

@@ -50,6 +50,7 @@ interface NamingPrefix {
 interface BulkRenameRequest {
   brandId: string;
   adDraftIds: string[];
+  model?: string; // Optional model selection
   namingConventionSettings?: {
     prefixes?: NamingPrefix[];
     separator?: string;
@@ -139,7 +140,7 @@ export async function POST(request: NextRequest) {
     // Initialize the Gemini API
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({
-      model: MODEL_NAME,
+      model: body.model || MODEL_NAME,
       generationConfig: {
         temperature: 0.7,
         maxOutputTokens: 8192,

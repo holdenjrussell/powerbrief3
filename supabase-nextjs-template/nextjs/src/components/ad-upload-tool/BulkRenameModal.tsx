@@ -54,6 +54,7 @@ const BulkRenameModal: React.FC<BulkRenameModalProps> = ({
 }) => {
   const [isRenaming, setIsRenaming] = useState(false);
   const [launchDate, setLaunchDate] = useState('');
+  const [selectedModel, setSelectedModel] = useState('gemini-2.5-flash-preview-05-20'); // Default model
   const [namingSettings, setNamingSettings] = useState<NamingConventionSettings | null>(null);
   const [showNamingModal, setShowNamingModal] = useState(false);
   const [results, setResults] = useState<RenameResult[]>([]);
@@ -63,6 +64,12 @@ const BulkRenameModal: React.FC<BulkRenameModalProps> = ({
     total: number;
     currentAdName: string;
   } | null>(null);
+
+  // Available AI models for renaming
+  const availableModels = [
+    { value: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro (Current)', description: 'Reliable and consistent naming' },
+    { value: 'gemini-2.5-flash-preview-05-20', label: 'Gemini 2.5 Flash Preview (Experimental)', description: 'Latest model with enhanced reasoning' }
+  ];
 
   // Load naming convention settings when modal opens
   useEffect(() => {
@@ -102,7 +109,8 @@ const BulkRenameModal: React.FC<BulkRenameModalProps> = ({
           brandId,
           adDraftIds: selectedAdIds,
           namingConventionSettings: namingSettings,
-          launchDate: launchDate || undefined
+          launchDate: launchDate || undefined,
+          model: selectedModel
         }),
       });
 
@@ -189,6 +197,30 @@ const BulkRenameModal: React.FC<BulkRenameModalProps> = ({
                   />
                   <p className="text-sm text-gray-500 mt-1">
                     If provided, the launch date will be included in the generated ad names according to your naming convention.
+                  </p>
+                </div>
+
+                {/* AI Model Selection */}
+                <div>
+                  <label htmlFor="model-select" className="block text-sm font-medium text-gray-700 mb-2">
+                    <Sparkles className="h-4 w-4 inline mr-1" />
+                    AI Model
+                  </label>
+                  <select
+                    id="model-select"
+                    value={selectedModel}
+                    onChange={(e) => setSelectedModel(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    title="Select AI model for renaming"
+                  >
+                    {availableModels.map((model) => (
+                      <option key={model.value} value={model.value}>
+                        {model.label}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-sm text-gray-500 mt-1">
+                    {availableModels.find(m => m.value === selectedModel)?.description}
                   </p>
                 </div>
 

@@ -15,7 +15,9 @@ export interface AdDraft {
   headline?: string;
   description?: string;
   campaignId: string | null;
+  campaignName?: string | null;
   adSetId: string | null;
+  adSetName?: string | null;
   destinationUrl: string;
   callToAction: string; 
   assets: AdDraftAsset[];

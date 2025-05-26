@@ -3,7 +3,9 @@ import { SiteLink, AdvantageCreativeEnhancements } from '@/components/ad-upload-
 // Configuration settings that can be saved
 export interface AdConfigurationSettings {
   campaignId: string | null;
+  campaignName?: string | null; // Store campaign name for display
   adSetId: string | null;
+  adSetName?: string | null; // Store ad set name for display
   urlParams: string;
   status: 'ACTIVE' | 'PAUSED';
   primaryText: string;

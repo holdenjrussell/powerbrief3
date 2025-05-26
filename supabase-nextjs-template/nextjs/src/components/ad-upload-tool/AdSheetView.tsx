@@ -668,7 +668,18 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, activeBatch }) => {
             brandId={defaults.brandId}
             adAccountId={defaults.adAccountId}
             selectedCampaignId={draft.campaignId}
-            onCampaignSelect={(campaignId) => handleCellValueChange(rowIndex, 'campaignId', campaignId)}
+            selectedCampaignName={draft.campaignName}
+            onCampaignSelect={(campaignId, campaignName) => {
+              handleCellValueChange(rowIndex, 'campaignId', campaignId);
+              // Also update the campaign name if available
+              if (campaignName !== undefined) {
+                setAdDrafts(prevDrafts => 
+                  prevDrafts.map((d, i) => 
+                    i === rowIndex ? { ...d, campaignName } : d
+                  )
+                );
+              }
+            }}
             disabled={!defaults.adAccountId}
           />
         );
@@ -679,7 +690,18 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, activeBatch }) => {
             adAccountId={defaults.adAccountId} 
             campaignId={draft.campaignId} 
             selectedAdSetId={draft.adSetId}
-            onAdSetSelect={(adSetId) => handleCellValueChange(rowIndex, 'adSetId', adSetId)}
+            selectedAdSetName={draft.adSetName}
+            onAdSetSelect={(adSetId, adSetName) => {
+              handleCellValueChange(rowIndex, 'adSetId', adSetId);
+              // Also update the ad set name if available
+              if (adSetName !== undefined) {
+                setAdDrafts(prevDrafts => 
+                  prevDrafts.map((d, i) => 
+                    i === rowIndex ? { ...d, adSetName } : d
+                  )
+                );
+              }
+            }}
             disabled={!draft.campaignId} 
           />
         );
