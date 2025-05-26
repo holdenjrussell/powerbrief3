@@ -1057,6 +1057,9 @@ export default function ReviewsPage() {
                 // Refresh the uploaded assets list to reflect the status change
                 fetchUploadedAssets();
 
+                // Close the modal after successful operation
+                setShowGroupingPreview(false);
+
                 toast({
                     title: "Success",
                     description: `Assets have been sent to the Ad Upload Tool with your custom grouping. ${result.totalDrafts} ad drafts created.`,
@@ -1153,6 +1156,9 @@ export default function ReviewsPage() {
                 
                 // Refresh the uploaded assets list to reflect the status change
                 fetchUploadedAssets();
+
+                // Close the modal after successful operation
+                setShowGroupingPreview(false);
 
                 toast({
                     title: "Success",
