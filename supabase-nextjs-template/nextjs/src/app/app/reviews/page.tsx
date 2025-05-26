@@ -12,6 +12,7 @@ import Link from 'next/link';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { toast } from '@/components/ui/use-toast';
+import AssetGroupingPreview from '@/components/PowerBriefAssetGroupingPreview';
 
 interface ConceptForReview {
     id: string;
@@ -547,6 +548,12 @@ export default function ReviewsPage() {
     // Comments state
     const [conceptComments, setConceptComments] = useState<Record<string, TimelineComment[]>>({});
     
+    // Asset grouping preview state
+    const [showGroupingPreview, setShowGroupingPreview] = useState<boolean>(false);
+    const [previewAssetGroups, setPreviewAssetGroups] = useState<UploadedAssetGroup[]>([]);
+    const [previewConceptTitle, setPreviewConceptTitle] = useState<string>('');
+    const [previewConceptId, setPreviewConceptId] = useState<string>('');
+    
     const supabase = createSPAClient();
 
     // Function to open media in modal
@@ -975,6 +982,26 @@ export default function ReviewsPage() {
     };
 
     const handleSendToAdBatch = async (conceptId: string) => {
+        // Find the concept to get its assets and title
+        const concept = approvedConcepts.find(c => c.id === conceptId);
+        if (!concept || !concept.uploaded_assets) {
+            toast({
+                title: "Error",
+                description: "No assets found for this concept.",
+                variant: "destructive",
+                duration: 3000,
+            });
+            return;
+        }
+
+        // Show the grouping preview
+        setPreviewAssetGroups(concept.uploaded_assets as UploadedAssetGroup[]);
+        setPreviewConceptTitle(concept.concept_title);
+        setPreviewConceptId(conceptId);
+        setShowGroupingPreview(true);
+    };
+
+    const handleConfirmSendToAdBatch = async (conceptId: string, assetGroups: UploadedAssetGroup[]) => {
         setSendingToAds(prev => ({ ...prev, [conceptId]: true }));
         
         try {
@@ -1014,6 +1041,26 @@ export default function ReviewsPage() {
     };
 
     const handleResendToAdBatch = async (conceptId: string) => {
+        // Find the concept to get its assets and title
+        const concept = uploadedAssetsConcepts.find(c => c.id === conceptId);
+        if (!concept || !concept.uploaded_assets) {
+            toast({
+                title: "Error",
+                description: "No assets found for this concept.",
+                variant: "destructive",
+                duration: 3000,
+            });
+            return;
+        }
+
+        // Show the grouping preview
+        setPreviewAssetGroups(concept.uploaded_assets as UploadedAssetGroup[]);
+        setPreviewConceptTitle(concept.concept_title);
+        setPreviewConceptId(conceptId);
+        setShowGroupingPreview(true);
+    };
+
+    const handleConfirmResendToAdBatch = async (conceptId: string, assetGroups: UploadedAssetGroup[]) => {
         setSendingToAds(prev => ({ ...prev, [conceptId]: true }));
         
         try {
@@ -1389,7 +1436,7 @@ export default function ReviewsPage() {
                                     {/* Send to Ad Batch button */}
                                     <div className="flex space-x-2">
                                         <Button
-                                            onClick={() => handleResendToAdBatch(concept.id)}
+                                            onClick={() => handleSendToAdBatch(concept.id)}
                                             className="bg-blue-600 hover:bg-blue-700 text-white"
                                             title="Resend approved assets to Ad Upload Tool"
                                             disabled={sendingToAds[concept.id]}
@@ -1638,6 +1685,23 @@ export default function ReviewsPage() {
                     )}
                 </Card>
             </div>
+
+            {/* Asset Grouping Preview Modal */}
+            <AssetGroupingPreview
+                isOpen={showGroupingPreview}
+                onClose={() => setShowGroupingPreview(false)}
+                assetGroups={previewAssetGroups}
+                conceptTitle={previewConceptTitle}
+                onConfirmSend={(groups) => {
+                    // Determine if this is a send or resend based on the concept's current status
+                    const concept = [...approvedConcepts, ...uploadedAssetsConcepts].find(c => c.id === previewConceptId);
+                    if (concept?.asset_upload_status === 'sent_to_ad_upload') {
+                        handleConfirmResendToAdBatch(previewConceptId, groups);
+                    } else {
+                        handleConfirmSendToAdBatch(previewConceptId, groups);
+                    }
+                }}
+            />
 
             {/* Media Modal */}
             {modalMedia && (
