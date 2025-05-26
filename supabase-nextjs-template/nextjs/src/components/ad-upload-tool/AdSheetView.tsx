@@ -8,7 +8,6 @@ import {
   Columns,
   Edit,
   Rocket,
-  ChevronLeft,
   Loader2,
   CheckCircle,
   AlertCircle,
@@ -35,7 +34,6 @@ import {
 } from './adUploadTypes';
 import BulkEditModal from './BulkEditModal'; // Import BulkEditModal
 import BulkRenameModal from './BulkRenameModal'; // Import BulkRenameModal
-import { Button } from '@/components/ui/button';
 
 // DefaultValues interface is now imported and aliased
 // ColumnDef interface is now imported
@@ -46,7 +44,6 @@ import { Button } from '@/components/ui/button';
 
 interface AdSheetViewProps {
   defaults: DefaultValues; // Uses the imported and aliased DefaultValues
-  onGoBack: () => void; 
   activeBatch?: AdBatch | null; // Optional active batch info
 }
 
@@ -90,7 +87,7 @@ const initialColumns: ColumnDef<AdDraft>[] = [
 // Define a more specific type for the value in handleCellValueChange
 type AdDraftValue = AdDraft[keyof AdDraft];
 
-const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBatch }) => {
+const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, activeBatch }) => {
   const [adDrafts, setAdDrafts] = useState<AdDraft[]>([]);
   const [columns, setColumns] = useState<ColumnDef<AdDraft>[]>(initialColumns);
   const [isColumnDropdownOpen, setColumnDropdownOpen] = useState(false);
@@ -970,7 +967,7 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBat
   return (
     <div className="mt-6 pb-16">
         <div className="bg-white p-4 sm:p-6 rounded-lg shadow mb-6">
-            <h2 className="text-xl sm:text-2xl font-semibold text-gray-800 mb-1">2. Ad Sheet</h2>
+            <h2 className="text-xl sm:text-2xl font-semibold text-gray-800 mb-1">Ad Sheet</h2>
             <p className="text-sm text-gray-500 mb-1">Brand: <span className="font-medium text-gray-700">{defaults.brandId || 'N/A'}</span></p>
             <div className="text-xs text-gray-500 space-y-0.5">
                 <p>Ad Account: <span className="font-medium text-gray-600">{defaults.adAccountId || 'N/A'}</span></p>
@@ -990,12 +987,8 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBat
                   <p>Advantage+ Creative: <span className="font-medium text-gray-600">{Object.values(defaults.advantageCreative || {}).filter(Boolean).length} enhancements</span></p>
                 </div>
             </div>
-             <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center space-x-2">
-                <Button onClick={onGoBack} variant="outline" size="sm">
-                  <ChevronLeft className="h-4 w-4 mr-1" />
-                  Back to Settings
-                </Button>
+            {/* Status indicators */}
+            <div className="flex items-center space-x-4 mt-4">
                 {saving && (
                   <span className="text-sm text-blue-600 flex items-center">
                     <Loader2 className="h-3 w-3 mr-1 animate-spin" />
@@ -1008,7 +1001,6 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBat
                     Loading drafts...
                   </span>
                 )}
-              </div>
             </div>
         </div>
 
