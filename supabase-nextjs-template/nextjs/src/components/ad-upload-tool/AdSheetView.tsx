@@ -97,16 +97,36 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBat
   const [isLaunching, setIsLaunching] = useState(false); // State for launch loading
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [filterAppStatus, setFilterAppStatus] = useState<AppAdDraftStatus[]>(['DRAFT', 'UPLOADING', 'ERROR']); // Filter out PUBLISHED by default, but include ERROR
+  const [filterAppStatus, setFilterAppStatus] = useState<AppAdDraftStatus[]>(['DRAFT', 'UPLOADING', 'UPLOADED', 'ERROR', 'PUBLISHED']); // Include UPLOADED by default
   const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
 
   // Log active batch for debugging
   console.log('Active batch in AdSheetView:', activeBatch?.name || 'No active batch');
+  console.log('Current adDrafts count:', adDrafts.length);
+  console.log('Current filter:', filterAppStatus);
+  console.log('Filtered drafts count:', adDrafts.filter(draft => filterAppStatus.includes(draft.appStatus || 'DRAFT')).length);
+  
+  // Enhanced debugging for filter function
+  console.log('🔧 FILTER DEBUG:');
+  console.log('- Raw adDrafts:', adDrafts.map(d => ({ id: d.id, name: d.adName, appStatus: d.appStatus })));
+  console.log('- Filter includes PUBLISHED?', filterAppStatus.includes('PUBLISHED'));
+  console.log('- Filter includes UPLOADED?', filterAppStatus.includes('UPLOADED'));
+  console.log('- Drafts with PUBLISHED status:', adDrafts.filter(d => d.appStatus === 'PUBLISHED').length);
+  console.log('- Drafts with UPLOADED status:', adDrafts.filter(d => d.appStatus === 'UPLOADED').length);
+  console.log('- Drafts with UPLOADING status:', adDrafts.filter(d => d.appStatus === 'UPLOADING').length);
+  console.log('- Drafts with DRAFT status:', adDrafts.filter(d => d.appStatus === 'DRAFT').length);
+  console.log('- Drafts with ERROR status:', adDrafts.filter(d => d.appStatus === 'ERROR').length);
+  console.log('- Drafts with undefined status:', adDrafts.filter(d => !d.appStatus).length);
 
   // Filter ads based on selected app statuses
   const filteredAdDrafts = adDrafts.filter(draft => 
     filterAppStatus.includes(draft.appStatus || 'DRAFT')
   );
+
+  // Add debugging for filtered results
+  console.log('🎯 FILTERED RESULTS:');
+  console.log('- Filtered drafts:', filteredAdDrafts.map(d => ({ id: d.id, name: d.adName, appStatus: d.appStatus })));
+  console.log('- Total filtered count:', filteredAdDrafts.length);
 
   const allDraftsChecked = useMemo(() => {
     return filteredAdDrafts.length > 0 && checkedDraftIds.size === filteredAdDrafts.length;
@@ -218,7 +238,6 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBat
       appStatus: 'DRAFT', // Default meta upload status
       // Add new Meta features from defaults
       siteLinks: [...(defaults.siteLinks || [])],
-      infoLabels: [...(defaults.infoLabels || [])],
       advantageCreative: { ...defaults.advantageCreative }
     };
     setAdDrafts(prev => [...prev, newDraft]);
@@ -248,7 +267,6 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBat
             appStatus: 'DRAFT', // Default meta upload status
             // Add new Meta features from defaults
             siteLinks: [...(defaults.siteLinks || [])],
-            infoLabels: [...(defaults.infoLabels || [])],
             advantageCreative: { ...defaults.advantageCreative }
         };
     });
@@ -324,6 +342,105 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBat
     });
   };
   
+  // Load existing ad drafts on component mount
+  useEffect(() => {
+    const loadAdDrafts = async () => {
+      if (!defaults.brandId) return;
+      
+      try {
+        setLoading(true);
+        const params = new URLSearchParams({
+          brandId: defaults.brandId
+        });
+        
+        // Remove batch filtering - load ALL ads for the brand
+        console.log('🔍 Loading ALL drafts for brand:', defaults.brandId);
+        
+        const apiUrl = `/api/ad-drafts?${params}`;
+        console.log('🌐 API URL:', apiUrl);
+        
+        const response = await fetch(apiUrl);
+        if (!response.ok) throw new Error('Failed to load ad drafts');
+        
+        const existingDrafts: AdDraft[] = await response.json();
+        console.log('📦 Raw drafts from API:', existingDrafts.length, existingDrafts);
+        
+        // Ensure all drafts have brandId set (safety check for existing drafts)
+        const draftsWithBrandId = existingDrafts.map(draft => ({
+          ...draft,
+          brandId: draft.brandId || defaults.brandId || undefined
+        }));
+        
+        console.log('✅ Final drafts to display:', draftsWithBrandId.length, draftsWithBrandId);
+        setAdDrafts(draftsWithBrandId);
+      } catch (error) {
+        console.error('Error loading ad drafts:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadAdDrafts();
+  }, [defaults.brandId]); // Remove activeBatch?.id dependency
+
+  // Monitor filter changes for debugging
+  useEffect(() => {
+    console.log('🔧 Filter state changed:', filterAppStatus);
+    console.log('🔧 Published ads included?', filterAppStatus.includes('PUBLISHED'));
+    console.log('🔧 Current drafts that match filter:', 
+      adDrafts.filter(draft => filterAppStatus.includes(draft.appStatus || 'DRAFT')).length
+    );
+  }, [filterAppStatus, adDrafts]);
+
+  // Function to refresh ad drafts data
+  const refreshAdDrafts = async () => {
+    if (!defaults.brandId) return;
+    
+    try {
+      const params = new URLSearchParams({
+        brandId: defaults.brandId
+      });
+      
+      // Remove batch filtering - refresh ALL ads for the brand
+      console.log('🔄 Refreshing ALL drafts for brand:', defaults.brandId);
+      
+      const apiUrl = `/api/ad-drafts?${params}`;
+      console.log('🌐 Refresh API URL:', apiUrl);
+      
+      const response = await fetch(apiUrl);
+      if (!response.ok) throw new Error('Failed to refresh ad drafts');
+      
+      const existingDrafts: AdDraft[] = await response.json();
+      console.log('🔄 Refreshed drafts from API:', existingDrafts.length, existingDrafts);
+      
+      // Log status breakdown of refreshed drafts
+      const statusBreakdown = existingDrafts.reduce((acc, draft) => {
+        const status = draft.appStatus || 'UNDEFINED';
+        acc[status] = (acc[status] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+      console.log('🔄 Status breakdown after refresh:', statusBreakdown);
+      
+      // Ensure all drafts have brandId set (safety check for existing drafts)
+      const draftsWithBrandId = existingDrafts.map(draft => ({
+        ...draft,
+        brandId: draft.brandId || defaults.brandId || undefined
+      }));
+      
+      console.log('✅ Setting refreshed drafts in state:', draftsWithBrandId.length);
+      setAdDrafts(draftsWithBrandId);
+      
+      // Log current filter state after refresh
+      console.log('🔄 Current filter after refresh:', filterAppStatus);
+      console.log('🔄 Drafts that will be visible after refresh:', 
+        draftsWithBrandId.filter(draft => filterAppStatus.includes(draft.appStatus || 'DRAFT')).length
+      );
+      
+    } catch (error) {
+      console.error('Error refreshing ad drafts:', error);
+    }
+  };
+
   const handleLaunch = async () => {
     if (checkedDraftIds.size === 0) {
       alert("Please select at least one ad draft to launch.");
@@ -394,10 +511,13 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBat
       }
       
       alert(`Server response: ${result.message}`);
-      // Potentially clear checked drafts or update their status after successful launch initiation
-      // For example, if you want to clear selections after a successful API call:
-      // setCheckedDraftIds(new Set());
-      // Or update status of launched ads based on `result.details`
+      
+      // Clear checked drafts after successful launch
+      setCheckedDraftIds(new Set());
+      
+      // Refresh the ad drafts data to show updated statuses
+      console.log('🔄 Refreshing ad drafts after successful launch...');
+      await refreshAdDrafts();
 
     } catch (error) {
       console.error("Launch error:", error);
@@ -486,6 +606,7 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBat
                 const appStatusColor = 
                     draft.appStatus === 'DRAFT' ? 'bg-gray-100 text-gray-800' : 
                     draft.appStatus === 'UPLOADING' ? 'bg-blue-100 text-blue-800' :
+                    draft.appStatus === 'UPLOADED' ? 'bg-purple-100 text-purple-800' :
                     draft.appStatus === 'PUBLISHED' ? 'bg-green-100 text-green-800' : 
                     draft.appStatus === 'ERROR' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'; 
                 return (
@@ -593,44 +714,6 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBat
     }
   };
 
-  // Load existing ad drafts on component mount
-  useEffect(() => {
-    const loadAdDrafts = async () => {
-      if (!defaults.brandId) return;
-      
-      try {
-        setLoading(true);
-        const params = new URLSearchParams({
-          brandId: defaults.brandId
-        });
-        
-        // Filter by ad batch if available
-        if (activeBatch?.id) {
-          params.append('adBatchId', activeBatch.id);
-        }
-        
-        const response = await fetch(`/api/ad-drafts?${params}`);
-        if (!response.ok) throw new Error('Failed to load ad drafts');
-        
-        const existingDrafts: AdDraft[] = await response.json();
-        
-        // Ensure all drafts have brandId set (safety check for existing drafts)
-        const draftsWithBrandId = existingDrafts.map(draft => ({
-          ...draft,
-          brandId: draft.brandId || defaults.brandId || undefined
-        }));
-        
-        setAdDrafts(draftsWithBrandId);
-      } catch (error) {
-        console.error('Error loading ad drafts:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadAdDrafts();
-  }, [defaults.brandId, activeBatch?.id]);
-
   // Auto-save ad drafts when they change (debounced)
   useEffect(() => {
     const saveAdDrafts = async () => {
@@ -649,7 +732,8 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBat
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             adDrafts: draftsWithBrandId,
-            adBatchId: activeBatch?.id || null
+            // Remove batch association
+            adBatchId: null
           }),
         });
         
@@ -664,7 +748,7 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBat
     // Debounce the save operation
     const timeoutId = setTimeout(saveAdDrafts, 1000);
     return () => clearTimeout(timeoutId);
-  }, [adDrafts, defaults.brandId, activeBatch?.id, loading]);
+  }, [adDrafts, defaults.brandId, loading]); // Remove activeBatch?.id dependency
 
   return (
     <div className="mt-6 pb-16">
@@ -686,7 +770,6 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBat
                 <div className="mt-2 pt-2 border-t border-gray-200">
                   <p className="font-medium text-gray-700 text-sm mb-1">🔧 Advanced Meta Features:</p>
                   <p>Site Links: <span className="font-medium text-gray-600">{defaults.siteLinks?.length || 0} configured</span></p>
-                  <p>Info Labels: <span className="font-medium text-gray-600">{defaults.infoLabels?.filter(label => label.enabled).length || 0} enabled</span></p>
                   <p>Advantage+ Creative: <span className="font-medium text-gray-600">{Object.values(defaults.advantageCreative || {}).filter(Boolean).length} enhancements</span></p>
                 </div>
             </div>
@@ -696,11 +779,6 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBat
                   <ChevronLeft className="h-4 w-4 mr-1" />
                   Back to Settings
                 </Button>
-                {activeBatch && (
-                  <span className="text-sm text-gray-600">
-                    Batch: {activeBatch.name}
-                  </span>
-                )}
                 {saving && (
                   <span className="text-sm text-blue-600 flex items-center">
                     <Loader2 className="h-3 w-3 mr-1 animate-spin" />
@@ -759,6 +837,86 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBat
                     )}
                 </button>
                 
+                {/* Status Summary */}
+                <div className="text-xs text-gray-600 bg-gray-50 px-3 py-2 rounded-md">
+                  <div className="font-medium">Status Summary:</div>
+                  <div className="flex gap-3 mt-1">
+                    <span>Total: {adDrafts.length}</span>
+                    <span>Visible: {filteredAdDrafts.length}</span>
+                    {adDrafts.filter(d => d.appStatus === 'PUBLISHED').length > 0 && (
+                      <span className={`${filterAppStatus.includes('PUBLISHED') ? 'text-green-600' : 'text-orange-600'}`}>
+                        Published: {adDrafts.filter(d => d.appStatus === 'PUBLISHED').length}
+                        {!filterAppStatus.includes('PUBLISHED') && ' (hidden)'}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                
+                {/* Debug button to load all drafts */}
+                <button
+                    onClick={async () => {
+                      console.log('🔧 DEBUG: Loading ALL drafts for brand...');
+                      const response = await fetch(`/api/ad-drafts?brandId=${defaults.brandId}`);
+                      const allDrafts = await response.json();
+                      console.log('🔧 DEBUG: All drafts for brand:', allDrafts.length, allDrafts);
+                      allDrafts.forEach((draft: AdDraft & { ad_batch_id?: string }, index: number) => {
+                        console.log(`🔧 Draft ${index + 1}:`, {
+                          id: draft.id,
+                          adName: draft.adName,
+                          adBatchId: draft.ad_batch_id || 'NULL',
+                          appStatus: draft.appStatus
+                        });
+                      });
+                    }}
+                    className="px-3 py-2 text-xs font-medium text-gray-700 bg-yellow-100 hover:bg-yellow-200 rounded-md shadow-sm"
+                 >
+                    🔧 Debug: Show All Drafts
+                </button>
+                
+                {/* Manual refresh button */}
+                <button
+                    onClick={async () => {
+                      console.log('🔄 Manual refresh triggered...');
+                      await refreshAdDrafts();
+                    }}
+                    className="px-3 py-2 text-xs font-medium text-white bg-blue-500 hover:bg-blue-600 rounded-md shadow-sm"
+                 >
+                    🔄 Refresh Data
+                </button>
+                
+                {/* Reset filter button */}
+                <button
+                    onClick={() => {
+                      console.log('🔧 Resetting filter to show all statuses...');
+                      setFilterAppStatus(['DRAFT', 'UPLOADING', 'UPLOADED', 'ERROR', 'PUBLISHED']);
+                    }}
+                    className="px-3 py-2 text-xs font-medium text-white bg-orange-500 hover:bg-orange-600 rounded-md shadow-sm"
+                 >
+                    🔧 Reset Filter
+                </button>
+                
+                {/* Test filter button */}
+                <button
+                    onClick={() => {
+                      console.log('🧪 FILTER TEST:');
+                      console.log('Current filter state:', filterAppStatus);
+                      console.log('Current adDrafts:', adDrafts.length);
+                      console.log('Filtered result:', adDrafts.filter(draft => filterAppStatus.includes(draft.appStatus || 'DRAFT')));
+                      
+                      // Test changing filter
+                      if (filterAppStatus.includes('PUBLISHED')) {
+                        console.log('🧪 Removing PUBLISHED from filter...');
+                        setFilterAppStatus(['DRAFT', 'UPLOADING', 'ERROR']);
+                      } else {
+                        console.log('🧪 Adding PUBLISHED to filter...');
+                        setFilterAppStatus(['DRAFT', 'UPLOADING', 'ERROR', 'PUBLISHED']);
+                      }
+                    }}
+                    className="px-3 py-2 text-xs font-medium text-white bg-purple-600 hover:bg-purple-700 rounded-md shadow-sm"
+                 >
+                    🧪 Test Filter
+                </button>
+                
                 {/* Meta Integration Status Indicator */}
                 <div className="flex items-center text-xs">
                   {defaults.brandId && defaults.adAccountId && defaults.fbPage ? (
@@ -809,32 +967,67 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBat
             <div className="relative">
               <button
                 onClick={() => setIsFilterDropdownOpen(!isFilterDropdownOpen)}
-                className="px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 flex items-center"
+                className={`px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 flex items-center ${
+                  !filterAppStatus.includes('PUBLISHED') ? 'bg-orange-50 border-orange-300' : ''
+                }`}
               >
                 <Filter className="mr-2 h-4 w-4 text-gray-500" /> 
-                Filter ({filterAppStatus.length})
+                Filter ({filterAppStatus.length}/5)
+                {!filterAppStatus.includes('PUBLISHED') && (
+                  <span className="ml-1 text-orange-600 text-xs">⚠️</span>
+                )}
               </button>
               {isFilterDropdownOpen && (
                 <div className="absolute right-0 mt-2 w-64 bg-white rounded-md shadow-lg border z-10">
                   <div className="py-1">
-                    <div className="px-3 py-2 text-sm font-medium text-gray-900 border-b">Meta Upload Status</div>
+                    <div className="px-3 py-2 text-sm font-medium text-gray-900 border-b">
+                      Meta Upload Status
+                      {!filterAppStatus.includes('PUBLISHED') && (
+                        <div className="text-xs text-orange-600 mt-1">
+                          ⚠️ Published ads are hidden
+                        </div>
+                      )}
+                    </div>
                     {appAdDraftStatusOptions.map(status => (
                       <label key={status} className="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 cursor-pointer">
                         <input 
                           type="checkbox" 
                           checked={filterAppStatus.includes(status)}
                           onChange={(e) => {
+                            console.log(`🔧 Filter change: ${status} ${e.target.checked ? 'checked' : 'unchecked'}`);
                             if (e.target.checked) {
-                              setFilterAppStatus(prev => [...prev, status]);
+                              setFilterAppStatus(prev => {
+                                const newFilter = [...prev, status];
+                                console.log('🔧 New filter state:', newFilter);
+                                return newFilter;
+                              });
                             } else {
-                              setFilterAppStatus(prev => prev.filter(s => s !== status));
+                              setFilterAppStatus(prev => {
+                                const newFilter = prev.filter(s => s !== status);
+                                console.log('🔧 New filter state:', newFilter);
+                                return newFilter;
+                              });
                             }
                           }}
                           className="mr-2 h-4 w-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
                         />
                         <span className="capitalize">{status}</span>
+                        {status === 'PUBLISHED' && !filterAppStatus.includes(status) && (
+                          <span className="ml-auto text-orange-500 text-xs">Hidden</span>
+                        )}
                       </label>
                     ))}
+                    <div className="border-t px-3 py-2">
+                      <button
+                        onClick={() => {
+                          console.log('🔧 Selecting all filter options...');
+                          setFilterAppStatus(['DRAFT', 'UPLOADING', 'UPLOADED', 'ERROR', 'PUBLISHED']);
+                        }}
+                        className="text-xs text-blue-600 hover:text-blue-800"
+                      >
+                        Select All
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}

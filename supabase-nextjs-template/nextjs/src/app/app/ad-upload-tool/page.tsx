@@ -1,10 +1,11 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-import AdBatchCreator from '@/components/ad-upload-tool/AdBatchCreator';
 import AdSheetView from '@/components/ad-upload-tool/AdSheetView';
 import { useGlobal } from '@/lib/context/GlobalContext';
-import { Loader2, ChevronLeft, Trash2 } from 'lucide-react';
+import { Loader2, Settings, ChevronDown } from 'lucide-react';
 import { SiteLink, AdvantageCreativeEnhancements } from '@/components/ad-upload-tool/adUploadTypes';
+import { getBrands } from '@/lib/services/powerbriefService';
+import { Brand as PowerBriefBrand } from '@/lib/types/powerbrief';
 
 // Updated DefaultValues interface to include Meta features
 interface DefaultValues {
@@ -27,136 +28,92 @@ interface DefaultValues {
   advantageCreative: AdvantageCreativeEnhancements;
 }
 
-interface AdBatch {
+interface Brand {
   id: string;
   name: string;
-  brand_id: string;
-  ad_account_id: string | null;
-  campaign_id: string | null;
-  ad_set_id: string | null;
-  fb_page_id: string | null;
-  ig_account_id: string | null;
-  pixel_id: string | null;
-  url_params: string | null;
-  destination_url: string | null;
-  call_to_action: string | null;
-  status: string;
-  primary_text: string | null;
-  headline: string | null;
-  description: string | null;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-  // New Meta features
-  site_links?: SiteLink[];
-  advantage_plus_creative?: AdvantageCreativeEnhancements;
+  fbPage: string;
+  igAccount: string;
+  pixel: string;
+  adAccountId: string;
 }
 
 const AdUploadToolPage = () => {
   const { user } = useGlobal();
   const [currentDefaults, setCurrentDefaults] = useState<DefaultValues | null>(null);
-  const [showSheet, setShowSheet] = useState(false);
-  const [activeBatch, setActiveBatch] = useState<AdBatch | null>(null);
+  const [selectedBrand, setSelectedBrand] = useState<Brand | null>(null);
+  const [brands, setBrands] = useState<Brand[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [recentBatches, setRecentBatches] = useState<AdBatch[]>([]);
-  const [showRecentBatches, setShowRecentBatches] = useState(false);
+  const [isLoadingBrands, setIsLoadingBrands] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
 
-  // Load active batch on component mount
+  // Load saved settings and brands on component mount
   useEffect(() => {
     if (user?.id) {
-      loadActiveBatch();
+      loadInitialData();
     }
   }, [user?.id]);
 
-  const loadActiveBatch = async () => {
+  const loadInitialData = async () => {
     try {
       setIsLoading(true);
       
-      // Try to load the user's active batch
-      const response = await fetch('/api/ad-batches?active=true');
-      if (response.ok) {
-        const batches = await response.json();
-        if (batches.length > 0) {
-          const batch = batches[0];
-          setActiveBatch(batch);
-          
-          // Convert batch to DefaultValues format
-          const defaults: DefaultValues = {
-            brandId: batch.brand_id,
-            adAccountId: batch.ad_account_id,
-            campaignId: batch.campaign_id,
-            adSetId: batch.ad_set_id,
-            fbPage: batch.fb_page_id || '',
-            igAccount: batch.ig_account_id || '',
-            urlParams: batch.url_params || '',
-            pixel: batch.pixel_id || '',
-            status: batch.status as 'ACTIVE' | 'PAUSED',
-            primaryText: batch.primary_text || '',
-            headline: batch.headline || '',
-            description: batch.description || '',
-            destinationUrl: batch.destination_url || '',
-            callToAction: batch.call_to_action || '',
-            siteLinks: batch.site_links || [],
-            advantageCreative: batch.advantage_plus_creative || {
-              inline_comment: false,
-              image_templates: false,
-              image_touchups: false,
-              video_auto_crop: false,
-              image_brightness_and_contrast: false,
-              enhance_cta: false,
-              text_optimizations: false,
-              image_uncrop: false,
-              adapt_to_placement: false,
-              media_type_automation: false,
-              product_extensions: false,
-              description_automation: false,
-              add_text_overlay: false,
-              site_extensions: false,
-              music: false,
-              '3d_animation': false,
-              translate_text: false
-            },
-          };
-          
-          setCurrentDefaults(defaults);
-          setShowSheet(true);
+      // Load brands
+      setIsLoadingBrands(true);
+      const fetchedBrands: PowerBriefBrand[] = await getBrands(user!.id);
+      const mappedBrands: Brand[] = fetchedBrands.map(b => ({
+        id: b.id,
+        name: b.name,
+        fbPage: b.meta_facebook_page_id || '',
+        igAccount: b.meta_instagram_actor_id || '',
+        pixel: b.meta_pixel_id || '',
+        adAccountId: b.meta_ad_account_id || '',
+      }));
+      setBrands(mappedBrands);
+      setIsLoadingBrands(false);
+      
+      // Try to load saved settings
+      const savedSettings = localStorage.getItem(`ad-upload-settings-${user?.id}`);
+      if (savedSettings) {
+        const settings = JSON.parse(savedSettings);
+        setCurrentDefaults(settings);
+        
+        // Find and set the selected brand
+        const brand = mappedBrands.find(b => b.id === settings.brandId);
+        if (brand) {
+          setSelectedBrand(brand);
         }
       }
-      
-      // Also load recent batches for the dropdown
-      const recentResponse = await fetch('/api/ad-batches');
-      if (recentResponse.ok) {
-        const recent = await recentResponse.json();
-        setRecentBatches(recent.slice(0, 5)); // Show last 5 batches
-      }
     } catch (error) {
-      console.error('Error loading active batch:', error);
+      console.error('Error loading initial data:', error);
+      setIsLoadingBrands(false);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const saveBatch = async (defaults: DefaultValues, batchName?: string) => {
-    try {
-      const batchData = {
-        id: activeBatch?.id, // Include ID for updates
-        name: batchName || activeBatch?.name || `Ad Batch ${new Date().toLocaleDateString()}`,
-        brand_id: defaults.brandId!,
-        ad_account_id: defaults.adAccountId,
-        campaign_id: defaults.campaignId,
-        ad_set_id: defaults.adSetId,
-        fb_page_id: defaults.fbPage || null,
-        ig_account_id: defaults.igAccount || null,
-        pixel_id: defaults.pixel || null,
-        url_params: defaults.urlParams || null,
-        destination_url: defaults.destinationUrl || null,
-        call_to_action: defaults.callToAction || null,
-        status: defaults.status,
-        primary_text: defaults.primaryText || null,
-        headline: defaults.headline || null,
-        description: defaults.description || null,
-        site_links: defaults.siteLinks || [],
-        advantage_plus_creative: defaults.advantageCreative || {
+  const handleBrandSelect = (brandId: string) => {
+    const brand = brands.find(b => b.id === brandId);
+    if (brand) {
+      setSelectedBrand(brand);
+      
+      // Create default settings for this brand
+      const defaults: DefaultValues = {
+        brandId: brand.id,
+        adAccountId: brand.adAccountId,
+        campaignId: null,
+        adSetId: null,
+        fbPage: brand.fbPage,
+        igAccount: brand.igAccount,
+        urlParams: '',
+        pixel: brand.pixel,
+        status: 'PAUSED',
+        primaryText: 'Check out our latest offer!',
+        headline: 'Amazing New Product',
+        description: '',
+        destinationUrl: 'https://example.com',
+        callToAction: 'LEARN_MORE',
+        siteLinks: [],
+        advantageCreative: {
           inline_comment: false,
           image_templates: false,
           image_touchups: false,
@@ -174,116 +131,27 @@ const AdUploadToolPage = () => {
           music: false,
           '3d_animation': false,
           translate_text: false
-        },
-      };
-
-      const response = await fetch('/api/ad-batches', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(batchData),
-      });
-
-      if (response.ok) {
-        const savedBatch = await response.json();
-        setActiveBatch(savedBatch);
-        console.log('Batch saved successfully:', savedBatch.name);
-      } else {
-        console.error('Failed to save batch');
-      }
-    } catch (error) {
-      console.error('Error saving batch:', error);
-    }
-  };
-
-  const handleDefaultsSet = async (defaults: DefaultValues) => {
-    setCurrentDefaults(defaults);
-    setShowSheet(true);
-    
-    // Save the batch automatically when defaults are set
-    await saveBatch(defaults);
-  };
-
-  const handleGoBackToConfig = () => {
-    setShowSheet(false);
-    // Don't clear the defaults - keep them for editing
-  };
-
-  const loadRecentBatch = async (batch: AdBatch) => {
-    setActiveBatch(batch);
-    
-    // Convert to defaults and show sheet
-    const defaults: DefaultValues = {
-      brandId: batch.brand_id,
-      adAccountId: batch.ad_account_id,
-      campaignId: batch.campaign_id,
-      adSetId: batch.ad_set_id,
-      fbPage: batch.fb_page_id || '',
-      igAccount: batch.ig_account_id || '',
-      urlParams: batch.url_params || '',
-      pixel: batch.pixel_id || '',
-      status: batch.status as 'ACTIVE' | 'PAUSED',
-      primaryText: batch.primary_text || '',
-      headline: batch.headline || '',
-      description: batch.description || '',
-      destinationUrl: batch.destination_url || '',
-      callToAction: batch.call_to_action || '',
-      siteLinks: batch.site_links || [],
-      advantageCreative: batch.advantage_plus_creative || {
-        inline_comment: false,
-        image_templates: false,
-        image_touchups: false,
-        video_auto_crop: false,
-        image_brightness_and_contrast: false,
-        enhance_cta: false,
-        text_optimizations: false,
-        image_uncrop: false,
-        adapt_to_placement: false,
-        media_type_automation: false,
-        product_extensions: false,
-        description_automation: false,
-        add_text_overlay: false,
-        site_extensions: false,
-        music: false,
-        '3d_animation': false,
-        translate_text: false
-      },
-    };
-    
-    setCurrentDefaults(defaults);
-    setShowSheet(true);
-    setShowRecentBatches(false);
-
-    // Mark this batch as active
-    await saveBatch(defaults, batch.name);
-  };
-
-  const deleteBatch = async (batchId: string) => {
-    try {
-      const response = await fetch(`/api/ad-batches?id=${batchId}`, {
-        method: 'DELETE',
-      });
-      
-      if (response.ok) {
-        // Reload recent batches
-        await loadActiveBatch();
-        
-        // If we deleted the active batch, reset to config mode
-        if (activeBatch?.id === batchId) {
-          setActiveBatch(null);
-          setCurrentDefaults(null);
-          setShowSheet(false);
         }
-      }
-    } catch (error) {
-      console.error('Error deleting batch:', error);
+      };
+      
+      setCurrentDefaults(defaults);
+      saveSettings(defaults);
     }
   };
 
-  const startNewBatch = () => {
-    setActiveBatch(null);
-    setCurrentDefaults(null);
-    setShowSheet(false);
-    setShowRecentBatches(false);
+  const saveSettings = async (defaults: DefaultValues) => {
+    try {
+      localStorage.setItem(`ad-upload-settings-${user?.id}`, JSON.stringify(defaults));
+      console.log('Settings saved successfully');
+    } catch (error) {
+      console.error('Error saving settings:', error);
+    }
+  };
+
+  const handleSettingsUpdate = (updatedDefaults: DefaultValues) => {
+    setCurrentDefaults(updatedDefaults);
+    saveSettings(updatedDefaults);
+    setShowSettingsModal(false);
   };
 
   if (isLoading) {
@@ -308,99 +176,270 @@ const AdUploadToolPage = () => {
             <p className="text-gray-600">Streamline your ad creation and launching process.</p>
           </div>
           
-          {/* Action buttons */}
+          {/* Settings button - only show when brand is selected */}
           <div className="flex items-center space-x-3">
-            {(showSheet || activeBatch) && (
+            {selectedBrand && (
               <button 
-                onClick={startNewBatch}
-                className="px-4 py-2 text-sm font-medium text-primary-600 bg-white border border-primary-600 rounded-md hover:bg-primary-50"
+                onClick={() => setShowSettingsModal(true)}
+                className="px-4 py-2 text-sm font-medium text-primary-600 bg-white border border-primary-600 rounded-md hover:bg-primary-50 flex items-center"
               >
-                New Batch
+                <Settings className="h-4 w-4 mr-2" />
+                Settings
               </button>
-            )}
-            
-            {recentBatches.length > 0 && (
-              <div className="relative">
-                <button
-                  onClick={() => setShowRecentBatches(!showRecentBatches)}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
-                >
-                  Recent Batches ({recentBatches.length})
-                </button>
-                
-                {showRecentBatches && (
-                  <div className="absolute right-0 mt-2 w-80 bg-white border border-gray-200 rounded-md shadow-lg z-10">
-                    <div className="p-4">
-                      <h3 className="text-sm font-medium text-gray-900 mb-3">Recent Ad Batches</h3>
-                      <div className="space-y-2">
-                        {recentBatches.map((batch) => (
-                          <div key={batch.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-md">
-                            <div className="flex-1 cursor-pointer" onClick={() => loadRecentBatch(batch)}>
-                              <p className="text-sm font-medium text-gray-900">{batch.name}</p>
-                              <p className="text-xs text-gray-500">
-                                {new Date(batch.updated_at).toLocaleDateString()} • 
-                                {batch.is_active ? ' Active' : ' Inactive'}
-                              </p>
-                            </div>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                deleteBatch(batch.id);
-                              }}
-                              className="ml-2 p-1 text-red-600 hover:bg-red-50 rounded"
-                              title="Delete batch"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
             )}
           </div>
         </div>
         
-        {activeBatch && (
+        {selectedBrand && (
           <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
             <p className="text-sm text-blue-800">
-              <strong>Active Batch:</strong> {activeBatch.name} 
+              <strong>Current Brand:</strong> {selectedBrand.name}
               <span className="text-blue-600 ml-2">
-                (Last updated: {new Date(activeBatch.updated_at).toLocaleString()})
+                • Ad Account: {selectedBrand.adAccountId || 'Not set'}
               </span>
             </p>
           </div>
         )}
       </header>
 
-      {!showSheet ? (
-        <AdBatchCreator 
-          onDefaultsSet={handleDefaultsSet}
-          initialDefaults={currentDefaults}
-          activeBatch={activeBatch}
-        />
-      ) : (
-        currentDefaults && (
+      {!selectedBrand ? (
+        // Brand Selection View
+        <div className="bg-white p-6 rounded-lg shadow-md max-w-md mx-auto">
+          <h2 className="text-2xl font-semibold text-gray-700 mb-6">Select Brand</h2>
+          
           <div>
-            <div className="mb-4">
-              <button 
-                onClick={handleGoBackToConfig} 
-                className="inline-flex items-center text-sm text-primary-600 hover:text-primary-800 focus:outline-none"
+            <label htmlFor="brand" className="block text-sm font-medium text-gray-700 mb-1">
+              Choose a brand to start creating ads
+            </label>
+            <div className="relative">
+              <select
+                id="brand"
+                value=""
+                onChange={(e) => handleBrandSelect(e.target.value)}
+                className="w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm rounded-md shadow-sm appearance-none"
+                disabled={isLoadingBrands}
               >
-                <ChevronLeft className="h-4 w-4 mr-1" />
-                Back to Configuration
-              </button>
+                <option value="" disabled>
+                  {isLoadingBrands ? 'Loading Brands...' : '-- Select a Brand --'}
+                </option>
+                {brands.map(brand => (
+                  <option key={brand.id} value={brand.id}>{brand.name}</option>
+                ))}
+              </select>
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
+                <ChevronDown className="h-4 w-4" />
+              </div>
             </div>
-            <AdSheetView 
-              defaults={currentDefaults} 
-              onGoBack={handleGoBackToConfig}
-              activeBatch={activeBatch}
-            />
           </div>
+        </div>
+      ) : (
+        // Ad Sheet View
+        currentDefaults && (
+          <AdSheetView 
+            defaults={currentDefaults} 
+            onGoBack={() => {
+              setSelectedBrand(null);
+              setCurrentDefaults(null);
+            }}
+            activeBatch={null}
+          />
         )
       )}
+
+      {/* Settings Modal */}
+      {showSettingsModal && currentDefaults && (
+        <SettingsModal
+          defaults={currentDefaults}
+          brand={selectedBrand!}
+          onSave={handleSettingsUpdate}
+          onClose={() => setShowSettingsModal(false)}
+        />
+      )}
+    </div>
+  );
+};
+
+// Settings Modal Component
+interface SettingsModalProps {
+  defaults: DefaultValues;
+  brand: Brand;
+  onSave: (defaults: DefaultValues) => void;
+  onClose: () => void;
+}
+
+const SettingsModal: React.FC<SettingsModalProps> = ({ defaults, brand, onSave, onClose }) => {
+  const [formData, setFormData] = useState<DefaultValues>(defaults);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSave(formData);
+  };
+
+  const callToActionOptions = [
+    'BOOK_TRAVEL', 'CALL_NOW', 'CONTACT_US', 'DOWNLOAD', 'GET_DIRECTIONS',
+    'LEARN_MORE', 'SHOP_NOW', 'SIGN_UP', 'SUBSCRIBE', 'WATCH_MORE', 'NO_BUTTON'
+  ];
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+        <div className="p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-semibold text-gray-800">Ad Settings for {brand.name}</h2>
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600"
+              aria-label="Close settings modal"
+              title="Close settings modal"
+            >
+              ✕
+            </button>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Destination URL
+                </label>
+                <input
+                  type="url"
+                  name="destinationUrl"
+                  value={formData.destinationUrl}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  URL Parameters
+                </label>
+                <input
+                  type="text"
+                  name="urlParams"
+                  value={formData.urlParams}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                  placeholder="utm_source=facebook"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Call To Action
+                </label>
+                <select
+                  name="callToAction"
+                  value={formData.callToAction}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                  required
+                  aria-label="Call to action"
+                >
+                  {callToActionOptions.map(cta => (
+                    <option key={cta} value={cta}>{cta.replace(/_/g, ' ')}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Default Ad Status
+                </label>
+                <select
+                  name="status"
+                  value={formData.status}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                  required
+                  aria-label="Default ad status"
+                >
+                  <option value="PAUSED">Paused</option>
+                  <option value="ACTIVE">Active</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Default Primary Text
+              </label>
+              <textarea
+                name="primaryText"
+                value={formData.primaryText}
+                onChange={handleInputChange}
+                rows={3}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                placeholder="Your main ad copy..."
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Default Headline
+                </label>
+                <input
+                  type="text"
+                  name="headline"
+                  value={formData.headline}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                  placeholder="Catchy headline..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Default Description
+                </label>
+                <input
+                  type="text"
+                  name="description"
+                  value={formData.description}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                  placeholder="Optional description..."
+                />
+              </div>
+            </div>
+
+            {/* Meta Integration Info */}
+            <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <h4 className="text-sm font-medium text-blue-800 mb-3">Meta Integration Status</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+                <div>Ad Account: {brand.adAccountId || 'Not connected'}</div>
+                <div>Facebook Page: {brand.fbPage || 'Not connected'}</div>
+                <div>Instagram Account: {brand.igAccount || 'Not connected'}</div>
+                <div>Pixel ID: {brand.pixel || 'Not connected'}</div>
+              </div>
+            </div>
+
+            <div className="flex justify-end space-x-3 pt-4">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 text-sm font-medium text-white bg-primary-600 border border-transparent rounded-md hover:bg-primary-700"
+              >
+                Save Settings
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
     </div>
   );
 };

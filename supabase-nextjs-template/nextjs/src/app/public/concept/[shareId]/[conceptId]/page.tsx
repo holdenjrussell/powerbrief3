@@ -2,8 +2,8 @@
 // latest updates
 import React, { useState, useEffect } from 'react';
 import { createSPAClient } from '@/lib/supabase/client';
-import { BriefConcept, Scene } from '@/lib/types/powerbrief';
-import { Loader2, ArrowLeft, Link as LinkIcon, CheckCircle, AlertTriangle } from 'lucide-react';
+import { BriefConcept, Scene, UploadedAssetGroup } from '@/lib/types/powerbrief';
+import { Loader2, ArrowLeft, Link as LinkIcon, CheckCircle, AlertTriangle, UploadCloud } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,7 @@ import { toast } from '@/components/ui/use-toast';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import SharedVoiceGenerator from '@/components/SharedVoiceGenerator';
+import PowerBriefAssetUpload from '@/components/PowerBriefAssetUpload';
 
 // Extended BriefConcept interface to include the properties we need
 interface ExtendedBriefConcept extends Omit<BriefConcept, 'review_status'> {
@@ -21,6 +22,8 @@ interface ExtendedBriefConcept extends Omit<BriefConcept, 'review_status'> {
   review_link?: string;
   reviewer_notes?: string;
   share_settings?: Record<string, any>;
+  uploaded_assets?: UploadedAssetGroup[];
+  asset_upload_status?: string;
 }
 
 // Extend the batch type to include share_settings
@@ -48,6 +51,7 @@ export default function SharedSingleConceptPage({ params }: { params: ParamsType
   const [reviewLink, setReviewLink] = useState<string>('');
   const [updatingReview, setUpdatingReview] = useState<boolean>(false);
   const [updatingResubmission, setUpdatingResubmission] = useState<boolean>(false);
+  const [showAssetUpload, setShowAssetUpload] = useState<boolean>(false);
   
   // Login form states
   const [email, setEmail] = useState('');
@@ -348,6 +352,53 @@ export default function SharedSingleConceptPage({ params }: { params: ParamsType
     }
   };
 
+  const handleAssetsUploaded = async (assetGroups: UploadedAssetGroup[]) => {
+    if (!concept) return;
+
+    try {
+      const response = await fetch('/api/powerbrief/upload-assets', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          conceptId: concept.id,
+          assetGroups,
+          shareId
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save uploaded assets');
+      }
+
+      const result = await response.json();
+      
+      // Update the concept with the new asset data
+      setConcept(prev => prev ? {
+        ...prev,
+        uploaded_assets: result.assetGroups,
+        asset_upload_status: 'uploaded',
+        review_status: 'ready_for_review',
+        status: 'READY FOR REVIEW'
+      } : null);
+
+      toast({
+        title: 'Success',
+        description: 'Assets uploaded successfully and marked ready for review.',
+        duration: 3000,
+      });
+    } catch (error) {
+      console.error('Error uploading assets:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to upload assets. Please try again.',
+        variant: 'destructive',
+        duration: 3000,
+      });
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
@@ -516,6 +567,122 @@ export default function SharedSingleConceptPage({ params }: { params: ParamsType
         </div>
       )}
 
+      {/* Asset Upload Section */}
+      {isEditable && !concept?.uploaded_assets && !concept?.review_status && (
+        <Card className="border-2 border-blue-300">
+          <CardHeader>
+            <CardTitle className="text-lg">Upload Creative Assets</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-gray-600">
+              Upload your creative assets (images and videos) for this concept. 
+              Include multiple versions and aspect ratios (4x5, 9x16) as needed.
+            </p>
+            <Button 
+              onClick={() => setShowAssetUpload(true)}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              <UploadCloud className="h-4 w-4 mr-2" />
+              Upload Assets
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Display Uploaded Assets */}
+      {concept?.uploaded_assets && concept.uploaded_assets.length > 0 && (
+        <Card className="border-2 border-green-300">
+          <CardHeader>
+            <CardTitle className="text-lg">Uploaded Assets</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {concept.uploaded_assets.map((group, groupIndex) => (
+                <div key={groupIndex} className="border rounded-lg p-4">
+                  <h4 className="font-medium text-gray-900 mb-2">{group.baseName}</h4>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    {group.assets.map((asset, assetIndex) => (
+                      <div key={assetIndex} className="relative">
+                        {asset.type === 'image' ? (
+                          <img
+                            src={asset.supabaseUrl}
+                            alt={asset.name}
+                            className="w-full h-32 object-cover rounded border"
+                          />
+                        ) : (
+                          <video
+                            src={asset.supabaseUrl}
+                            className="w-full h-32 object-cover rounded border"
+                            controls
+                          />
+                        )}
+                        <div className="absolute bottom-1 left-1 bg-black bg-opacity-75 text-white text-xs px-1 rounded">
+                          {asset.aspectRatio}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">
+                    Aspect ratios: {group.aspectRatios.join(', ')}
+                  </p>
+                </div>
+              ))}
+            </div>
+            {concept.asset_upload_status === 'uploaded' && (
+              <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                <p className="text-sm text-green-800">
+                  ✓ Assets uploaded successfully and marked ready for review
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Asset Upload Modal */}
+      {concept && (
+        <PowerBriefAssetUpload
+          isOpen={showAssetUpload}
+          onClose={() => setShowAssetUpload(false)}
+          onAssetsUploaded={handleAssetsUploaded}
+          conceptId={concept.id}
+          userId={concept.user_id}
+        />
+      )}
+
+      {/* Legacy Frame.io Section - only show if no assets uploaded */}
+      {isEditable && !concept?.uploaded_assets && !concept?.review_status && (
+        <Card className="border-2 border-gray-300">
+          <CardHeader>
+            <CardTitle className="text-lg">Alternative: Submit Frame.io Link</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <Label htmlFor="reviewLink">Frame.io Review Link</Label>
+              <Input
+                id="reviewLink"
+                placeholder="Paste your Frame.io link here"
+                value={reviewLink}
+                onChange={(e) => setReviewLink(e.target.value)}
+              />
+              <p className="text-sm text-gray-500 mt-1">
+                Please provide a link to the video on Frame.io for review
+              </p>
+            </div>
+          </CardContent>
+          <CardFooter>
+            <Button 
+              onClick={handleMarkReadyForReview} 
+              disabled={updatingReview || !reviewLink.trim()} 
+              className="bg-gray-600 hover:bg-gray-700"
+            >
+              {updatingReview ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+              Mark as Ready for Review
+            </Button>
+          </CardFooter>
+        </Card>
+      )}
+
       {/* Resubmission Section after Revisions */}
       {isEditable && concept?.review_status === 'needs_revisions' && (
         <Card className="border-2 border-amber-300">
@@ -546,59 +713,6 @@ export default function SharedSingleConceptPage({ params }: { params: ParamsType
               Submit Revised Version
             </Button>
           </CardFooter>
-        </Card>
-      )}
-
-      {/* Editor Review Section */}
-      {isEditable && !concept?.review_status && (
-        <Card className="border-2 border-blue-300">
-          <CardHeader>
-            <CardTitle className="text-lg">Mark Ready for Review</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <Label htmlFor="reviewLink">Frame.io Review Link</Label>
-              <Input
-                id="reviewLink"
-                placeholder="Paste your Frame.io link here"
-                value={reviewLink}
-                onChange={(e) => setReviewLink(e.target.value)}
-              />
-              <p className="text-sm text-gray-500 mt-1">
-                Please provide a link to the video on Frame.io for review
-              </p>
-            </div>
-          </CardContent>
-          <CardFooter>
-            <Button 
-              onClick={handleMarkReadyForReview} 
-              disabled={updatingReview || !reviewLink.trim()} 
-              className="bg-blue-600 hover:bg-blue-700"
-            >
-              {updatingReview ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
-              Mark as Ready for Review
-            </Button>
-          </CardFooter>
-        </Card>
-      )}
-
-      {/* Read-only review section */}
-      {isEditable && concept?.review_status === 'ready_for_review' && (
-        <Card className="border-2 border-blue-300">
-          <CardHeader>
-            <CardTitle className="text-lg">Awaiting Review</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p>This concept has been marked as ready for review with the following review link:</p>
-            <a 
-              href={concept.review_link || '#'} 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="text-blue-600 hover:underline mt-2 inline-block"
-            >
-              {concept.review_link}
-            </a>
-          </CardContent>
         </Card>
       )}
 

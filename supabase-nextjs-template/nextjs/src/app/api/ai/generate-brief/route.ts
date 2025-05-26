@@ -244,6 +244,21 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
       const responseText = result.response.text();
       console.log('Received response from Gemini API');
       
+      // Validate that responseText is a string before calling .match()
+      if (typeof responseText !== 'string') {
+        console.error('Response text is not a string:', typeof responseText, responseText);
+        return NextResponse.json({ 
+          error: 'Invalid response format from AI service - expected string but got ' + typeof responseText
+        }, { status: 500 });
+      }
+      
+      if (!responseText || responseText.trim() === '') {
+        console.error('Response text is empty or null');
+        return NextResponse.json({ 
+          error: 'Empty response from AI service'
+        }, { status: 500 });
+      }
+      
       // Try to parse the JSON response
       try {
         // Find and extract the JSON from the response (which might contain explanatory text)
@@ -308,7 +323,7 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
           
           // Try to extract cta manually as a fallback
           try {
-            if (responseText.includes('"cta"')) {
+            if (typeof responseText === 'string' && responseText.includes('"cta"')) {
               const manualMatch = responseText.match(/\{\s*"cta"\s*:\s*"([^"]*)"\s*\}/);
               if (manualMatch) {
                 console.log('Found potential manual match for cta format');

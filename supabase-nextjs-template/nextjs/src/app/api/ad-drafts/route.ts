@@ -73,7 +73,7 @@ export async function GET(req: NextRequest) {
   const supabase = await createSSRClient();
   const { searchParams } = new URL(req.url);
   const brandId = searchParams.get('brandId');
-  const adBatchId = searchParams.get('adBatchId'); // Add support for ad batch filtering
+  // Note: adBatchId is ignored - we load all drafts for the brand
 
   if (!brandId) {
     return NextResponse.json({ message: 'Brand ID is required.' }, { status: 400 });
@@ -85,8 +85,11 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // Build query with optional ad_batch_id filter
-    let query = supabase
+    // Always load ALL drafts for the brand (ignore batch filtering)
+    console.log(`[API AD_DRAFTS GET] Loading all drafts for brand: ${brandId}, user: ${user.id}`);
+    
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const query = (supabase as any)
       .from('ad_drafts')
       .select(`
         id,
@@ -117,10 +120,7 @@ export async function GET(req: NextRequest) {
       .eq('user_id', user.id)
       .order('created_at', { ascending: false });
 
-    // Filter by ad_batch_id if provided
-    if (adBatchId) {
-      query = query.eq('ad_batch_id', adBatchId);
-    }
+    // Note: We no longer filter by ad_batch_id - load all drafts for the brand
 
     const { data: draftsData, error: draftsError } = await query;
 
@@ -131,6 +131,17 @@ export async function GET(req: NextRequest) {
     if (!draftsData) { // Handle case where draftsData might be null even without an error
       return NextResponse.json([], { status: 200 }); // Return empty array if no drafts found
     }
+
+    console.log(`[API AD_DRAFTS GET] Found ${draftsData.length} drafts for brand ${brandId}`);
+    
+    // Log status breakdown for debugging
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const statusBreakdown = draftsData.reduce((acc: any, draft: any) => {
+      const status = draft.app_status || 'UNDEFINED';
+      acc[status] = (acc[status] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+    console.log('[API AD_DRAFTS GET] Status breakdown:', statusBreakdown);
 
     // Explicitly type draftRow based on the expected structure from the database query
     // Note: Proper typing will work after the database migration is applied
@@ -248,7 +259,7 @@ export async function POST(req: NextRequest) {
       };
 
       /* eslint-disable @typescript-eslint/no-explicit-any */
-      const { data: upsertedDraft, error: draftError } = await supabase
+      const { data: upsertedDraft, error: draftError } = await (supabase as any)
         .from('ad_drafts')
         .upsert(adDraftRowToUpsert) // Pass the fully typed object
         .select('id')
@@ -268,7 +279,7 @@ export async function POST(req: NextRequest) {
       
       const draftDbId = upsertedDraft.id;
 
-      const { error: deleteAssetsError } = await supabase
+      const { error: deleteAssetsError } = await (supabase as any)
         .from('ad_draft_assets')
         .delete()
         .eq('ad_draft_id', draftDbId);
@@ -286,7 +297,7 @@ export async function POST(req: NextRequest) {
           supabase_url: asset.supabaseUrl,
           type: asset.type,
         }));
-        const { error: insertAssetsError } = await supabase
+        const { error: insertAssetsError } = await (supabase as any)
           .from('ad_draft_assets')
           .insert(assetRows);
 
@@ -323,7 +334,7 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ message: 'No draft IDs provided for deletion.' }, { status: 400 });
     }
 
-    const { error: deleteError } = await supabase
+    const { error: deleteError } = await (supabase as any)
       .from('ad_drafts')
       .delete()
       .in('id', draftIds)

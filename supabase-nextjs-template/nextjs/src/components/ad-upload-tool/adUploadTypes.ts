@@ -34,11 +34,12 @@ export const callToActionOptions: readonly string[] = [
 export const adCreativeStatusOptions: readonly AdCreativeStatus[] = ['DRAFT', 'PAUSED', 'ACTIVE', 'ARCHIVED'] as const;
 
 // New type and options for internal app status
-export type AppAdDraftStatus = 'DRAFT' | 'UPLOADING' | 'PUBLISHED' | 'ERROR';
+export type AppAdDraftStatus = 'DRAFT' | 'UPLOADING' | 'UPLOADED' | 'PUBLISHED' | 'ERROR';
 
 export const appAdDraftStatusOptions: readonly AppAdDraftStatus[] = [
   'DRAFT',
-  'UPLOADING', 
+  'UPLOADING',
+  'UPLOADED',
   'PUBLISHED',
   'ERROR'
 ] as const;

@@ -1,4 +1,4 @@
-import { Json } from "../types";
+import { Json } from "./supabase";
 
 // Brand models
 export interface BrandInfoData {
@@ -140,6 +140,9 @@ export interface BriefConcept {
   reviewer_notes?: string | null;
   created_at: string;
   updated_at: string;
+  uploaded_assets?: UploadedAssetGroup[] | null;
+  asset_upload_status?: 'pending' | 'uploaded' | 'approved' | 'sent_to_ad_batch' | null;
+  selected_ad_batch_id?: string | null;
 }
 
 // AI Generation models
@@ -255,4 +258,22 @@ export interface ShareSettings {
 export interface ShareResult {
   share_id: string;
   share_url: string;
+}
+
+// New interfaces for asset management
+export interface UploadedAsset {
+  id: string;
+  name: string;
+  supabaseUrl: string;
+  type: 'image' | 'video';
+  aspectRatio: string;
+  baseName: string;
+  uploadedAt: string;
+}
+
+export interface UploadedAssetGroup {
+  baseName: string;
+  assets: UploadedAsset[];
+  aspectRatios: string[];
+  uploadedAt: string;
 } 

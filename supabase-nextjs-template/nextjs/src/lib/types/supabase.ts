@@ -9,6 +9,95 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      ad_batches: {
+        Row: {
+          ad_account_id: string | null
+          ad_set_id: string | null
+          advantage_plus_creative: Json | null
+          brand_id: string
+          call_to_action: string | null
+          campaign_id: string | null
+          created_at: string
+          description: string | null
+          destination_url: string | null
+          fb_page_id: string | null
+          headline: string | null
+          id: string
+          ig_account_id: string | null
+          info_labels: Json | null
+          is_active: boolean | null
+          last_accessed_at: string | null
+          name: string
+          pixel_id: string | null
+          primary_text: string | null
+          site_links: Json | null
+          status: string | null
+          updated_at: string
+          url_params: string | null
+          user_id: string
+        }
+        Insert: {
+          ad_account_id?: string | null
+          ad_set_id?: string | null
+          advantage_plus_creative?: Json | null
+          brand_id: string
+          call_to_action?: string | null
+          campaign_id?: string | null
+          created_at?: string
+          description?: string | null
+          destination_url?: string | null
+          fb_page_id?: string | null
+          headline?: string | null
+          id?: string
+          ig_account_id?: string | null
+          info_labels?: Json | null
+          is_active?: boolean | null
+          last_accessed_at?: string | null
+          name: string
+          pixel_id?: string | null
+          primary_text?: string | null
+          site_links?: Json | null
+          status?: string | null
+          updated_at?: string
+          url_params?: string | null
+          user_id: string
+        }
+        Update: {
+          ad_account_id?: string | null
+          ad_set_id?: string | null
+          advantage_plus_creative?: Json | null
+          brand_id?: string
+          call_to_action?: string | null
+          campaign_id?: string | null
+          created_at?: string
+          description?: string | null
+          destination_url?: string | null
+          fb_page_id?: string | null
+          headline?: string | null
+          id?: string
+          ig_account_id?: string | null
+          info_labels?: Json | null
+          is_active?: boolean | null
+          last_accessed_at?: string | null
+          name?: string
+          pixel_id?: string | null
+          primary_text?: string | null
+          site_links?: Json | null
+          status?: string | null
+          updated_at?: string
+          url_params?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ad_batches_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ad_draft_assets: {
         Row: {
           ad_draft_id: string
@@ -55,9 +144,10 @@ export type Database = {
       }
       ad_drafts: {
         Row: {
+          ad_batch_id: string | null
           ad_name: string
           ad_set_id: string | null
-          ad_batch_id: string | null
+          advantage_plus_creative: Json | null
           app_status: string
           brand_id: string
           call_to_action: string | null
@@ -67,15 +157,18 @@ export type Database = {
           destination_url: string | null
           headline: string | null
           id: string
+          info_labels: Json | null
           meta_status: string
           primary_text: string | null
+          site_links: Json | null
           updated_at: string
           user_id: string
         }
         Insert: {
+          ad_batch_id?: string | null
           ad_name: string
           ad_set_id?: string | null
-          ad_batch_id?: string | null
+          advantage_plus_creative?: Json | null
           app_status?: string
           brand_id: string
           call_to_action?: string | null
@@ -85,15 +178,18 @@ export type Database = {
           destination_url?: string | null
           headline?: string | null
           id?: string
+          info_labels?: Json | null
           meta_status: string
           primary_text?: string | null
+          site_links?: Json | null
           updated_at?: string
           user_id: string
         }
         Update: {
+          ad_batch_id?: string | null
           ad_name?: string
           ad_set_id?: string | null
-          ad_batch_id?: string | null
+          advantage_plus_creative?: Json | null
           app_status?: string
           brand_id?: string
           call_to_action?: string | null
@@ -103,24 +199,26 @@ export type Database = {
           destination_url?: string | null
           headline?: string | null
           id?: string
+          info_labels?: Json | null
           meta_status?: string
           primary_text?: string | null
+          site_links?: Json | null
           updated_at?: string
           user_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "ad_drafts_brand_id_fkey"
-            columns: ["brand_id"]
-            isOneToOne: false
-            referencedRelation: "brands"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "ad_drafts_ad_batch_id_fkey"
             columns: ["ad_batch_id"]
             isOneToOne: false
             referencedRelation: "ad_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ad_drafts_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
             referencedColumns: ["id"]
           },
         ]
@@ -149,6 +247,9 @@ export type Database = {
           name: string
           organization_id: string | null
           resource_logins: Json | null
+          slack_channel_name: string | null
+          slack_notifications_enabled: boolean | null
+          slack_webhook_url: string | null
           system_instructions_image: string | null
           system_instructions_video: string | null
           target_audience_data: Json | null
@@ -182,6 +283,9 @@ export type Database = {
           name: string
           organization_id?: string | null
           resource_logins?: Json | null
+          slack_channel_name?: string | null
+          slack_notifications_enabled?: boolean | null
+          slack_webhook_url?: string | null
           system_instructions_image?: string | null
           system_instructions_video?: string | null
           target_audience_data?: Json | null
@@ -215,6 +319,9 @@ export type Database = {
           name?: string
           organization_id?: string | null
           resource_logins?: Json | null
+          slack_channel_name?: string | null
+          slack_notifications_enabled?: boolean | null
+          slack_webhook_url?: string | null
           system_instructions_image?: string | null
           system_instructions_video?: string | null
           target_audience_data?: Json | null
@@ -276,6 +383,7 @@ export type Database = {
       brief_concepts: {
         Row: {
           ai_custom_prompt: string | null
+          asset_upload_status: string | null
           body_content_structured: Json | null
           brief_batch_id: string
           caption_hook_options: string | null
@@ -300,11 +408,13 @@ export type Database = {
           review_link: string | null
           review_status: string | null
           reviewer_notes: string | null
+          selected_ad_batch_id: string | null
           share_settings: Json | null
           spoken_hook_options: string | null
           status: string | null
           strategist: string | null
           updated_at: string
+          uploaded_assets: Json | null
           user_id: string
           video_editor: string | null
           video_instructions: string | null
@@ -312,6 +422,7 @@ export type Database = {
         }
         Insert: {
           ai_custom_prompt?: string | null
+          asset_upload_status?: string | null
           body_content_structured?: Json | null
           brief_batch_id: string
           caption_hook_options?: string | null
@@ -336,11 +447,13 @@ export type Database = {
           review_link?: string | null
           review_status?: string | null
           reviewer_notes?: string | null
+          selected_ad_batch_id?: string | null
           share_settings?: Json | null
           spoken_hook_options?: string | null
           status?: string | null
           strategist?: string | null
           updated_at?: string
+          uploaded_assets?: Json | null
           user_id: string
           video_editor?: string | null
           video_instructions?: string | null
@@ -348,6 +461,7 @@ export type Database = {
         }
         Update: {
           ai_custom_prompt?: string | null
+          asset_upload_status?: string | null
           body_content_structured?: Json | null
           brief_batch_id?: string
           caption_hook_options?: string | null
@@ -372,11 +486,13 @@ export type Database = {
           review_link?: string | null
           review_status?: string | null
           reviewer_notes?: string | null
+          selected_ad_batch_id?: string | null
           share_settings?: Json | null
           spoken_hook_options?: string | null
           status?: string | null
           strategist?: string | null
           updated_at?: string
+          uploaded_assets?: Json | null
           user_id?: string
           video_editor?: string | null
           video_instructions?: string | null
@@ -388,6 +504,13 @@ export type Database = {
             columns: ["brief_batch_id"]
             isOneToOne: false
             referencedRelation: "brief_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "brief_concepts_selected_ad_batch_id_fkey"
+            columns: ["selected_ad_batch_id"]
+            isOneToOne: false
+            referencedRelation: "ad_batches"
             referencedColumns: ["id"]
           },
         ]

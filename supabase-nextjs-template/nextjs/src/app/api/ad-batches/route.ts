@@ -32,43 +32,74 @@ interface AdBatch {
 
 // GET - Fetch ad batches for a brand or user's active batch
 export async function GET(req: NextRequest) {
-  const supabase = await createSSRClient();
-  const { searchParams } = new URL(req.url);
-  const brandId = searchParams.get('brandId');
-  const getActive = searchParams.get('active') === 'true';
-
+  const supabase = await createSSRClient() as any;
   const { data: { user }, error: userError } = await supabase.auth.getUser();
+
   if (userError || !user) {
     return NextResponse.json({ message: 'User not authenticated.' }, { status: 401 });
   }
 
   try {
-    let query = supabase
-      .from('ad_batches' as any)
+    const url = new URL(req.url);
+    const brandId = url.searchParams.get('brandId');
+    const active = url.searchParams.get('active');
+
+    // If requesting active batch, return the user's most recent active batch
+    if (active === 'true') {
+      const { data: activeBatch, error: activeBatchError } = await supabase
+        .from('ad_batches')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .order('last_accessed_at', { ascending: false })
+        .limit(1);
+
+      if (activeBatchError) {
+        console.error('Error fetching active batch:', activeBatchError);
+        return NextResponse.json({ message: 'Failed to fetch active batch.' }, { status: 500 });
+      }
+
+      return NextResponse.json(activeBatch || [], { status: 200 });
+    }
+
+    // If brandId is provided, get batches for that brand
+    if (brandId) {
+      const { data: batches, error: batchesError } = await supabase
+        .from('ad_batches')
+        .select('id, name, created_at, updated_at, last_accessed_at')
+        .eq('brand_id', brandId)
+        .eq('is_active', true)
+        .order('last_accessed_at', { ascending: false });
+
+      if (batchesError) {
+        console.error('Error fetching ad batches:', batchesError);
+        return NextResponse.json({ message: 'Failed to fetch ad batches.' }, { status: 500 });
+      }
+
+      return NextResponse.json({ 
+        batches: batches || [],
+        message: 'Ad batches fetched successfully'
+      }, { status: 200 });
+    }
+
+    // If no brandId and not requesting active, get all user's batches
+    const { data: allBatches, error: allBatchesError } = await supabase
+      .from('ad_batches')
       .select('*')
       .eq('user_id', user.id)
+      .eq('is_active', true)
       .order('last_accessed_at', { ascending: false });
 
-    if (brandId) {
-      query = query.eq('brand_id', brandId);
+    if (allBatchesError) {
+      console.error('Error fetching all batches:', allBatchesError);
+      return NextResponse.json({ message: 'Failed to fetch batches.' }, { status: 500 });
     }
 
-    if (getActive) {
-      query = query.eq('is_active', true).limit(1);
-    }
+    return NextResponse.json(allBatches || [], { status: 200 });
 
-    const { data: batches, error: batchError } = await query;
-
-    if (batchError) {
-      console.error('[API AD_BATCHES GET] Error fetching batches:', batchError);
-      throw batchError;
-    }
-
-    return NextResponse.json(batches || [], { status: 200 });
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
-    console.error('[API AD_BATCHES GET] Catch Error:', errorMessage);
-    return NextResponse.json({ message: 'Failed to fetch ad batches.', error: errorMessage }, { status: 500 });
+    console.error('Error in ad-batches API:', error);
+    return NextResponse.json({ message: 'Internal server error.' }, { status: 500 });
   }
 }
 

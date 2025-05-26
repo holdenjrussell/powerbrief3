@@ -1341,7 +1341,7 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
 
     // Hook handling functions
     const parseHooksFromString = (hooksString: string): Hook[] => {
-        if (!hooksString) return [];
+        if (!hooksString || typeof hooksString !== 'string') return [];
         
         // First, try to split by common separators
         let hooks: string[] = [];
