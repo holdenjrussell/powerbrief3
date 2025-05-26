@@ -14,7 +14,9 @@ interface AdDraftRowFromDB {
   headline: string | null;
   description: string | null;
   campaign_id: string | null;
+  campaign_name: string | null;
   ad_set_id: string | null;
+  ad_set_name: string | null;
   destination_url: string | null;
   call_to_action: string | null;
   meta_status: string; // DB stores it as string, will cast to AdCreativeStatus
@@ -51,7 +53,9 @@ interface AdDraftInsertRow {
   headline?: string | null;
   description?: string | null;
   campaign_id?: string | null;
+  campaign_name?: string | null;
   ad_set_id?: string | null;
+  ad_set_name?: string | null;
   destination_url?: string | null;
   call_to_action?: string | null;
   meta_status: AdCreativeStatus;
@@ -103,7 +107,9 @@ export async function GET(req: NextRequest) {
         headline,
         description,
         campaign_id,
+        campaign_name,
         ad_set_id,
+        ad_set_name,
         destination_url,
         call_to_action,
         meta_status,
@@ -161,7 +167,9 @@ export async function GET(req: NextRequest) {
       headline: draftRow.headline || undefined,
       description: draftRow.description || undefined,
       campaignId: draftRow.campaign_id || null,
+      campaignName: draftRow.campaign_name || null,
       adSetId: draftRow.ad_set_id || null,
+      adSetName: draftRow.ad_set_name || null,
       destinationUrl: draftRow.destination_url || '',
       callToAction: draftRow.call_to_action || '',
       status: draftRow.meta_status as AdCreativeStatus,
@@ -241,7 +249,9 @@ export async function POST(req: NextRequest) {
         headline: draft.headline || null,
         description: draft.description || null,
         campaign_id: draft.campaignId || null,
+        campaign_name: draft.campaignName || null,
         ad_set_id: draft.adSetId || null,
+        ad_set_name: draft.adSetName || null,
         destination_url: draft.destinationUrl || null,
         call_to_action: draft.callToAction || null,
         meta_status: draft.status, 

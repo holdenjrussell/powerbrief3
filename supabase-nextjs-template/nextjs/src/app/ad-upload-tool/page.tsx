@@ -144,6 +144,7 @@ const AdUploadToolPage = () => {
       fbPage: selectedBrand.fbPage,
       igAccount: selectedBrand.igAccount,
       pixel: selectedBrand.pixel,
+      // Spread the configuration settings to preserve all saved values including names
       ...config.settings
     };
     
@@ -232,7 +233,9 @@ const AdUploadToolPage = () => {
     try {
       const settings: AdConfigurationSettings = {
         campaignId: currentDefaults.campaignId,
+        campaignName: currentDefaults.campaignName,
         adSetId: currentDefaults.adSetId,
+        adSetName: currentDefaults.adSetName,
         urlParams: currentDefaults.urlParams,
         status: currentDefaults.status,
         primaryText: currentDefaults.primaryText,

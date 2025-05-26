@@ -144,6 +144,7 @@ const AdUploadToolPage = () => {
       fbPage: selectedBrand.fbPage,
       igAccount: selectedBrand.igAccount,
       pixel: selectedBrand.pixel,
+      // Spread the configuration settings to preserve all saved values including names
       ...config.settings
     };
     
@@ -269,7 +270,7 @@ const AdUploadToolPage = () => {
       }
     } catch (error) {
       console.error('Error saving configuration:', error);
-      alert('Failed to save configuration. Please try again.');
+      alert('Failed to save configuration');
     }
   };
 

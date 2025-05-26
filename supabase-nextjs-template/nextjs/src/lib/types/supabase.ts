@@ -147,11 +147,13 @@ export type Database = {
           ad_batch_id: string | null
           ad_name: string
           ad_set_id: string | null
+          ad_set_name: string | null
           advantage_plus_creative: Json | null
           app_status: string
           brand_id: string
           call_to_action: string | null
           campaign_id: string | null
+          campaign_name: string | null
           created_at: string
           description: string | null
           destination_url: string | null
@@ -170,11 +172,13 @@ export type Database = {
           ad_batch_id?: string | null
           ad_name: string
           ad_set_id?: string | null
+          ad_set_name?: string | null
           advantage_plus_creative?: Json | null
           app_status?: string
           brand_id: string
           call_to_action?: string | null
           campaign_id?: string | null
+          campaign_name?: string | null
           created_at?: string
           description?: string | null
           destination_url?: string | null
@@ -193,11 +197,13 @@ export type Database = {
           ad_batch_id?: string | null
           ad_name?: string
           ad_set_id?: string | null
+          ad_set_name?: string | null
           advantage_plus_creative?: Json | null
           app_status?: string
           brand_id?: string
           call_to_action?: string | null
           campaign_id?: string | null
+          campaign_name?: string | null
           created_at?: string
           description?: string | null
           destination_url?: string | null

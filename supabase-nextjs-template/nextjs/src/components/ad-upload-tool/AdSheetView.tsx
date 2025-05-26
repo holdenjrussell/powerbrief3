@@ -13,7 +13,8 @@ import {
   AlertCircle,
   X,
   ExternalLink,
-  Sparkles
+  Sparkles,
+  Settings
 } from 'lucide-react';
 import AssetImportModal from './AssetImportModal';
 import MetaCampaignSelector from './MetaCampaignSelector';
@@ -1037,6 +1038,31 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, activeBatch }) => {
     return () => document.removeEventListener('keydown', handleEscape);
   }, [assetPreviewModal.isOpen]);
 
+  const handlePopulateNames = async () => {
+    if (!defaults.brandId) return;
+    
+    try {
+      const response = await fetch('/api/ad-drafts/populate-names', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ brandId: defaults.brandId })
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        alert(`${result.message}\nUpdated: ${result.updated}/${result.total} drafts`);
+        // Refresh the ad drafts to show updated names
+        await refreshAdDrafts();
+      } else {
+        const error = await response.json();
+        alert(`Error: ${error.message}`);
+      }
+    } catch (error) {
+      console.error('Error populating names:', error);
+      alert('Failed to populate names. Please try again.');
+    }
+  };
+
   return (
     <div className="mt-6 pb-16">
         <div className="bg-white p-4 sm:p-6 rounded-lg shadow mb-6">
@@ -1109,6 +1135,13 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, activeBatch }) => {
                     className="px-4 py-2 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 rounded-md shadow-sm flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
                  >
                     <Sparkles className="mr-2 h-4 w-4" /> Bulk AI Rename ({checkedDraftIds.size})
+                </button>
+                <button
+                    onClick={handlePopulateNames}
+                    className="px-4 py-2 text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 rounded-md shadow-sm flex items-center"
+                    title="Fetch and populate missing campaign and ad set names from Meta API"
+                 >
+                    <Settings className="mr-2 h-4 w-4" /> Populate Names
                 </button>
                 <button
                     onClick={handleLaunch} 

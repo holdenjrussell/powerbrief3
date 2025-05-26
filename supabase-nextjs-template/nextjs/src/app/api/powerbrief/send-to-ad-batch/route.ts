@@ -91,7 +91,9 @@ export async function POST(req: NextRequest) {
           status: settings.status || 'PAUSED',
           urlParams: settings.urlParams || '',
           campaignId: settings.campaignId,
+          campaignName: settings.campaignName,
           adSetId: settings.adSetId,
+          adSetName: settings.adSetName,
           siteLinks: settings.siteLinks || [],
           advantageCreative: settings.advantageCreative || {}
         };
@@ -107,17 +109,17 @@ export async function POST(req: NextRequest) {
         console.log(`[SEND-TO-AD-BATCH] Campaign ID: ${userSettings.campaignId}, Ad Set ID: ${userSettings.adSetId}`);
       } else {
         // Fallback to ad_batches for backward compatibility
-        const { data: adBatch, error: settingsError } = await supabaseAdmin
+        const { data: adBatch, error: batchError } = await supabaseAdmin
           .from('ad_batches')
           .select('*')
-          .eq('user_id', userId)
           .eq('brand_id', brandId)
+          .eq('user_id', userId)
           .eq('is_active', true)
           .order('last_accessed_at', { ascending: false })
           .limit(1)
           .single();
 
-        if (!settingsError && adBatch) {
+        if (!batchError && adBatch) {
           userSettings = {
             primaryText: adBatch.primary_text || 'Check out our latest offer!',
             headline: adBatch.headline || 'Amazing New Product',
@@ -127,11 +129,13 @@ export async function POST(req: NextRequest) {
             status: adBatch.status || 'PAUSED',
             urlParams: adBatch.url_params || '',
             campaignId: adBatch.campaign_id,
+            campaignName: null, // Ad batches don't store names yet
             adSetId: adBatch.ad_set_id,
+            adSetName: null, // Ad batches don't store names yet
             siteLinks: adBatch.site_links || [],
             advantageCreative: adBatch.advantage_plus_creative || {}
           };
-          console.log('Using ad_batches fallback for brand:', brandId);
+          console.log(`[SEND-TO-AD-BATCH] Using existing ad batch settings for brand: ${brandId}`);
         }
       }
     } catch (settingsError) {
@@ -148,7 +152,9 @@ export async function POST(req: NextRequest) {
       status: 'PAUSED',
       urlParams: '',
       campaignId: null,
+      campaignName: '',
       adSetId: null,
+      adSetName: '',
       siteLinks: [],
       advantageCreative: {
         inline_comment: false,
@@ -198,13 +204,17 @@ export async function POST(req: NextRequest) {
         destination_url: settings.destinationUrl,
         call_to_action: settings.callToAction,
         campaign_id: settings.campaignId,
+        campaign_name: settings.campaignName,
         ad_set_id: settings.adSetId,
+        ad_set_name: settings.adSetName,
         meta_status: settings.status, // This is the Ad Status that gets sent to Meta (PAUSED, ACTIVE, etc.)
         app_status: 'DRAFT', // This is the Meta Upload Status (always starts as DRAFT)
         site_links: settings.siteLinks,
         advantage_plus_creative: settings.advantageCreative,
         created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
+        video_editor: basicConcept.video_editor || null,
+        strategist: basicConcept.strategist || null
       };
 
       const { data: createdDraft, error: draftError } = await supabaseAdmin
