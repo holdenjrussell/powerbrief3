@@ -13,7 +13,8 @@ import {
   CheckCircle,
   AlertCircle,
   X,
-  ExternalLink
+  ExternalLink,
+  Sparkles
 } from 'lucide-react';
 import AssetImportModal from './AssetImportModal';
 import MetaCampaignSelector from './MetaCampaignSelector';
@@ -33,6 +34,7 @@ import {
     BulkEditableAdDraftFields
 } from './adUploadTypes';
 import BulkEditModal from './BulkEditModal'; // Import BulkEditModal
+import BulkRenameModal from './BulkRenameModal'; // Import BulkRenameModal
 import { Button } from '@/components/ui/button';
 
 // DefaultValues interface is now imported and aliased
@@ -96,12 +98,12 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBat
   const [isAssetModalOpen, setIsAssetModalOpen] = useState(false);
   const [checkedDraftIds, setCheckedDraftIds] = useState<Set<string>>(new Set());
   const [isBulkEditModalOpen, setIsBulkEditModalOpen] = useState(false); // State for bulk edit modal
+  const [isBulkRenameModalOpen, setIsBulkRenameModalOpen] = useState(false); // State for bulk rename modal
   const [draftsForBulkEdit, setDraftsForBulkEdit] = useState<AdDraft[]>([]); // State to hold drafts for modal
   const [isLaunching, setIsLaunching] = useState(false); // State for launch loading
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [filterAppStatus, setFilterAppStatus] = useState<AppAdDraftStatus[]>(['DRAFT', 'UPLOADING', 'UPLOADED', 'ERROR']); // Hide PUBLISHED by default
-  const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
+  const [hidePublished, setHidePublished] = useState(true); // Simple toggle for hiding published ads
   
   // Asset preview modal state
   const [assetPreviewModal, setAssetPreviewModal] = useState<{
@@ -117,14 +119,14 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBat
   // Log active batch for debugging
   console.log('Active batch in AdSheetView:', activeBatch?.name || 'No active batch');
   console.log('Current adDrafts count:', adDrafts.length);
-  console.log('Current filter:', filterAppStatus);
-  console.log('Filtered drafts count:', adDrafts.filter(draft => filterAppStatus.includes(draft.appStatus || 'DRAFT')).length);
+  console.log('Current filter:', hidePublished);
+  console.log('Filtered drafts count:', adDrafts.filter(draft => !hidePublished || draft.appStatus !== 'PUBLISHED').length);
   
   // Enhanced debugging for filter function
   console.log('🔧 FILTER DEBUG:');
   console.log('- Raw adDrafts:', adDrafts.map(d => ({ id: d.id, name: d.adName, appStatus: d.appStatus })));
-  console.log('- Filter includes PUBLISHED?', filterAppStatus.includes('PUBLISHED'));
-  console.log('- Filter includes UPLOADED?', filterAppStatus.includes('UPLOADED'));
+  console.log('- Filter includes PUBLISHED?', !hidePublished);
+  console.log('- Filter includes UPLOADED?', !hidePublished);
   console.log('- Drafts with PUBLISHED status:', adDrafts.filter(d => d.appStatus === 'PUBLISHED').length);
   console.log('- Drafts with UPLOADED status:', adDrafts.filter(d => d.appStatus === 'UPLOADED').length);
   console.log('- Drafts with UPLOADING status:', adDrafts.filter(d => d.appStatus === 'UPLOADING').length);
@@ -134,7 +136,7 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBat
 
   // Filter ads based on selected app statuses
   const filteredAdDrafts = adDrafts.filter(draft => 
-    filterAppStatus.includes(draft.appStatus || 'DRAFT')
+    !hidePublished || draft.appStatus !== 'PUBLISHED'
   );
 
   // Add debugging for filtered results
@@ -174,6 +176,21 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBat
     const selectedDrafts = filteredAdDrafts.filter(draft => checkedDraftIds.has(draft.id));
     setDraftsForBulkEdit(selectedDrafts);
     setIsBulkEditModalOpen(true);
+  };
+
+  const openBulkRenameModal = () => {
+    if (checkedDraftIds.size === 0) {
+        alert("Please select at least one ad draft to rename.");
+        return;
+    }
+    setIsBulkRenameModalOpen(true);
+  };
+
+  const handleBulkRename = async () => {
+    // Refresh the ad drafts after renaming
+    await refreshAdDrafts();
+    // Clear selection
+    setCheckedDraftIds(new Set());
   };
 
   const handleApplyBulkEdit = (updatedValues: BulkEditableAdDraftFields, fieldsToApply: Record<keyof BulkEditableAdDraftFields, boolean>) => {
@@ -399,12 +416,12 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBat
 
   // Monitor filter changes for debugging
   useEffect(() => {
-    console.log('🔧 Filter state changed:', filterAppStatus);
-    console.log('🔧 Published ads included?', filterAppStatus.includes('PUBLISHED'));
+    console.log('🔧 Filter state changed:', hidePublished);
+    console.log('🔧 Published ads included?', !hidePublished);
     console.log('🔧 Current drafts that match filter:', 
-      adDrafts.filter(draft => filterAppStatus.includes(draft.appStatus || 'DRAFT')).length
+      adDrafts.filter(draft => !hidePublished || draft.appStatus !== 'PUBLISHED').length
     );
-  }, [filterAppStatus, adDrafts]);
+  }, [hidePublished, adDrafts]);
 
   // Function to refresh ad drafts data
   const refreshAdDrafts = async () => {
@@ -445,9 +462,9 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBat
       setAdDrafts(draftsWithBrandId);
       
       // Log current filter state after refresh
-      console.log('🔄 Current filter after refresh:', filterAppStatus);
+      console.log('🔄 Current filter after refresh:', hidePublished);
       console.log('🔄 Drafts that will be visible after refresh:', 
-        draftsWithBrandId.filter(draft => filterAppStatus.includes(draft.appStatus || 'DRAFT')).length
+        draftsWithBrandId.filter(draft => !hidePublished || draft.appStatus !== 'PUBLISHED').length
       );
       
     } catch (error) {
@@ -857,6 +874,8 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBat
           <button
             onClick={closeModal}
             className="absolute top-4 right-4 z-10 bg-black bg-opacity-50 text-white rounded-full p-2 hover:bg-opacity-75 transition-all"
+            title="Close preview"
+            aria-label="Close asset preview"
           >
             <X className="h-6 w-6" />
           </button>
@@ -1016,6 +1035,13 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBat
                     <Edit className="mr-2 h-4 w-4" /> Bulk Edit ({checkedDraftIds.size})
                 </button>
                 <button
+                    onClick={openBulkRenameModal} 
+                    disabled={checkedDraftIds.size === 0}
+                    className="px-4 py-2 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 rounded-md shadow-sm flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+                 >
+                    <Sparkles className="mr-2 h-4 w-4" /> Bulk AI Rename ({checkedDraftIds.size})
+                </button>
+                <button
                     onClick={handleLaunch} 
                     disabled={checkedDraftIds.size === 0 || isLaunching}
                     className="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-md shadow-sm flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
@@ -1042,9 +1068,9 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBat
                     <span>Total: {adDrafts.length}</span>
                     <span>Visible: {filteredAdDrafts.length}</span>
                     {adDrafts.filter(d => d.appStatus === 'PUBLISHED').length > 0 && (
-                      <span className={`${filterAppStatus.includes('PUBLISHED') ? 'text-green-600' : 'text-orange-600'}`}>
+                      <span className={`${!hidePublished ? 'text-green-600' : 'text-orange-600'}`}>
                         Published: {adDrafts.filter(d => d.appStatus === 'PUBLISHED').length}
-                        {!filterAppStatus.includes('PUBLISHED') && ' (hidden)'}
+                        {hidePublished && ' (hidden)'}
                       </span>
                     )}
                   </div>
@@ -1099,71 +1125,17 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBat
             </div>
             <div className="relative">
               <button
-                onClick={() => setIsFilterDropdownOpen(!isFilterDropdownOpen)}
+                onClick={() => setHidePublished(!hidePublished)}
                 className={`px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 flex items-center ${
-                  !filterAppStatus.includes('PUBLISHED') ? 'bg-orange-50 border-orange-300' : ''
+                  hidePublished ? 'bg-orange-50 border-orange-300' : 'bg-green-50 border-green-300'
                 }`}
               >
                 <Filter className="mr-2 h-4 w-4 text-gray-500" /> 
-                Filter ({filterAppStatus.length}/5)
-                {!filterAppStatus.includes('PUBLISHED') && (
-                  <span className="ml-1 text-orange-600 text-xs">⚠️</span>
+                {hidePublished ? 'Hide Published' : 'Show All'}
+                {hidePublished && adDrafts.filter(d => d.appStatus === 'PUBLISHED').length > 0 && (
+                  <span className="ml-1 text-orange-600 text-xs">({adDrafts.filter(d => d.appStatus === 'PUBLISHED').length} hidden)</span>
                 )}
               </button>
-              {isFilterDropdownOpen && (
-                <div className="absolute right-0 mt-2 w-64 bg-white rounded-md shadow-lg border z-10">
-                  <div className="py-1">
-                    <div className="px-3 py-2 text-sm font-medium text-gray-900 border-b">
-                      Meta Upload Status
-                      {!filterAppStatus.includes('PUBLISHED') && (
-                        <div className="text-xs text-orange-600 mt-1">
-                          ⚠️ Published ads are hidden
-                        </div>
-                      )}
-                    </div>
-                    {appAdDraftStatusOptions.map(status => (
-                      <label key={status} className="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 cursor-pointer">
-                        <input 
-                          type="checkbox" 
-                          checked={filterAppStatus.includes(status)}
-                          onChange={(e) => {
-                            console.log(`🔧 Filter change: ${status} ${e.target.checked ? 'checked' : 'unchecked'}`);
-                            if (e.target.checked) {
-                              setFilterAppStatus(prev => {
-                                const newFilter = [...prev, status];
-                                console.log('🔧 New filter state:', newFilter);
-                                return newFilter;
-                              });
-                            } else {
-                              setFilterAppStatus(prev => {
-                                const newFilter = prev.filter(s => s !== status);
-                                console.log('🔧 New filter state:', newFilter);
-                                return newFilter;
-                              });
-                            }
-                          }}
-                          className="mr-2 h-4 w-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
-                        />
-                        <span className="capitalize">{status}</span>
-                        {status === 'PUBLISHED' && !filterAppStatus.includes(status) && (
-                          <span className="ml-auto text-orange-500 text-xs">Hidden</span>
-                        )}
-                      </label>
-                    ))}
-                    <div className="border-t px-3 py-2">
-                      <button
-                        onClick={() => {
-                          console.log('🔧 Selecting all filter options...');
-                          setFilterAppStatus(['DRAFT', 'UPLOADING', 'UPLOADED', 'ERROR', 'PUBLISHED']);
-                        }}
-                        className="text-xs text-blue-600 hover:text-blue-800"
-                      >
-                        Select All
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         </div>
@@ -1253,6 +1225,13 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, onGoBack, activeBat
             adAccountId={defaults.adAccountId}
         />
       )}
+      <BulkRenameModal
+        isOpen={isBulkRenameModalOpen}
+        onClose={() => setIsBulkRenameModalOpen(false)}
+        onRename={handleBulkRename}
+        selectedAdIds={Array.from(checkedDraftIds)}
+        brandId={defaults.brandId || ''}
+      />
       <AssetPreviewModal />
     </div>
   );
