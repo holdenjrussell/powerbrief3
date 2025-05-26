@@ -1005,6 +1005,21 @@ export default function ReviewsPage() {
         setSendingToAds(prev => ({ ...prev, [conceptId]: true }));
         
         try {
+            const supabase = createSPAClient();
+            
+            // First, update the concept with the new asset grouping
+            const { error: updateError } = await supabase
+                .from('brief_concepts')
+                .update({ 
+                    uploaded_assets: assetGroups
+                })
+                .eq('id', conceptId);
+
+            if (updateError) {
+                throw new Error('Failed to update concept with new grouping');
+            }
+
+            // Then send to ad batch with the updated grouping
             const response = await fetch('/api/powerbrief/send-to-ad-batch', {
                 method: 'POST',
                 headers: {
@@ -1021,7 +1036,7 @@ export default function ReviewsPage() {
 
                 toast({
                     title: "Success",
-                    description: `Assets have been sent to the Ad Upload Tool successfully. ${result.totalDrafts} ad drafts created.`,
+                    description: `Assets have been sent to the Ad Upload Tool with your custom grouping. ${result.totalDrafts} ad drafts created.`,
                     duration: 3000,
                 });
             } else {
@@ -1064,18 +1079,22 @@ export default function ReviewsPage() {
         setSendingToAds(prev => ({ ...prev, [conceptId]: true }));
         
         try {
-            // First, reset the asset upload status
             const supabase = createSPAClient();
-            const { error: resetError } = await supabase
+            
+            // First, update the concept with the new asset grouping
+            const { error: updateError } = await supabase
                 .from('brief_concepts')
-                .update({ asset_upload_status: 'uploaded' })
+                .update({ 
+                    uploaded_assets: assetGroups,
+                    asset_upload_status: 'uploaded' 
+                })
                 .eq('id', conceptId);
 
-            if (resetError) {
-                throw new Error('Failed to reset concept status');
+            if (updateError) {
+                throw new Error('Failed to update concept with new grouping');
             }
 
-            // Then send to ad batch with updated grouping logic
+            // Then send to ad batch with the updated grouping
             const response = await fetch('/api/powerbrief/send-to-ad-batch', {
                 method: 'POST',
                 headers: {
@@ -1092,7 +1111,7 @@ export default function ReviewsPage() {
 
                 toast({
                     title: "Success",
-                    description: `Assets have been resent to the Ad Upload Tool with improved grouping. ${result.totalDrafts} ad drafts created.`,
+                    description: `Assets have been resent to the Ad Upload Tool with your custom grouping. ${result.totalDrafts} ad drafts created.`,
                     duration: 3000,
                 });
             } else {
