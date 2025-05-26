@@ -24,6 +24,9 @@ export interface AdDraft {
   // New Meta features
   siteLinks?: SiteLink[];
   advantageCreative?: AdvantageCreativeEnhancements;
+  // PowerBrief context
+  videoEditor?: string;
+  strategist?: string;
 }
 
 export const callToActionOptions: readonly string[] = [

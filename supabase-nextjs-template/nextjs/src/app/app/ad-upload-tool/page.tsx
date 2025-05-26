@@ -8,6 +8,8 @@ import { getBrands } from '@/lib/services/powerbriefService';
 import { Brand as PowerBriefBrand } from '@/lib/types/powerbrief';
 import SiteLinksManager from '@/components/ad-upload-tool/SiteLinksManager';
 import AdvantageCreativeManager from '@/components/ad-upload-tool/AdvantageCreativeManager';
+import MetaCampaignSelector from '@/components/ad-upload-tool/MetaCampaignSelector';
+import MetaAdSetSelector from '@/components/ad-upload-tool/MetaAdSetSelector';
 import { AdConfiguration, AdConfigurationSettings } from '@/lib/types/adConfigurations';
 
 // Updated DefaultValues interface to include Meta features
@@ -476,6 +478,18 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ defaults, brand, onSave, 
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
+  const handleCampaignSelect = (campaignId: string | null) => {
+    setFormData(prev => ({ 
+      ...prev, 
+      campaignId,
+      adSetId: null // Reset ad set when campaign changes
+    }));
+  };
+
+  const handleAdSetSelect = (adSetId: string | null) => {
+    setFormData(prev => ({ ...prev, adSetId }));
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSave(formData);
@@ -511,13 +525,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ defaults, brand, onSave, 
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Default Campaign ID
                   </label>
-                  <input
-                    type="text"
-                    name="campaignId"
-                    value={formData.campaignId || ''}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-                    placeholder="Enter campaign ID or leave blank"
+                  <MetaCampaignSelector
+                    brandId={brand.id}
+                    adAccountId={brand.adAccountId}
+                    selectedCampaignId={formData.campaignId}
+                    onCampaignSelect={handleCampaignSelect}
+                    disabled={!brand.adAccountId}
                   />
                 </div>
 
@@ -525,13 +538,13 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ defaults, brand, onSave, 
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Default Ad Set ID
                   </label>
-                  <input
-                    type="text"
-                    name="adSetId"
-                    value={formData.adSetId || ''}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-                    placeholder="Enter ad set ID or leave blank"
+                  <MetaAdSetSelector
+                    brandId={brand.id}
+                    adAccountId={brand.adAccountId}
+                    campaignId={formData.campaignId}
+                    selectedAdSetId={formData.adSetId}
+                    onAdSetSelect={handleAdSetSelect}
+                    disabled={!formData.campaignId}
                   />
                 </div>
 

@@ -24,40 +24,54 @@ const MetaCampaignSelector: React.FC<MetaCampaignSelectorProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [isOpen, setIsOpen] = useState<boolean>(false);
+  const [hasFetched, setHasFetched] = useState<boolean>(false);
 
-  useEffect(() => {
-    if (brandId && adAccountId) {
-      setIsLoading(true);
-      setError(null);
-      setCampaigns([]); // Clear previous campaigns
-      fetch(`/api/meta/campaigns?brandId=${brandId}&adAccountId=${adAccountId}`)
-        .then(async res => {
-          if (!res.ok) {
-            const errorData = await res.json();
-            throw new Error(errorData.error || `Failed to fetch campaigns: ${res.statusText}`);
-          }
-          return res.json();
-        })
-        .then((data: Campaign[]) => {
-          setCampaigns(data);
-          setIsLoading(false);
-        })
-        .catch(err => {
-          console.error('Error fetching campaigns:', err);
-          setError(err.message);
-          setIsLoading(false);
-        });
-    } else {
-      setCampaigns([]); // Clear if no ad account ID
-      onCampaignSelect(null); // Deselect campaign if ad account changes or is cleared
+  // Only fetch campaigns when dropdown is opened and we haven't fetched yet
+  const fetchCampaigns = async () => {
+    if (!brandId || !adAccountId || isLoading || hasFetched) return;
+    
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      const res = await fetch(`/api/meta/campaigns?brandId=${brandId}&adAccountId=${adAccountId}`);
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || `Failed to fetch campaigns: ${res.statusText}`);
+      }
+      const data: Campaign[] = await res.json();
+      setCampaigns(data);
+      setHasFetched(true);
+    } catch (err: unknown) {
+      console.error('Error fetching campaigns:', err);
+      setError(err instanceof Error ? err.message : 'Failed to fetch campaigns');
+    } finally {
+      setIsLoading(false);
     }
-  }, [brandId, adAccountId]); // Removed onCampaignSelect from dependency array
+  };
+
+  // Reset fetched state when ad account changes
+  useEffect(() => {
+    setHasFetched(false);
+    setCampaigns([]);
+    setError(null);
+    if (!adAccountId) {
+      onCampaignSelect(null);
+    }
+  }, [brandId, adAccountId]);
 
   const filteredCampaigns = useMemo(() => {
     return campaigns.filter(campaign =>
       campaign.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
   }, [campaigns, searchTerm]);
+
+  const handleToggleOpen = () => {
+    if (!isOpen && !hasFetched) {
+      fetchCampaigns();
+    }
+    setIsOpen(!isOpen);
+  };
 
   const handleSelect = (campaignId: string | null) => {
     onCampaignSelect(campaignId);
@@ -66,7 +80,16 @@ const MetaCampaignSelector: React.FC<MetaCampaignSelectorProps> = ({
   };
 
   const selectedCampaignName = useMemo(() => {
-    return campaigns.find(c => c.id === selectedCampaignId)?.name || 'Select Campaign';
+    if (!selectedCampaignId) return 'Select Campaign';
+    
+    // If we have the campaign data, show the name
+    const campaign = campaigns.find(c => c.id === selectedCampaignId);
+    if (campaign) {
+      return campaign.name;
+    }
+    
+    // If we don't have the campaign data yet, just show the ID
+    return `Campaign ID: ${selectedCampaignId}`;
   }, [campaigns, selectedCampaignId]);
 
   return (
@@ -77,11 +100,11 @@ const MetaCampaignSelector: React.FC<MetaCampaignSelectorProps> = ({
       <button
         type="button"
         id="campaign-selector"
-        disabled={disabled || isLoading || !adAccountId}
-        onClick={() => setIsOpen(!isOpen)}
-        className="default-input flex items-center justify-between w-full text-left"
+        disabled={disabled || !adAccountId}
+        onClick={handleToggleOpen}
+        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500 bg-white text-left flex items-center justify-between"
       >
-        <span className="truncate">{isLoading ? 'Loading Campaigns...' : selectedCampaignName}</span>
+        <span className="truncate">{selectedCampaignName}</span>
         <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
@@ -100,9 +123,9 @@ const MetaCampaignSelector: React.FC<MetaCampaignSelectorProps> = ({
             </div>
           </div>
           <ul>
-            {isLoading && <li className="px-3 py-2 text-sm text-gray-500">Loading...</li>}
+            {isLoading && <li className="px-3 py-2 text-sm text-gray-500">Loading campaigns...</li>}
             {error && <li className="px-3 py-2 text-sm text-red-500">Error: {error}</li>}
-            {!isLoading && !error && filteredCampaigns.length === 0 && (
+            {!isLoading && !error && filteredCampaigns.length === 0 && hasFetched && (
               <li className="px-3 py-2 text-sm text-gray-500">No campaigns found.</li>
             )}
             {!isLoading && !error && filteredCampaigns.map(campaign => (

@@ -24,6 +24,8 @@ interface AdDraftRowFromDB {
   // user_id and brand_id are not directly mapped back to AdDraft type, but used for query
   site_links?: SiteLink[];
   advantage_plus_creative?: AdvantageCreativeEnhancements;
+  video_editor?: string | null;
+  strategist?: string | null;
 }
 
 // Interface for ad_draft_assets table row from DB
@@ -57,6 +59,9 @@ interface AdDraftInsertRow {
   // New Meta features
   site_links?: SiteLink[];
   advantage_plus_creative?: AdvantageCreativeEnhancements;
+  // PowerBrief context
+  video_editor?: string | null;
+  strategist?: string | null;
 }
 
 // Interface for ad_draft_assets when inserting
@@ -104,6 +109,8 @@ export async function GET(req: NextRequest) {
         meta_status,
         app_status,
         ad_batch_id,
+        video_editor,
+        strategist,
         ad_draft_assets (
           id,
           name,
@@ -159,6 +166,9 @@ export async function GET(req: NextRequest) {
       callToAction: draftRow.call_to_action || '',
       status: draftRow.meta_status as AdCreativeStatus,
       appStatus: draftRow.app_status as AppAdDraftStatus,
+      // PowerBrief context
+      videoEditor: draftRow.video_editor || undefined,
+      strategist: draftRow.strategist || undefined,
       assets: (draftRow.ad_draft_assets || []).map((assetRow: AdDraftAssetRowFromDB) => ({
         name: assetRow.name,
         supabaseUrl: assetRow.supabase_url,
@@ -255,7 +265,9 @@ export async function POST(req: NextRequest) {
           music: false,
           '3d_animation': false,
           translate_text: false
-        }
+        },
+        video_editor: draft.videoEditor || null,
+        strategist: draft.strategist || null
       };
 
       /* eslint-disable @typescript-eslint/no-explicit-any */

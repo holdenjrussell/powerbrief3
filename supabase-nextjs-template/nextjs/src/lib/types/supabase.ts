@@ -161,8 +161,10 @@ export type Database = {
           meta_status: string
           primary_text: string | null
           site_links: Json | null
+          strategist: string | null
           updated_at: string
           user_id: string
+          video_editor: string | null
         }
         Insert: {
           ad_batch_id?: string | null
@@ -182,8 +184,10 @@ export type Database = {
           meta_status: string
           primary_text?: string | null
           site_links?: Json | null
+          strategist?: string | null
           updated_at?: string
           user_id: string
+          video_editor?: string | null
         }
         Update: {
           ad_batch_id?: string | null
@@ -203,8 +207,10 @@ export type Database = {
           meta_status?: string
           primary_text?: string | null
           site_links?: Json | null
+          strategist?: string | null
           updated_at?: string
           user_id?: string
+          video_editor?: string | null
         }
         Relationships: [
           {

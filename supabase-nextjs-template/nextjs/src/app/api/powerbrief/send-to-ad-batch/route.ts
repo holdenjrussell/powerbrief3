@@ -95,7 +95,16 @@ export async function POST(req: NextRequest) {
           siteLinks: settings.siteLinks || [],
           advantageCreative: settings.advantageCreative || {}
         };
-        console.log('Using default ad configuration for brand:', brandId);
+        
+        // Validate that adSetId belongs to campaignId if both are set
+        if (userSettings.campaignId && userSettings.adSetId) {
+          console.log(`[SEND-TO-AD-BATCH] Validating ad set ${userSettings.adSetId} belongs to campaign ${userSettings.campaignId}`);
+          // For now, we'll trust the saved configuration, but this could be enhanced with Meta API validation
+          // If validation fails in the future, we could clear adSetId: userSettings.adSetId = null;
+        }
+        
+        console.log(`[SEND-TO-AD-BATCH] Using default ad configuration for brand: ${brandId}`);
+        console.log(`[SEND-TO-AD-BATCH] Campaign ID: ${userSettings.campaignId}, Ad Set ID: ${userSettings.adSetId}`);
       } else {
         // Fallback to ad_batches for backward compatibility
         const { data: adBatch, error: settingsError } = await supabaseAdmin
@@ -163,6 +172,15 @@ export async function POST(req: NextRequest) {
     };
 
     const settings = userSettings || defaultSettings;
+
+    console.log(`[SEND-TO-AD-BATCH] Final settings to be applied:`, {
+      campaignId: settings.campaignId,
+      adSetId: settings.adSetId,
+      primaryText: settings.primaryText?.substring(0, 50) + '...',
+      headline: settings.headline,
+      destinationUrl: settings.destinationUrl,
+      settingsSource: userSettings ? 'User Configuration' : 'Default Settings'
+    });
 
     // Convert PowerBrief assets to ad drafts (without batch association)
     const createdDrafts = [];

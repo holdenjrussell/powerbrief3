@@ -8,6 +8,8 @@ import { getBrands } from '@/lib/services/powerbriefService';
 import { Brand as PowerBriefBrand } from '@/lib/types/powerbrief';
 import SiteLinksManager from '@/components/ad-upload-tool/SiteLinksManager';
 import AdvantageCreativeManager from '@/components/ad-upload-tool/AdvantageCreativeManager';
+import MetaCampaignSelector from '@/components/ad-upload-tool/MetaCampaignSelector';
+import MetaAdSetSelector from '@/components/ad-upload-tool/MetaAdSetSelector';
 import { AdConfiguration, AdConfigurationSettings } from '@/lib/types/adConfigurations';
 
 // Updated DefaultValues interface to include Meta features
@@ -476,6 +478,18 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ defaults, brand, onSave, 
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
+  const handleCampaignSelect = (campaignId: string | null) => {
+    setFormData(prev => ({ 
+      ...prev, 
+      campaignId,
+      adSetId: null // Reset ad set when campaign changes
+    }));
+  };
+
+  const handleAdSetSelect = (adSetId: string | null) => {
+    setFormData(prev => ({ ...prev, adSetId }));
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSave(formData);
@@ -507,6 +521,33 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ defaults, brand, onSave, 
             <div>
               <h3 className="text-lg font-medium text-gray-900 mb-4">Basic Settings</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Default Campaign
+                  </label>
+                  <MetaCampaignSelector
+                    brandId={brand.id}
+                    adAccountId={brand.adAccountId}
+                    selectedCampaignId={formData.campaignId}
+                    onCampaignSelect={handleCampaignSelect}
+                    disabled={!brand.adAccountId}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Default Ad Set
+                  </label>
+                  <MetaAdSetSelector
+                    brandId={brand.id}
+                    adAccountId={brand.adAccountId}
+                    campaignId={formData.campaignId}
+                    selectedAdSetId={formData.adSetId}
+                    onAdSetSelect={handleAdSetSelect}
+                    disabled={!formData.campaignId}
+                  />
+                </div>
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Destination URL

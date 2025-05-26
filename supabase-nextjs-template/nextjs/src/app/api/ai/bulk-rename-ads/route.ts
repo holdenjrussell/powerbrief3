@@ -202,8 +202,8 @@ export async function POST(request: NextRequest) {
         if (namingConventionContext.include_launch_date && body.launchDate) {
           metadataContext.launch_date = body.launchDate;
         }
-        if (namingConventionContext.include_editor && adDraft.editor) {
-          metadataContext.editor = adDraft.editor;
+        if (namingConventionContext.include_editor && adDraft.video_editor) {
+          metadataContext.editor = adDraft.video_editor;
         }
         if (namingConventionContext.include_strategist && adDraft.strategist) {
           metadataContext.strategist = adDraft.strategist;
