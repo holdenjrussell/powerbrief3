@@ -1019,7 +1019,28 @@ export default function ReviewsPage() {
                 throw new Error(errorData.message || 'Failed to update asset grouping');
             }
 
-            console.log('Asset grouping updated successfully');
+            const updateResult = await updateResponse.json();
+            console.log('Asset grouping updated successfully:', updateResult);
+
+            // Update the local state with the new grouping
+            setUploadedAssetsConcepts(prev => 
+                prev.map(concept => 
+                    concept.id === conceptId 
+                        ? { ...concept, uploaded_assets: assetGroups }
+                        : concept
+                )
+            );
+
+            // Reset the asset upload status
+            const supabase = createSPAClient();
+            const { error: resetError } = await supabase
+                .from('brief_concepts' as any)
+                .update({ asset_upload_status: 'uploaded' })
+                .eq('id', conceptId);
+
+            if (resetError) {
+                console.warn('Failed to reset concept status, but continuing:', resetError);
+            }
 
             // Then send to ad batch with the updated grouping
             const response = await fetch('/api/powerbrief/send-to-ad-batch', {
@@ -1033,8 +1054,8 @@ export default function ReviewsPage() {
             if (response.ok) {
                 const result = await response.json();
                 
-                // Remove from approved concepts list
-                setApprovedConcepts(prev => prev.filter(concept => concept.id !== conceptId));
+                // Refresh the uploaded assets list to reflect the status change
+                fetchUploadedAssets();
 
                 toast({
                     title: "Success",
@@ -1095,7 +1116,17 @@ export default function ReviewsPage() {
                 throw new Error(errorData.message || 'Failed to update asset grouping');
             }
 
-            console.log('Asset grouping updated successfully');
+            const updateResult = await updateResponse.json();
+            console.log('Asset grouping updated successfully:', updateResult);
+
+            // Update the local state with the new grouping
+            setUploadedAssetsConcepts(prev => 
+                prev.map(concept => 
+                    concept.id === conceptId 
+                        ? { ...concept, uploaded_assets: assetGroups }
+                        : concept
+                )
+            );
 
             // Reset the asset upload status
             const supabase = createSPAClient();

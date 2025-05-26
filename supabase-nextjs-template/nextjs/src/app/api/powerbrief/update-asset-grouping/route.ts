@@ -17,8 +17,27 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: 'Missing concept ID or asset groups.' }, { status: 400 });
     }
 
-    console.log('Updating asset grouping for concept:', conceptId);
-    console.log('New asset groups:', JSON.stringify(assetGroups, null, 2));
+    console.log('=== UPDATING ASSET GROUPING ===');
+    console.log('Concept ID:', conceptId);
+    console.log('Number of asset groups:', assetGroups.length);
+    console.log('Asset groups structure:', JSON.stringify(assetGroups, null, 2));
+
+    // First, let's see what's currently in the database
+    const { data: currentData, error: fetchError } = await supabaseAdmin
+      .from('brief_concepts')
+      .select('id, uploaded_assets')
+      .eq('id', conceptId)
+      .single();
+
+    if (fetchError) {
+      console.error('Error fetching current data:', fetchError);
+      return NextResponse.json({ 
+        message: 'Failed to fetch current concept data.',
+        error: fetchError.message 
+      }, { status: 500 });
+    }
+
+    console.log('Current data in database:', JSON.stringify(currentData, null, 2));
 
     // Update the concept with the new asset grouping
     const { data, error } = await supabaseAdmin
@@ -39,11 +58,29 @@ export async function POST(req: NextRequest) {
       }, { status: 500 });
     }
 
-    console.log('Successfully updated asset grouping:', data);
+    console.log('=== UPDATE SUCCESSFUL ===');
+    console.log('Updated data:', JSON.stringify(data, null, 2));
+    console.log('Number of groups after update:', data.uploaded_assets?.length || 0);
+
+    // Verify the update by fetching again
+    const { data: verifyData, error: verifyError } = await supabaseAdmin
+      .from('brief_concepts')
+      .select('id, uploaded_assets')
+      .eq('id', conceptId)
+      .single();
+
+    if (verifyError) {
+      console.error('Error verifying update:', verifyError);
+    } else {
+      console.log('=== VERIFICATION ===');
+      console.log('Verified data:', JSON.stringify(verifyData, null, 2));
+      console.log('Verified number of groups:', verifyData.uploaded_assets?.length || 0);
+    }
 
     return NextResponse.json({ 
       message: 'Asset grouping updated successfully',
-      updatedConcept: data
+      updatedConcept: data,
+      verificationData: verifyData
     }, { status: 200 });
 
   } catch (error) {
