@@ -30,6 +30,7 @@ interface AssetFile {
   supabaseUrl?: string;
   detectedRatio?: string | null;
   baseName?: string;
+  groupKey?: string;
 }
 
 interface UploadedAsset {
@@ -39,6 +40,7 @@ interface UploadedAsset {
   type: 'image' | 'video';
   aspectRatio: string;
   baseName: string;
+  groupKey: string;
 }
 
 interface AssetGroup {
@@ -63,18 +65,18 @@ interface ToastMessage {
 }
 
 const ASPECT_RATIO_IDENTIFIERS = ['4x5', '9x16', '1x1', '16x9'];
-const KNOWN_FILENAME_SUFFIXES_TO_REMOVE = ['_compressed', '-compressed', '_comp', '-comp', '_v1', '_v2', '_v3', '-v1', '-v2', '-v3'];
+const KNOWN_FILENAME_SUFFIXES_TO_REMOVE = ['_compressed', '-compressed', '_comp', '-comp'];
 const MAX_FILE_SIZE = 1024 * 1024 * 1024; // 1GB in bytes (increased from 200MB)
 const SUPPORTED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
 const SUPPORTED_VIDEO_TYPES = ['video/mp4', 'video/mov', 'video/avi', 'video/quicktime', 'video/x-msvideo'];
 
-// Helper function to extract base name and aspect ratio from filename
-const getBaseNameAndRatio = (filename: string): { baseName: string; detectedRatio: string | null } => {
+// Helper function to extract base name, aspect ratio, and version from filename
+const getBaseNameRatioAndVersion = (filename: string): { baseName: string; detectedRatio: string | null; version: string | null; groupKey: string } => {
   logger.debug('Parsing filename', { filename });
   
   let nameWorkInProgress = filename.substring(0, filename.lastIndexOf('.')) || filename;
   
-  // Remove known trailing suffixes
+  // Remove known trailing suffixes first
   for (const suffix of KNOWN_FILENAME_SUFFIXES_TO_REMOVE) {
     if (nameWorkInProgress.endsWith(suffix)) {
       nameWorkInProgress = nameWorkInProgress.substring(0, nameWorkInProgress.length - suffix.length);
@@ -83,7 +85,20 @@ const getBaseNameAndRatio = (filename: string): { baseName: string; detectedRati
     }
   }
 
+  // Extract version information (v1, v2, v3, etc.)
+  let version: string | null = null;
+  const versionPatterns = ['_v1', '_v2', '_v3', '_v4', '_v5', '-v1', '-v2', '-v3', '-v4', '-v5'];
+  for (const versionPattern of versionPatterns) {
+    if (nameWorkInProgress.includes(versionPattern)) {
+      version = versionPattern.substring(1); // Remove the _ or - prefix
+      break;
+    }
+  }
+
   // Look for aspect ratio identifiers
+  let detectedRatio: string | null = null;
+  let baseNameWithoutRatio = nameWorkInProgress;
+  
   for (const id of ASPECT_RATIO_IDENTIFIERS) {
     const patternsToTest = [
       `_${id}`,
@@ -95,19 +110,33 @@ const getBaseNameAndRatio = (filename: string): { baseName: string; detectedRati
     ];
     
     for (const pattern of patternsToTest) {
-      if (nameWorkInProgress.endsWith(pattern)) {
-        const result = {
-          baseName: nameWorkInProgress.substring(0, nameWorkInProgress.length - pattern.length).trim(),
-          detectedRatio: id
-        };
-        logger.debug('Detected aspect ratio in filename', { filename, pattern, result });
-        return result;
+      if (nameWorkInProgress.includes(pattern)) {
+        detectedRatio = id;
+        baseNameWithoutRatio = nameWorkInProgress.replace(pattern, '').trim();
+        break;
       }
     }
+    if (detectedRatio) break;
+  }
+
+  // Create a group key that combines base name and version
+  // This ensures assets with same version but different aspect ratios are grouped together
+  let groupKey: string;
+  if (version) {
+    // Remove version from base name to get the core concept name
+    const coreBaseName = baseNameWithoutRatio.replace(new RegExp(`[_-]?${version}$`), '').trim();
+    groupKey = `${coreBaseName}_${version}`;
+  } else {
+    groupKey = baseNameWithoutRatio;
   }
   
-  const result = { baseName: nameWorkInProgress.trim(), detectedRatio: null };
-  logger.debug('No aspect ratio detected in filename', { filename, result });
+  const result = { 
+    baseName: baseNameWithoutRatio.trim(), 
+    detectedRatio, 
+    version,
+    groupKey
+  };
+  logger.debug('Parsed filename components', { filename, result });
   return result;
 };
 
@@ -302,13 +331,17 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
         continue;
       }
       
-      const { baseName, detectedRatio } = getBaseNameAndRatio(file.name);
+      const { baseName, detectedRatio, groupKey } = getBaseNameRatioAndVersion(file.name);
       
       const assetFile: AssetFile = {
-        file,
         id: crypto.randomUUID(),
+        file,
         baseName,
-        detectedRatio
+        detectedRatio,
+        groupKey,
+        uploading: false,
+        uploadError: null,
+        supabaseUrl: null
       };
       
       newFiles.push(assetFile);
@@ -455,7 +488,8 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
             supabaseUrl: publicUrl,
             type: file.type.startsWith('image/') ? 'image' : 'video',
             aspectRatio: assetFile.detectedRatio || 'unknown',
-            baseName: assetFile.baseName || file.name
+            baseName: assetFile.baseName || file.name,
+            groupKey: assetFile.groupKey || assetFile.baseName
           };
 
           uploadedAssets.push(uploadedAsset);
@@ -579,20 +613,21 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
       });
     }
 
-    // Group assets by base name
+    // Group assets by group key (which includes version)
     const assetGroups: AssetGroup[] = [];
-    const groupsByBaseName: Record<string, UploadedAsset[]> = {};
+    const groupsByGroupKey: Record<string, UploadedAsset[]> = {};
 
     uploadedAssets.forEach(asset => {
-      if (!groupsByBaseName[asset.baseName]) {
-        groupsByBaseName[asset.baseName] = [];
+      const groupKey = asset.groupKey || asset.baseName; // Fallback to baseName if groupKey is missing
+      if (!groupsByGroupKey[groupKey]) {
+        groupsByGroupKey[groupKey] = [];
       }
-      groupsByBaseName[asset.baseName].push(asset);
+      groupsByGroupKey[groupKey].push(asset);
     });
 
-    Object.entries(groupsByBaseName).forEach(([baseName, assets]) => {
+    Object.entries(groupsByGroupKey).forEach(([groupKey, assets]) => {
       assetGroups.push({
-        baseName,
+        baseName: groupKey, // Use groupKey as the display name
         assets,
         aspectRatios: [...new Set(assets.map(a => a.aspectRatio).filter(r => r !== 'unknown'))]
       });

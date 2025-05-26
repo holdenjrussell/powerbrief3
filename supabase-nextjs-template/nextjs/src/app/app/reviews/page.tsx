@@ -975,17 +975,15 @@ export default function ReviewsPage() {
     };
 
     const handleSendToAdBatch = async (conceptId: string) => {
+        setSendingToAds(prev => ({ ...prev, [conceptId]: true }));
+        
         try {
-            setSendingToAds(prev => ({ ...prev, [conceptId]: true }));
-            
             const response = await fetch('/api/powerbrief/send-to-ad-batch', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    conceptId
-                }),
+                body: JSON.stringify({ conceptId }),
             });
 
             if (response.ok) {
@@ -1007,6 +1005,57 @@ export default function ReviewsPage() {
             toast({
                 title: "Error",
                 description: "Failed to send assets to Ad Upload Tool. Please try again.",
+                variant: "destructive",
+                duration: 3000,
+            });
+        } finally {
+            setSendingToAds(prev => ({ ...prev, [conceptId]: false }));
+        }
+    };
+
+    const handleResendToAdBatch = async (conceptId: string) => {
+        setSendingToAds(prev => ({ ...prev, [conceptId]: true }));
+        
+        try {
+            // First, reset the asset upload status
+            const supabase = createSPAClient();
+            const { error: resetError } = await supabase
+                .from('brief_concepts')
+                .update({ asset_upload_status: 'uploaded' })
+                .eq('id', conceptId);
+
+            if (resetError) {
+                throw new Error('Failed to reset concept status');
+            }
+
+            // Then send to ad batch with updated grouping logic
+            const response = await fetch('/api/powerbrief/send-to-ad-batch', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ conceptId }),
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                
+                // Refresh the uploaded assets list to reflect the status change
+                fetchUploadedAssets();
+
+                toast({
+                    title: "Success",
+                    description: `Assets have been resent to the Ad Upload Tool with improved grouping. ${result.totalDrafts} ad drafts created.`,
+                    duration: 3000,
+                });
+            } else {
+                throw new Error('Failed to resend to ad uploader');
+            }
+        } catch (error) {
+            console.error('Error resending to ad uploader:', error);
+            toast({
+                title: "Error",
+                description: "Failed to resend assets to Ad Upload Tool. Please try again.",
                 variant: "destructive",
                 duration: 3000,
             });
@@ -1340,9 +1389,9 @@ export default function ReviewsPage() {
                                     {/* Send to Ad Batch button */}
                                     <div className="flex space-x-2">
                                         <Button
-                                            onClick={() => handleSendToAdBatch(concept.id)}
+                                            onClick={() => handleResendToAdBatch(concept.id)}
                                             className="bg-blue-600 hover:bg-blue-700 text-white"
-                                            title="Send approved assets to Ad Upload Tool"
+                                            title="Resend approved assets to Ad Upload Tool"
                                             disabled={sendingToAds[concept.id]}
                                         >
                                             {sendingToAds[concept.id] ? (
@@ -1350,7 +1399,7 @@ export default function ReviewsPage() {
                                             ) : (
                                                 <Upload className="h-4 w-4 mr-2" />
                                             )}
-                                            Send to Ad Uploader
+                                            Resend to Ad Uploader
                                         </Button>
                                     </div>
                                 </CardContent>
@@ -1561,6 +1610,22 @@ export default function ReviewsPage() {
                                                                     Send to Ad Uploader
                                                                 </Button>
                                                             )}
+                                                            
+                                                            {concept.asset_upload_status === 'sent_to_ad_upload' && (
+                                                                <Button
+                                                                    size="sm"
+                                                                    onClick={() => handleResendToAdBatch(concept.id)}
+                                                                    className="bg-orange-600 hover:bg-orange-700 text-white"
+                                                                    disabled={sendingToAds[concept.id]}
+                                                                >
+                                                                    {sendingToAds[concept.id] ? (
+                                                                        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                                                    ) : (
+                                                                        <Upload className="h-3 w-3 mr-1" />
+                                                                    )}
+                                                                    Resend to Ad Uploader
+                                                                </Button>
+                                                            )}
                                                         </div>
                                                     </CardContent>
                                                 </Card>
@@ -1590,5 +1655,7 @@ export default function ReviewsPage() {
                 />
             )}
         </div>
+    );
+} 
     );
 } 
