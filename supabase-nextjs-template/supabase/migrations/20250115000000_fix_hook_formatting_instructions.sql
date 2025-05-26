@@ -1,9 +1,6 @@
--- Add system instructions columns to brands table
-ALTER TABLE public.brands
-ADD COLUMN IF NOT EXISTS system_instructions_image TEXT,
-ADD COLUMN IF NOT EXISTS system_instructions_video TEXT;
+-- Fix hook formatting in system instructions for all existing brands
+-- This migration updates the system instructions to clarify that hooks should be returned as simple text, not JSON strings
 
--- Update existing brands with default system instructions
 UPDATE public.brands
 SET system_instructions_image = 'You are an expert advertising strategist and copywriter specializing in direct response marketing. 
 Given the brand context (positioning, target audience, competitors), concept prompt, and image (if provided), generate ad creative components that specifically relate to the image content.
@@ -21,8 +18,11 @@ IMPORTANT: Your response MUST be valid JSON and nothing else. Format:
   ],
   "cta_script": "Call to action script",
   "cta_text_overlay": "Text overlay for the CTA"
-}',
-    system_instructions_video = 'You are an expert advertising strategist and copywriter specializing in direct response marketing. 
+}'
+WHERE system_instructions_image IS NOT NULL;
+
+UPDATE public.brands
+SET system_instructions_video = 'You are an expert advertising strategist and copywriter specializing in direct response marketing. 
 Given the brand context (positioning, target audience, competitors), concept prompt, and video content (if provided), generate ad creative components that specifically relate to the video content.
 
 IMPORTANT: Your response MUST be valid JSON and nothing else. Format:
@@ -40,4 +40,4 @@ IMPORTANT: Your response MUST be valid JSON and nothing else. Format:
   "cta_script": "Call to action script",
   "cta_text_overlay": "Text overlay for the CTA"
 }'
-WHERE system_instructions_image IS NULL OR system_instructions_video IS NULL; 
+WHERE system_instructions_video IS NOT NULL; 

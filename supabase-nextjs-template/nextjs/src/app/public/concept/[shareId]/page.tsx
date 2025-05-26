@@ -797,6 +797,7 @@ export default function SharedConceptPage({ params }: { params: ParamsType | Pro
                   ctaScript={concept.cta_script || ''}
                   conceptId={concept.id}
                   isEditable={isEditable}
+                  brandId={brand?.id || ''}
                 />
               </CardContent>
             </Card>

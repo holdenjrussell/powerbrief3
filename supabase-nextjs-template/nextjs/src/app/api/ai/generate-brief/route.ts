@@ -161,12 +161,12 @@ export async function POST(request: NextRequest) {
     } else {
       // Fallback to default system prompt if no custom instructions are available
       systemPrompt = `You are an expert advertising strategist and copywriter specializing in direct response marketing. 
-Given the brand context (positioning, target audience, competitors), concept prompt, and media (if provided), generate ad creative components that specifically relate to the media content. DO NOT EVER use another brand than specified in brand name: The Grounding Co.
+Given the brand context (positioning, target audience, competitors), concept prompt, and media (if provided), generate ad creative components that specifically relate to the media content. DO NOT EVER use another brand than specified in brand name: Glamory.
 
 IMPORTANT: Your response MUST be valid JSON and nothing else. Format:
 {
-  "caption_hook_options": "Generate caption hooks with emojis here. Only include caption hooks, not verbal hooks. Generate exactly the number requested in the hook count.",
-  "spoken_hook_options": "Generate verbal/spoken hooks here. These are hooks meant to be spoken in videos, not written as captions. Generate exactly the number requested in the hook count.",
+  "caption_hook_options": "Generate caption hooks here as simple text with each hook on a new line. Include emojis and catchy phrases suitable for social media captions. Do NOT use JSON formatting or escaped quotes - just plain text with line breaks between hooks.",
+  "spoken_hook_options": "Generate verbal/spoken hooks here as simple text with each hook on a new line. These are hooks meant to be spoken in videos, not written as captions. Do NOT use JSON formatting or escaped quotes - just plain text with line breaks between hooks.",
   "body_content_structured_scenes": [
     { 
       "scene_title": "Scene 1 (optional)", 
