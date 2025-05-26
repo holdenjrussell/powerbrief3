@@ -17,7 +17,7 @@ import {
   SelectLabel
 } from "@/components/ui";
 import { ChevronRight, User2, ShoppingBag, FileVideo, AtSign, Package } from 'lucide-react';
-import { UgcCreator, UGC_CREATOR_SCRIPT_STATUSES, UGC_CREATOR_CONTRACT_STATUSES, UGC_CREATOR_PRODUCT_SHIPMENT_STATUSES } from '@/lib/types/ugcCreator';
+import { UgcCreator, UGC_CREATOR_ONBOARDING_STATUSES, UGC_CREATOR_CONTRACT_STATUSES, UGC_CREATOR_PRODUCT_SHIPMENT_STATUSES } from '@/lib/types/ugcCreator';
 import { updateUgcCreator } from '@/lib/services/ugcCreatorService';
 
 interface CreatorCardProps {
@@ -33,20 +33,19 @@ export default function CreatorCard({ creator, brandId, onUpdate }: CreatorCardP
   const getStatusVariant = (status: string | undefined) => {
     if (!status) return "default";
     
-    if (['Active', 'COMPLETED', 'CONTENT UPLOADED', 'READY FOR PAYMENT'].includes(status)) {
+    // Success statuses (completed onboarding steps)
+    if (['READY FOR SCRIPTS', 'Call Scheduled'].includes(status)) {
       return "success";
     }
     
-    if (['SCRIPT ASSIGNED', 'CREATOR FILMING', 'FINAL CONTENT UPLOAD', 'Active in Slack'].includes(status)) {
+    // In progress statuses
+    if (['Schedule Call Call Schedule Attempted', 'Backlog Approved for Next Steps'].includes(status)) {
       return "default";
     }
     
-    if (['Paused', 'BACKLOG', 'COLD OUTREACH', 'PRIMARY SCREEN'].includes(status)) {
+    // Early stage statuses
+    if (['New Creator Submission', 'Cold Outreach', 'Primary Screen'].includes(status)) {
       return "secondary";
-    }
-    
-    if (['Inactive', 'INACTIVE/REJECTED'].includes(status)) {
-      return "destructive";
     }
     
     return "outline";
@@ -160,19 +159,19 @@ export default function CreatorCard({ creator, brandId, onUpdate }: CreatorCardP
         </CardTitle>
         <CardDescription className="flex flex-wrap gap-2">
           <Select 
-            value={creator.status || 'NEW CREATOR SUBMISSION'} 
+            value={creator.status || 'New Creator Submission'} 
             onValueChange={handleStatusChange}
             disabled={isUpdating}
           >
             <SelectTrigger className="h-6 w-auto">
               <Badge variant={getStatusVariant(creator.status)}>
-                {creator.status || 'NEW CREATOR SUBMISSION'}
+                {creator.status || 'New Creator Submission'}
               </Badge>
             </SelectTrigger>
             <SelectContent>
               <SelectGroup>
                 <SelectLabel>Creator Status</SelectLabel>
-                {UGC_CREATOR_SCRIPT_STATUSES.map(status => (
+                {UGC_CREATOR_ONBOARDING_STATUSES.map(status => (
                   <SelectItem key={status} value={status}>
                     {status}
                   </SelectItem>

@@ -35,13 +35,14 @@ import { ArrowLeft, Loader2, PenLine, User, AtSign, LinkIcon, Film, MapPin, Pack
 import { useAuth } from '@/hooks/useAuth';
 import { getBrandById } from '@/lib/services/powerbriefService';
 import { getUgcCreatorById, getUgcCreatorScripts, updateUgcCreator, deleteUgcCreator } from '@/lib/services/ugcCreatorService';
-import { UgcCreator, UgcCreatorScript } from '@/lib/types/ugcCreator';
+import { 
+  UgcCreator, 
+  UgcCreatorScript, 
+  UGC_CREATOR_ONBOARDING_STATUSES,
+  UGC_CREATOR_CONTRACT_STATUSES
+} from '@/lib/types/ugcCreator';
 import { ScriptCard } from '@/components/ugc-creator';
 import { Brand } from '@/lib/types/powerbrief';
-import { 
-  UGC_CREATOR_SCRIPT_STATUSES, 
-  UGC_CREATOR_CONTRACT_STATUSES 
-} from '@/lib/types/ugcCreator';
 
 // Helper to unwrap params safely
 type ParamsType = { brandId: string; creatorId: string };
@@ -97,20 +98,19 @@ export default function CreatorDetailPage({ params }: { params: ParamsType | Pro
   const getStatusVariant = (status: string | undefined) => {
     if (!status) return "default";
     
-    if (['Active', 'COMPLETED', 'CONTENT UPLOADED', 'READY FOR PAYMENT'].includes(status)) {
+    // Success statuses (completed onboarding steps)
+    if (['READY FOR SCRIPTS', 'Call Scheduled'].includes(status)) {
       return "success";
     }
     
-    if (['SCRIPT ASSIGNED', 'CREATOR FILMING', 'FINAL CONTENT UPLOAD', 'Active in Slack'].includes(status)) {
+    // In progress statuses
+    if (['Schedule Call Call Schedule Attempted', 'Backlog Approved for Next Steps'].includes(status)) {
       return "default";
     }
     
-    if (['Paused', 'BACKLOG', 'COLD OUTREACH', 'PRIMARY SCREEN'].includes(status)) {
+    // Early stage statuses
+    if (['New Creator Submission', 'Cold Outreach', 'Primary Screen'].includes(status)) {
       return "secondary";
-    }
-    
-    if (['Inactive', 'INACTIVE/REJECTED'].includes(status)) {
-      return "destructive";
     }
     
     return "outline";
@@ -323,19 +323,19 @@ export default function CreatorDetailPage({ params }: { params: ParamsType | Pro
                     <p className="text-sm font-medium text-gray-500">Status</p>
                     <div className="mt-1">
                       <Select 
-                        value={creator.status || 'NEW CREATOR SUBMISSION'} 
+                        value={creator.status || 'New Creator Submission'} 
                         onValueChange={handleStatusChange}
                         disabled={isUpdatingStatus}
                       >
                         <SelectTrigger className="h-8">
                           <Badge variant={getStatusVariant(creator.status)}>
-                            {creator.status || 'NEW CREATOR SUBMISSION'}
+                            {creator.status || 'New Creator Submission'}
                           </Badge>
                         </SelectTrigger>
                         <SelectContent>
                           <SelectGroup>
                             <SelectLabel>Creator Status</SelectLabel>
-                            {UGC_CREATOR_SCRIPT_STATUSES.map((status) => (
+                            {UGC_CREATOR_ONBOARDING_STATUSES.map((status) => (
                               <SelectItem key={status} value={status}>
                                 {status}
                               </SelectItem>

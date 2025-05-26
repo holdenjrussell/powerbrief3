@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS public.ugc_creators (
     brand_id UUID NOT NULL REFERENCES public.brands(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     gender TEXT,
-    status TEXT DEFAULT 'Active',
+    status TEXT DEFAULT 'New Creator Submission',
     products JSONB DEFAULT '[]'::jsonb,
     content_types JSONB DEFAULT '[]'::jsonb,
     contract_status TEXT DEFAULT 'not signed',

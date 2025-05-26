@@ -41,7 +41,7 @@ import {
   getBrandUgcFields,
   updateBrandUgcFields 
 } from '@/lib/services/ugcCreatorService';
-import { UgcCreator, UgcCreatorScript, UGC_CREATOR_SCRIPT_CONCEPT_STATUSES } from '@/lib/types/ugcCreator';
+import { UgcCreator, UgcCreatorScript, UGC_CREATOR_SCRIPT_CONCEPT_STATUSES, UGC_CREATOR_ONBOARDING_STATUSES } from '@/lib/types/ugcCreator';
 import { CreatorCard, ScriptCard, CreatorForm } from '@/components/ugc-creator';
 import { Brand } from '@/lib/types/powerbrief';
 
@@ -64,7 +64,7 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
   const [showNewCreatorDialog, setShowNewCreatorDialog] = useState(false);
   const [newCreator] = useState<Partial<UgcCreator>>({
     name: '',
-    status: 'Active',
+    status: 'New Creator Submission',
     contract_status: 'not signed',
     products: [],
     content_types: [],
@@ -115,6 +115,9 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
 
   // Add a state for creator search
   const [creatorSearch, setCreatorSearch] = useState<string>('');
+
+  // Add state for creator status filter
+  const [activeCreatorStatus, setActiveCreatorStatus] = useState<string>('All');
 
   // Unwrap params using React.use()
   const unwrappedParams = params instanceof Promise ? React.use(params) : params;
@@ -181,7 +184,7 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
         brand_id: brand.id,
         user_id: user.id,
         name: formData.name,
-        status: formData.status || 'Active',
+        status: formData.status || 'New Creator Submission',
         contract_status: formData.contract_status || 'not signed',
         gender: formData.gender,
         products: formData.products || [],
@@ -857,10 +860,18 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
     }
   };
 
-  // Add a function to filter creators by search term
-  const filteredCreators = creators.filter(creator => 
-    creator.name.toLowerCase().includes(creatorSearch.toLowerCase())
-  );
+  // Add a function to filter creators by search term and status
+  const filteredCreators = creators.filter(creator => {
+    const matchesSearch = creator.name.toLowerCase().includes(creatorSearch.toLowerCase());
+    const matchesStatus = activeCreatorStatus === 'All' || creator.status === activeCreatorStatus;
+    return matchesSearch && matchesStatus;
+  });
+
+  // Get creator count by status for filter badges
+  const getCreatorCountByStatus = (status: string) => {
+    if (status === 'All') return creators.length;
+    return creators.filter(creator => creator.status === status).length;
+  };
 
   // Submit script for approval
   const handleSubmitScript = async () => {
@@ -1742,27 +1753,76 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
           <Card>
             <CardHeader>
               <CardTitle>UGC Creators</CardTitle>
-              <CardDescription>View and manage your UGC creators</CardDescription>
+              <CardDescription>View and manage your UGC creators by their onboarding status</CardDescription>
             </CardHeader>
             <CardContent>
-              {creators.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  <p>No creators found. Add your first creator to get started!</p>
+              <div className="space-y-6">
+                {/* Status Filter Buttons */}
+                <div className="flex space-x-2 overflow-x-auto pb-2">
                   <Button
-                    onClick={() => setShowNewCreatorDialog(true)}
-                    className="mt-4"
+                    variant={activeCreatorStatus === 'All' ? "secondary" : "outline"}
+                    size="sm"
+                    onClick={() => setActiveCreatorStatus('All')}
+                    className="whitespace-nowrap"
                   >
-                    <Plus className="h-4 w-4 mr-2" />
-                    New Creator
+                    All Creators
+                    {activeCreatorStatus === 'All' && creators.length > 0 && (
+                      <span className="ml-1.5 px-1.5 py-0.5 bg-primary-100 text-primary-800 rounded-full text-xs">
+                        {getCreatorCountByStatus('All')}
+                      </span>
+                    )}
                   </Button>
+                  {UGC_CREATOR_ONBOARDING_STATUSES.map((status) => {
+                    const count = getCreatorCountByStatus(status);
+                    return (
+                      <Button
+                        key={status}
+                        variant={activeCreatorStatus === status ? "secondary" : "outline"}
+                        size="sm"
+                        onClick={() => setActiveCreatorStatus(status)}
+                        className="whitespace-nowrap"
+                      >
+                        {status}
+                        {activeCreatorStatus === status && count > 0 && (
+                          <span className="ml-1.5 px-1.5 py-0.5 bg-primary-100 text-primary-800 rounded-full text-xs">
+                            {count}
+                          </span>
+                        )}
+                      </Button>
+                    );
+                  })}
                 </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {creators.map((creator) => (
-                    <CreatorCard key={creator.id} creator={creator} brandId={brandId} />
-                  ))}
-                </div>
-              )}
+
+                {creators.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <p>No creators found. Add your first creator to get started!</p>
+                    <Button
+                      onClick={() => setShowNewCreatorDialog(true)}
+                      className="mt-4"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      New Creator
+                    </Button>
+                  </div>
+                ) : filteredCreators.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <p>No creators found with the status: {activeCreatorStatus}</p>
+                    <Button
+                      onClick={() => setActiveCreatorStatus('All')}
+                      variant="outline"
+                      className="mt-4"
+                    >
+                      Show All Creators
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {filteredCreators.map((creator) => (
+                      <CreatorCard key={creator.id} creator={creator} brandId={brandId} />
+                    ))}
+                  </div>
+                )}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

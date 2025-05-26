@@ -1,4 +1,4 @@
-import { Json } from '../types';
+import { Json } from './supabase';
 
 // UGC Creator models
 export interface UgcCreator {
@@ -222,14 +222,12 @@ export const UGC_CREATOR_SCRIPT_STATUSES = [
 ];
 
 export const UGC_CREATOR_ONBOARDING_STATUSES = [
-  'NEW CREATOR SUBMISSION',
-  'COLD OUTREACH',
-  'PRIMARY SCREEN',
-  'BACKLOG',
-  'APPROVED FOR NEXT STEPS',
-  'SCHEDULE CALL',
-  'SCHEDULE CALL ATTEMPTED',
-  'CALL SCHEDULED',
+  'New Creator Submission',
+  'Cold Outreach',
+  'Primary Screen',
+  'Backlog Approved for Next Steps',
+  'Schedule Call Call Schedule Attempted',
+  'Call Scheduled',
   'READY FOR SCRIPTS'
 ];
 

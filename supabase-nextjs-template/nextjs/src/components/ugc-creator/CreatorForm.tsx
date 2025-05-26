@@ -26,7 +26,7 @@ import * as z from "zod";
 import { Loader2, Plus, X } from "lucide-react";
 import { 
   UgcCreator, 
-  UGC_CREATOR_STATUSES, 
+  UGC_CREATOR_ONBOARDING_STATUSES, 
   UGC_CREATOR_CONTRACT_STATUSES,
   UGC_CREATOR_PRODUCT_SHIPMENT_STATUSES,
   UGC_CREATOR_GENDERS
@@ -36,7 +36,7 @@ import {
 const creatorFormSchema = z.object({
   name: z.string().min(1, "Name is required"),
   gender: z.string().optional(),
-  status: z.string().default("Active"),
+  status: z.string().default("New Creator Submission"),
   contract_status: z.string().default("not signed"),
   product_shipment_status: z.string().optional(),
   product_shipped: z.boolean().default(false),
@@ -79,7 +79,7 @@ export function CreatorForm({ creator, onSubmit, isSubmitting }: CreatorFormProp
     defaultValues: {
       name: creator?.name || '',
       gender: creator?.gender || '',
-      status: creator?.status || 'Active',
+      status: creator?.status || 'New Creator Submission',
       contract_status: creator?.contract_status || 'not signed',
       product_shipment_status: creator?.product_shipment_status || '',
       product_shipped: creator?.product_shipped || false,
@@ -213,7 +213,7 @@ export function CreatorForm({ creator, onSubmit, isSubmitting }: CreatorFormProp
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {UGC_CREATOR_STATUSES.map((status) => (
+                        {UGC_CREATOR_ONBOARDING_STATUSES.map((status) => (
                           <SelectItem key={status} value={status}>
                             {status}
                           </SelectItem>
