@@ -58,6 +58,11 @@ const BulkRenameModal: React.FC<BulkRenameModalProps> = ({
   const [showNamingModal, setShowNamingModal] = useState(false);
   const [results, setResults] = useState<RenameResult[]>([]);
   const [showResults, setShowResults] = useState(false);
+  const [renamingProgress, setRenamingProgress] = useState<{
+    current: number;
+    total: number;
+    currentAdName: string;
+  } | null>(null);
 
   // Load naming convention settings when modal opens
   useEffect(() => {
@@ -86,6 +91,7 @@ const BulkRenameModal: React.FC<BulkRenameModalProps> = ({
 
     setIsRenaming(true);
     setShowResults(false);
+    setRenamingProgress({ current: 0, total: selectedAdIds.length, currentAdName: 'Starting...' });
     
     try {
       // Call the bulk rename API
@@ -101,7 +107,8 @@ const BulkRenameModal: React.FC<BulkRenameModalProps> = ({
       });
 
       if (!response.ok) {
-        throw new Error('Failed to rename ads');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to rename ads');
       }
 
       const data = await response.json();
@@ -113,9 +120,11 @@ const BulkRenameModal: React.FC<BulkRenameModalProps> = ({
 
     } catch (error) {
       console.error('Error renaming ads:', error);
-      alert('Failed to rename ads. Please try again.');
+      const errorMessage = error instanceof Error ? error.message : 'Failed to rename ads. Please try again.';
+      alert(errorMessage);
     } finally {
       setIsRenaming(false);
+      setRenamingProgress(null);
     }
   };
 
@@ -159,7 +168,7 @@ const BulkRenameModal: React.FC<BulkRenameModalProps> = ({
                   <p className="text-gray-600 mb-4">
                     Use AI to automatically rename {selectedAdIds.length} selected ad{selectedAdIds.length !== 1 ? 's' : ''} based on your brand&apos;s naming convention and the ad content.
                     Dynamic prefixes like &quot;strat(&quot; will be completed with metadata, abbreviation prefixes will use your defined abbreviations, 
-                    and wildcard prefixes will generate unique 4-5 word descriptions of the video content.
+                    and wildcard prefixes will generate unique 4-5 word descriptions of the content (images or videos).
                   </p>
                 </div>
 
@@ -251,6 +260,32 @@ const BulkRenameModal: React.FC<BulkRenameModalProps> = ({
                     )}
                   </Button>
                 </div>
+
+                {/* Progress Indicator */}
+                {isRenaming && renamingProgress && (
+                  <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium text-blue-800">
+                        Processing ads... ({renamingProgress.current}/{renamingProgress.total})
+                      </span>
+                      <span className="text-sm text-blue-600">
+                        {Math.round((renamingProgress.current / renamingProgress.total) * 100)}%
+                      </span>
+                    </div>
+                    <div className="w-full bg-blue-200 rounded-full h-2 mb-2">
+                      <div 
+                        className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                        style={{ width: `${(renamingProgress.current / renamingProgress.total) * 100}%` }}
+                      ></div>
+                    </div>
+                    <p className="text-sm text-blue-700">
+                      Current: {renamingProgress.currentAdName}
+                    </p>
+                    <p className="text-xs text-blue-600 mt-1">
+                      Estimated time remaining: {Math.ceil((renamingProgress.total - renamingProgress.current) * 2)} seconds
+                    </p>
+                  </div>
+                )}
               </div>
             ) : (
               /* Results View */

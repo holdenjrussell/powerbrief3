@@ -23,6 +23,8 @@ export async function POST(req: NextRequest) {
       .select(`
         id,
         concept_title,
+        video_editor,
+        strategist,
         brief_batches:brief_batch_id (
           id,
           name,
@@ -154,6 +156,8 @@ export async function POST(req: NextRequest) {
         app_status: 'DRAFT', // This is the Meta Upload Status (always starts as DRAFT)
         site_links: settings.siteLinks,
         advantage_plus_creative: settings.advantageCreative,
+        video_editor: basicConcept.video_editor,
+        strategist: basicConcept.strategist,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };

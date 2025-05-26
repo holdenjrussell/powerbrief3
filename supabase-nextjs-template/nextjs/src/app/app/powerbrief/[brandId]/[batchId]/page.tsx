@@ -333,7 +333,7 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                     };
                     
                     const batchShareSettings = {
-                        is_editable: false,
+                        is_editable: true,
                         expires_at: null
                     };
                     
