@@ -395,91 +395,19 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
         // For very large files (>50MB), use API route upload to bypass client limits
         const isVeryLargeFile = file.size > 50 * 1024 * 1024; // 50MB threshold
         
-        let uploadResult;
+        // Use direct Supabase upload for all files to bypass Vercel limits
+        logger.info('Using direct Supabase upload', { 
+          fileName: file.name,
+          fileSize: file.size 
+        });
         
-        if (isVeryLargeFile) {
-          logger.info('Using API route upload for very large file', { 
-            fileName: file.name,
-            fileSize: file.size 
+        // Direct upload to Supabase Storage
+        const uploadResult = await supabase.storage
+          .from('ad-creatives')
+          .upload(filePath, file, {
+            cacheControl: '3600',
+            upsert: false,
           });
-          
-          // Use API route for large file uploads
-          const formData = new FormData();
-          formData.append('file', file);
-          formData.append('filePath', filePath);
-          formData.append('conceptId', conceptId);
-          formData.append('userId', userId);
-          
-          const response = await fetch('/api/upload-large-asset', {
-            method: 'POST',
-            body: formData,
-          });
-          
-          if (!response.ok) {
-            const errorData = await response.json().catch(() => ({ error: 'Upload failed' }));
-            throw new Error(errorData.error || `Upload failed with status ${response.status}`);
-          }
-          
-          const result = await response.json();
-          uploadResult = { data: { path: filePath }, error: null };
-          
-          // Set the public URL from API response
-          const publicUrl = result.publicUrl;
-          
-          const uploadedAsset: UploadedAsset = {
-            id: assetFile.id,
-            name: file.name,
-            supabaseUrl: publicUrl,
-            type: file.type.startsWith('image/') ? 'image' : 'video',
-            aspectRatio: assetFile.detectedRatio || 'unknown',
-            baseName: assetFile.baseName || file.name
-          };
-
-          uploadedAssets.push(uploadedAsset);
-
-          setSelectedFiles(prev => prev.map(sf => 
-            sf.id === assetFile.id ? { ...sf, uploading: false, supabaseUrl: publicUrl } : sf
-          ));
-          
-          const uploadDuration = Date.now() - fileUploadStartTime;
-          successCount++;
-
-          logger.info('Large file upload via API successful', { 
-            fileName: file.name,
-            publicUrl,
-            uploadDuration,
-            fileSize: file.size,
-            uploadSpeed: (file.size / 1024 / 1024) / (uploadDuration / 1000) // MB/s
-          });
-          
-          continue; // Skip the direct Supabase upload
-        } else {
-          // For smaller files, use direct Supabase upload with enhanced options
-          const isLargeFile = file.size > 10 * 1024 * 1024; // 10MB threshold for enhanced options
-          
-          if (isLargeFile) {
-            logger.info('Using enhanced direct upload for large file', { 
-              fileName: file.name,
-              fileSize: file.size 
-            });
-            
-            // For large files, try with extended timeout and specific options
-            uploadResult = await supabase.storage
-              .from('ad-creatives')
-              .upload(filePath, file, {
-                cacheControl: '3600',
-                upsert: false,
-              });
-          } else {
-            // Standard upload for smaller files
-            uploadResult = await supabase.storage
-              .from('ad-creatives')
-              .upload(filePath, file, {
-                cacheControl: '3600',
-                upsert: false,
-              });
-          }
-        }
 
         const { data, error } = uploadResult;
 
@@ -491,7 +419,6 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
             filePath,
             error: error,
             errorMessage: error.message,
-            errorCode: error.statusCode || 'unknown',
             isVeryLargeFile,
             isLargeFile: file.size > 10 * 1024 * 1024
           });
@@ -599,61 +526,11 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
         
         // If we should retry with API and haven't already tried it, attempt API upload
         if (shouldRetryWithAPI && file.size > 50 * 1024 * 1024) {
-          try {
-            logger.info('Retrying large file upload via API route', { 
-              fileName: file.name,
-              fileSize: file.size 
-            });
-            
-            const formData = new FormData();
-            formData.append('file', file);
-            formData.append('filePath', filePath);
-            formData.append('conceptId', conceptId);
-            formData.append('userId', userId);
-            
-            const response = await fetch('/api/upload-large-asset', {
-              method: 'POST',
-              body: formData,
-            });
-            
-            if (response.ok) {
-              const result = await response.json();
-              const publicUrl = result.publicUrl;
-              
-              const uploadedAsset: UploadedAsset = {
-                id: assetFile.id,
-                name: file.name,
-                supabaseUrl: publicUrl,
-                type: file.type.startsWith('image/') ? 'image' : 'video',
-                aspectRatio: assetFile.detectedRatio || 'unknown',
-                baseName: assetFile.baseName || file.name
-              };
-
-              uploadedAssets.push(uploadedAsset);
-
-              setSelectedFiles(prev => prev.map(sf => 
-                sf.id === assetFile.id ? { ...sf, uploading: false, supabaseUrl: publicUrl } : sf
-              ));
-              
-              const uploadDuration = Date.now() - fileUploadStartTime;
-              successCount++;
-
-              logger.info('Retry upload via API successful', { 
-                fileName: file.name,
-                publicUrl,
-                uploadDuration,
-                fileSize: file.size
-              });
-              
-              continue; // Skip error handling, upload was successful
-            } else {
-              const errorData = await response.json().catch(() => ({ error: 'API upload failed' }));
-              errorMessage = `Both direct and API upload failed: ${errorData.error}`;
-            }
-          } catch (apiError) {
-            logger.error('API retry upload also failed', { fileName: file.name, apiError });
-            errorMessage = `Both direct and API upload failed. File may be too large.`;
-          }
+          // API retry removed - using direct Supabase uploads only
+          logger.info('Skipping API retry - using direct uploads only', { 
+            fileName: file.name,
+            fileSize: file.size 
+          });
         }
         
         const uploadDuration = Date.now() - fileUploadStartTime;

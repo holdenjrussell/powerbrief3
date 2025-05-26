@@ -1,5 +1,10 @@
 {
   "buildCommand": "NEXT_SKIP_TYPE_CHECK=1 SKIP_TSC=true next build --no-lint",
   "ignoreCommand": "node -e \"process.exit(1)\"",
-  "installCommand": "npm install"
+  "installCommand": "npm install",
+  "functions": {
+    "app/api/upload-large-asset/route.ts": {
+      "maxDuration": 300
+    }
+  }
 }
