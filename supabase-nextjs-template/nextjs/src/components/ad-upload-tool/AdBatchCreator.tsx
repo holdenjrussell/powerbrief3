@@ -204,21 +204,24 @@ const AdBatchCreator: React.FC<AdBatchCreatorProps> = ({ onDefaultsSet, initialD
     }
   };
 
-  const handleCampaignSelect = (campaignId: string | null) => {
+  const handleCampaignSelect = (campaignId: string | null, campaignName?: string | null) => {
     setSelectedCampaignId(campaignId);
     setSelectedAdSetId(null); // Reset ad set when campaign changes
     setDefaultValues(prev => ({
       ...prev,
       campaignId: campaignId,
+      campaignName: campaignName, // Store campaign name for fallback
       adSetId: null, // Reset adSetId in defaults
+      adSetName: null, // Reset adSetName in defaults
     }));
   };
 
-  const handleAdSetSelect = (adSetId: string | null) => {
+  const handleAdSetSelect = (adSetId: string | null, adSetName?: string | null) => {
     setSelectedAdSetId(adSetId);
     setDefaultValues(prev => ({
       ...prev,
       adSetId: adSetId,
+      adSetName: adSetName, // Store ad set name for fallback
     }));
   };
 
@@ -311,7 +314,7 @@ const AdBatchCreator: React.FC<AdBatchCreatorProps> = ({ onDefaultsSet, initialD
                         brandId={selectedBrand.id}
                         adAccountId={defaultValues.adAccountId}
                         selectedCampaignId={selectedCampaignId}
-                        onCampaignSelect={handleCampaignSelect}
+                        onCampaignSelect={(campaignId, campaignName) => handleCampaignSelect(campaignId, campaignName)}
                         disabled={!defaultValues.adAccountId}
                     />
                     </div>
@@ -324,7 +327,7 @@ const AdBatchCreator: React.FC<AdBatchCreatorProps> = ({ onDefaultsSet, initialD
                         adAccountId={defaultValues.adAccountId}
                         campaignId={selectedCampaignId}
                         selectedAdSetId={selectedAdSetId}
-                        onAdSetSelect={handleAdSetSelect}
+                        onAdSetSelect={(adSetId, adSetName) => handleAdSetSelect(adSetId, adSetName)}
                         disabled={!selectedCampaignId}
                     />
                     </div>
@@ -375,7 +378,7 @@ const AdBatchCreator: React.FC<AdBatchCreatorProps> = ({ onDefaultsSet, initialD
                   brandId={selectedBrand.id}
                   adAccountId={defaultValues.adAccountId}
                   selectedCampaignId={selectedCampaignId}
-                  onCampaignSelect={handleCampaignSelect}
+                  onCampaignSelect={(campaignId, campaignName) => handleCampaignSelect(campaignId, campaignName)}
                   disabled={!defaultValues.adAccountId}
                 />
               </div>
@@ -389,7 +392,7 @@ const AdBatchCreator: React.FC<AdBatchCreatorProps> = ({ onDefaultsSet, initialD
                   adAccountId={defaultValues.adAccountId} // Pass adAccountId for completeness or future use
                   campaignId={selectedCampaignId}
                   selectedAdSetId={selectedAdSetId}
-                  onAdSetSelect={handleAdSetSelect}
+                  onAdSetSelect={(adSetId, adSetName) => handleAdSetSelect(adSetId, adSetName)}
                   disabled={!selectedCampaignId}
                 />
               </div>

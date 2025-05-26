@@ -232,7 +232,9 @@ const AdUploadToolPage = () => {
     try {
       const settings: AdConfigurationSettings = {
         campaignId: currentDefaults.campaignId,
+        campaignName: currentDefaults.campaignName,
         adSetId: currentDefaults.adSetId,
+        adSetName: currentDefaults.adSetName,
         urlParams: currentDefaults.urlParams,
         status: currentDefaults.status,
         primaryText: currentDefaults.primaryText,
@@ -267,7 +269,7 @@ const AdUploadToolPage = () => {
       }
     } catch (error) {
       console.error('Error saving configuration:', error);
-      alert('Failed to save configuration');
+      alert('Failed to save configuration. Please try again.');
     }
   };
 
