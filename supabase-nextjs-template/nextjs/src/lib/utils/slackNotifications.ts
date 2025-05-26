@@ -22,6 +22,97 @@ interface SlackNotificationData {
   failedAds: number;
 }
 
+// New interfaces for concept notifications
+interface ConceptSubmissionData {
+  brandId: string;
+  conceptId: string;
+  conceptTitle: string;
+  batchName: string;
+  videoEditor?: string;
+  reviewLink?: string;
+  publicShareUrl: string;
+  reviewDashboardUrl: string;
+  hasUploadedAssets: boolean;
+}
+
+interface ConceptRevisionData {
+  brandId: string;
+  conceptId: string;
+  conceptTitle: string;
+  batchName: string;
+  videoEditor?: string;
+  feedback: string;
+  publicShareUrl: string;
+  reviewDashboardUrl: string;
+}
+
+interface ConceptApprovalData {
+  brandId: string;
+  conceptId: string;
+  conceptTitle: string;
+  batchName: string;
+  videoEditor?: string;
+  reviewerNotes?: string;
+  publicShareUrl: string;
+  uploadToolUrl: string;
+}
+
+interface ConceptReadyForEditorData {
+  brandId: string;
+  conceptId: string;
+  conceptTitle: string;
+  batchName: string;
+  assignedEditor?: string;
+  assignedStrategist?: string;
+  conceptShareUrl: string;
+  batchShareUrl: string;
+}
+
+interface BrandSlackSettings {
+  name: string;
+  slack_webhook_url: string;
+  slack_channel_name?: string;
+  slack_notifications_enabled: boolean;
+  slack_channel_config?: {
+    default?: string;
+    concept_submission?: string;
+    concept_revision?: string;
+    concept_approval?: string;
+    concept_ready_for_editor?: string;
+    ad_launch?: string;
+  };
+}
+
+// Helper function to get the appropriate channel for a notification type
+function getChannelForNotificationType(
+  brand: BrandSlackSettings, 
+  notificationType: 'concept_submission' | 'concept_revision' | 'concept_approval' | 'concept_ready_for_editor' | 'ad_launch'
+): string | undefined {
+  const channelConfig = brand.slack_channel_config || {};
+  
+  // First, try to get the specific channel for this notification type
+  const specificChannel = channelConfig[notificationType];
+  if (specificChannel) {
+    return specificChannel.startsWith('#') ? specificChannel : `#${specificChannel}`;
+  }
+  
+  // Fall back to the default channel from config
+  const defaultChannel = channelConfig.default;
+  if (defaultChannel) {
+    return defaultChannel.startsWith('#') ? defaultChannel : `#${defaultChannel}`;
+  }
+  
+  // Fall back to the legacy channel name field
+  if (brand.slack_channel_name) {
+    return brand.slack_channel_name.startsWith('#') 
+      ? brand.slack_channel_name 
+      : `#${brand.slack_channel_name}`;
+  }
+  
+  // No channel override - use webhook default
+  return undefined;
+}
+
 export async function sendSlackNotification(data: SlackNotificationData): Promise<void> {
   try {
     const supabase = await createSSRClient();
@@ -30,7 +121,7 @@ export async function sendSlackNotification(data: SlackNotificationData): Promis
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: brand, error: brandError } = await supabase
       .from('brands' as any)
-      .select('name, slack_webhook_url, slack_channel_name, slack_notifications_enabled')
+      .select('name, slack_webhook_url, slack_channel_name, slack_notifications_enabled, slack_channel_config')
       .eq('id', data.brandId)
       .single();
 
@@ -39,8 +130,10 @@ export async function sendSlackNotification(data: SlackNotificationData): Promis
       return;
     }
 
+    const typedBrand = brand as unknown as BrandSlackSettings;
+
     // Check if Slack notifications are enabled
-    if (!brand.slack_notifications_enabled || !brand.slack_webhook_url) {
+    if (!typedBrand.slack_notifications_enabled || !typedBrand.slack_webhook_url) {
       console.log('Slack notifications not enabled for brand:', data.brandId);
       return;
     }
@@ -75,7 +168,7 @@ export async function sendSlackNotification(data: SlackNotificationData): Promis
 
     // Create Slack message
     const message = createSlackMessage({
-      brandName: brand.name,
+      brandName: typedBrand.name,
       batchName: data.batchName,
       campaignName,
       adSetName,
@@ -88,16 +181,14 @@ export async function sendSlackNotification(data: SlackNotificationData): Promis
       adSetId: data.adSetId
     });
 
-    // Add channel override if specified
-    if (brand.slack_channel_name) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (message as any).channel = brand.slack_channel_name.startsWith('#') 
-        ? brand.slack_channel_name 
-        : `#${brand.slack_channel_name}`;
+    // Add channel override for ad launch notifications
+    const channelOverride = getChannelForNotificationType(typedBrand, 'ad_launch');
+    if (channelOverride) {
+      (message as { channel?: string }).channel = channelOverride;
     }
 
     // Send to Slack
-    const response = await fetch(brand.slack_webhook_url, {
+    const response = await fetch(typedBrand.slack_webhook_url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -114,6 +205,263 @@ export async function sendSlackNotification(data: SlackNotificationData): Promis
 
   } catch (error) {
     console.error('Error sending Slack notification:', error);
+  }
+}
+
+// New function for concept submission notifications
+export async function sendConceptSubmissionNotification(data: ConceptSubmissionData): Promise<void> {
+  try {
+    const supabase = await createSSRClient();
+    
+    // Get brand Slack settings
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: brand, error: brandError } = await supabase
+      .from('brands' as any)
+      .select('name, slack_webhook_url, slack_channel_name, slack_notifications_enabled, slack_channel_config')
+      .eq('id', data.brandId)
+      .single();
+
+    if (brandError || !brand) {
+      console.error('Error fetching brand for concept submission notification:', brandError);
+      return;
+    }
+
+    const typedBrand = brand as unknown as BrandSlackSettings;
+
+    // Check if Slack notifications are enabled
+    if (!typedBrand.slack_notifications_enabled || !typedBrand.slack_webhook_url) {
+      console.log('Slack notifications not enabled for brand:', data.brandId);
+      return;
+    }
+
+    // Create Slack message for concept submission
+    const message = createConceptSubmissionMessage({
+      brandName: typedBrand.name,
+      conceptTitle: data.conceptTitle,
+      batchName: data.batchName,
+      videoEditor: data.videoEditor,
+      reviewLink: data.reviewLink,
+      publicShareUrl: data.publicShareUrl,
+      reviewDashboardUrl: data.reviewDashboardUrl,
+      hasUploadedAssets: data.hasUploadedAssets
+    });
+
+    // Add channel override for concept submission notifications
+    const channelOverride = getChannelForNotificationType(typedBrand, 'concept_submission');
+    if (channelOverride) {
+      (message as { channel?: string }).channel = channelOverride;
+    }
+
+    // Send to Slack
+    const response = await fetch(typedBrand.slack_webhook_url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(message),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Failed to send concept submission notification:', response.status, errorText);
+    } else {
+      console.log('Concept submission notification sent successfully for brand:', data.brandId);
+    }
+
+  } catch (error) {
+    console.error('Error sending concept submission notification:', error);
+  }
+}
+
+// New function for concept revision notifications
+export async function sendConceptRevisionNotification(data: ConceptRevisionData): Promise<void> {
+  try {
+    const supabase = await createSSRClient();
+    
+    // Get brand Slack settings
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: brand, error: brandError } = await supabase
+      .from('brands' as any)
+      .select('name, slack_webhook_url, slack_channel_name, slack_notifications_enabled, slack_channel_config')
+      .eq('id', data.brandId)
+      .single();
+
+    if (brandError || !brand) {
+      console.error('Error fetching brand for concept revision notification:', brandError);
+      return;
+    }
+
+    const typedBrand = brand as unknown as BrandSlackSettings;
+
+    // Check if Slack notifications are enabled
+    if (!typedBrand.slack_notifications_enabled || !typedBrand.slack_webhook_url) {
+      console.log('Slack notifications not enabled for brand:', data.brandId);
+      return;
+    }
+
+    // Create Slack message for concept revision
+    const message = createConceptRevisionMessage({
+      brandName: typedBrand.name,
+      conceptTitle: data.conceptTitle,
+      batchName: data.batchName,
+      videoEditor: data.videoEditor,
+      feedback: data.feedback,
+      publicShareUrl: data.publicShareUrl,
+      reviewDashboardUrl: data.reviewDashboardUrl
+    });
+
+    // Add channel override for concept revision notifications
+    const channelOverride = getChannelForNotificationType(typedBrand, 'concept_revision');
+    if (channelOverride) {
+      (message as { channel?: string }).channel = channelOverride;
+    }
+
+    // Send to Slack
+    const response = await fetch(typedBrand.slack_webhook_url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(message),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Failed to send concept revision notification:', response.status, errorText);
+    } else {
+      console.log('Concept revision notification sent successfully for brand:', data.brandId);
+    }
+
+  } catch (error) {
+    console.error('Error sending concept revision notification:', error);
+  }
+}
+
+// New function for concept approval notifications
+export async function sendConceptApprovalNotification(data: ConceptApprovalData): Promise<void> {
+  try {
+    const supabase = await createSSRClient();
+    
+    // Get brand Slack settings
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: brand, error: brandError } = await supabase
+      .from('brands' as any)
+      .select('name, slack_webhook_url, slack_channel_name, slack_notifications_enabled, slack_channel_config')
+      .eq('id', data.brandId)
+      .single();
+
+    if (brandError || !brand) {
+      console.error('Error fetching brand for concept approval notification:', brandError);
+      return;
+    }
+
+    const typedBrand = brand as unknown as BrandSlackSettings;
+
+    // Check if Slack notifications are enabled
+    if (!typedBrand.slack_notifications_enabled || !typedBrand.slack_webhook_url) {
+      console.log('Slack notifications not enabled for brand:', data.brandId);
+      return;
+    }
+
+    // Create Slack message for concept approval
+    const message = createConceptApprovalMessage({
+      brandName: typedBrand.name,
+      conceptTitle: data.conceptTitle,
+      batchName: data.batchName,
+      videoEditor: data.videoEditor,
+      reviewerNotes: data.reviewerNotes,
+      publicShareUrl: data.publicShareUrl,
+      uploadToolUrl: data.uploadToolUrl
+    });
+
+    // Add channel override for concept approval notifications
+    const channelOverride = getChannelForNotificationType(typedBrand, 'concept_approval');
+    if (channelOverride) {
+      (message as { channel?: string }).channel = channelOverride;
+    }
+
+    // Send to Slack
+    const response = await fetch(typedBrand.slack_webhook_url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(message),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Failed to send concept approval notification:', response.status, errorText);
+    } else {
+      console.log('Concept approval notification sent successfully for brand:', data.brandId);
+    }
+
+  } catch (error) {
+    console.error('Error sending concept approval notification:', error);
+  }
+}
+
+// New function for concept ready for editor notifications
+export async function sendConceptReadyForEditorNotification(data: ConceptReadyForEditorData): Promise<void> {
+  try {
+    const supabase = await createSSRClient();
+    
+    // Get brand Slack settings
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: brand, error: brandError } = await supabase
+      .from('brands' as any)
+      .select('name, slack_webhook_url, slack_channel_name, slack_notifications_enabled, slack_channel_config')
+      .eq('id', data.brandId)
+      .single();
+
+    if (brandError || !brand) {
+      console.error('Error fetching brand for concept ready for editor notification:', brandError);
+      return;
+    }
+
+    const typedBrand = brand as unknown as BrandSlackSettings;
+
+    // Check if Slack notifications are enabled
+    if (!typedBrand.slack_notifications_enabled || !typedBrand.slack_webhook_url) {
+      console.log('Slack notifications not enabled for brand:', data.brandId);
+      return;
+    }
+
+    // Create Slack message for concept ready for editor
+    const message = createConceptReadyForEditorMessage({
+      brandName: typedBrand.name,
+      conceptTitle: data.conceptTitle,
+      batchName: data.batchName,
+      assignedEditor: data.assignedEditor,
+      assignedStrategist: data.assignedStrategist,
+      conceptShareUrl: data.conceptShareUrl,
+      batchShareUrl: data.batchShareUrl
+    });
+
+    // Add channel override for concept ready for editor notifications
+    const channelOverride = getChannelForNotificationType(typedBrand, 'concept_ready_for_editor');
+    if (channelOverride) {
+      (message as { channel?: string }).channel = channelOverride;
+    }
+
+    // Send to Slack
+    const response = await fetch(typedBrand.slack_webhook_url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(message),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Failed to send concept ready for editor notification:', response.status, errorText);
+    } else {
+      console.log('Concept ready for editor notification sent successfully for brand:', data.brandId);
+    }
+
+  } catch (error) {
+    console.error('Error sending concept ready for editor notification:', error);
   }
 }
 
@@ -274,6 +622,468 @@ function createSlackMessage(data: SlackMessageData) {
     attachments: [
       {
         color: statusColor,
+        blocks: blocks
+      }
+    ]
+  };
+}
+
+// New message creation functions for concept notifications
+interface ConceptSubmissionMessageData {
+  brandName: string;
+  conceptTitle: string;
+  batchName: string;
+  videoEditor?: string;
+  reviewLink?: string;
+  publicShareUrl: string;
+  reviewDashboardUrl: string;
+  hasUploadedAssets: boolean;
+}
+
+function createConceptSubmissionMessage(data: ConceptSubmissionMessageData) {
+  const {
+    brandName,
+    conceptTitle,
+    batchName,
+    videoEditor,
+    reviewLink,
+    publicShareUrl,
+    reviewDashboardUrl,
+    hasUploadedAssets
+  } = data;
+
+  const blocks = [
+    {
+      type: "header",
+      text: {
+        type: "plain_text",
+        text: "📝 New Concept Submitted for Review",
+        emoji: true
+      }
+    },
+    {
+      type: "section",
+      fields: [
+        {
+          type: "mrkdwn",
+          text: `*Brand:*\n${brandName}`
+        },
+        {
+          type: "mrkdwn",
+          text: `*Batch:*\n${batchName}`
+        },
+        {
+          type: "mrkdwn",
+          text: `*Concept:*\n${conceptTitle}`
+        },
+        {
+          type: "mrkdwn",
+          text: `*Creator:*\n${videoEditor || 'Not assigned'}`
+        }
+      ]
+    },
+    {
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: `*Content Type:*\n${hasUploadedAssets ? '📁 Uploaded Assets' : '🔗 Frame.io Link'}`
+      }
+    }
+  ];
+
+  // Add Frame.io link if available
+  if (reviewLink && !hasUploadedAssets) {
+    blocks.push({
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: `*Frame.io Link:*\n<${reviewLink}|View on Frame.io>`
+      }
+    });
+  }
+
+  // Add action buttons
+  blocks.push({
+    type: "actions",
+    elements: [
+      {
+        type: "button",
+        text: {
+          type: "plain_text",
+          text: "View Public Share",
+          emoji: true
+        },
+        url: publicShareUrl,
+        style: "primary"
+      },
+      {
+        type: "button",
+        text: {
+          type: "plain_text",
+          text: "Review & Approve",
+          emoji: true
+        },
+        url: reviewDashboardUrl
+      }
+    ]
+  });
+
+  // Add timestamp
+  blocks.push({
+    type: "context",
+    elements: [
+      {
+        type: "mrkdwn",
+        text: `Submitted at ${new Date().toLocaleString()}`
+      }
+    ]
+  });
+
+  return {
+    text: `📝 New Concept Submitted - ${conceptTitle} (${brandName})`,
+    attachments: [
+      {
+        color: "warning",
+        blocks: blocks
+      }
+    ]
+  };
+}
+
+interface ConceptRevisionMessageData {
+  brandName: string;
+  conceptTitle: string;
+  batchName: string;
+  videoEditor?: string;
+  feedback: string;
+  publicShareUrl: string;
+  reviewDashboardUrl: string;
+}
+
+function createConceptRevisionMessage(data: ConceptRevisionMessageData) {
+  const {
+    brandName,
+    conceptTitle,
+    batchName,
+    videoEditor,
+    feedback,
+    publicShareUrl,
+    reviewDashboardUrl
+  } = data;
+
+  const blocks = [
+    {
+      type: "header",
+      text: {
+        type: "plain_text",
+        text: "🔄 Concept Revisions Requested",
+        emoji: true
+      }
+    },
+    {
+      type: "section",
+      fields: [
+        {
+          type: "mrkdwn",
+          text: `*Brand:*\n${brandName}`
+        },
+        {
+          type: "mrkdwn",
+          text: `*Batch:*\n${batchName}`
+        },
+        {
+          type: "mrkdwn",
+          text: `*Concept:*\n${conceptTitle}`
+        },
+        {
+          type: "mrkdwn",
+          text: `*Creator:*\n${videoEditor || 'Not assigned'}`
+        }
+      ]
+    },
+    {
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: `*Feedback:*\n${feedback}`
+      }
+    },
+    {
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: "*Next Steps:*\nPlease review the feedback, make the requested changes, and resubmit the concept for review."
+      }
+    }
+  ];
+
+  // Add action buttons
+  blocks.push({
+    type: "actions",
+    elements: [
+      {
+        type: "button",
+        text: {
+          type: "plain_text",
+          text: "View & Revise",
+          emoji: true
+        },
+        url: publicShareUrl,
+        style: "primary"
+      },
+      {
+        type: "button",
+        text: {
+          type: "plain_text",
+          text: "Review Dashboard",
+          emoji: true
+        },
+        url: reviewDashboardUrl
+      }
+    ]
+  });
+
+  // Add timestamp
+  blocks.push({
+    type: "context",
+    elements: [
+      {
+        type: "mrkdwn",
+        text: `Revisions requested at ${new Date().toLocaleString()}`
+      }
+    ]
+  });
+
+  return {
+    text: `🔄 Revisions Requested - ${conceptTitle} (${brandName})`,
+    attachments: [
+      {
+        color: "danger",
+        blocks: blocks
+      }
+    ]
+  };
+}
+
+interface ConceptApprovalMessageData {
+  brandName: string;
+  conceptTitle: string;
+  batchName: string;
+  videoEditor?: string;
+  reviewerNotes?: string;
+  publicShareUrl: string;
+  uploadToolUrl: string;
+}
+
+function createConceptApprovalMessage(data: ConceptApprovalMessageData) {
+  const {
+    brandName,
+    conceptTitle,
+    batchName,
+    videoEditor,
+    reviewerNotes,
+    publicShareUrl,
+    uploadToolUrl
+  } = data;
+
+  const blocks = [
+    {
+      type: "header",
+      text: {
+        type: "plain_text",
+        text: "✅ Concept Approved!",
+        emoji: true
+      }
+    },
+    {
+      type: "section",
+      fields: [
+        {
+          type: "mrkdwn",
+          text: `*Brand:*\n${brandName}`
+        },
+        {
+          type: "mrkdwn",
+          text: `*Batch:*\n${batchName}`
+        },
+        {
+          type: "mrkdwn",
+          text: `*Concept:*\n${conceptTitle}`
+        },
+        {
+          type: "mrkdwn",
+          text: `*Creator:*\n${videoEditor || 'Not assigned'}`
+        }
+      ]
+    }
+  ];
+
+  // Add reviewer notes if available
+  if (reviewerNotes) {
+    blocks.push({
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: `*Reviewer Notes:*\n${reviewerNotes}`
+      }
+    });
+  }
+
+  blocks.push({
+    type: "section",
+    text: {
+      type: "mrkdwn",
+      text: "*Status:* ✅ Ready for Meta upload via the Ad Upload Tool"
+    }
+  });
+
+  // Add action buttons
+  blocks.push({
+    type: "actions",
+    elements: [
+      {
+        type: "button",
+        text: {
+          type: "plain_text",
+          text: "View Concept",
+          emoji: true
+        },
+        url: publicShareUrl
+      },
+      {
+        type: "button",
+        text: {
+          type: "plain_text",
+          text: "Upload to Meta",
+          emoji: true
+        },
+        url: uploadToolUrl,
+        style: "primary"
+      }
+    ]
+  });
+
+  // Add timestamp
+  blocks.push({
+    type: "context",
+    elements: [
+      {
+        type: "mrkdwn",
+        text: `Approved at ${new Date().toLocaleString()}`
+      }
+    ]
+  });
+
+  return {
+    text: `✅ Concept Approved - ${conceptTitle} (${brandName})`,
+    attachments: [
+      {
+        color: "good",
+        blocks: blocks
+      }
+    ]
+  };
+}
+
+// New function for concept ready for editor notifications
+interface ConceptReadyForEditorMessageData {
+  brandName: string;
+  conceptTitle: string;
+  batchName: string;
+  assignedEditor?: string;
+  assignedStrategist?: string;
+  conceptShareUrl: string;
+  batchShareUrl: string;
+}
+
+function createConceptReadyForEditorMessage(data: ConceptReadyForEditorMessageData) {
+  const {
+    brandName,
+    conceptTitle,
+    batchName,
+    assignedEditor,
+    assignedStrategist,
+    conceptShareUrl,
+    batchShareUrl
+  } = data;
+
+  const blocks = [
+    {
+      type: "header",
+      text: {
+        type: "plain_text",
+        text: "✅ Concept Ready for Editor",
+        emoji: true
+      }
+    },
+    {
+      type: "section",
+      fields: [
+        {
+          type: "mrkdwn",
+          text: `*Brand:*\n${brandName}`
+        },
+        {
+          type: "mrkdwn",
+          text: `*Batch:*\n${batchName}`
+        },
+        {
+          type: "mrkdwn",
+          text: `*Concept:*\n${conceptTitle}`
+        },
+        {
+          type: "mrkdwn",
+          text: `*Assigned Editor:*\n${assignedEditor || 'Not assigned'}`
+        },
+        {
+          type: "mrkdwn",
+          text: `*Assigned Strategist:*\n${assignedStrategist || 'Not assigned'}`
+        }
+      ]
+    }
+  ];
+
+  // Add action buttons
+  blocks.push({
+    type: "actions",
+    elements: [
+      {
+        type: "button",
+        text: {
+          type: "plain_text",
+          text: "View Concept",
+          emoji: true
+        },
+        url: conceptShareUrl
+      },
+      {
+        type: "button",
+        text: {
+          type: "plain_text",
+          text: "View Batch",
+          emoji: true
+        },
+        url: batchShareUrl
+      }
+    ]
+  });
+
+  // Add timestamp
+  blocks.push({
+    type: "context",
+    elements: [
+      {
+        type: "mrkdwn",
+        text: `Ready for editor at ${new Date().toLocaleString()}`
+      }
+    ]
+  });
+
+  return {
+    text: `✅ Concept Ready for Editor - ${conceptTitle} (${brandName})`,
+    attachments: [
+      {
+        color: "good",
         blocks: blocks
       }
     ]

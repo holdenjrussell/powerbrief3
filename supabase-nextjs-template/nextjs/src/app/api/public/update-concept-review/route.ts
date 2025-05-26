@@ -1,7 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import { Database } from '@/lib/types';
-import { DbBriefConcept, ShareSettings } from '@/lib/types/powerbrief';
+import { DbBriefConcept, ShareSettings, UploadedAssetGroup } from '@/lib/types/powerbrief';
+import { sendConceptSubmissionNotification } from '@/lib/utils/slackNotifications';
 
 // Create a Supabase client with the service role key for admin access
 // Making sure environment variables are properly loaded
@@ -20,6 +21,19 @@ const supabaseAdmin = createClient<Database>(
   supabaseServiceKey!
 );
 
+interface ConceptWithBatch extends DbBriefConcept {
+  brief_batches: {
+    id: string;
+    name: string;
+    brand_id: string;
+    brands: {
+      id: string;
+      name: string;
+    };
+  };
+  uploaded_assets?: UploadedAssetGroup[];
+}
+
 export async function POST(request: NextRequest) {
   try {
     // Log environment variables availability for debugging
@@ -37,10 +51,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify that this share ID is valid for this concept
+    // Verify that this share ID is valid for this concept and get related data
     const { data: concept, error: getError } = await supabaseAdmin
-      .from('brief_concepts')
-      .select('*')
+      .from('brief_concepts' as keyof Database['public']['Tables'])
+      .select(`
+        *,
+        brief_batches!inner (
+          id,
+          name,
+          brand_id,
+          brands!inner (
+            id,
+            name
+          )
+        )
+      `)
       .eq('id', conceptId)
       .contains('share_settings', { [shareId]: {} })
       .single();
@@ -54,7 +79,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Convert to properly typed object
-    const typedConcept = concept as unknown as DbBriefConcept;
+    const typedConcept = concept as unknown as ConceptWithBatch;
     
     // Verify the share settings allow editing
     const shareSettings = typedConcept.share_settings?.[shareId] as ShareSettings;
@@ -67,7 +92,7 @@ export async function POST(request: NextRequest) {
 
     // Update the concept with admin permissions
     const { data: updatedConcept, error: updateError } = await supabaseAdmin
-      .from('brief_concepts')
+      .from('brief_concepts' as keyof Database['public']['Tables'])
       .update({
         review_status: 'ready_for_review',
         status: 'READY FOR REVIEW',
@@ -84,6 +109,28 @@ export async function POST(request: NextRequest) {
         { error: 'Failed to update review status' },
         { status: 500 }
       );
+    }
+
+    // Send Slack notification for concept submission
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+      const publicShareUrl = `${baseUrl}/public/concept/${shareId}/${conceptId}`;
+      const reviewDashboardUrl = `${baseUrl}/app/reviews`;
+
+      await sendConceptSubmissionNotification({
+        brandId: typedConcept.brief_batches.brand_id,
+        conceptId: conceptId,
+        conceptTitle: typedConcept.concept_title,
+        batchName: typedConcept.brief_batches.name,
+        videoEditor: typedConcept.video_editor,
+        reviewLink: reviewLink,
+        publicShareUrl: publicShareUrl,
+        reviewDashboardUrl: reviewDashboardUrl,
+        hasUploadedAssets: Boolean(typedConcept.uploaded_assets && typedConcept.uploaded_assets.length > 0)
+      });
+    } catch (slackError) {
+      console.error('Failed to send Slack notification for concept submission:', slackError);
+      // Don't fail the entire request if Slack notification fails
     }
 
     return NextResponse.json(updatedConcept);

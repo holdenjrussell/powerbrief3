@@ -6,6 +6,13 @@ interface SaveSlackSettingsRequest {
   webhookUrl: string;
   channelName?: string | null;
   notificationsEnabled: boolean;
+  channelConfig?: {
+    default?: string | null;
+    concept_submission?: string | null;
+    concept_revision?: string | null;
+    concept_approval?: string | null;
+    ad_launch?: string | null;
+  };
 }
 
 interface BrandSlackUpdateData {
@@ -13,12 +20,13 @@ interface BrandSlackUpdateData {
   slack_webhook_url: string;
   slack_channel_name?: string | null;
   slack_notifications_enabled: boolean;
+  slack_channel_config?: Record<string, string | null>;
 }
 
 export async function POST(request: NextRequest) {
   try {
     const body: SaveSlackSettingsRequest = await request.json();
-    const { brandId, webhookUrl, channelName, notificationsEnabled } = body;
+    const { brandId, webhookUrl, channelName, notificationsEnabled, channelConfig } = body;
 
     if (!brandId) {
       return NextResponse.json(
@@ -74,6 +82,17 @@ export async function POST(request: NextRequest) {
       slack_notifications_enabled: notificationsEnabled,
       updated_at: new Date().toISOString()
     };
+
+    // Add channel configuration if provided
+    if (channelConfig) {
+      updateData.slack_channel_config = {
+        default: channelConfig.default?.trim() || null,
+        concept_submission: channelConfig.concept_submission?.trim() || null,
+        concept_revision: channelConfig.concept_revision?.trim() || null,
+        concept_approval: channelConfig.concept_approval?.trim() || null,
+        ad_launch: channelConfig.ad_launch?.trim() || null
+      };
+    }
     
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: updatedBrand, error: updateError } = await supabase
@@ -83,24 +102,21 @@ export async function POST(request: NextRequest) {
       .select()
       .single();
 
-    if (updateError || !updatedBrand) {
-      console.error('Error updating brand with Slack settings:', updateError);
+    if (updateError) {
+      console.error('Error updating brand Slack settings:', updateError);
       return NextResponse.json(
-        { error: 'Failed to update brand with Slack settings' },
+        { error: 'Failed to update Slack settings' },
         { status: 500 }
       );
     }
 
-    console.log('Successfully updated Slack settings for brand:', brandId);
-    
-    return NextResponse.json({ 
-      success: true,
-      message: 'Slack settings saved successfully',
+    return NextResponse.json({
+      message: 'Slack settings updated successfully',
       brand: updatedBrand
     });
 
   } catch (error) {
-    console.error('Error in Slack save-settings API:', error);
+    console.error('Error in save Slack settings API:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

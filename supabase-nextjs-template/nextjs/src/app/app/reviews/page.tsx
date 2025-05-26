@@ -221,6 +221,32 @@ export default function ReviewsPage() {
             
             if (error) throw error;
             
+            // Find the concept to get additional data for Slack notification
+            const concept = pendingReviews.find(c => c.id === conceptId);
+            
+            // Send Slack notification for concept approval
+            if (concept) {
+                try {
+                    await fetch('/api/slack/concept-approval', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            conceptId: conceptId,
+                            conceptTitle: concept.concept_title,
+                            batchName: concept.brief_batches.name,
+                            brandId: concept.brief_batches.brand_id,
+                            videoEditor: concept.video_editor,
+                            reviewerNotes: reviewerNotes[conceptId] || null
+                        }),
+                    });
+                } catch (slackError) {
+                    console.error('Failed to send Slack notification for concept approval:', slackError);
+                    // Don't fail the approval if Slack notification fails
+                }
+            }
+            
             // Remove from pending reviews
             setPendingReviews(prev => prev.filter(item => item.id !== conceptId));
             
@@ -270,6 +296,32 @@ export default function ReviewsPage() {
                 .single();
             
             if (error) throw error;
+            
+            // Find the concept to get additional data for Slack notification
+            const concept = pendingReviews.find(c => c.id === conceptId);
+            
+            // Send Slack notification for concept revision request
+            if (concept) {
+                try {
+                    await fetch('/api/slack/concept-revision', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            conceptId: conceptId,
+                            conceptTitle: concept.concept_title,
+                            batchName: concept.brief_batches.name,
+                            brandId: concept.brief_batches.brand_id,
+                            videoEditor: concept.video_editor,
+                            feedback: reviewerNotes[conceptId]
+                        }),
+                    });
+                } catch (slackError) {
+                    console.error('Failed to send Slack notification for concept revision:', slackError);
+                    // Don't fail the revision request if Slack notification fails
+                }
+            }
             
             // Remove from pending reviews
             setPendingReviews(prev => prev.filter(item => item.id !== conceptId));
