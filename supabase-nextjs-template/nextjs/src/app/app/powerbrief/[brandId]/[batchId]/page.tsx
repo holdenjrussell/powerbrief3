@@ -1075,8 +1075,21 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
             designerInstructionsMap[concept.id] = concept.designerInstructions || '';
             mediaTypesMap[concept.id] = (concept.media_type as 'video' | 'image') || 'video';
             descriptionsMap[concept.id] = concept.description || '';
-            captionHooksListMap[concept.id] = parseHooksFromString(concept.caption_hook_options || '');
-            spokenHooksListMap[concept.id] = parseHooksFromString(concept.spoken_hook_options || '');
+            
+            // For hook lists, preserve existing local state if it exists and has more hooks than what's in the database
+            // This prevents newly added empty hooks from disappearing
+            const existingCaptionHooks = localCaptionHooksList[concept.id] || [];
+            const existingSpokenHooks = localSpokenHooksList[concept.id] || [];
+            const parsedCaptionHooks = parseHooksFromString(concept.caption_hook_options || '');
+            const parsedSpokenHooks = parseHooksFromString(concept.spoken_hook_options || '');
+            
+            // Only update from database if we don't have local hooks or if database has more hooks
+            captionHooksListMap[concept.id] = existingCaptionHooks.length > parsedCaptionHooks.length 
+                ? existingCaptionHooks 
+                : parsedCaptionHooks;
+            spokenHooksListMap[concept.id] = existingSpokenHooks.length > parsedSpokenHooks.length 
+                ? existingSpokenHooks 
+                : parsedSpokenHooks;
         });
         
         setLocalPrompts(promptMap);
@@ -1432,17 +1445,17 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                 .replace(/^\s*[-*•]\s*/, '') // Remove leading bullets
                 .replace(/^\s*(OR|and|&|\|)\s*/i, '') // Remove leading separators
                 .trim();
-        }).filter(hook => hook && hook.length > 3); // Filter out very short hooks
+        }).filter(hook => hook); // Keep all hooks, including empty placeholders
         
         return hooks.map((hook, index) => ({
             id: `hook-${Date.now()}-${index}`,
             title: `Hook ${index + 1}`,
-            content: hook
+            content: hook === '[EMPTY_HOOK]' ? '' : hook // Convert placeholder back to empty string
         }));
     };
 
     const convertHooksToString = (hooks: Hook[]): string => {
-        return hooks.map(hook => hook.content).join('\n');
+        return hooks.map(hook => hook.content || '[EMPTY_HOOK]').join('\n');
     };
 
     // Add caption hook

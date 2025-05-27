@@ -48,9 +48,6 @@ import { Brand } from '@/lib/types/powerbrief';
 // Helper to unwrap params safely
 type ParamsType = { brandId: string };
 
-// Add a constant for the TBD creator ID (this is a reliable UUID that won't change)
-const TBD_CREATOR_ID = '00000000-0000-0000-0000-000000000000';
-
 export default function UgcPipelinePage({ params }: { params: ParamsType | Promise<ParamsType> }) {
   const { user } = useAuth();
   const router = useRouter();
@@ -685,7 +682,7 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
         body: JSON.stringify({ 
           status: 'CREATOR_REASSIGNMENT',
           concept_status: 'Creator Assignment',
-          creator_id: TBD_CREATOR_ID, // Reset to TBD
+          creator_id: 'TBD', // Reset to TBD
           revision_notes: rejectionNotes
         })
       });
@@ -915,7 +912,7 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
       }
       
       // Check if we're using TBD creator - use the special TBD ID instead of null
-      const firstCreatorId = selectedCreators[0] === 'TBD' ? TBD_CREATOR_ID : selectedCreators[0];
+      const firstCreatorId = selectedCreators[0] === 'TBD' ? 'TBD' : selectedCreators[0];
       
       // Create script with pending approval status
       const newScript = {

@@ -28,9 +28,6 @@ import { useAuth } from '@/hooks/useAuth';
 import { UgcCreatorScript } from '@/lib/types/ugcCreator';
 import { getUgcCreatorById } from '@/lib/services/ugcCreatorService';
 
-// Add a constant for the TBD creator ID (this is a reliable UUID that won't change)
-const TBD_CREATOR_ID = '00000000-0000-0000-0000-000000000000';
-
 export default function ScriptDetailPage({ params }: { params: { brandId: string; scriptId: string } | Promise<{ brandId: string; scriptId: string }> }) {
   // Unwrap params using React.use()
   const unwrappedParams = params instanceof Promise ? React.use(params) : params;
@@ -65,8 +62,8 @@ export default function ScriptDetailPage({ params }: { params: { brandId: string
         const scriptData = await response.json();
         setScript(scriptData);
         
-        // If the script has a creator and it's not the TBD creator, fetch creator details
-        if (scriptData.creator_id && scriptData.creator_id !== TBD_CREATOR_ID) {
+        // If the script has a creator, fetch creator details
+        if (scriptData.creator_id) {
           try {
             const creatorData = await getUgcCreatorById(scriptData.creator_id);
             if (creatorData) {
@@ -323,7 +320,7 @@ export default function ScriptDetailPage({ params }: { params: { brandId: string
                 <User className="h-4 w-4 mr-2 text-gray-500" />
                 {script.status === 'CREATOR_REASSIGNMENT' ? (
                   <span className="text-amber-600 font-medium">TBD (Needs Reassignment)</span>
-                ) : script.creator_id === TBD_CREATOR_ID ? (
+                ) : creatorName === 'To Be Determined' ? (
                   <span className="text-amber-600">TBD (To Be Determined)</span>
                 ) : (
                   <span>{creatorName || `Creator ID: ${script.creator_id.slice(0, 8)}...`}</span>

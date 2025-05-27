@@ -31,8 +31,8 @@ import { UgcCreatorScript, UgcCreator, UGC_SCRIPT_PAYMENT_STATUSES } from '@/lib
 import { ChevronRight, CheckCircle, AlertCircle, User, PenSquare, Trash2, Edit, Package, FileText, Sparkles, DollarSign, Calendar } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
-// Add a constant for the TBD creator ID (this is a reliable UUID that won't change)
-const TBD_CREATOR_ID = '00000000-0000-0000-0000-000000000000';
+// Remove the TBD_CREATOR_ID constant since the API handles this now
+// const TBD_CREATOR_ID = '00000000-0000-0000-0000-000000000000';
 
 interface ScriptCardProps {
   script: UgcCreatorScript;
@@ -354,7 +354,7 @@ export default function ScriptCard({
           {script.creator_id && (
             <div className="text-sm flex items-start">
               <span className="font-medium whitespace-nowrap">Creator:</span>
-              {script.status === 'CREATOR_REASSIGNMENT' || script.creator_id === TBD_CREATOR_ID ? (
+              {script.status === 'CREATOR_REASSIGNMENT' || creators.find(c => c.id === script.creator_id)?.name === 'To Be Determined' ? (
                 <span className="ml-2 text-amber-600 font-medium inline-block">
                   {script.status === 'CREATOR_REASSIGNMENT' ? 'TBD (Needs Reassignment)' : 'TBD (To Be Determined)'}
                 </span>
