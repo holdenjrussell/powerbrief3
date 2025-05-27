@@ -161,7 +161,7 @@ export async function POST(request: NextRequest) {
     } else {
       // Fallback to default system prompt if no custom instructions are available
       systemPrompt = `You are an expert advertising strategist and copywriter specializing in direct response marketing. 
-Given the brand context (positioning, target audience, competitors), concept prompt, and media (if provided), generate ad creative components that specifically relate to the media content. DO NOT EVER use another brand than specified in brand name: Glamory.
+Given the brand context (positioning, target audience, competitors), concept prompt, and media (if provided), generate ad creative components that specifically relate to the media content. Always use the brand information provided in the brand context and never reference other brands.
 
 IMPORTANT: Your response MUST be valid JSON and nothing else. Format:
 {
