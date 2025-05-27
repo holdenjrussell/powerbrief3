@@ -15,7 +15,8 @@ import {
   ExternalLink,
   Sparkles,
   Settings,
-  RefreshCw
+  RefreshCw,
+  Zap
 } from 'lucide-react';
 import AssetImportModal from './AssetImportModal';
 import MetaCampaignSelector from './MetaCampaignSelector';
@@ -36,6 +37,8 @@ import {
 } from './adUploadTypes';
 import BulkEditModal from './BulkEditModal'; // Import BulkEditModal
 import BulkRenameModal from './BulkRenameModal'; // Import BulkRenameModal
+import { needsCompression, compressVideo, getFileSizeMB } from '@/lib/utils/videoCompression';
+import { createSPAClient } from '@/lib/supabase/client';
 
 // DefaultValues interface is now imported and aliased
 // ColumnDef interface is now imported
@@ -103,6 +106,8 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, activeBatch }) => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [hidePublished, setHidePublished] = useState(true); // Simple toggle for hiding published ads
+  const [isCompressing, setIsCompressing] = useState(false); // State for video compression
+  const [compressionProgress, setCompressionProgress] = useState<{[key: string]: number}>({}); // Progress per asset
   
   // Asset preview modal state
   const [assetPreviewModal, setAssetPreviewModal] = useState<{
@@ -1111,6 +1116,154 @@ Are you sure you want to continue?`;
     alert(`Successfully applied defaults to ${updatedDrafts.length} ad draft(s).`);
   };
 
+  const handleCompressVideos = async () => {
+    if (checkedDraftIds.size === 0) {
+      alert("Please select at least one ad draft to compress videos.");
+      return;
+    }
+
+    // Find all video assets in selected drafts that need compression
+    const selectedDrafts = filteredAdDrafts.filter(draft => checkedDraftIds.has(draft.id));
+    const videosToCompress: { draft: AdDraft; asset: AdDraftAsset; assetIndex: number }[] = [];
+
+    for (const draft of selectedDrafts) {
+      draft.assets.forEach((asset, index) => {
+        if (asset.type === 'video') {
+          // We'll check if it needs compression after fetching the file
+          videosToCompress.push({ draft, asset, assetIndex: index });
+        }
+      });
+    }
+
+    if (videosToCompress.length === 0) {
+      alert("No video assets found in selected ads.");
+      return;
+    }
+
+    const confirmMessage = `Found ${videosToCompress.length} video asset(s) in ${selectedDrafts.length} selected ad(s).
+
+This will:
+• Download each video from Supabase
+• Check if compression is needed (>50MB)
+• Compress large videos automatically
+• Upload compressed versions back to Supabase
+• Update the ad drafts with new URLs
+
+This process may take several minutes. Continue?`;
+
+    if (!confirm(confirmMessage)) {
+      return;
+    }
+
+    setIsCompressing(true);
+    setCompressionProgress({});
+
+    const supabase = createSPAClient();
+    let compressedCount = 0;
+    let skippedCount = 0;
+    let errorCount = 0;
+
+    try {
+      for (const { draft, asset, assetIndex } of videosToCompress) {
+        const progressKey = `${draft.id}-${assetIndex}`;
+        
+        try {
+          console.log(`Processing video: ${asset.name}`);
+          
+          // Fetch the video file from Supabase
+          const response = await fetch(asset.supabaseUrl);
+          if (!response.ok) {
+            throw new Error(`Failed to fetch video: ${response.statusText}`);
+          }
+          
+          const blob = await response.blob();
+          const file = new File([blob], asset.name, { type: blob.type });
+          
+          // Check if compression is needed
+          if (!needsCompression(file)) {
+            console.log(`Video ${asset.name} (${getFileSizeMB(file).toFixed(2)}MB) doesn't need compression`);
+            skippedCount++;
+            continue;
+          }
+
+          console.log(`Compressing video ${asset.name} (${getFileSizeMB(file).toFixed(2)}MB)...`);
+          
+          // Update progress
+          setCompressionProgress(prev => ({ ...prev, [progressKey]: 0 }));
+
+          // Compress the video
+          const compressedFile = await compressVideo(file, (progress) => {
+            setCompressionProgress(prev => ({ ...prev, [progressKey]: progress }));
+          });
+
+          console.log(`Compression complete: ${getFileSizeMB(file).toFixed(2)}MB → ${getFileSizeMB(compressedFile).toFixed(2)}MB`);
+
+          // Upload compressed video to Supabase
+          const filePath = `${defaults.brandId}/${Date.now()}_${compressedFile.name.replace(/[^a-zA-Z0-9._-]/g, '')}`;
+          
+          const { error: uploadError } = await supabase.storage
+            .from('ad-creatives')
+            .upload(filePath, compressedFile, {
+              cacheControl: '3600',
+              upsert: false,
+            });
+
+          if (uploadError) {
+            throw new Error(`Upload failed: ${uploadError.message}`);
+          }
+
+          // Get public URL
+          const { data: { publicUrl } } = supabase.storage.from('ad-creatives').getPublicUrl(filePath);
+          
+          if (!publicUrl) {
+            throw new Error('Could not get public URL for compressed video');
+          }
+
+          // Update the ad draft with the new compressed video URL
+          setAdDrafts(prevDrafts => 
+            prevDrafts.map(d => {
+              if (d.id === draft.id) {
+                const updatedAssets = [...d.assets];
+                updatedAssets[assetIndex] = {
+                  ...asset,
+                  supabaseUrl: publicUrl,
+                  name: compressedFile.name
+                };
+                return { ...d, assets: updatedAssets };
+              }
+              return d;
+            })
+          );
+
+          compressedCount++;
+          console.log(`Successfully compressed and updated ${asset.name}`);
+
+        } catch (error) {
+          console.error(`Failed to compress ${asset.name}:`, error);
+          errorCount++;
+        }
+      }
+
+      // Show completion message
+      const message = `Video compression complete!
+
+✅ Compressed: ${compressedCount} videos
+⏭️ Skipped: ${skippedCount} videos (already under 50MB)
+❌ Errors: ${errorCount} videos
+
+${compressedCount > 0 ? 'Compressed videos have been updated in your ads.' : ''}`;
+
+      alert(message);
+
+    } catch (error) {
+      console.error('Compression process failed:', error);
+      alert(`Compression failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsCompressing(false);
+      setCompressionProgress({});
+    }
+  };
+
   return (
     <div className="mt-6 pb-16">
         <div className="bg-white p-4 sm:p-6 rounded-lg shadow mb-6">
@@ -1197,6 +1350,24 @@ Are you sure you want to continue?`;
                     title="Apply current defaults to all ad drafts"
                  >
                     <RefreshCw className="mr-2 h-4 w-4" /> Apply Defaults to All
+                </button>
+                <button
+                    onClick={handleCompressVideos}
+                    disabled={checkedDraftIds.size === 0 || isCompressing}
+                    className="px-4 py-2 text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 rounded-md shadow-sm flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Compress videos in selected ads"
+                 >
+                    {isCompressing ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 animate-spin" />
+                        Compressing... {Object.keys(compressionProgress).length > 0 && `(${Object.values(compressionProgress).reduce((a, b) => a + b, 0) / Object.keys(compressionProgress).length}%)`}
+                      </>
+                    ) : (
+                      <>
+                        <Zap className="mr-2 h-4 w-4" /> 
+                        Compress Videos ({checkedDraftIds.size})
+                      </>
+                    )}
                 </button>
                 <button
                     onClick={handleLaunch} 
