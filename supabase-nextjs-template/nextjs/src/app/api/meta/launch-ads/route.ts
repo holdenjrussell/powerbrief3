@@ -445,14 +445,12 @@ export async function POST(req: NextRequest) {
         console.log(`[Launch API]     Adding Instagram User ID to creative: ${finalInstagramUserId}`);
         creativeSpec.object_story_spec = {
           page_id: fbPageId,
-          instagram_user_id: finalInstagramUserId,
-          link: draft.destinationUrl
+          instagram_user_id: finalInstagramUserId
         };
       } else {
         console.log(`[Launch API]     Creating Facebook-only ad creative`);
         creativeSpec.object_story_spec = {
-          page_id: fbPageId,
-          link: draft.destinationUrl
+          page_id: fbPageId
         };
       }
 
@@ -519,6 +517,10 @@ export async function POST(req: NextRequest) {
             [asset.type === 'image' ? 'image_label' : 'video_label']: { name: assetLabel }
           });
         });
+
+        // When using asset_feed_spec, we should NOT use object_story_spec.link_data
+        // The link information is already in asset_feed_spec.link_urls
+        console.log(`[Launch API]     Using asset_feed_spec approach - link data is in asset_feed_spec.link_urls`);
 
       } else if (feedAssets.length > 0 || storyAssets.length > 0) {
         // Use the first available asset (fallback to simple approach)
@@ -687,12 +689,29 @@ export async function POST(req: NextRequest) {
         
         // Check if response is ok and has content before parsing JSON
         if (!adResponse.ok) {
+          // Try to get the error response body for better debugging
+          let errorDetails = '';
+          try {
+            const errorText = await adResponse.text();
+            if (errorText.trim()) {
+              const errorData = JSON.parse(errorText);
+              errorDetails = JSON.stringify(errorData, null, 2);
+            }
+          } catch (parseError) {
+            errorDetails = `Could not parse error response: ${(parseError as Error).message}`;
+          }
+          
           console.error(`[Launch API]     HTTP error creating ad:`, {
             status: adResponse.status,
             statusText: adResponse.statusText,
-            adName: draft.adName
+            adName: draft.adName,
+            errorDetails: errorDetails
           });
-          throw new Error(`HTTP ${adResponse.status}: ${adResponse.statusText} when creating ad ${draft.adName}`);
+          
+          // Also log the payload that was sent for debugging
+          console.error(`[Launch API]     Ad payload that failed:`, JSON.stringify(adPayload, null, 2));
+          
+          throw new Error(`HTTP ${adResponse.status}: ${adResponse.statusText} when creating ad ${draft.adName}. Error details: ${errorDetails}`);
         }
 
         // Check if response has content and is JSON

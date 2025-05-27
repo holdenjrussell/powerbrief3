@@ -84,11 +84,18 @@ export function decryptToken(encryptedData: { encryptedToken: string; iv: string
  * @returns ISO timestamp string
  */
 export function calculateExpirationTimestamp(expiresInSeconds: number | undefined | null): string {
-  const DEFAULT_EXPIRATION_SECONDS = 2 * 60 * 60; // Default to 2 hours
-  let secondsToAdd = DEFAULT_EXPIRATION_SECONDS;
+  // Meta's long-lived tokens typically last 60 days (5184000 seconds)
+  // If expires_in is null/undefined, it usually means it's a long-lived token
+  const DEFAULT_LONG_LIVED_EXPIRATION_SECONDS = 60 * 24 * 60 * 60; // 60 days in seconds (5184000)
+  
+  let secondsToAdd = DEFAULT_LONG_LIVED_EXPIRATION_SECONDS;
 
   if (typeof expiresInSeconds === 'number' && !isNaN(expiresInSeconds)) {
     secondsToAdd = expiresInSeconds;
+  } else {
+    // If expires_in is null/undefined, assume it's a long-lived token
+    // This is common with Meta's long-lived tokens
+    console.log('expires_in is null/undefined, defaulting to 60 days for long-lived token');
   }
 
   const expirationDate = new Date();
