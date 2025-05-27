@@ -90,42 +90,20 @@ export default function SharedConceptPage({ params }: { params: ParamsType | Pro
     const fetchSharedConcept = async () => {
       try {
         setLoading(true);
-        const supabase = createSPAClient();
-
-        // Find the concept with this shareId in its share_settings
-        const { data: conceptData, error: conceptError } = await supabase
-          .from('brief_concepts')
-          .select('*, brief_batches(*, brands(*))')
-          .contains('share_settings', { [shareId]: {} });
-
-        if (conceptError) {
-          throw conceptError;
-        }
-
-        if (!conceptData || conceptData.length === 0) {
-          setError('Shared concept not found or has expired');
-          setLoading(false);
-          return;
-        }
-
-        const conceptWithShare = conceptData[0] as unknown as ConceptWithShareSettings;
-        const shareSettings = conceptWithShare.share_settings?.[shareId];
         
-        if (!shareSettings) {
-          setError('Share settings not found');
-          setLoading(false);
-          return;
+        // Use the API endpoint instead of direct Supabase query to avoid RLS issues
+        const response = await fetch(`/api/public/concept/${shareId}`);
+        
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || 'Failed to load shared content');
         }
-
-        // Check if share has expired
-        if (shareSettings.expires_at && new Date(shareSettings.expires_at) < new Date()) {
-          setError('This shared link has expired');
-          setLoading(false);
-          return;
-        }
-
+        
+        const data = await response.json();
+        const { concept: conceptWithShare, shareSettings, isEditable } = data;
+        
         // Set editability based on share settings
-        setIsEditable(!!shareSettings.is_editable);
+        setIsEditable(isEditable);
         
         // Initialize review link from concept if it exists
         if (conceptWithShare.review_link) {

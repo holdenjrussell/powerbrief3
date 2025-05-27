@@ -805,7 +805,7 @@ function createConceptRevisionMessage(data: ConceptRevisionMessageData) {
     reviewDashboardUrl
   } = data;
 
-  const blocks = [
+  const blocks: any[] = [
     {
       type: "header",
       text: {
@@ -869,7 +869,7 @@ function createConceptRevisionMessage(data: ConceptRevisionMessageData) {
         type: "button",
         text: {
           type: "plain_text",
-          text: "Review Dashboard",
+          text: "Review Dashboard (Admin)",
           emoji: true
         },
         url: reviewDashboardUrl
