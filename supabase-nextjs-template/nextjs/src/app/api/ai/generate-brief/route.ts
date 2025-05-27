@@ -272,15 +272,26 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
         // Transform the response to match expected structure based on media type
         let responseData: AiBriefingResponse;
         
-        if (body.media?.type === 'image' && jsonResponse.cta !== undefined) {
+        if (body.media?.type === 'image' && (jsonResponse.description !== undefined || jsonResponse.cta !== undefined)) {
           // Handle image-specific format (description and cta)
-          console.log('Detected image-specific response format with description and cta');
+          console.log('Detected image-specific response format with description and/or cta');
           responseData = {
             caption_hook_options: "",
             spoken_hook_options: "",
             body_content_structured_scenes: [],
             cta_script: jsonResponse.cta || "",
             cta_text_overlay: jsonResponse.cta || "",
+            description: jsonResponse.description || ""
+          };
+        } else if (body.media?.type === 'image') {
+          // Handle case where image was requested but response doesn't match expected format
+          console.log('Image request but response format not recognized, attempting to extract description and cta');
+          responseData = {
+            caption_hook_options: "",
+            spoken_hook_options: "",
+            body_content_structured_scenes: [],
+            cta_script: jsonResponse.cta_script || jsonResponse.cta || "",
+            cta_text_overlay: jsonResponse.cta_text_overlay || jsonResponse.cta || "",
             description: jsonResponse.description || ""
           };
         } else {

@@ -600,26 +600,25 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                 brandContext: {
                     brand_info_data: brand.brand_info_data,
                     target_audience_data: brand.target_audience_data,
-                    competition_data: brand.competition_data
+                    competition_data: brand.competition_data,
+                    system_instructions_image: brand.system_instructions_image,
+                    system_instructions_video: brand.system_instructions_video
                 },
                 conceptSpecificPrompt: currentPromptValue, // Use the current prompt value directly
                 conceptCurrentData: {
                     caption_hook_options: conceptWithSavedPrompt.caption_hook_options || '',
                     body_content_structured: conceptWithSavedPrompt.body_content_structured || [],
                     cta_script: conceptWithSavedPrompt.cta_script || '',
-                    cta_text_overlay: conceptWithSavedPrompt.cta_text_overlay || ''
+                    cta_text_overlay: conceptWithSavedPrompt.cta_text_overlay || '',
+                    description: conceptWithSavedPrompt.description || ''
                 },
                 media: {
                     url: conceptWithSavedPrompt.media_url || '',
                     type: conceptWithSavedPrompt.media_type || ''
                 },
-                desiredOutputFields: [
-                    'caption_hook_options', 
-                    'spoken_hook_options',
-                    'body_content_structured_scenes', 
-                    'cta_script', 
-                    'cta_text_overlay'
-                ],
+                desiredOutputFields: conceptWithSavedPrompt.media_type === 'image' 
+                    ? ['description', 'cta'] // For image briefs
+                    : ['caption_hook_options', 'spoken_hook_options', 'body_content_structured_scenes', 'cta_script', 'cta_text_overlay'], // For video briefs
                 hookOptions: {
                     type: hookType,
                     count: hookCount
@@ -645,52 +644,62 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
             const aiResponse = await response.json();
             
             // Update concept with AI response
-            const updatedConceptWithAI = await updateBriefConcept({
-                 ...conceptWithSavedPrompt,
-                 caption_hook_options: aiResponse.caption_hook_options || conceptWithSavedPrompt.caption_hook_options,
-                 spoken_hook_options: aiResponse.spoken_hook_options || conceptWithSavedPrompt.spoken_hook_options,
-                 body_content_structured: aiResponse.body_content_structured_scenes || conceptWithSavedPrompt.body_content_structured,
-                 cta_script: aiResponse.cta_script || conceptWithSavedPrompt.cta_script,
-                 cta_text_overlay: aiResponse.cta_text_overlay || conceptWithSavedPrompt.cta_text_overlay
-              });
-              
-              // Update local caption and spoken hooks state
-              if (aiResponse.caption_hook_options) {
-                  console.log('AI Response - Caption hooks received:', aiResponse.caption_hook_options);
-                  setLocalCaptionHooks(prev => ({
-                      ...prev,
-                      [conceptId]: aiResponse.caption_hook_options
-                  }));
-                  // Also update the caption hooks list for the UI
-                  const parsedCaptionHooks = parseHooksFromString(aiResponse.caption_hook_options);
-                  console.log('Parsed caption hooks:', parsedCaptionHooks);
-                  setLocalCaptionHooksList(prev => ({
-                      ...prev,
-                      [conceptId]: parsedCaptionHooks
-                  }));
-              }
-              
-              // Update local spoken hooks state when received from AI
-              if (aiResponse.spoken_hook_options) {
-                  console.log('AI Response - Spoken hooks received:', aiResponse.spoken_hook_options);
-                  setLocalSpokenHooks(prev => ({
-                      ...prev,
-                      [conceptId]: aiResponse.spoken_hook_options
-                  }));
-                  // Also update the spoken hooks list for the UI
-                  const parsedSpokenHooks = parseHooksFromString(aiResponse.spoken_hook_options);
-                  console.log('Parsed spoken hooks:', parsedSpokenHooks);
-                  setLocalSpokenHooksList(prev => ({
-                      ...prev,
-                      [conceptId]: parsedSpokenHooks
-                  }));
-              } else {
-                  console.log('AI Response - No spoken hooks received. Full AI response:', aiResponse);
-              }
-              
-              setConcepts(prev => 
-                  prev.map(c => c.id === updatedConceptWithAI.id ? updatedConceptWithAI : c)
-              );
+            const updatedConcept = await updateBriefConcept({
+                ...conceptWithSavedPrompt,
+                caption_hook_options: aiResponse.caption_hook_options || conceptWithSavedPrompt.caption_hook_options,
+                spoken_hook_options: aiResponse.spoken_hook_options || conceptWithSavedPrompt.spoken_hook_options,
+                body_content_structured: aiResponse.body_content_structured_scenes || conceptWithSavedPrompt.body_content_structured,
+                cta_script: aiResponse.cta_script || conceptWithSavedPrompt.cta_script,
+                cta_text_overlay: aiResponse.cta_text_overlay || conceptWithSavedPrompt.cta_text_overlay,
+                description: aiResponse.description || conceptWithSavedPrompt.description
+            });
+            
+            // Update local caption and spoken hooks state
+            if (aiResponse.caption_hook_options) {
+                console.log('AI Response - Caption hooks received:', aiResponse.caption_hook_options);
+                setLocalCaptionHooks(prev => ({
+                    ...prev,
+                    [conceptId]: aiResponse.caption_hook_options
+                }));
+                // Also update the caption hooks list for the UI
+                const parsedCaptionHooks = parseHooksFromString(aiResponse.caption_hook_options);
+                console.log('Parsed caption hooks:', parsedCaptionHooks);
+                setLocalCaptionHooksList(prev => ({
+                    ...prev,
+                    [conceptId]: parsedCaptionHooks
+                }));
+            }
+            
+            // Update local spoken hooks state when received from AI
+            if (aiResponse.spoken_hook_options) {
+                console.log('AI Response - Spoken hooks received:', aiResponse.spoken_hook_options);
+                setLocalSpokenHooks(prev => ({
+                    ...prev,
+                    [conceptId]: aiResponse.spoken_hook_options
+                }));
+                // Also update the spoken hooks list for the UI
+                const parsedSpokenHooks = parseHooksFromString(aiResponse.spoken_hook_options);
+                console.log('Parsed spoken hooks:', parsedSpokenHooks);
+                setLocalSpokenHooksList(prev => ({
+                    ...prev,
+                    [conceptId]: parsedSpokenHooks
+                }));
+            } else {
+                console.log('AI Response - No spoken hooks received. Full AI response:', aiResponse);
+            }
+            
+            // Update local description state when received from AI (for image concepts)
+            if (aiResponse.description) {
+                console.log('AI Response - Description received:', aiResponse.description);
+                setLocalDescriptions(prev => ({
+                    ...prev,
+                    [conceptId]: aiResponse.description
+                }));
+            }
+            
+            setConcepts(prev => 
+                prev.map(c => c.id === updatedConcept.id ? updatedConcept : c)
+            );
         } catch (err: unknown) {
             console.error('Failed to generate AI brief:', err);
             setError(`AI brief generation failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
@@ -797,26 +806,25 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                         brandContext: {
                             brand_info_data: brand.brand_info_data,
                             target_audience_data: brand.target_audience_data,
-                            competition_data: brand.competition_data
+                            competition_data: brand.competition_data,
+                            system_instructions_image: brand.system_instructions_image,
+                            system_instructions_video: brand.system_instructions_video
                         },
                         conceptSpecificPrompt: currentPromptValue,
                         conceptCurrentData: {
                             caption_hook_options: concept.caption_hook_options || '',
                             body_content_structured: concept.body_content_structured || [],
                             cta_script: concept.cta_script || '',
-                            cta_text_overlay: concept.cta_text_overlay || ''
+                            cta_text_overlay: concept.cta_text_overlay || '',
+                            description: concept.description || ''
                         },
                         media: {
                             url: concept.media_url || '',
                             type: concept.media_type || ''
                         },
-                        desiredOutputFields: [
-                            'caption_hook_options', 
-                            'spoken_hook_options',
-                            'body_content_structured_scenes', 
-                            'cta_script', 
-                            'cta_text_overlay'
-                        ],
+                        desiredOutputFields: concept.media_type === 'image' 
+                            ? ['description', 'cta'] // For image briefs
+                            : ['caption_hook_options', 'spoken_hook_options', 'body_content_structured_scenes', 'cta_script', 'cta_text_overlay'], // For video briefs
                         hookOptions: {
                             type: hookType,
                             count: hookCount
@@ -847,7 +855,8 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                         spoken_hook_options: aiResponse.spoken_hook_options || concept.spoken_hook_options,
                         body_content_structured: aiResponse.body_content_structured_scenes || concept.body_content_structured,
                         cta_script: aiResponse.cta_script || concept.cta_script,
-                        cta_text_overlay: aiResponse.cta_text_overlay || concept.cta_text_overlay
+                        cta_text_overlay: aiResponse.cta_text_overlay || concept.cta_text_overlay,
+                        description: aiResponse.description || concept.description
                     });
                     
                     // Update local state for hooks
@@ -881,6 +890,15 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                         }));
                     } else {
                         console.log(`Generate All AI - No spoken hooks received for concept ${concept.id}. Full AI response:`, aiResponse);
+                    }
+                    
+                    // Update local description state when received from AI (for image concepts)
+                    if (aiResponse.description) {
+                        console.log(`Generate All AI - Description received for concept ${concept.id}:`, aiResponse.description);
+                        setLocalDescriptions(prev => ({
+                            ...prev,
+                            [concept.id]: aiResponse.description
+                        }));
                     }
                     
                     setConcepts(prev => 
