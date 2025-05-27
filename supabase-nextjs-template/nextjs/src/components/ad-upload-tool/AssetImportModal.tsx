@@ -1,9 +1,10 @@
 "use client";
 import React, { useState, useCallback, ChangeEvent, useMemo } from 'react';
-import { X, UploadCloud, Check, Trash2, Loader2, Square, CheckSquare } from 'lucide-react';
+import { X, UploadCloud, Check, Trash2, Loader2, Square, CheckSquare, Zap } from 'lucide-react';
 import { createSPAClient } from '@/lib/supabase/client';
 import { useGlobal } from '@/lib/context/GlobalContext';
 import { ImportedAssetGroup } from './adUploadTypes';
+import { needsCompression, compressVideo, getFileSizeMB } from '@/lib/utils/videoCompression';
 
 interface AssetFile {
   file: File;
@@ -12,6 +13,10 @@ interface AssetFile {
   uploading?: boolean; // To indicate upload in progress
   uploadError?: string | null; // To store upload error message
   supabaseUrl?: string; // To store the Supabase URL after successful upload
+  compressing?: boolean; // To indicate compression in progress
+  compressionProgress?: number; // Compression progress (0-100)
+  needsCompression?: boolean; // Whether this file needs compression
+  originalSize?: number; // Original file size for comparison
 }
 
 const DEFAULT_ASPECT_RATIO_IDENTIFIERS = ['1x1', '9x16', '16x9', '4x5', '2x3', '3x2'];
@@ -82,6 +87,8 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
       const newFiles: AssetFile[] = Array.from(event.target.files).map(file => ({
         file,
         id: `${file.name}-${file.lastModified}-${file.size}`,
+        needsCompression: needsCompression(file),
+        originalSize: file.size,
         // previewUrl: URL.createObjectURL(file) // Create for images, remember to revoke
       }));
       setSelectedFiles(prev => [...prev, ...newFiles]);
@@ -96,6 +103,8 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
       const newFiles: AssetFile[] = Array.from(event.dataTransfer.files).map(file => ({
         file,
         id: `${file.name}-${file.lastModified}-${file.size}`,
+        needsCompression: needsCompression(file),
+        originalSize: file.size,
       }));
       setSelectedFiles(prev => [...prev, ...newFiles]);
       event.dataTransfer.clearData();
@@ -165,8 +174,69 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
     const supabase = createSPAClient();
     const processedAssetGroups: ImportedAssetGroup[] = [];
 
+    // Step 1: Compress videos that need compression
+    const filesToProcess: AssetFile[] = [];
+    for (const assetFile of selectedFiles) {
+      if (assetFile.needsCompression) {
+        try {
+          console.log(`Compressing ${assetFile.file.name} (${getFileSizeMB(assetFile.file).toFixed(2)}MB)`);
+          
+          // Update UI to show compression in progress
+          setSelectedFiles(prev => prev.map(sf => 
+            sf.id === assetFile.id 
+              ? { ...sf, compressing: true, compressionProgress: 0 }
+              : sf
+          ));
+
+          const compressedFile = await compressVideo(assetFile.file, (progress) => {
+            setSelectedFiles(prev => prev.map(sf => 
+              sf.id === assetFile.id 
+                ? { ...sf, compressionProgress: progress }
+                : sf
+            ));
+          });
+
+          // Update the asset file with the compressed version
+          const updatedAssetFile: AssetFile = {
+            ...assetFile,
+            file: compressedFile,
+            compressing: false,
+            compressionProgress: 100,
+            needsCompression: false, // No longer needs compression
+          };
+
+          filesToProcess.push(updatedAssetFile);
+          
+          // Update UI to show compression complete
+          setSelectedFiles(prev => prev.map(sf => 
+            sf.id === assetFile.id ? updatedAssetFile : sf
+          ));
+
+        } catch (compressionError) {
+          console.error(`Failed to compress ${assetFile.file.name}:`, compressionError);
+          
+          // Update UI to show compression error
+          setSelectedFiles(prev => prev.map(sf => 
+            sf.id === assetFile.id 
+              ? { 
+                  ...sf, 
+                  compressing: false, 
+                  uploadError: `Compression failed: ${compressionError instanceof Error ? compressionError.message : 'Unknown error'}` 
+                }
+              : sf
+          ));
+          
+          // Skip this file for upload
+          continue;
+        }
+      } else {
+        // File doesn't need compression, use as-is
+        filesToProcess.push(assetFile);
+      }
+    }
+
     // Pre-process files to get base names and detected ratios
-    const processedSelectedFiles: ProcessedAssetFile[] = selectedFiles.map(sf => {
+    const processedSelectedFiles: ProcessedAssetFile[] = filesToProcess.map(sf => {
       const { baseName, detectedRatio } = getBaseNameAndRatio(sf.file.name, DEFAULT_ASPECT_RATIO_IDENTIFIERS, KNOWN_FILENAME_SUFFIXES_TO_REMOVE);
       return { ...sf, baseName, detectedRatio };
     });
@@ -283,6 +353,16 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
               <span>Click to upload</span> or drag and drop
             </label>
             <p className="mt-1 text-xs text-gray-500">Images or Videos (bulk select supported)</p>
+            {selectedFiles.some(f => f.needsCompression) && (
+              <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                <div className="flex items-center">
+                  <Zap size={16} className="text-blue-600 mr-2" />
+                  <p className="text-sm text-blue-800">
+                    <strong>Auto-compression enabled:</strong> Videos over 50MB will be automatically compressed to ensure successful upload to Meta.
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Selected Files Preview */}
@@ -318,8 +398,38 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
                     <button onClick={() => toggleFileChecked(assetFile.id)} className="mr-2 p-1 focus:outline-none">
                         {checkedFileIds.has(assetFile.id) ? <CheckSquare size={18} className="text-primary-600" /> : <Square size={18} className="text-gray-400" />}
                     </button>
-                    <span className="truncate text-gray-700 mr-2" title={assetFile.file.name}>{assetFile.file.name}</span>
-                    {assetFile.uploading && <Loader2 size={16} className="animate-spin text-primary-500 flex-shrink-0" />}
+                    <div className="flex-grow overflow-hidden">
+                      <div className="flex items-center">
+                        <span className="truncate text-gray-700 mr-2" title={assetFile.file.name}>{assetFile.file.name}</span>
+                        {assetFile.needsCompression && !assetFile.compressing && !assetFile.uploadError && (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 mr-2">
+                            <Zap size={12} className="mr-1" />
+                            {getFileSizeMB(assetFile.file).toFixed(1)}MB - Will compress
+                          </span>
+                        )}
+                        {assetFile.originalSize && assetFile.originalSize !== assetFile.file.size && (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 mr-2">
+                            Compressed: {getFileSizeMB(assetFile.file).toFixed(1)}MB 
+                            (was {(assetFile.originalSize / (1024 * 1024)).toFixed(1)}MB)
+                          </span>
+                        )}
+                      </div>
+                      {assetFile.compressing && (
+                        <div className="mt-1">
+                          <div className="flex items-center text-xs text-blue-600">
+                            <Loader2 size={12} className="animate-spin mr-1" />
+                            Compressing... {assetFile.compressionProgress || 0}%
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-1.5 mt-1">
+                            <div 
+                              className="bg-blue-600 h-1.5 rounded-full transition-all duration-300" 
+                              style={{ width: `${assetFile.compressionProgress || 0}%` }}
+                            ></div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    {assetFile.uploading && !assetFile.compressing && <Loader2 size={16} className="animate-spin text-primary-500 flex-shrink-0" />}
                     {assetFile.uploadError && <span className="text-xs text-red-500 ml-2 flex-shrink-0">Error: {assetFile.uploadError}</span>}
                     {assetFile.supabaseUrl && <Check size={16} className="text-green-500 ml-2 flex-shrink-0" />}
                   </div>
@@ -327,7 +437,7 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
                     onClick={() => removeFile(assetFile.id)} 
                     className="text-red-500 hover:text-red-700 ml-2 flex-shrink-0"
                     aria-label={`Remove ${assetFile.file.name}`}
-                    disabled={assetFile.uploading || isProcessing}
+                    disabled={assetFile.uploading || assetFile.compressing || isProcessing}
                   >
                     <Trash2 size={16} />
                   </button>
@@ -374,11 +484,13 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
           <button
             type="button"
             onClick={processAndImport}
-            disabled={selectedFiles.length === 0 || isProcessing || selectedFiles.some(f => f.uploading)}
+            disabled={selectedFiles.length === 0 || isProcessing || selectedFiles.some(f => f.uploading || f.compressing)}
             className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 border border-transparent rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isProcessing ? 
                 <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing...</> : 
+                selectedFiles.some(f => f.compressing) ?
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Compressing...</> :
                 <><Check className="mr-2 h-4 w-4" /> Import {selectedFiles.length > 0 ? `(${selectedFiles.length})` : ''} Assets</>
             }
           </button>
