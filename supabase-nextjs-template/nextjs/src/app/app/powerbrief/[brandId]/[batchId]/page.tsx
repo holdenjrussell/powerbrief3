@@ -1083,11 +1083,22 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
             const parsedCaptionHooks = parseHooksFromString(concept.caption_hook_options || '');
             const parsedSpokenHooks = parseHooksFromString(concept.spoken_hook_options || '');
             
-            // Only update from database if we don't have local hooks or if database has more hooks
-            captionHooksListMap[concept.id] = existingCaptionHooks.length > parsedCaptionHooks.length 
+            // Check if any local hooks were recently added (within last 5 seconds)
+            const now = Date.now();
+            const hasRecentCaptionHooks = existingCaptionHooks.some(hook => {
+                const hookTimestamp = parseInt(hook.id.split('-').pop() || '0');
+                return now - hookTimestamp < 5000; // 5 seconds
+            });
+            const hasRecentSpokenHooks = existingSpokenHooks.some(hook => {
+                const hookTimestamp = parseInt(hook.id.split('-').pop() || '0');
+                return now - hookTimestamp < 5000; // 5 seconds
+            });
+            
+            // Preserve local hooks if they have more hooks OR if there are recently added hooks
+            captionHooksListMap[concept.id] = (existingCaptionHooks.length > parsedCaptionHooks.length || hasRecentCaptionHooks)
                 ? existingCaptionHooks 
                 : parsedCaptionHooks;
-            spokenHooksListMap[concept.id] = existingSpokenHooks.length > parsedSpokenHooks.length 
+            spokenHooksListMap[concept.id] = (existingSpokenHooks.length > parsedSpokenHooks.length || hasRecentSpokenHooks)
                 ? existingSpokenHooks 
                 : parsedSpokenHooks;
         });
@@ -1421,21 +1432,21 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
         
         // Try splitting by "OR" first (case insensitive)
         if (hooksString.match(/\bOR\b/i)) {
-            hooks = hooksString.split(/\bOR\b/i).map(hook => hook.trim()).filter(hook => hook);
+            hooks = hooksString.split(/\bOR\b/i).map(hook => hook.trim());
         } 
         // Try splitting by numbered patterns like "1.", "2.", etc.
         else if (hooksString.match(/^\s*\d+\./m)) {
-            hooks = hooksString.split(/(?=^\s*\d+\.)/m).map(hook => hook.trim()).filter(hook => hook);
+            hooks = hooksString.split(/(?=^\s*\d+\.)/m).map(hook => hook.trim());
         }
         // Try splitting by bullet points like "-" or "*"
         else if (hooksString.match(/^\s*[-*•]/m)) {
-            hooks = hooksString.split(/(?=^\s*[-*•])/m).map(hook => hook.trim()).filter(hook => hook);
+            hooks = hooksString.split(/(?=^\s*[-*•])/m).map(hook => hook.trim());
         }
         // Fallback to newline splitting, but filter out common separators
         else {
             hooks = hooksString.split('\n')
                 .map(line => line.trim())
-                .filter(line => line && !line.match(/^(OR|and|&|\|)$/i));
+                .filter(line => !line.match(/^(OR|and|&|\|)$/i)); // Only filter out separator-only lines
         }
         
         // Clean up each hook by removing leading numbers, bullets, or separators
@@ -1445,7 +1456,7 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                 .replace(/^\s*[-*•]\s*/, '') // Remove leading bullets
                 .replace(/^\s*(OR|and|&|\|)\s*/i, '') // Remove leading separators
                 .trim();
-        }).filter(hook => hook); // Keep all hooks, including empty placeholders
+        }); // Don't filter out empty hooks here - preserve them!
         
         return hooks.map((hook, index) => ({
             id: `hook-${Date.now()}-${index}`,
