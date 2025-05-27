@@ -1484,15 +1484,8 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
             [conceptId]: updatedHooks
         }));
         
-        // Update the string version for database compatibility
-        const concept = concepts.find(c => c.id === conceptId);
-        if (concept) {
-            const updatedConcept = {
-                ...concept,
-                caption_hook_options: convertHooksToString(updatedHooks)
-            };
-            debouncedUpdateConcept(updatedConcept);
-        }
+        // DON'T update the database immediately for empty hooks
+        // The database will be updated when the user types content via handleUpdateCaptionHook
     };
 
     // Remove caption hook
@@ -1535,7 +1528,8 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                 ...concept,
                 caption_hook_options: convertHooksToString(updatedHooks)
             };
-            debouncedUpdateConcept(updatedConcept);
+            // Use immediate update instead of debounced to ensure hooks are saved
+            handleUpdateConcept(updatedConcept);
         }
     };
 
@@ -1554,15 +1548,8 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
             [conceptId]: updatedHooks
         }));
         
-        // Update the string version for database compatibility
-        const concept = concepts.find(c => c.id === conceptId);
-        if (concept) {
-            const updatedConcept = {
-                ...concept,
-                spoken_hook_options: convertHooksToString(updatedHooks)
-            };
-            debouncedUpdateConcept(updatedConcept);
-        }
+        // DON'T update the database immediately for empty hooks
+        // The database will be updated when the user types content via handleUpdateSpokenHook
     };
 
     // Remove spoken hook
@@ -1605,7 +1592,8 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                 ...concept,
                 spoken_hook_options: convertHooksToString(updatedHooks)
             };
-            debouncedUpdateConcept(updatedConcept);
+            // Use immediate update instead of debounced to ensure hooks are saved
+            handleUpdateConcept(updatedConcept);
         }
     };
 
