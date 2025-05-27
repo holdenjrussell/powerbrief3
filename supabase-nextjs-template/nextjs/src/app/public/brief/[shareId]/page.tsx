@@ -484,12 +484,14 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
                             <video
                               src={concept.media_url}
                               controls
+                              crossOrigin="anonymous"
                               className="h-full w-full object-contain"
                             />
                           ) : (
                             <img
                               src={concept.media_url}
                               alt="Concept media"
+                              crossOrigin="anonymous"
                               className="h-full w-full object-contain"
                             />
                           )}

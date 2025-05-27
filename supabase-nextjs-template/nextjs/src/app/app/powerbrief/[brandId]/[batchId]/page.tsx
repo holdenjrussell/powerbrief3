@@ -245,6 +245,8 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                 clickup_link: null,
                 strategist: null,
                 video_editor: null,
+                editor_id: null,
+                custom_editor_name: null,
                 status: null,
                 media_url: null,
                 media_type: null,
@@ -454,6 +456,8 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                         clickup_link: null,
                         strategist: null,
                         video_editor: null,
+                        editor_id: null,
+                        custom_editor_name: null,
                         status: null,
                         ai_custom_prompt: null,
                         caption_hook_options: null,
@@ -2013,12 +2017,14 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                                 <video
                                                     src={concept.media_url}
                                                     controls
+                                                    crossOrigin="anonymous"
                                                     className="h-full w-full object-contain"
                                                 />
                                             ) : (
                                                 <img
                                                     src={concept.media_url}
                                                     alt="Concept media"
+                                                    crossOrigin="anonymous"
                                                     className="h-full w-full object-contain"
                                                 />
                                             )

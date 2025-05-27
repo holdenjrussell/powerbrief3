@@ -255,12 +255,14 @@ function MediaModal({ isOpen, onClose, mediaUrl, mediaType, mediaName, conceptId
               <img
                 src={mediaUrl}
                 alt={mediaName}
+                crossOrigin="anonymous"
                 className="max-w-full max-h-[60vh] object-contain"
               />
             ) : (
               <video
                 ref={setVideoRef}
                 src={mediaUrl}
+                crossOrigin="anonymous"
                 className="max-w-full max-h-[60vh] object-contain"
                 controls
                 onTimeUpdate={handleVideoTimeUpdate}
@@ -1362,12 +1364,14 @@ export default function SharedSingleConceptPage({ params }: { params: ParamsType
                           <img
                             src={asset.supabaseUrl}
                             alt={asset.name}
+                            crossOrigin="anonymous"
                             className="w-full h-32 object-cover rounded border cursor-pointer hover:opacity-80"
                             onClick={() => openMediaModal(asset.supabaseUrl, 'image', asset.name, concept.id)}
                           />
                         ) : (
                           <video
                             src={asset.supabaseUrl}
+                            crossOrigin="anonymous"
                             className="w-full h-32 object-cover rounded border cursor-pointer hover:opacity-80"
                             onClick={() => openMediaModal(asset.supabaseUrl, 'video', asset.name, concept.id)}
                           />
@@ -1514,12 +1518,14 @@ export default function SharedSingleConceptPage({ params }: { params: ParamsType
                     <video
                       src={concept.media_url}
                       controls
+                      crossOrigin="anonymous"
                       className="max-h-[400px] object-contain rounded"
                     />
                   ) : (
                     <img
                       src={concept.media_url}
                       alt="Concept media"
+                      crossOrigin="anonymous"
                       className="max-h-[400px] object-contain rounded"
                     />
                   )}
