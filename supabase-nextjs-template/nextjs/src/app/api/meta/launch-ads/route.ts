@@ -3,6 +3,7 @@ import { AdDraft, AdDraftAsset } from '@/components/ad-upload-tool/adUploadTypes
 import { createSSRClient } from '@/lib/supabase/server';
 import { decryptToken } from '@/lib/utils/tokenEncryption';
 import { sendSlackNotification } from '@/lib/utils/slackNotifications';
+import { needsCompression, compressVideo, getFileSizeMB } from '@/lib/utils/videoCompression';
 
 interface LaunchAdsRequestBody {
   drafts: AdDraft[];
@@ -185,9 +186,35 @@ export async function POST(req: NextRequest) {
           }
           const assetBlob = await assetResponse.blob();
 
+          // Convert blob to File for compression check
+          const assetFile = new File([assetBlob], asset.name, { type: assetBlob.type });
+          
+          // Check if video needs compression and compress if necessary
+          let finalAssetBlob = assetBlob;
+          let finalAssetName = asset.name;
+          
+          if (needsCompression(assetFile)) {
+            console.log(`[Launch API]     Video ${asset.name} is ${getFileSizeMB(assetFile).toFixed(2)}MB - compressing before upload to Meta...`);
+            
+            try {
+              const compressedFile = await compressVideo(assetFile, (progress) => {
+                console.log(`[Launch API]     Compression progress for ${asset.name}: ${progress}%`);
+              });
+              
+              finalAssetBlob = compressedFile;
+              finalAssetName = compressedFile.name;
+              
+              console.log(`[Launch API]     Compression complete for ${asset.name}: ${getFileSizeMB(assetFile).toFixed(2)}MB → ${getFileSizeMB(compressedFile).toFixed(2)}MB`);
+            } catch (compressionError) {
+              console.error(`[Launch API]     Failed to compress ${asset.name}:`, compressionError);
+              // Continue with original file if compression fails
+              console.log(`[Launch API]     Continuing with original file for ${asset.name}`);
+            }
+          }
+
           const formData = new FormData();
           formData.append('access_token', accessToken);
-          formData.append('source', assetBlob, asset.name);
+          formData.append('source', finalAssetBlob, finalAssetName);
 
           // Ensure adAccountId has the proper format (remove extra 'act_' if it exists)
           const formattedAdAccountId = adAccountId.startsWith('act_') ? adAccountId.substring(4) : adAccountId;
