@@ -498,16 +498,6 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
                         </div>
                       )}
                       
-                      {/* Caption Hooks */}
-                      {concept.caption_hook_options && (
-                        <div>
-                          <h3 className="font-medium text-sm mb-1">Caption Hook options</h3>
-                          <p className="text-sm bg-gray-50 p-3 rounded">
-                            {concept.caption_hook_options}
-                          </p>
-                        </div>
-                      )}
-                      
                       {/* Video Instructions - only for video media type */}
                       {concept.videoInstructions && concept.media_type === 'video' && (
                         <div>
@@ -524,6 +514,16 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
                           <h3 className="font-medium text-sm mb-1">Designer Instructions</h3>
                           <p className="text-sm bg-gray-50 p-3 rounded line-clamp-3">
                             {concept.designerInstructions}
+                          </p>
+                        </div>
+                      )}
+                      
+                      {/* Caption Hooks */}
+                      {concept.caption_hook_options && (
+                        <div>
+                          <h3 className="font-medium text-sm mb-1">Caption Hook options</h3>
+                          <p className="text-sm bg-gray-50 p-3 rounded">
+                            {concept.caption_hook_options}
                           </p>
                         </div>
                       )}

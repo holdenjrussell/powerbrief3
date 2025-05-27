@@ -1534,6 +1534,30 @@ export default function SharedSingleConceptPage({ params }: { params: ParamsType
             </Card>
           )}
 
+          {/* Video Instructions - only show for video media type */}
+          {concept.videoInstructions && concept.media_type === 'video' && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Video Instructions</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="whitespace-pre-wrap">{concept.videoInstructions}</p>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Designer Instructions - only show for image media type */}
+          {concept.designerInstructions && concept.media_type === 'image' && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Designer Instructions</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="whitespace-pre-wrap">{concept.designerInstructions}</p>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Description */}
           {concept.description && (
             <Card>
@@ -1661,30 +1685,6 @@ export default function SharedSingleConceptPage({ params }: { params: ParamsType
                   isEditable={isEditable}
                   brandId={brand?.id || ''}
                 />
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Video Instructions - only show for video media type */}
-          {concept.videoInstructions && concept.media_type === 'video' && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Video Instructions</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="whitespace-pre-wrap">{concept.videoInstructions}</p>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Designer Instructions - only show for image media type */}
-          {concept.designerInstructions && concept.media_type === 'image' && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Designer Instructions</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="whitespace-pre-wrap">{concept.designerInstructions}</p>
               </CardContent>
             </Card>
           )}
