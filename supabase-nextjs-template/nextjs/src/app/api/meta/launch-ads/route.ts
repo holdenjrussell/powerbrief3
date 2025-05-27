@@ -66,6 +66,76 @@ const detectAspectRatioFromFilename = (filename: string): string | null => {
   return null;
 };
 
+// Helper function to check if a video is ready for use in ads
+const checkVideoStatus = async (videoId: string, accessToken: string): Promise<{ ready: boolean; status?: string }> => {
+  try {
+    const videoApiUrl = `https://graph.facebook.com/${META_API_VERSION}/${videoId}?fields=status&access_token=${encodeURIComponent(accessToken)}`;
+    const response = await fetch(videoApiUrl);
+    
+    if (!response.ok) {
+      console.warn(`[Launch API] Could not check video status for ${videoId}: ${response.status}`);
+      return { ready: false };
+    }
+    
+    const data = await response.json();
+    const status = data.status?.video_status || data.status;
+    
+    console.log(`[Launch API] Video ${videoId} status: ${status}`);
+    
+    // Video is ready when status is 'ready' or 'published'
+    return { 
+      ready: status === 'ready' || status === 'published',
+      status: status
+    };
+  } catch (error) {
+    console.warn(`[Launch API] Error checking video status for ${videoId}:`, error);
+    return { ready: false };
+  }
+};
+
+// Helper function to wait for videos to be ready with timeout
+const waitForVideosToBeReady = async (videoIds: string[], accessToken: string, maxWaitTimeMs: number = 300000): Promise<{ allReady: boolean; notReadyVideos: string[] }> => {
+  const startTime = Date.now();
+  const checkInterval = 10000; // Check every 10 seconds
+  
+  console.log(`[Launch API] Waiting for ${videoIds.length} videos to be ready for ad use...`);
+  
+  while (Date.now() - startTime < maxWaitTimeMs) {
+    const statusChecks = await Promise.all(
+      videoIds.map(async (videoId) => {
+        const status = await checkVideoStatus(videoId, accessToken);
+        return { videoId, ready: status.ready, status: status.status };
+      })
+    );
+    
+    const notReadyVideos = statusChecks.filter(check => !check.ready).map(check => check.videoId);
+    
+    if (notReadyVideos.length === 0) {
+      console.log(`[Launch API] All videos are ready for ad use!`);
+      return { allReady: true, notReadyVideos: [] };
+    }
+    
+    console.log(`[Launch API] ${notReadyVideos.length} videos still processing: ${notReadyVideos.join(', ')}`);
+    console.log(`[Launch API] Waiting ${checkInterval/1000}s before next check...`);
+    
+    // Wait before next check
+    await new Promise(resolve => setTimeout(resolve, checkInterval));
+  }
+  
+  // Timeout reached
+  const finalStatusChecks = await Promise.all(
+    videoIds.map(async (videoId) => {
+      const status = await checkVideoStatus(videoId, accessToken);
+      return { videoId, ready: status.ready };
+    })
+  );
+  
+  const notReadyVideos = finalStatusChecks.filter(check => !check.ready).map(check => check.videoId);
+  
+  console.log(`[Launch API] Timeout reached. ${notReadyVideos.length} videos still not ready: ${notReadyVideos.join(', ')}`);
+  return { allReady: false, notReadyVideos };
+};
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json() as LaunchAdsRequestBody;
@@ -560,6 +630,70 @@ export async function POST(req: NextRequest) {
         delete creativeSpec.asset_feed_spec;
       } else {
         throw new Error('No valid assets found for creative creation');
+      }
+
+      // Check if any videos need to be ready before creating the ad
+      const videoIds = (draft.assets as ProcessedAdDraftAsset[])
+        .filter(asset => asset.type === 'video' && asset.metaVideoId && !asset.metaUploadError)
+        .map(asset => asset.metaVideoId!);
+
+      if (videoIds.length > 0) {
+        console.log(`[Launch API]     Checking readiness of ${videoIds.length} videos before creating ad...`);
+        
+        // Update status to show we're waiting for video processing
+        try {
+          await supabase
+            .from('ad_drafts')
+            .update({ app_status: 'PROCESSING_VIDEOS' })
+            .eq('id', draft.id);
+          console.log(`[Launch API] Updated draft ${draft.adName} status to PROCESSING_VIDEOS`);
+        } catch (error) {
+          console.error(`[Launch API] Failed to update draft status to PROCESSING_VIDEOS:`, error);
+        }
+        
+        // Wait for videos to be ready (max 5 minutes)
+        const { allReady, notReadyVideos } = await waitForVideosToBeReady(videoIds, accessToken, 300000);
+        
+        if (!allReady) {
+          const errorMessage = `Videos are still processing and not ready for ad use: ${notReadyVideos.join(', ')}. Please try again in a few minutes.`;
+          console.error(`[Launch API]     ${errorMessage}`);
+          finalStatus = 'AD_CREATION_FAILED';
+          adError = errorMessage;
+          
+          // Skip ad creation for this draft
+          processingResults.push({
+            adName: draft.adName,
+            status: finalStatus,
+            assets: draft.assets.map((a: ProcessedAdDraftAsset) => ({
+              name: a.name,
+              type: a.type,
+              supabaseUrl: a.supabaseUrl,
+              metaHash: a.metaHash,
+              metaVideoId: a.metaVideoId,
+              uploadError: a.metaUploadError
+            })),
+            campaignId: draft.campaignId,
+            adSetId: draft.adSetId,
+            adId: undefined,
+            adError: adError,
+          });
+
+          // Update the draft's app_status in the database
+          try {
+            await supabase
+              .from('ad_drafts')
+              .update({ app_status: 'ERROR' })
+              .eq('id', draft.id);
+            
+            console.log(`[Launch API] Updated draft ${draft.adName} status to ERROR`);
+          } catch (error) {
+            console.error(`[Launch API] Failed to update draft ${draft.adName} status:`, error);
+          }
+          
+          continue; // Skip to next draft
+        }
+        
+        console.log(`[Launch API]     All videos are ready! Proceeding with ad creation...`);
       }
 
       // Validate ad set exists and get its campaign info for logging
