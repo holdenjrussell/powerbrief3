@@ -1,6 +1,22 @@
 import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { fetchFile, toBlobURL } from '@ffmpeg/util';
 
+// ========================================
+// VIDEO COMPRESSION CONFIGURATION
+// ========================================
+// To improve video quality further (reduce pixelation), you can:
+// 1. Change DEFAULT_COMPRESSION_QUALITY to 'ultra' for maximum quality (slower)
+// 2. Change DEFAULT_COMPRESSION_QUALITY to 'high' for excellent quality (balanced)
+// 3. Change DEFAULT_COMPRESSION_QUALITY to 'balanced' for good quality (faster)
+// 4. Change DEFAULT_COMPRESSION_QUALITY to 'fast' for basic quality (fastest)
+//
+// Current setting provides excellent quality with optimized encoding for transitions
+export const DEFAULT_COMPRESSION_QUALITY: CompressionQuality = 'high';
+
+// Advanced users: You can also modify the settings in getCompressionSettings() 
+// function below to fine-tune CRF, bitrates, and other encoding parameters
+// ========================================
+
 let ffmpeg: FFmpeg | null = null;
 
 // Initialize FFmpeg instance
@@ -30,9 +46,96 @@ export const getFileSizeMB = (file: File): number => {
   return file.size / (1024 * 1024);
 };
 
-// Compress video file
-export const compressVideo = async (
+// Compression quality levels
+export type CompressionQuality = 'fast' | 'balanced' | 'high' | 'ultra';
+
+// Get compression settings based on quality level
+const getCompressionSettings = (fileSizeMB: number, quality: CompressionQuality = 'balanced') => {
+  switch (quality) {
+    case 'fast':
+      return {
+        crf: fileSizeMB > 200 ? '25' : '23',
+        maxrate: fileSizeMB > 200 ? '3M' : '4M',
+        audioRate: '128k',
+        preset: 'medium',
+        bufsize: '8M',
+        keyframeInterval: '60',
+        extraArgs: []
+      };
+    
+    case 'balanced':
+      return {
+        crf: fileSizeMB > 200 ? '22' : '20',
+        maxrate: fileSizeMB > 200 ? '5M' : '6M',
+        audioRate: '160k',
+        preset: fileSizeMB > 200 ? 'medium' : 'slow',
+        bufsize: '12M',
+        keyframeInterval: '30',
+        extraArgs: [
+          '-bf', '3',
+          '-refs', '4',
+          '-subq', '7',
+          '-trellis', '1',
+          '-me_method', 'umh',
+          '-me_range', '16',
+          '-sc_threshold', '40'
+        ]
+      };
+    
+    case 'high':
+      return {
+        crf: fileSizeMB > 200 ? '20' : '18',
+        maxrate: fileSizeMB > 200 ? '7M' : '8M',
+        audioRate: '192k',
+        preset: 'slow',
+        bufsize: '16M',
+        keyframeInterval: '25',
+        extraArgs: [
+          '-bf', '4',
+          '-refs', '6',
+          '-subq', '9',
+          '-trellis', '2',
+          '-me_method', 'umh',
+          '-me_range', '24',
+          '-sc_threshold', '30',
+          '-aq-mode', '2',
+          '-aq-strength', '1.0'
+        ]
+      };
+    
+    case 'ultra':
+      return {
+        crf: fileSizeMB > 200 ? '18' : '16',
+        maxrate: fileSizeMB > 200 ? '10M' : '12M',
+        audioRate: '256k',
+        preset: 'veryslow',
+        bufsize: '20M',
+        keyframeInterval: '20',
+        extraArgs: [
+          '-bf', '6',
+          '-refs', '8',
+          '-subq', '10',
+          '-trellis', '2',
+          '-me_method', 'umh',
+          '-me_range', '32',
+          '-sc_threshold', '25',
+          '-aq-mode', '3',
+          '-aq-strength', '1.2',
+          '-psy-rd', '1.0:0.15',
+          '-mixed-refs', '1',
+          '-8x8dct', '1'
+        ]
+      };
+      
+    default:
+      return getCompressionSettings(fileSizeMB, 'balanced');
+  }
+};
+
+// Enhanced compress video file with quality options
+export const compressVideoWithQuality = async (
   file: File,
+  quality: CompressionQuality = 'balanced',
   onProgress?: (progress: number) => void
 ): Promise<File> => {
   try {
@@ -51,43 +154,30 @@ export const compressVideo = async (
     // Write input file to FFmpeg filesystem
     await ffmpegInstance.writeFile(inputFileName, await fetchFile(file));
     
-    // Less aggressive compression for better quality
     const fileSizeMB = getFileSizeMB(file);
-    let crf = '23';      // Higher quality (was 28)
-    let maxrate = '4M';  // Higher bitrate (was 2M)
-    let audioRate = '128k'; // Higher audio quality (was 96k)
+    const settings = getCompressionSettings(fileSizeMB, quality);
     
-    // For very large files (>200MB), use moderately more compression
-    if (fileSizeMB > 200) {
-      crf = '25';        // Still better quality than before (was 32)
-      maxrate = '3M';    // Higher bitrate (was 1.5M)
-      audioRate = '128k'; // Keep high audio quality (was 64k)
-    }
+    console.log(`Compressing ${fileSizeMB.toFixed(2)}MB file with quality: ${quality}, CRF: ${settings.crf}, maxrate: ${settings.maxrate}, preset: ${settings.preset}`);
     
-    console.log(`Compressing ${fileSizeMB.toFixed(2)}MB file with CRF: ${crf}, maxrate: ${maxrate}`);
-    
-    // Balanced compression settings for better quality while maintaining reasonable file sizes
-    // - Lower CRF (23-25) for better visual quality
-    // - Higher bitrates (3M-4M) for better overall quality
-    // - Medium preset for better quality/speed balance
-    // - Higher audio bitrate for better audio quality
+    // Build compression arguments
     const compressionArgs = [
       '-i', inputFileName,
-      '-c:v', 'libx264',           // Use H.264 codec
-      '-preset', 'medium',         // Better quality preset (was ultrafast)
-      '-crf', crf,                 // Better quality CRF (23-25 vs 28-32)
-      '-maxrate', maxrate,         // Higher max bitrate for better quality
-      '-bufsize', '8M',            // Larger buffer size (was 4M)
-      '-profile:v', 'high',        // High profile for better compression efficiency (was baseline)
-      '-level:v', '4.0',           // Higher level for better features (was 3.0)
-      '-movflags', '+faststart',   // Optimize for web streaming
-      '-c:a', 'aac',               // AAC audio codec
-      '-b:a', audioRate,           // Higher audio bitrate for better quality
-      '-ar', '44100',              // Standard sample rate
-      '-ac', '2',                  // Stereo audio
-      '-r', '30',                  // Force 30fps (Meta standard)
-      '-g', '60',                  // Keyframe interval (2 seconds at 30fps)
-      '-y',                        // Overwrite output file
+      '-c:v', 'libx264',
+      '-preset', settings.preset,
+      '-crf', settings.crf,
+      '-maxrate', settings.maxrate,
+      '-bufsize', settings.bufsize,
+      '-profile:v', 'high',
+      '-level:v', '4.1',
+      '-movflags', '+faststart',
+      '-c:a', 'aac',
+      '-b:a', settings.audioRate,
+      '-ar', '48000',
+      '-ac', '2',
+      '-r', '30',
+      '-g', settings.keyframeInterval,
+      ...settings.extraArgs,
+      '-y',
       outputFileName
     ];
     
@@ -105,14 +195,14 @@ export const compressVideo = async (
     const compressedBlob = new Blob([compressedData], { type: 'video/mp4' });
     const originalName = file.name;
     const nameWithoutExt = originalName.substring(0, originalName.lastIndexOf('.')) || originalName;
-    const compressedFileName = `${nameWithoutExt}_compressed.mp4`;
+    const compressedFileName = `${nameWithoutExt}_compressed_${quality}.mp4`;
     
     const compressedFile = new File([compressedBlob], compressedFileName, {
       type: 'video/mp4',
       lastModified: Date.now(),
     });
     
-    console.log(`Video compression complete:
+    console.log(`Video compression complete (${quality} quality):
       Original: ${getFileSizeMB(file).toFixed(2)}MB
       Compressed: ${getFileSizeMB(compressedFile).toFixed(2)}MB
       Reduction: ${(((file.size - compressedFile.size) / file.size) * 100).toFixed(1)}%`);
@@ -125,9 +215,18 @@ export const compressVideo = async (
   }
 };
 
+// Compress video file (using 'high' quality by default)
+export const compressVideo = async (
+  file: File,
+  onProgress?: (progress: number) => void
+): Promise<File> => {
+  return compressVideoWithQuality(file, DEFAULT_COMPRESSION_QUALITY, onProgress);
+};
+
 // Batch compress multiple videos with progress tracking
 export const compressVideos = async (
   files: File[],
+  quality: CompressionQuality = DEFAULT_COMPRESSION_QUALITY,
   onProgress?: (fileIndex: number, fileProgress: number, fileName: string) => void
 ): Promise<File[]> => {
   const compressedFiles: File[] = [];
@@ -136,9 +235,9 @@ export const compressVideos = async (
     const file = files[i];
     
     if (needsCompression(file)) {
-      console.log(`Compressing video ${i + 1}/${files.length}: ${file.name}`);
+      console.log(`Compressing video ${i + 1}/${files.length}: ${file.name} with ${quality} quality`);
       
-      const compressedFile = await compressVideo(file, (progress) => {
+      const compressedFile = await compressVideoWithQuality(file, quality, (progress) => {
         onProgress?.(i, progress, file.name);
       });
       
@@ -152,13 +251,44 @@ export const compressVideos = async (
   return compressedFiles;
 };
 
-// Estimate compression time (updated based on real-world testing)
-export const estimateCompressionTime = (file: File): number => {
+// Estimate compression time based on quality level
+export const estimateCompressionTime = (file: File, quality: CompressionQuality = DEFAULT_COMPRESSION_QUALITY): number => {
   const sizeInMB = getFileSizeMB(file);
   
-  // Updated estimates for medium preset (slower but better quality):
-  // - Medium preset takes ~2-3x longer than ultrafast
-  // - 120MB file now takes ~2-3 minutes instead of 1 minute
-  // - This gives us ~1-1.5 seconds per MB
-  return Math.ceil(sizeInMB * 1.2); // ~1.2 seconds per MB for medium preset
-}; 
+  // Time multipliers based on quality preset
+  const timeMultipliers = {
+    'fast': 1.5,      // ~1.5 seconds per MB (medium preset)
+    'balanced': 2.5,  // ~2.5 seconds per MB (slow/medium preset)
+    'high': 4.0,      // ~4 seconds per MB (slow preset)
+    'ultra': 8.0      // ~8 seconds per MB (veryslow preset)
+  };
+  
+  const multiplier = timeMultipliers[quality];
+  const estimatedSeconds = Math.ceil(sizeInMB * multiplier);
+  
+  console.log(`Estimated compression time for ${sizeInMB.toFixed(2)}MB file with ${quality} quality: ${estimatedSeconds} seconds`);
+  
+  return estimatedSeconds;
+};
+
+// Get quality recommendations based on file size and use case
+export const getQualityRecommendation = (fileSizeMB: number, useCase: 'upload' | 'archive' | 'preview' = 'upload') => {
+  switch (useCase) {
+    case 'upload':
+      // For Meta uploads, prioritize compatibility while maintaining good quality
+      if (fileSizeMB > 500) return 'fast';
+      if (fileSizeMB > 200) return 'balanced';
+      return 'high';
+      
+    case 'archive':
+      // For archival, prioritize quality over time
+      return 'ultra';
+      
+    case 'preview':
+      // For quick previews, prioritize speed
+      return 'fast';
+      
+    default:
+      return 'balanced';
+  }
+};

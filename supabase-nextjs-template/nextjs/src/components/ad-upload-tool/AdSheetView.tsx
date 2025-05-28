@@ -37,7 +37,7 @@ import {
 } from './adUploadTypes';
 import BulkEditModal from './BulkEditModal'; // Import BulkEditModal
 import BulkRenameModal from './BulkRenameModal'; // Import BulkRenameModal
-import { needsCompression, compressVideo, getFileSizeMB } from '@/lib/utils/videoCompression';
+import { needsCompression, compressVideoWithQuality, getFileSizeMB } from '@/lib/utils/videoCompression';
 import { createSPAClient } from '@/lib/supabase/client';
 
 // DefaultValues interface is now imported and aliased
@@ -1217,9 +1217,13 @@ This process may take several minutes. Continue?`;
           setCompressionProgress(prev => ({ ...prev, [progressKey]: 0 }));
 
           // Compress the video
-          const compressedFile = await compressVideo(file, (progress) => {
-            setCompressionProgress(prev => ({ ...prev, [progressKey]: progress }));
-          });
+          const compressedFile = await compressVideoWithQuality(
+            file, 
+            'high', // Use high quality for better results
+            (progress) => {
+              setCompressionProgress(prev => ({ ...prev, [progressKey]: progress }));
+            }
+          );
 
           console.log(`Compression complete: ${getFileSizeMB(file).toFixed(2)}MB → ${getFileSizeMB(compressedFile).toFixed(2)}MB`);
 

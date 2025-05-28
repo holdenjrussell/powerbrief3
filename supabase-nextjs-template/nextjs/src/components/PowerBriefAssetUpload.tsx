@@ -4,7 +4,7 @@ import { X, UploadCloud, Check, Trash2, Loader2, FileVideo, FileImage, AlertCirc
 import { createSPAClient } from '@/lib/supabase/client';
 import AssetGroupingPreview from './PowerBriefAssetGroupingPreview';
 import { UploadedAssetGroup, UploadedAsset } from '@/lib/types/powerbrief';
-import { needsCompression, compressVideo, getFileSizeMB } from '@/lib/utils/videoCompression';
+import { needsCompression, compressVideoWithQuality, getFileSizeMB } from '@/lib/utils/videoCompression';
 
 // Logging utility
 const logger = {
@@ -507,13 +507,17 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
               : sf
           ));
 
-          const compressedFile = await compressVideo(assetFile.file, (progress) => {
-            setSelectedFiles(prev => prev.map(sf => 
-              sf.id === assetFile.id 
-                ? { ...sf, compressionProgress: progress }
-                : sf
-            ));
-          });
+          const compressedFile = await compressVideoWithQuality(
+            assetFile.file, 
+            'high', // Use high quality for better results
+            (progress) => {
+              setSelectedFiles(prev => prev.map(sf => 
+                sf.id === assetFile.id 
+                  ? { ...sf, compressionProgress: progress }
+                  : sf
+              ));
+            }
+          );
 
           // Update the asset file with the compressed version
           const updatedAssetFile: AssetFile = {

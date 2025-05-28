@@ -4,7 +4,7 @@ import { X, UploadCloud, Check, Trash2, Loader2, Square, CheckSquare, Zap } from
 import { createSPAClient } from '@/lib/supabase/client';
 import { useGlobal } from '@/lib/context/GlobalContext';
 import { ImportedAssetGroup } from './adUploadTypes';
-import { needsCompression, compressVideo, getFileSizeMB } from '@/lib/utils/videoCompression';
+import { needsCompression, compressVideoWithQuality, getFileSizeMB } from '@/lib/utils/videoCompression';
 import AssetGroupingPreview from '@/components/PowerBriefAssetGroupingPreview';
 import { UploadedAssetGroup } from '@/lib/types/powerbrief';
 
@@ -250,13 +250,17 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
               : sf
           ));
 
-          const compressedFile = await compressVideo(assetFile.file, (progress) => {
-            setSelectedFiles(prev => prev.map(sf => 
-              sf.id === assetFile.id 
-                ? { ...sf, compressionProgress: progress }
-                : sf
-            ));
-          });
+          const compressedFile = await compressVideoWithQuality(
+            assetFile.file, 
+            'high', // Use high quality for better results
+            (progress) => {
+              setSelectedFiles(prev => prev.map(sf => 
+                sf.id === assetFile.id 
+                  ? { ...sf, compressionProgress: progress }
+                  : sf
+              ));
+            }
+          );
 
           // Update the asset file with the compressed version
           const updatedAssetFile: AssetFile = {

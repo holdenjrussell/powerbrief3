@@ -11,23 +11,24 @@ import {
   Grid, 
   List, 
   Search, 
-  Download, 
-  Heart, 
-  Play, 
-  Image as ImageIcon,
-  Folder,
-  ExternalLink,
-  Zap,
-  Database,
+  Download,
+  Heart,
   Trash2,
-  X,
+  ExternalLink,
+  ImageIcon,
+  Play,
+  Zap,
   Volume2,
-  VolumeX
+  VolumeX,
+  Upload,
+  Folder,
+  Database,
+  X
 } from 'lucide-react';
 import { createSPAClient } from '@/lib/supabase/client';
 import AdSpySearch from '@/components/AdSpySearch';
 import { useGlobal } from "@/lib/context/GlobalContext";
-import { getBrands } from '@/lib/services/powerbriefService';
+import { getBrands, getBriefBatches } from '@/lib/services/powerbriefService';
 import { Brand as PowerBriefBrand } from '@/lib/types/powerbrief';
 
 const supabase = createSPAClient();
@@ -57,6 +58,9 @@ interface SocialMediaContent {
   source_type?: 'manual' | 'adspy';
   adspy_ad_id?: string;
   adspy_metadata?: Record<string, string | number | string[] | boolean>;
+  sent_to_ad_batch?: boolean;
+  sent_to_ad_batch_at?: string;
+  sent_to_ad_batch_by?: string;
 }
 
 // Video Modal Component
@@ -168,6 +172,13 @@ export default function AdRipperPage() {
   // Video modal state
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
   const [selectedVideoItem, setSelectedVideoItem] = useState<SocialMediaContent | null>(null);
+
+  // Send to ad batch state
+  const [showSentToAdBatch, setShowSentToAdBatch] = useState(true); // Filter for showing sent items
+  const [isSendingToAdBatch, setIsSendingToAdBatch] = useState(false);
+  const [availableAdBatches, setAvailableAdBatches] = useState<Array<{id: string; name: string;}>>([]);
+  const [selectedAdBatchId, setSelectedAdBatchId] = useState<string>('');
+  const [showBatchSelector, setShowBatchSelector] = useState(false);
 
   const { user } = useGlobal();
 
@@ -537,6 +548,80 @@ export default function AdRipperPage() {
     deleteContent([contentId]);
   };
 
+  // Send selected assets to ad batch
+  const handleSendToAdBatch = async () => {
+    if (!selectedBrand || !user?.id || selectedContent.size === 0) return;
+
+    setIsSendingToAdBatch(true);
+    try {
+      const assetIds = Array.from(selectedContent);
+      
+      const response = await fetch('/api/adripper/send-to-ad-batch', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          assetIds,
+          userId: user.id,
+          brandId: selectedBrand.id,
+          adBatchId: selectedAdBatchId || null // Include selected batch ID
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to send assets to PowerBrief');
+      }
+
+      // Update the local content to reflect that these assets have been sent
+      setContent(prevContent => 
+        prevContent.map(item => 
+          selectedContent.has(item.id) 
+            ? { ...item, sent_to_ad_batch: true, sent_to_ad_batch_at: new Date().toISOString() }
+            : item
+        )
+      );
+      
+      // Clear selection
+      setSelectedContent(new Set());
+      setShowBatchSelector(false);
+      
+      const result = await response.json();
+      alert(`Successfully created ${result.totalConcepts} concept(s) in PowerBrief! 🎉`);
+      
+    } catch (error) {
+      console.error('Error sending to ad batch:', error);
+      alert('Failed to send assets to PowerBrief. Please try again.');
+    } finally {
+      setIsSendingToAdBatch(false);
+    }
+  };
+
+  // Fetch available ad batches for the selected brand
+  const fetchAvailableAdBatches = async (brandId: string) => {
+    if (!brandId) return;
+    
+    try {
+      // Use the PowerBrief service to get brief batches instead of ad batches
+      const batches = await getBriefBatches(brandId);
+      const mappedBatches = batches.map(batch => ({
+        id: batch.id,
+        name: batch.name
+      }));
+      setAvailableAdBatches(mappedBatches);
+    } catch (error) {
+      console.error('Error fetching brief batches:', error);
+    }
+  };
+
+  // Fetch ad batches when brand changes
+  useEffect(() => {
+    if (selectedBrand) {
+      fetchAvailableAdBatches(selectedBrand.id);
+    }
+  }, [selectedBrand]);
+
   const debugContentLoading = async () => {
     if (!selectedBrand) return;
     
@@ -577,8 +662,9 @@ export default function AdRipperPage() {
                          item.platform.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesPlatform = filterPlatform === 'all' || item.platform === filterPlatform;
     const matchesType = filterType === 'all' || item.content_type === filterType;
+    const matchesSentToAdBatch = showSentToAdBatch || !item.sent_to_ad_batch;
     
-    return matchesSearch && matchesPlatform && matchesType;
+    return matchesSearch && matchesPlatform && matchesType && matchesSentToAdBatch;
   });
 
   const formatFileSize = (bytes: number) => {
@@ -680,23 +766,59 @@ export default function AdRipperPage() {
                   >
                     🔍 Debug
                   </Button>
-                  {selectedContent.size > 0 && (
-                    <Button onClick={handleDownloadSelected}>
-                      <Download className="h-4 w-4 mr-2" />
-                      Download Selected ({selectedContent.size})
-                    </Button>
-                  )}
-                  {selectedContent.size > 0 && (
-                    <Button 
-                      onClick={handleDeleteSelected}
-                      variant="destructive"
-                    >
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Delete Selected ({selectedContent.size})
-                    </Button>
-                  )}
                 </div>
               </div>
+
+              {/* Selection Actions Bar - Only show when items are selected */}
+              {selectedContent.size > 0 && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-blue-700 font-medium">
+                        {selectedContent.size} asset{selectedContent.size !== 1 ? 's' : ''} selected
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setSelectedContent(new Set())}
+                        className="text-blue-600 hover:text-blue-800"
+                      >
+                        Clear selection
+                      </Button>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button onClick={handleDownloadSelected} variant="outline">
+                        <Download className="h-4 w-4 mr-2" />
+                        Download ({selectedContent.size})
+                      </Button>
+                      <Button 
+                        onClick={() => setShowBatchSelector(true)}
+                        disabled={isSendingToAdBatch}
+                        className="bg-blue-600 hover:bg-blue-700 text-white"
+                      >
+                        {isSendingToAdBatch ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                            Sending...
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="h-4 w-4 mr-2" />
+                            Send to PowerBrief ({selectedContent.size})
+                          </>
+                        )}
+                      </Button>
+                      <Button 
+                        onClick={handleDeleteSelected}
+                        variant="destructive"
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete ({selectedContent.size})
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Tab Navigation */}
               <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg">
@@ -845,6 +967,15 @@ export default function AdRipperPage() {
                       <option value="image">Images</option>
                       <option value="video">Videos</option>
                     </select>
+                    <label className="flex items-center gap-2 px-3 py-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={showSentToAdBatch}
+                        onChange={(e) => setShowSentToAdBatch(e.target.checked)}
+                        className="rounded"
+                      />
+                      Show sent to PowerBrief
+                    </label>
                   </div>
 
                   {/* Content Grid/List */}
@@ -874,15 +1005,37 @@ export default function AdRipperPage() {
                       {filteredContent.map((item) => (
                         <Card 
                           key={item.id} 
-                          className={`cursor-pointer transition-all hover:shadow-md ${
+                          className={`transition-all hover:shadow-md ${
                             selectedContent.has(item.id) ? 'ring-2 ring-yellow-500' : ''
                           }`}
-                          onClick={() => handleCardClick(item)}
                         >
                           {viewMode === 'grid' ? (
-                            <div>
-                              {/* Media Preview */}
-                              <div className="relative aspect-square bg-gray-100 rounded-t-lg overflow-hidden">
+                            <div className="relative">
+                              {/* Selection Checkbox - Top Left Corner */}
+                              <div className="absolute top-2 left-2 z-20">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedContent.has(item.id)}
+                                  onChange={(e) => {
+                                    e.stopPropagation();
+                                    const newSelection = new Set(selectedContent);
+                                    if (e.target.checked) {
+                                      newSelection.add(item.id);
+                                    } else {
+                                      newSelection.delete(item.id);
+                                    }
+                                    setSelectedContent(newSelection);
+                                  }}
+                                  className="w-5 h-5 text-blue-600 bg-white border-2 border-gray-300 rounded focus:ring-blue-500 focus:ring-2 shadow-sm"
+                                  aria-label={`Select ${item.title}`}
+                                />
+                              </div>
+                              
+                              {/* Media Preview - Clickable for video modal */}
+                              <div 
+                                className="relative aspect-square bg-gray-100 rounded-t-lg overflow-hidden cursor-pointer"
+                                onClick={() => handleCardClick(item)}
+                              >
                                 {item.content_type === 'image' ? (
                                   <img
                                     src={item.file_url}
@@ -915,7 +1068,7 @@ export default function AdRipperPage() {
                                 )}
                                 
                                 {/* Overlay with type and platform */}
-                                <div className="absolute top-2 left-2 flex gap-1">
+                                <div className="absolute top-2 right-12 flex gap-1">
                                   <Badge variant="secondary" className="text-xs">
                                     {item.content_type === 'image' ? <ImageIcon className="h-3 w-3" /> : <Play className="h-3 w-3" />}
                                   </Badge>
@@ -984,6 +1137,24 @@ export default function AdRipperPage() {
                             /* List View */
                             <CardContent className="p-4">
                               <div className="flex items-center gap-4">
+                                {/* Selection Checkbox */}
+                                <input
+                                  type="checkbox"
+                                  checked={selectedContent.has(item.id)}
+                                  onChange={(e) => {
+                                    e.stopPropagation();
+                                    const newSelection = new Set(selectedContent);
+                                    if (e.target.checked) {
+                                      newSelection.add(item.id);
+                                    } else {
+                                      newSelection.delete(item.id);
+                                    }
+                                    setSelectedContent(newSelection);
+                                  }}
+                                  className="w-4 h-4 text-blue-600 bg-white border-2 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                                  aria-label={`Select ${item.title}`}
+                                />
+                                
                                 <div className="w-16 h-16 bg-gray-100 rounded overflow-hidden flex-shrink-0">
                                   {item.content_type === 'image' ? (
                                     <img
@@ -1104,14 +1275,80 @@ export default function AdRipperPage() {
         </div>
       </div>
 
-      {/* Video Modal */}
-      {isVideoModalOpen && selectedVideoItem && (
-        <VideoModal
-          isOpen={isVideoModalOpen}
-          onClose={closeVideoModal}
-          videoItem={selectedVideoItem}
-        />
+      {/* Add URLs Dialog */}
+      {showAddUrls && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <h3 className="text-lg font-medium mb-4">Add Social Media URLs</h3>
+            <textarea
+              value={mediaUrls}
+              onChange={(e) => setMediaUrls(e.target.value)}
+              placeholder="Enter URLs, one per line..."
+              className="w-full h-32 p-3 border rounded-md"
+            />
+            <div className="flex justify-end gap-2 mt-4">
+              <Button variant="ghost" onClick={() => setShowAddUrls(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleAddUrls} disabled={isProcessing || !mediaUrls.trim()}>
+                {isProcessing ? 'Adding...' : 'Add URLs'}
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
+
+      {/* Batch Selector Modal */}
+      {showBatchSelector && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <h3 className="text-lg font-medium mb-4">Send to PowerBrief</h3>
+            <p className="text-gray-600 mb-4">
+              Select a brief batch to create {selectedContent.size} concept(s) from your selected asset(s):
+            </p>
+            
+            {availableAdBatches.length > 0 ? (
+              <select
+                value={selectedAdBatchId}
+                onChange={(e) => setSelectedAdBatchId(e.target.value)}
+                className="w-full p-3 border rounded-md mb-4"
+                aria-label="Select ad batch"
+              >
+                <option value="">Create new &quot;AdRipper Assets&quot; batch</option>
+                {availableAdBatches.map((batch) => (
+                  <option key={batch.id} value={batch.id}>
+                    {batch.name}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <div className="text-gray-500 mb-4 p-3 bg-gray-50 rounded">
+                No brief batches found. A new &quot;AdRipper Assets&quot; batch will be created.
+              </div>
+            )}
+            
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" onClick={() => setShowBatchSelector(false)}>
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleSendToAdBatch}
+                disabled={isSendingToAdBatch}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                {isSendingToAdBatch ? 'Sending...' : 'Send to PowerBrief'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Video Modal */}
+      <VideoModal 
+        isOpen={isVideoModalOpen} 
+        onClose={closeVideoModal} 
+        videoItem={selectedVideoItem} 
+      />
     </div>
   );
 } 
