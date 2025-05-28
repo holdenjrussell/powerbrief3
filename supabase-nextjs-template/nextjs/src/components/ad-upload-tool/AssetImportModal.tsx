@@ -406,10 +406,10 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
                 <p className="text-sm text-blue-700 mb-2">
                   Videos over 50MB are automatically compressed during import to ensure successful Meta uploads. 
                   <span className="text-blue-600"> Files under 50MB bypass compression.</span>
-                  <span className="block text-xs mt-1 text-blue-600">⚡ Aggressive compression - typically takes 30 seconds per 60MB with 60-80% size reduction</span>
+                  <span className="block text-xs mt-1 text-blue-600">⚡ Balanced compression - optimized for quality while maintaining reasonable file sizes</span>
                 </p>
                 <p className="text-xs text-blue-600">
-                  💡 <strong>Pro Tip:</strong> Our compression mirrors Meta&apos;s internal settings for optimal upload speed and platform compatibility.
+                  💡 <strong>Pro Tip:</strong> Our compression balances quality and file size for optimal Meta compatibility.
                 </p>
               </div>
             </div>
@@ -464,7 +464,7 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
                     </h4>
                     <p className="text-sm text-amber-700 mb-2">
                       {selectedFiles.filter(f => f.needsCompression).length} video(s) over 50MB will be automatically compressed to ensure successful upload to Meta.
-                      <span className="block text-xs mt-1 text-amber-600">⚡ Aggressive compression - typically takes 30 seconds per 60MB with 60-80% size reduction</span>
+                      <span className="block text-xs mt-1 text-amber-600">⚡ Balanced compression - optimized for quality while maintaining reasonable file sizes</span>
                     </p>
                     <p className="text-xs text-amber-600">
                       💡 <strong>Tip:</strong> You can bypass compression by ensuring your video files are under 50MB before uploading.

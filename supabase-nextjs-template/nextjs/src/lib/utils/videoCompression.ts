@@ -51,39 +51,38 @@ export const compressVideo = async (
     // Write input file to FFmpeg filesystem
     await ffmpegInstance.writeFile(inputFileName, await fetchFile(file));
     
-    // Adaptive compression based on file size (Meta's approach)
+    // Less aggressive compression for better quality
     const fileSizeMB = getFileSizeMB(file);
-    let crf = '28';
-    let maxrate = '2M';
-    let audioRate = '96k';
+    let crf = '23';      // Higher quality (was 28)
+    let maxrate = '4M';  // Higher bitrate (was 2M)
+    let audioRate = '128k'; // Higher audio quality (was 96k)
     
-    // For very large files (>200MB), use even more aggressive settings
+    // For very large files (>200MB), use moderately more compression
     if (fileSizeMB > 200) {
-      crf = '32';        // More aggressive CRF
-      maxrate = '1.5M';  // Lower bitrate
-      audioRate = '64k'; // Lower audio bitrate
+      crf = '25';        // Still better quality than before (was 32)
+      maxrate = '3M';    // Higher bitrate (was 1.5M)
+      audioRate = '128k'; // Keep high audio quality (was 64k)
     }
     
     console.log(`Compressing ${fileSizeMB.toFixed(2)}MB file with CRF: ${crf}, maxrate: ${maxrate}`);
     
-    // Meta's most aggressive compression settings for maximum file size reduction
-    // Based on Instagram/Facebook's internal compression pipeline:
-    // - Adaptive CRF (28-32) based on file size
-    // - ultrafast preset for maximum speed
-    // - Adaptive bitrate (1.5M-2M) for optimal file sizes
-    // - Optimized for mobile viewing and fast uploads
+    // Balanced compression settings for better quality while maintaining reasonable file sizes
+    // - Lower CRF (23-25) for better visual quality
+    // - Higher bitrates (3M-4M) for better overall quality
+    // - Medium preset for better quality/speed balance
+    // - Higher audio bitrate for better audio quality
     const compressionArgs = [
       '-i', inputFileName,
       '-c:v', 'libx264',           // Use H.264 codec
-      '-preset', 'ultrafast',      // Maximum speed preset
-      '-crf', crf,                 // Adaptive CRF for file size optimization
-      '-maxrate', maxrate,         // Adaptive max bitrate for smaller files
-      '-bufsize', '4M',            // Buffer size
-      '-profile:v', 'baseline',    // Baseline profile for maximum compatibility
-      '-level:v', '3.0',           // Level 3.0 for mobile optimization
+      '-preset', 'medium',         // Better quality preset (was ultrafast)
+      '-crf', crf,                 // Better quality CRF (23-25 vs 28-32)
+      '-maxrate', maxrate,         // Higher max bitrate for better quality
+      '-bufsize', '8M',            // Larger buffer size (was 4M)
+      '-profile:v', 'high',        // High profile for better compression efficiency (was baseline)
+      '-level:v', '4.0',           // Higher level for better features (was 3.0)
       '-movflags', '+faststart',   // Optimize for web streaming
       '-c:a', 'aac',               // AAC audio codec
-      '-b:a', audioRate,           // Adaptive audio bitrate
+      '-b:a', audioRate,           // Higher audio bitrate for better quality
       '-ar', '44100',              // Standard sample rate
       '-ac', '2',                  // Stereo audio
       '-r', '30',                  // Force 30fps (Meta standard)
@@ -157,8 +156,9 @@ export const compressVideos = async (
 export const estimateCompressionTime = (file: File): number => {
   const sizeInMB = getFileSizeMB(file);
   
-  // Updated estimates based on real-world testing:
-  // - 120MB file takes ~1 minute (60 seconds)
-  // - This gives us ~30 seconds per 60MB or ~0.5 seconds per MB
-  return Math.ceil(sizeInMB * 0.5); // ~30 seconds per 60MB
+  // Updated estimates for medium preset (slower but better quality):
+  // - Medium preset takes ~2-3x longer than ultrafast
+  // - 120MB file now takes ~2-3 minutes instead of 1 minute
+  // - This gives us ~1-1.5 seconds per MB
+  return Math.ceil(sizeInMB * 1.2); // ~1.2 seconds per MB for medium preset
 }; 

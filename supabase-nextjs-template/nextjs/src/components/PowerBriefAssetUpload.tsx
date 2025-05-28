@@ -792,10 +792,10 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
               <p className="text-sm text-blue-700 mb-2">
                 Videos over 50MB are automatically compressed during upload to ensure successful processing and Meta compatibility. 
                 Files under 50MB will maintain original quality.
-                <span className="block text-xs mt-1 text-blue-600">⚡ Aggressive compression - typically takes 30 seconds per 60MB with 60-80% size reduction</span>
+                <span className="block text-xs mt-1 text-blue-600">⚡ Balanced compression - optimized for quality while maintaining reasonable file sizes</span>
               </p>
               <p className="text-xs text-amber-600">
-                💡 <strong>Pro Tip:</strong> Our compression mirrors Meta&apos;s internal settings for optimal upload speed and platform compatibility.
+                💡 <strong>Pro Tip:</strong> Our compression balances quality and file size for optimal Meta compatibility.
               </p>
             </div>
           </div>
@@ -812,7 +812,7 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
                 </h4>
                 <p className="text-sm text-orange-700 mb-2">
                   {selectedFiles.filter(f => f.needsCompression).length} video(s) over 50MB will be automatically compressed during upload.
-                  <span className="block text-xs mt-1 text-orange-600">⚡ Aggressive compression - typically takes 30 seconds per 60MB with 60-80% size reduction</span>
+                  <span className="block text-xs mt-1 text-orange-600">⚡ Balanced compression - optimized for quality while maintaining reasonable file sizes</span>
                 </p>
                 <p className="text-xs text-orange-600">
                   ⚡ Compression will happen automatically when you upload - no action needed!
