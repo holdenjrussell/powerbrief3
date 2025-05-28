@@ -135,6 +135,7 @@ export interface BriefConcept {
   clickup_id: string | null;
   clickup_link: string | null;
   strategist: string | null;
+  creative_coordinator: string | null;
   video_editor: string | null;
   editor_id: string | null;
   custom_editor_name: string | null;
@@ -241,6 +242,7 @@ export type DbBriefConcept = {
   clickup_id: string | null;
   clickup_link: string | null;
   strategist: string | null;
+  creative_coordinator: string | null;
   video_editor: string | null;
   editor_id: string | null;
   custom_editor_name: string | null;

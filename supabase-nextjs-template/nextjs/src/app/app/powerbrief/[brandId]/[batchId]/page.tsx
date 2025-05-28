@@ -56,6 +56,7 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
     const [localClickupLinks, setLocalClickupLinks] = useState<Record<string, string>>({});
     const [editingClickupLink, setEditingClickupLink] = useState<string | null>(null);
     const [localStrategists, setLocalStrategists] = useState<Record<string, string>>({});
+    const [localCreativeCoordinators, setLocalCreativeCoordinators] = useState<Record<string, string>>({});
     const [localVideoEditors, setLocalVideoEditors] = useState<Record<string, string>>({});
     
     // Sharing related state
@@ -116,6 +117,7 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                 const initialLocalDesignerInstructions: Record<string, string> = {};
                 const initialLocalClickupLinks: Record<string, string> = {};
                 const initialLocalStrategists: Record<string, string> = {};
+                const initialLocalCreativeCoordinators: Record<string, string> = {};
                 const initialLocalVideoEditors: Record<string, string> = {};
                 const initialLocalMediaTypes: Record<string, 'video' | 'image'> = {};
                 const initialLocalHookTypes: Record<string, 'caption' | 'verbal' | 'both'> = {};
@@ -135,6 +137,7 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                     initialLocalDesignerInstructions[concept.id] = concept.designerInstructions || '';
                     initialLocalClickupLinks[concept.id] = concept.clickup_id || ''; // Note: uses clickup_id from concept
                     initialLocalStrategists[concept.id] = concept.strategist || '';
+                    initialLocalCreativeCoordinators[concept.id] = concept.creative_coordinator || '';
                     initialLocalVideoEditors[concept.id] = concept.video_editor || '';
                     initialLocalMediaTypes[concept.id] = concept.media_type === 'image' ? 'image' : 'video'; // Corrected line
                     initialLocalHookTypes[concept.id] = concept.hook_type || 'both';
@@ -156,6 +159,7 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                 setLocalDesignerInstructions(initialLocalDesignerInstructions);
                 setLocalClickupLinks(initialLocalClickupLinks);
                 setLocalStrategists(initialLocalStrategists);
+                setLocalCreativeCoordinators(initialLocalCreativeCoordinators);
                 setLocalVideoEditors(initialLocalVideoEditors);
                 setLocalMediaTypes(initialLocalMediaTypes);
                 setLocalHookTypes(initialLocalHookTypes);
@@ -244,6 +248,7 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                 clickup_id: null,
                 clickup_link: null,
                 strategist: null,
+                creative_coordinator: null,
                 video_editor: null,
                 editor_id: null,
                 custom_editor_name: null,
@@ -366,6 +371,48 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                 }
             }
             
+            // Send Slack notification if status changed to "READY FOR EDITOR ASSIGNMENT"
+            if (previousStatus !== 'READY FOR EDITOR ASSIGNMENT' && concept.status === 'READY FOR EDITOR ASSIGNMENT' && batch) {
+                try {
+                    // Create share links for the concept and batch
+                    const conceptShareSettings = {
+                        is_editable: true,
+                        expires_at: null
+                    };
+                    
+                    const batchShareSettings = {
+                        is_editable: true,
+                        expires_at: null
+                    };
+                    
+                    const [conceptShareResult, batchShareResult] = await Promise.all([
+                        shareBriefConcept(concept.id, 'link', conceptShareSettings),
+                        shareBriefBatch(batch.id, 'link', batchShareSettings)
+                    ]);
+                    
+                    await fetch('/api/slack/concept-ready-for-editor-assignment', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            conceptId: concept.id,
+                            conceptTitle: concept.concept_title,
+                            batchName: batch.name,
+                            brandId: batch.brand_id,
+                            assignedEditor: concept.video_editor,
+                            assignedStrategist: concept.strategist,
+                            assignedCreativeCoordinator: concept.creative_coordinator,
+                            conceptShareUrl: conceptShareResult.share_url,
+                            batchShareUrl: batchShareResult.share_url
+                        }),
+                    });
+                } catch (slackError) {
+                    console.error('Failed to send Slack notification for concept ready for editor assignment:', slackError);
+                    // Don't fail the status update if Slack notification fails
+                }
+            }
+            
             return updatedConcept;
         } catch (err) {
             console.error('Error updating concept:', err);
@@ -455,6 +502,7 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                         clickup_id: null,
                         clickup_link: null,
                         strategist: null,
+                        creative_coordinator: null,
                         video_editor: null,
                         editor_id: null,
                         custom_editor_name: null,
@@ -1071,6 +1119,7 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
         const scenesMap: Record<string, Scene[]> = {};
         const clickupLinksMap: Record<string, string> = {};
         const strategistsMap: Record<string, string> = {};
+        const creativeCoordinatorsMap: Record<string, string> = {};
         const videoEditorsMap: Record<string, string> = {};
         const videoInstructionsMap: Record<string, string> = {};
         const designerInstructionsMap: Record<string, string> = {};
@@ -1088,6 +1137,7 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
             scenesMap[concept.id] = [...(concept.body_content_structured || [])];
             clickupLinksMap[concept.id] = concept.clickup_id || '';
             strategistsMap[concept.id] = concept.strategist || '';
+            creativeCoordinatorsMap[concept.id] = concept.creative_coordinator || '';
             videoEditorsMap[concept.id] = concept.video_editor || '';
             videoInstructionsMap[concept.id] = concept.videoInstructions || '';
             designerInstructionsMap[concept.id] = concept.designerInstructions || '';
@@ -1129,6 +1179,7 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
         setLocalScenes(scenesMap);
         setLocalClickupLinks(clickupLinksMap);
         setLocalStrategists(strategistsMap);
+        setLocalCreativeCoordinators(creativeCoordinatorsMap);
         setLocalVideoEditors(videoEditorsMap);
         setLocalVideoInstructions(videoInstructionsMap);
         setLocalDesignerInstructions(designerInstructionsMap);
@@ -1927,6 +1978,7 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                             <option value="BRIEF REVIEW">BRIEF REVIEW</option>
                                             <option value="READY FOR DESIGNER">READY FOR DESIGNER</option>
                                             <option value="READY FOR EDITOR">READY FOR EDITOR</option>
+                                            <option value="READY FOR EDITOR ASSIGNMENT">READY FOR EDITOR ASSIGNMENT</option>
                                             <option value="READY FOR REVIEW">READY FOR REVIEW</option>
                                             <option value="APPROVED">APPROVED</option>
                                             <option value="REVISIONS REQUESTED">REVISIONS REQUESTED</option>
@@ -1954,6 +2006,31 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                                 handleUpdateConcept(updatedConcept);
                                             }}
                                             placeholder="Enter strategist name"
+                                            className="text-sm"
+                                        />
+                                    </div>
+                                    
+                                    {/* Creative Coordinator Field */}
+                                    <div className="mt-2">
+                                        <label className="block text-xs font-medium mb-1">Creative Coordinator:</label>
+                                        <Input
+                                            value={localCreativeCoordinators[concept.id] || ''}
+                                            onChange={(e) => {
+                                                // Only update local state during typing
+                                                setLocalCreativeCoordinators(prev => ({
+                                                    ...prev,
+                                                    [concept.id]: e.target.value
+                                                }));
+                                            }}
+                                            onBlur={() => {
+                                                // Save to database only when field loses focus
+                                                const updatedConcept = {
+                                                    ...concept,
+                                                    creative_coordinator: localCreativeCoordinators[concept.id] || ''
+                                                };
+                                                handleUpdateConcept(updatedConcept);
+                                            }}
+                                            placeholder="Enter creative coordinator name"
                                             className="text-sm"
                                         />
                                     </div>
@@ -2000,6 +2077,11 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                         {concept.strategist && (
                                             <div className="text-xs px-3 py-1.5 bg-indigo-100 text-indigo-800 rounded-full font-medium border border-indigo-200">
                                                 Strategist: {concept.strategist}
+                                            </div>
+                                        )}
+                                        {concept.creative_coordinator && (
+                                            <div className="text-xs px-3 py-1.5 bg-pink-100 text-pink-800 rounded-full font-medium border border-pink-200">
+                                                Creative Coordinator: {concept.creative_coordinator}
                                             </div>
                                         )}
                                         {concept.video_editor && (

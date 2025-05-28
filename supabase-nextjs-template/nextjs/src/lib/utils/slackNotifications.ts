@@ -64,6 +64,7 @@ interface ConceptReadyForEditorData {
   batchName: string;
   assignedEditor?: string;
   assignedStrategist?: string;
+  assignedCreativeCoordinator?: string;
   conceptShareUrl: string;
   batchShareUrl: string;
 }
@@ -460,6 +461,7 @@ export async function sendConceptReadyForEditorNotification(data: ConceptReadyFo
       batchName: data.batchName,
       assignedEditor: data.assignedEditor,
       assignedStrategist: data.assignedStrategist,
+      assignedCreativeCoordinator: data.assignedCreativeCoordinator,
       conceptShareUrl: data.conceptShareUrl,
       batchShareUrl: data.batchShareUrl
     });
@@ -1026,6 +1028,7 @@ interface ConceptReadyForEditorMessageData {
   batchName: string;
   assignedEditor?: string;
   assignedStrategist?: string;
+  assignedCreativeCoordinator?: string;
   conceptShareUrl: string;
   batchShareUrl: string;
 }
@@ -1037,6 +1040,7 @@ function createConceptReadyForEditorMessage(data: ConceptReadyForEditorMessageDa
     batchName,
     assignedEditor,
     assignedStrategist,
+    assignedCreativeCoordinator,
     conceptShareUrl,
     batchShareUrl
   } = data;
@@ -1072,6 +1076,10 @@ function createConceptReadyForEditorMessage(data: ConceptReadyForEditorMessageDa
         {
           type: "mrkdwn",
           text: `*Assigned Strategist:*\n${assignedStrategist || 'Not assigned'}`
+        },
+        {
+          type: "mrkdwn",
+          text: `*Assigned Creative Coordinator:*\n${assignedCreativeCoordinator || 'Not assigned'}`
         }
       ]
     }
