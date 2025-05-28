@@ -58,6 +58,7 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
     const [localStrategists, setLocalStrategists] = useState<Record<string, string>>({});
     const [localCreativeCoordinators, setLocalCreativeCoordinators] = useState<Record<string, string>>({});
     const [localVideoEditors, setLocalVideoEditors] = useState<Record<string, string>>({});
+    const [localBriefRevisionComments, setLocalBriefRevisionComments] = useState<Record<string, string>>({});
     
     // Sharing related state
     const [showShareBatchDialog, setShowShareBatchDialog] = useState<boolean>(false);
@@ -119,6 +120,7 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                 const initialLocalStrategists: Record<string, string> = {};
                 const initialLocalCreativeCoordinators: Record<string, string> = {};
                 const initialLocalVideoEditors: Record<string, string> = {};
+                const initialLocalBriefRevisionComments: Record<string, string> = {};
                 const initialLocalMediaTypes: Record<string, 'video' | 'image'> = {};
                 const initialLocalHookTypes: Record<string, 'caption' | 'verbal' | 'both'> = {};
                 const initialLocalHookCounts: Record<string, number> = {};
@@ -139,6 +141,7 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                     initialLocalStrategists[concept.id] = concept.strategist || '';
                     initialLocalCreativeCoordinators[concept.id] = concept.creative_coordinator || '';
                     initialLocalVideoEditors[concept.id] = concept.video_editor || '';
+                    initialLocalBriefRevisionComments[concept.id] = concept.brief_revision_comments || '';
                     initialLocalMediaTypes[concept.id] = concept.media_type === 'image' ? 'image' : 'video'; // Corrected line
                     initialLocalHookTypes[concept.id] = concept.hook_type || 'both';
                     initialLocalHookCounts[concept.id] = concept.hook_count || 5;
@@ -161,6 +164,7 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                 setLocalStrategists(initialLocalStrategists);
                 setLocalCreativeCoordinators(initialLocalCreativeCoordinators);
                 setLocalVideoEditors(initialLocalVideoEditors);
+                setLocalBriefRevisionComments(initialLocalBriefRevisionComments);
                 setLocalMediaTypes(initialLocalMediaTypes);
                 setLocalHookTypes(initialLocalHookTypes);
                 setLocalHookCounts(initialLocalHookCounts);
@@ -361,6 +365,8 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                             brandId: batch.brand_id,
                             assignedEditor: concept.video_editor,
                             assignedStrategist: concept.strategist,
+                            assignedCreativeCoordinator: concept.creative_coordinator,
+                            briefRevisionComments: concept.brief_revision_comments,
                             conceptShareUrl: conceptShareResult.share_url,
                             batchShareUrl: batchShareResult.share_url
                         }),
@@ -444,6 +450,7 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                             brandId: batch.brand_id,
                             assignedStrategist: concept.strategist,
                             assignedCreativeCoordinator: concept.creative_coordinator,
+                            briefRevisionComments: concept.brief_revision_comments,
                             conceptShareUrl: conceptShareResult.share_url,
                             batchShareUrl: batchShareResult.share_url
                         }),
@@ -2101,6 +2108,34 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                             className="text-sm"
                                         />
                                     </div>
+                                    
+                                    {/* Brief Revision Comments Field - Only show when status is BRIEF REVISIONS NEEDED */}
+                                    {concept.status === 'BRIEF REVISIONS NEEDED' && (
+                                        <div className="mt-2">
+                                            <label className="block text-xs font-medium mb-1">Revision Comments:</label>
+                                            <Textarea
+                                                value={localBriefRevisionComments[concept.id] || ''}
+                                                onChange={(e) => {
+                                                    // Only update local state during typing
+                                                    setLocalBriefRevisionComments(prev => ({
+                                                        ...prev,
+                                                        [concept.id]: e.target.value
+                                                    }));
+                                                }}
+                                                onBlur={() => {
+                                                    // Save to database only when field loses focus
+                                                    const updatedConcept = {
+                                                        ...concept,
+                                                        brief_revision_comments: localBriefRevisionComments[concept.id] || ''
+                                                    };
+                                                    handleUpdateConcept(updatedConcept);
+                                                }}
+                                                placeholder="Enter specific comments about what needs to be revised..."
+                                                className="text-sm min-h-[80px]"
+                                                rows={3}
+                                            />
+                                        </div>
+                                    )}
                                     
                                     <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-gray-100">
                                         {concept.status && (

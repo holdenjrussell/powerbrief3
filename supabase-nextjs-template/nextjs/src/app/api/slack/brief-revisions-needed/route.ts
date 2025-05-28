@@ -10,6 +10,7 @@ export async function POST(request: NextRequest) {
             brandId,
             assignedStrategist,
             assignedCreativeCoordinator,
+            briefRevisionComments,
             conceptShareUrl,
             batchShareUrl
         } = await request.json();
@@ -30,6 +31,7 @@ export async function POST(request: NextRequest) {
             batchName,
             assignedStrategist,
             assignedCreativeCoordinator,
+            briefRevisionComments,
             conceptShareUrl,
             batchShareUrl
         });

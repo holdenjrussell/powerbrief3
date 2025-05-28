@@ -157,6 +157,7 @@ export interface BriefConcept {
   review_status?: 'pending' | 'ready_for_review' | 'approved' | 'needs_revisions' | null;
   review_link?: string | null;
   reviewer_notes?: string | null;
+  brief_revision_comments?: string | null;
   created_at: string;
   updated_at: string;
   uploaded_assets?: UploadedAssetGroup[] | null;
@@ -266,6 +267,7 @@ export type DbBriefConcept = {
   review_status?: string | null;
   review_link?: string | null;
   reviewer_notes?: string | null;
+  brief_revision_comments?: string | null;
   created_at: string;
   updated_at: string;
 };

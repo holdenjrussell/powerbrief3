@@ -76,6 +76,7 @@ interface BriefRevisionsNeededData {
   batchName: string;
   assignedStrategist?: string;
   assignedCreativeCoordinator?: string;
+  briefRevisionComments?: string;
   conceptShareUrl: string;
   batchShareUrl: string;
 }
@@ -545,6 +546,7 @@ export async function sendBriefRevisionsNeededNotification(data: BriefRevisionsN
       batchName: data.batchName,
       assignedStrategist: data.assignedStrategist,
       assignedCreativeCoordinator: data.assignedCreativeCoordinator,
+      briefRevisionComments: data.briefRevisionComments,
       conceptShareUrl: data.conceptShareUrl,
       batchShareUrl: data.batchShareUrl
     });
@@ -1215,6 +1217,7 @@ interface BriefRevisionsNeededMessageData {
   batchName: string;
   assignedStrategist?: string;
   assignedCreativeCoordinator?: string;
+  briefRevisionComments?: string;
   conceptShareUrl: string;
   batchShareUrl: string;
 }
@@ -1226,6 +1229,7 @@ function createBriefRevisionsNeededMessage(data: BriefRevisionsNeededMessageData
     batchName,
     assignedStrategist,
     assignedCreativeCoordinator,
+    briefRevisionComments,
     conceptShareUrl,
     batchShareUrl
   } = data;
@@ -1277,6 +1281,17 @@ function createBriefRevisionsNeededMessage(data: BriefRevisionsNeededMessageData
       text: "*Status:* 🔄 The brief requires revisions before proceeding to production. Please review and update the concept brief."
     }
   });
+
+  // Add comments section if provided
+  if (briefRevisionComments) {
+    blocks.push({
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: `*Revision Comments:*\n${briefRevisionComments}`
+      }
+    });
+  }
 
   // Add action buttons
   blocks.push({
