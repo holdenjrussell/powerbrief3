@@ -69,6 +69,7 @@ export default function AdRipperPage() {
   const [showAddUrls, setShowAddUrls] = useState(false);
   const [mediaUrls, setMediaUrls] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [processingProgress, setProcessingProgress] = useState({ current: 0, total: 0, currentUrl: '' });
 
   const { user } = useGlobal();
 
@@ -139,9 +140,11 @@ export default function AdRipperPage() {
   };
 
   const handleAddUrls = async () => {
-    if (!selectedBrand || !mediaUrls.trim()) return;
+    if (!selectedBrand || !mediaUrls.trim() || !user?.id) return;
 
     setIsProcessing(true);
+    setProcessingProgress({ current: 0, total: 0, currentUrl: '' });
+    
     try {
       // Filter out non-URL lines and only keep valid social media URLs
       const allLines = mediaUrls.split('\n').map(line => line.trim()).filter(line => line);
@@ -152,6 +155,9 @@ export default function AdRipperPage() {
         return;
       }
 
+      // Set initial progress
+      setProcessingProgress({ current: 0, total: urls.length, currentUrl: 'Starting...' });
+
       // Call API to save to Supabase
       const response = await fetch('/api/social-media-download', {
         method: 'POST',
@@ -160,6 +166,7 @@ export default function AdRipperPage() {
         },
         body: JSON.stringify({
           brandId: selectedBrand.id,
+          userId: user.id, // Pass the actual user ID
           urls: urls
         }),
       });
@@ -171,18 +178,25 @@ export default function AdRipperPage() {
       const result = await response.json();
       const successCount = result.results.filter((r: { status: string }) => r.status === 'success').length;
       
-      alert(`Successfully ripped ${successCount} ads to ${selectedBrand.name} board! 🎉`);
+      // Show final progress
+      setProcessingProgress({ current: urls.length, total: urls.length, currentUrl: 'Complete!' });
       
-      // Reload content and clear form
-      await loadContent(selectedBrand.id);
-      setMediaUrls('');
-      setShowAddUrls(false);
+      if (successCount > 0) {
+        alert(`Successfully ripped ${successCount} ads to ${selectedBrand.name} board! 🎉`);
+        // Reload content and clear form
+        await loadContent(selectedBrand.id);
+        setMediaUrls('');
+        setShowAddUrls(false);
+      } else {
+        alert('No ads were successfully ripped. Please check the URLs and try again.');
+      }
       
     } catch (error) {
       console.error('Error adding URLs:', error);
       alert('Failed to rip ads. Please try again.');
     } finally {
       setIsProcessing(false);
+      setProcessingProgress({ current: 0, total: 0, currentUrl: '' });
     }
   };
 
@@ -428,7 +442,11 @@ export default function AdRipperPage() {
                             {isProcessing ? (
                               <>
                                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                                Ripping Ads...
+                                {processingProgress.total > 0 ? (
+                                  `Ripping ${processingProgress.current}/${processingProgress.total} ads...`
+                                ) : (
+                                  'Ripping Ads...'
+                                )}
                               </>
                             ) : (
                               <>
@@ -444,6 +462,21 @@ export default function AdRipperPage() {
                             Cancel
                           </Button>
                         </div>
+                        
+                        {/* Progress Bar */}
+                        {isProcessing && processingProgress.total > 0 && (
+                          <div className="space-y-2">
+                            <div className="w-full bg-gray-200 rounded-full h-2">
+                              <div 
+                                className="bg-yellow-600 h-2 rounded-full transition-all duration-300"
+                                style={{ width: `${(processingProgress.current / processingProgress.total) * 100}%` }}
+                              ></div>
+                            </div>
+                            <p className="text-sm text-gray-600 text-center">
+                              {processingProgress.currentUrl && `Processing: ${processingProgress.currentUrl}`}
+                            </p>
+                          </div>
+                        )}
                       </CardContent>
                     </Card>
                   )}

@@ -21,6 +21,7 @@ interface DownloadResult {
 
 interface SaveToSupabaseRequest {
   brandId: string;
+  userId: string;
   urls: string[];
 }
 
@@ -270,7 +271,7 @@ export async function POST(request: NextRequest) {
     
     // Check if this is a save-to-supabase request
     if ('brandId' in body) {
-      const { brandId, urls }: SaveToSupabaseRequest = body;
+      const { brandId, userId, urls }: SaveToSupabaseRequest = body;
       
       if (!brandId) {
         return NextResponse.json({
@@ -278,9 +279,17 @@ export async function POST(request: NextRequest) {
         }, { status: 400 });
       }
 
-      // Get user ID from auth (you'll need to implement this based on your auth setup)
-      // For now, using a placeholder - replace with actual auth
-      const userId = 'user-placeholder'; // TODO: Get from auth
+      if (!userId) {
+        return NextResponse.json({
+          error: 'User ID is required for saving to Supabase'
+        }, { status: 400 });
+      }
+
+      if (!urls || !Array.isArray(urls) || urls.length === 0) {
+        return NextResponse.json({
+          error: 'Please provide an array of URLs'
+        }, { status: 400 });
+      }
 
       const results: DownloadResult[] = [];
       
