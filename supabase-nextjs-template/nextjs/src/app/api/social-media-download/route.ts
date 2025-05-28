@@ -17,6 +17,7 @@ interface DownloadResult {
   filename?: string;
   filesize?: number;
   contentId?: string; // Supabase record ID
+  alreadyExists?: boolean; // Flag to indicate if content already existed
 }
 
 interface SaveToSupabaseRequest {
@@ -35,19 +36,55 @@ function detectPlatform(url: string): string {
 
 // Helper function to get proper file extension based on content type
 function getFileExtension(contentType: string, url: string): string {
-  // First check the content type
+  // First check the URL for file extensions
+  const urlLower = url.toLowerCase();
+  
+  // Check for image extensions in URL
+  if (urlLower.includes('.jpg') || urlLower.includes('.jpeg')) return 'jpg';
+  if (urlLower.includes('.png')) return 'png';
+  if (urlLower.includes('.gif')) return 'gif';
+  if (urlLower.includes('.webp')) return 'webp';
+  
+  // Check for video extensions in URL
+  if (urlLower.includes('.mp4')) return 'mp4';
+  if (urlLower.includes('.webm')) return 'webm';
+  if (urlLower.includes('.mov')) return 'mov';
+  
+  // If no extension in URL, use content type
   if (contentType === 'image') {
-    // For images, check URL or default to jpg
-    if (url.includes('.png')) return 'png';
-    if (url.includes('.gif')) return 'gif';
-    if (url.includes('.webp')) return 'webp';
     return 'jpg'; // Default for images
   } else {
-    // For videos, default to mp4
-    if (url.includes('.webm')) return 'webm';
-    if (url.includes('.mov')) return 'mov';
     return 'mp4'; // Default for videos
   }
+}
+
+// Helper function to detect content type from URL
+function detectContentType(url: string): 'image' | 'video' {
+  const urlLower = url.toLowerCase();
+  
+  // Check for image indicators in URL
+  if (urlLower.includes('.jpg') || urlLower.includes('.jpeg') || 
+      urlLower.includes('.png') || urlLower.includes('.gif') || 
+      urlLower.includes('.webp') || urlLower.includes('image') ||
+      urlLower.includes('photo')) {
+    return 'image';
+  }
+  
+  // Check for video indicators in URL
+  if (urlLower.includes('.mp4') || urlLower.includes('.webm') || 
+      urlLower.includes('.mov') || urlLower.includes('video') ||
+      urlLower.includes('watch') || urlLower.includes('reel')) {
+    return 'video';
+  }
+  
+  // Default based on platform
+  if (urlLower.includes('instagram.com')) {
+    // Instagram posts can be either, but default to image
+    return 'image';
+  }
+  
+  // Facebook and TikTok default to video
+  return 'video';
 }
 
 // Helper function to get MIME type
@@ -73,9 +110,12 @@ async function downloadFromFacebook(url: string): Promise<DownloadResult> {
     console.log('Facebook scraper result:', result);
     
     if (result && result.status === 200 && result.data && result.data.url) {
+      // Detect content type from the download URL
+      const detectedType = detectContentType(result.data.url);
+      
       return {
         url,
-        type: result.data.type || 'video',
+        type: detectedType,
         status: 'success',
         downloadUrl: result.data.url,
         title: result.data.title || 'Facebook Content',
@@ -103,9 +143,12 @@ async function downloadFromInstagram(url: string): Promise<DownloadResult> {
     console.log('Instagram scraper result:', result);
     
     if (result && result.status === 200 && result.data && result.data.url) {
+      // Detect content type from the download URL
+      const detectedType = detectContentType(result.data.url);
+      
       return {
         url,
-        type: result.data.type || 'image',
+        type: detectedType,
         status: 'success',
         downloadUrl: result.data.url,
         title: result.data.title || 'Instagram Content',
@@ -133,6 +176,7 @@ async function downloadFromTikTok(url: string): Promise<DownloadResult> {
     console.log('TikTok scraper result:', result);
     
     if (result && result.status === 200 && result.data && result.data.url) {
+      // TikTok is always video
       return {
         url,
         type: 'video',
@@ -177,12 +221,31 @@ async function downloadFromPlatform(url: string): Promise<DownloadResult> {
   }
 }
 
-async function saveToSupabase(result: DownloadResult, brandId: string, userId: string): Promise<string | null> {
+async function saveToSupabase(result: DownloadResult, brandId: string, userId: string): Promise<{ id: string | null; alreadyExists: boolean }> {
   if (result.status !== 'success' || !result.downloadUrl) {
-    return null;
+    return { id: null, alreadyExists: false };
   }
 
   try {
+    // First check if this URL already exists for this brand
+    const { data: existingContent, error: checkError } = await supabase
+      .from('social_media_content')
+      .select('id, file_url')
+      .eq('brand_id', brandId)
+      .eq('source_url', result.url)
+      .single();
+
+    if (checkError && checkError.code !== 'PGRST116') { // PGRST116 = no rows found
+      console.error('Error checking existing content:', checkError);
+      throw new Error(`Database check failed: ${checkError.message}`);
+    }
+
+    // If content already exists, return the existing ID
+    if (existingContent) {
+      console.log(`Content already exists for URL: ${result.url}, returning existing ID: ${existingContent.id}`);
+      return { id: existingContent.id, alreadyExists: true };
+    }
+
     // Download the file
     const response = await fetch(result.downloadUrl);
     if (!response.ok) {
@@ -242,7 +305,9 @@ async function saveToSupabase(result: DownloadResult, brandId: string, userId: s
         tags: [],
         notes: null,
         is_favorite: false,
-        folder_name: null
+        folder_name: null,
+        download_count: 0,
+        source_type: 'manual'
       })
       .select('id')
       .single();
@@ -255,7 +320,17 @@ async function saveToSupabase(result: DownloadResult, brandId: string, userId: s
     }
 
     console.log(`Successfully saved to Supabase: ${dbData.id}`);
-    return dbData.id;
+    console.log('Saved data:', {
+      id: dbData.id,
+      brand_id: brandId,
+      user_id: userId,
+      source_url: result.url,
+      platform: detectPlatform(result.url),
+      title: result.title,
+      content_type: result.type,
+      file_name: filename
+    });
+    return { id: dbData.id, alreadyExists: false };
 
   } catch (error) {
     console.error('Error saving to Supabase:', error);
@@ -298,8 +373,9 @@ export async function POST(request: NextRequest) {
         
         if (result.status === 'success') {
           try {
-            const contentId = await saveToSupabase(result, brandId, userId);
-            result.contentId = contentId || undefined;
+            const { id, alreadyExists } = await saveToSupabase(result, brandId, userId);
+            result.contentId = id || undefined;
+            result.alreadyExists = alreadyExists;
           } catch (saveError) {
             result.status = 'error';
             result.error = `Save failed: ${saveError instanceof Error ? saveError.message : 'Unknown error'}`;
@@ -309,12 +385,21 @@ export async function POST(request: NextRequest) {
         results.push(result);
       }
 
-      const successCount = results.filter(r => r.status === 'success').length;
+      const newCount = results.filter(r => r.status === 'success' && !r.alreadyExists).length;
+      const existingCount = results.filter(r => r.status === 'success' && r.alreadyExists).length;
+      
+      let message = `Processed ${urls.length} URLs using fongsi scraper.`;
+      if (newCount > 0) {
+        message += ` ${newCount} new items saved to brand board.`;
+      }
+      if (existingCount > 0) {
+        message += ` ${existingCount} items already existed in brand board.`;
+      }
       
       return NextResponse.json({
         success: true,
         results,
-        message: `Processed ${urls.length} URLs using fongsi scraper. ${successCount} saved to brand board.`
+        message
       });
     } else {
       // Original download-only functionality
