@@ -12,6 +12,7 @@ import {
     LogOut,
     Key, Presentation, Film,
     UploadCloud,
+    DownloadCloud,
 } from 'lucide-react';
 import { useGlobal } from "@/lib/context/GlobalContext";
 import { createSPASassClient } from "@/lib/supabase/client";
@@ -96,6 +97,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             icon: Film,
             badge: pendingReviewsCount > 0 ? pendingReviewsCount : null
         },
+        { name: 'AdRipper', href: '/app/adripper', icon: DownloadCloud },
         { name: 'Ad Upload Tool', href: '/app/ad-upload-tool', icon: UploadCloud },
         { name: 'User Settings', href: '/app/user-settings', icon: User },
     ];
@@ -189,7 +191,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                         <button
                             onClick={() => setUserDropdownOpen(!isUserDropdownOpen)}
                             className="flex items-center space-x-2 text-sm text-gray-700 hover:text-gray-900"
-                            aria-expanded={isUserDropdownOpen ? 'true' : 'false'}
+                            aria-expanded={isUserDropdownOpen ? "true" : "false"}
                             aria-haspopup="true"
                         >
                             <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center">
