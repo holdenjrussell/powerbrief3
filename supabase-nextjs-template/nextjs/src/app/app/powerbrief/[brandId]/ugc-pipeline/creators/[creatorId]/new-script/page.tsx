@@ -383,6 +383,11 @@ export default function NewScriptPage({ params }: { params: ParamsType | Promise
   const handleSaveScript = async () => {
     if (!user?.id || !title) return;
     
+    if (!creativeStrategist || creativeStrategist.trim() === '') {
+      setError('Please provide a creative strategist for the script.');
+      return;
+    }
+    
     try {
       setSaving(true);
       setError(null);
@@ -931,7 +936,7 @@ export default function NewScriptPage({ params }: { params: ParamsType | Promise
       <div className="mt-6 flex justify-end">
         <Button
           onClick={handleSaveScript}
-          disabled={saving || !title}
+          disabled={saving || !title || !creativeStrategist || creativeStrategist.trim() === ''}
           className="ml-auto"
         >
           {saving ? (

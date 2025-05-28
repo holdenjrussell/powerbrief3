@@ -886,6 +886,11 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
       return;
     }
     
+    if (!creativeStrategist || creativeStrategist.trim() === '') {
+      setError('Please provide a creative strategist for the script.');
+      return;
+    }
+    
     // Always require at least the TBD creator or a real creator
     if (selectedCreators.length === 0) {
       setError('Please select at least one creator or choose "To Be Determined".');
@@ -1231,6 +1236,20 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
                       placeholder="Enter script title"
                       className="mt-1"
                     />
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="creative-strategist">Creative Strategist</Label>
+                    <Input
+                      id="creative-strategist"
+                      value={creativeStrategist}
+                      onChange={(e) => setCreativeStrategist(e.target.value)}
+                      placeholder="Enter creative strategist name"
+                      className="mt-1"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Name of the creative strategist assigned to this script.
+                    </p>
                   </div>
                   
                   <div>
@@ -1657,20 +1676,6 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
                   </div>
                   
                   <div>
-                    <Label htmlFor="creative-strategist">Creative Strategist (Optional)</Label>
-                    <Input
-                      id="creative-strategist"
-                      value={creativeStrategist}
-                      onChange={(e) => setCreativeStrategist(e.target.value)}
-                      placeholder="Enter creative strategist name"
-                      className="mt-1"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      Name of the creative strategist assigned to this script.
-                    </p>
-                  </div>
-                  
-                  <div>
                     <Label htmlFor="company-description">About the Company</Label>
                     <Textarea
                       id="company-description"
@@ -1736,7 +1741,7 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
               <div className="mt-6 flex justify-end">
                 <Button
                   onClick={handleSubmitScript}
-                  disabled={!title || saving}
+                  disabled={!title || !creativeStrategist || creativeStrategist.trim() === '' || saving}
                 >
                   {saving ? (
                     <>

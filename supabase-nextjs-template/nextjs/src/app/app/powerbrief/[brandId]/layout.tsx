@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Button } from '@/components/ui';
-import { ArrowLeft, ArrowRight, ChevronLeft, Presentation, Users } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ChevronLeft, Presentation, Users, Settings } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { getBrandById } from '@/lib/services/powerbriefService';
 import { Brand } from '@/lib/types/powerbrief';
@@ -49,10 +49,16 @@ export default function BrandLayout({
 
   const navigation = [
     {
-      name: 'Briefs',
+      name: 'Brand Config',
       href: `/app/powerbrief/${brandId}`,
+      icon: Settings,
+      current: pathname === `/app/powerbrief/${brandId}`,
+    },
+    {
+      name: 'Briefs',
+      href: `/app/powerbrief/${brandId}/briefs`,
       icon: Presentation,
-      current: !pathname.includes('/ugc-pipeline'),
+      current: pathname === `/app/powerbrief/${brandId}/briefs`,
     },
     {
       name: 'UGC Creator Pipeline',

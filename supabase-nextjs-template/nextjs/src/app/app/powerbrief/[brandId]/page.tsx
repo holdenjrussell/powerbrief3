@@ -3,9 +3,9 @@
 import React, { useState, useEffect } from 'react';
 import { useGlobal } from '@/lib/context/GlobalContext';
 import { useRouter } from 'next/navigation';
-import { getBrandById, updateBrand, deleteBrand, getBriefBatches, createBriefBatch } from '@/lib/services/powerbriefService';
-import { Brand, BriefBatch, EditingResource, ResourceLogin, DosAndDonts } from '@/lib/types/powerbrief';
-import { Loader2, ArrowLeft, Save, Trash2, Plus, Folder, Facebook } from 'lucide-react';
+import { getBrandById, updateBrand, deleteBrand } from '@/lib/services/powerbriefService';
+import { Brand, EditingResource, ResourceLogin, DosAndDonts } from '@/lib/types/powerbrief';
+import { Loader2, ArrowLeft, Save, Trash2, Plus, Facebook } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
@@ -25,14 +25,10 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
     const router = useRouter();
     const [loading, setLoading] = useState<boolean>(true);
     const [brand, setBrand] = useState<Brand | null>(null);
-    const [batches, setBatches] = useState<BriefBatch[]>([]);
     const [error, setError] = useState<string | null>(null);
     const [saving, setSaving] = useState<boolean>(false);
     const [showDeleteDialog, setShowDeleteDialog] = useState<boolean>(false);
     const [deleting, setDeleting] = useState<boolean>(false);
-    const [showNewBatchDialog, setShowNewBatchDialog] = useState<boolean>(false);
-    const [newBatchName, setNewBatchName] = useState<string>('');
-    const [creatingBatch, setCreatingBatch] = useState<boolean>(false);
 
     // Brand form fields
     const [brandName, setBrandName] = useState<string>('');
@@ -166,17 +162,14 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
         }
     };
 
-    // Fetch brand and batches data
+    // Fetch brand data
     useEffect(() => {
         const fetchData = async () => {
             if (!user?.id || !brandId) return;
             
             try {
                 setLoading(true);
-                const [brandData, batchesData] = await Promise.all([
-                    getBrandById(brandId),
-                    getBriefBatches(brandId)
-                ]);
+                const brandData = await getBrandById(brandId);
                 
                 if (!brandData) {
                     router.push('/app/powerbrief');
@@ -184,7 +177,6 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
                 }
                 
                 setBrand(brandData);
-                setBatches(batchesData);
                 
                 // Check Meta connection status
                 checkMetaConnectionStatus(brandData);
@@ -291,33 +283,6 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
         }
     };
 
-    // Create new batch
-    const handleCreateBatch = async () => {
-        if (!user?.id || !brand || !newBatchName.trim()) return;
-        
-        try {
-            setCreatingBatch(true);
-            
-            const newBatch = await createBriefBatch({
-                brand_id: brand.id,
-                user_id: user.id,
-                name: newBatchName.trim()
-            });
-            
-            setBatches(prev => [newBatch, ...prev]);
-            setNewBatchName('');
-            setShowNewBatchDialog(false);
-            
-            // Navigate to the new batch
-            router.push(`/app/powerbrief/${brand.id}/${newBatch.id}`);
-        } catch (err) {
-            console.error('Failed to create batch:', err);
-            setError('Failed to create batch. Please try again.');
-        } finally {
-            setCreatingBatch(false);
-        }
-    };
-
     // Handle Meta Connection
     const handleConnectMeta = () => {
         const metaAppId = process.env.NEXT_PUBLIC_META_APP_ID;
@@ -390,7 +355,10 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
                             Back to Brands
                         </Button>
                     </Link>
-                    <h1 className="text-2xl font-bold">{brand.name}</h1>
+                    <div>
+                        <h1 className="text-2xl font-bold">Brand Config</h1>
+                        <p className="text-gray-600">{brand.name}</p>
+                    </div>
                 </div>
                 <div className="flex space-x-2">
                     <Button 
@@ -1117,61 +1085,6 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
                     brand={brand}
                     onSlackSettingsUpdated={handleSlackSettingsUpdated}
                 />
-                
-                {/* Briefs Column */}
-                <Card className="lg:col-span-1">
-                    <CardHeader className="flex flex-row items-center justify-between">
-                        <div>
-                            <CardTitle>Brief Batches</CardTitle>
-                            <CardDescription>Manage brief batches for this brand</CardDescription>
-                        </div>
-                        <Button 
-                            className="bg-primary-600 text-white hover:bg-primary-700"
-                            onClick={() => setShowNewBatchDialog(true)}
-                        >
-                            <Plus className="h-4 w-4 mr-2" />
-                            Add Batch
-                        </Button>
-                    </CardHeader>
-                    <CardContent>
-                        {batches.length === 0 ? (
-                            <div className="p-8 text-center text-gray-500">
-                                <Folder className="h-16 w-16 mx-auto mb-4 text-gray-400" />
-                                <h3 className="text-lg font-medium text-gray-900 mb-2">No batches yet</h3>
-                                <p className="max-w-md mx-auto">
-                                    Create your first batch of briefs for this brand.
-                                </p>
-                                <Button 
-                                    className="mt-6 bg-primary-600 text-white hover:bg-primary-700"
-                                    onClick={() => setShowNewBatchDialog(true)}
-                                >
-                                    <Plus className="h-4 w-4 mr-2" />
-                                    Add Batch
-                                </Button>
-                            </div>
-                        ) : (
-                            <div className="space-y-4">
-                                {batches.map((batch) => (
-                                    <Link href={`/app/powerbrief/${brand.id}/${batch.id}`} key={batch.id}>
-                                        <Card className="cursor-pointer hover:shadow-md transition-shadow">
-                                            <CardContent className="p-4 flex items-center">
-                                                <div className="mr-4 flex-shrink-0 text-lg font-semibold text-primary-600">
-                                                    {batch.name}
-                                                </div>
-                                                <Folder className="h-5 w-5 mr-3 text-gray-500" />
-                                                <div>
-                                                    <p className="text-sm text-gray-500">
-                                                        Created: {new Date(batch.created_at).toLocaleDateString()}
-                                                    </p>
-                                                </div>
-                                            </CardContent>
-                                        </Card>
-                                    </Link>
-                                ))}
-                            </div>
-                        )}
-                    </CardContent>
-                </Card>
             </div>
             
             {/* Delete Brand Dialog */}
@@ -1205,52 +1118,6 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
                                 <>
                                     <Trash2 className="h-4 w-4 mr-2" />
                                     Delete Brand
-                                </>
-                            )}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-            
-            {/* New Batch Dialog */}
-            <Dialog open={showNewBatchDialog} onOpenChange={setShowNewBatchDialog}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Create New Batch</DialogTitle>
-                        <DialogDescription>
-                            Enter a name for your new brief batch.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="py-4">
-                        <Input
-                            placeholder="Batch Name"
-                            value={newBatchName}
-                            onChange={(e) => setNewBatchName(e.target.value)}
-                            disabled={creatingBatch}
-                        />
-                    </div>
-                    <DialogFooter>
-                        <Button 
-                            variant="outline" 
-                            onClick={() => setShowNewBatchDialog(false)}
-                            disabled={creatingBatch}
-                        >
-                            Cancel
-                        </Button>
-                        <Button 
-                            className="bg-primary-600 text-white hover:bg-primary-700"
-                            onClick={handleCreateBatch}
-                            disabled={!newBatchName.trim() || creatingBatch}
-                        >
-                            {creatingBatch ? (
-                                <>
-                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                    Creating...
-                                </>
-                            ) : (
-                                <>
-                                    <Plus className="h-4 w-4 mr-2" />
-                                    Create Batch
                                 </>
                             )}
                         </Button>
