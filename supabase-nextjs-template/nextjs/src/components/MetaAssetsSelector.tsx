@@ -4,8 +4,30 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, CheckCircle, Facebook, Instagram, Target } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Loader2, CheckCircle, Facebook, Instagram, Target, Edit3 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+
+/**
+ * MetaAssetsSelector Component
+ * 
+ * This component allows users to select and configure Meta (Facebook/Instagram) assets
+ * for their brand integration. It supports both automatic discovery of assets through
+ * the Meta API and manual input for cases where assets are not accessible.
+ * 
+ * Features:
+ * - Automatic fetching of ad accounts, Facebook pages, and pixels from Meta API
+ * - Manual Facebook page ID input for pages not found or accessible
+ * - Auto-detection of Instagram business accounts linked to Facebook pages
+ * - Manual Instagram account ID input when using manual page ID
+ * - Persistent state management for previously manually entered page IDs
+ * 
+ * Manual Page ID Use Cases:
+ * 1. No pages found in Meta API response (permissions issue)
+ * 2. Desired page not accessible through current Meta token
+ * 3. User wants to use a specific page ID not in the fetched list
+ * 4. Page was manually entered previously and should remain editable
+ */
 
 interface MetaAdAccount {
   id: string;
@@ -65,6 +87,14 @@ const MetaAssetsSelector: React.FC<MetaAssetsSelectorProps> = ({
   const [selectedPage, setSelectedPage] = useState<string>(currentFacebookPageId || '');
   const [selectedInstagramAccount, setSelectedInstagramAccount] = useState<string>(currentInstagramAccountId || '');
   const [selectedPixel, setSelectedPixel] = useState<string>(currentPixelId || '');
+  
+  // New state for manual Facebook page ID
+  // This allows users to manually enter a Facebook page ID if:
+  // 1. No pages are found in the Meta API response
+  // 2. The desired page is not accessible through the current Meta token
+  // 3. The user wants to use a specific page ID that's not in the list
+  const [isManualPageInput, setIsManualPageInput] = useState(false);
+  const [manualPageId, setManualPageId] = useState<string>('');
   
   const [assetsLoaded, setAssetsLoaded] = useState(false);
 
@@ -210,6 +240,22 @@ const MetaAssetsSelector: React.FC<MetaAssetsSelectorProps> = ({
       setPixels(pixelsData.pixels || []);
       setAssetsLoaded(true);
       
+      // Check if current Facebook page ID is not in the fetched pages
+      // This indicates it was manually entered previously
+      if (currentFacebookPageId && pagesData.pages && pagesData.pages.length > 0) {
+        const pageExists = pagesData.pages.some((page: MetaPage) => page.id === currentFacebookPageId);
+        if (!pageExists) {
+          setIsManualPageInput(true);
+          setManualPageId(currentFacebookPageId);
+          setSelectedPage(currentFacebookPageId);
+        }
+      } else if (currentFacebookPageId && (!pagesData.pages || pagesData.pages.length === 0)) {
+        // If there are no pages but we have a current page ID, it was manually entered
+        setIsManualPageInput(true);
+        setManualPageId(currentFacebookPageId);
+        setSelectedPage(currentFacebookPageId);
+      }
+      
     } catch (err) {
       console.error('Error fetching Meta assets:', err);
       setError(err instanceof Error ? err.message : 'Failed to load Meta assets. Please try again.');
@@ -224,10 +270,12 @@ const MetaAssetsSelector: React.FC<MetaAssetsSelectorProps> = ({
       setSaving(true);
       setError(null);
 
+      const effectivePageId = getEffectivePageId();
+
       const response = await fetchWithRetryPost('/api/meta/save-assets', {
         brandId,
         adAccountId: selectedAdAccount || undefined,
-        facebookPageId: selectedPage || undefined,
+        facebookPageId: effectivePageId || undefined,
         instagramAccountId: selectedInstagramAccount || undefined,
         pixelId: selectedPixel || undefined,
       });
@@ -249,6 +297,15 @@ const MetaAssetsSelector: React.FC<MetaAssetsSelectorProps> = ({
 
   // Handle page selection and auto-select Instagram account if available
   const handlePageSelection = (pageId: string) => {
+    // Check if user selected the manual input option
+    if (pageId === 'manual') {
+      setIsManualPageInput(true);
+      setSelectedPage('');
+      setSelectedInstagramAccount('');
+      return;
+    }
+    
+    setIsManualPageInput(false);
     setSelectedPage(pageId);
     
     // Find the selected page and auto-select its Instagram account if available
@@ -258,6 +315,20 @@ const MetaAssetsSelector: React.FC<MetaAssetsSelectorProps> = ({
     } else {
       setSelectedInstagramAccount('');
     }
+  };
+
+  // Handle manual page ID input
+  // When user manually enters a page ID, we can't auto-detect Instagram accounts
+  const handleManualPageIdChange = (value: string) => {
+    setManualPageId(value);
+    setSelectedPage(value);
+    // Clear Instagram account when manually entering page ID since we can't auto-detect it
+    setSelectedInstagramAccount('');
+  };
+
+  // Get the effective page ID (either selected from dropdown or manually entered)
+  const getEffectivePageId = () => {
+    return isManualPageInput ? manualPageId : selectedPage;
   };
 
   // Load assets on component mount
@@ -365,22 +436,76 @@ const MetaAssetsSelector: React.FC<MetaAssetsSelectorProps> = ({
               Facebook Page
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <Select value={selectedPage} onValueChange={handlePageSelection}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select a Facebook page" />
-              </SelectTrigger>
-              <SelectContent>
-                {pages.map((page, index) => (
-                  <SelectItem key={`${page.id}-${index}`} value={page.id}>
-                    <div className="flex flex-col">
-                      <span className="font-medium">{page.name}</span>
-                      <span className="text-xs text-gray-500">{page.category}</span>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <CardContent className="space-y-3">
+            {!isManualPageInput ? (
+              <>
+                <Select value={selectedPage} onValueChange={handlePageSelection}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a Facebook page" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {pages.map((page, index) => (
+                      <SelectItem key={`${page.id}-${index}`} value={page.id}>
+                        <div className="flex flex-col">
+                          <span className="font-medium">{page.name}</span>
+                          <span className="text-xs text-gray-500">{page.category}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                    <SelectItem value="manual">
+                      <div className="flex items-center">
+                        <Edit3 className="h-4 w-4 mr-2 text-gray-500" />
+                        <span className="font-medium">Enter Page ID Manually</span>
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                {pages.length === 0 && (
+                  <div className="text-center">
+                    <p className="text-sm text-gray-500 mb-2">No pages found</p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setIsManualPageInput(true)}
+                      className="text-xs"
+                    >
+                      <Edit3 className="h-3 w-3 mr-1" />
+                      Enter Page ID Manually
+                    </Button>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium text-gray-700">
+                    Facebook Page ID
+                  </label>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setIsManualPageInput(false);
+                      setManualPageId('');
+                      setSelectedPage('');
+                    }}
+                    className="text-xs text-gray-500 hover:text-gray-700"
+                  >
+                    Back to selection
+                  </Button>
+                </div>
+                <Input
+                  type="text"
+                  placeholder="Enter Facebook Page ID (e.g., 123456789012345)"
+                  value={manualPageId}
+                  onChange={(e) => handleManualPageIdChange(e.target.value)}
+                  className="text-sm"
+                />
+                <p className="text-xs text-gray-500">
+                  You can find your Page ID in Facebook Page Settings → Page Info
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -393,7 +518,7 @@ const MetaAssetsSelector: React.FC<MetaAssetsSelectorProps> = ({
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {selectedPage && pages.find(p => p.id === selectedPage)?.instagram_business_account ? (
+            {!isManualPageInput && selectedPage && pages.find(p => p.id === selectedPage)?.instagram_business_account ? (
               <div className="p-3 bg-green-50 border border-green-200 rounded-md">
                 <div className="flex items-center">
                   <CheckCircle className="h-4 w-4 text-green-600 mr-2" />
@@ -406,6 +531,19 @@ const MetaAssetsSelector: React.FC<MetaAssetsSelectorProps> = ({
                     </p>
                   </div>
                 </div>
+              </div>
+            ) : isManualPageInput ? (
+              <div className="space-y-2">
+                <Input
+                  type="text"
+                  placeholder="Enter Instagram Account ID (optional)"
+                  value={selectedInstagramAccount}
+                  onChange={(e) => setSelectedInstagramAccount(e.target.value)}
+                  className="text-sm"
+                />
+                <p className="text-xs text-gray-500">
+                  Optional: Enter Instagram Business Account ID if you want to include Instagram placement
+                </p>
               </div>
             ) : (
               <div className="p-3 bg-gray-50 border border-gray-200 rounded-md text-center text-sm text-gray-500">
@@ -420,7 +558,7 @@ const MetaAssetsSelector: React.FC<MetaAssetsSelectorProps> = ({
       <div className="flex justify-end">
         <Button 
           onClick={handleSaveAssets}
-          disabled={saving || !selectedAdAccount}
+          disabled={saving || !selectedAdAccount || (!selectedPage && !manualPageId)}
           className="bg-blue-600 hover:bg-blue-700"
         >
           {saving ? (
