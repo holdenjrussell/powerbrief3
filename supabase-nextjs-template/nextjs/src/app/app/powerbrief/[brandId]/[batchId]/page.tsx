@@ -1590,15 +1590,15 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
             [conceptId]: updatedHooks
         }));
         
-        // Update the string version for database compatibility
+        // Update the string version for database compatibility with debounced save
         const concept = concepts.find(c => c.id === conceptId);
         if (concept) {
             const updatedConcept = {
                 ...concept,
                 caption_hook_options: convertHooksToString(updatedHooks)
             };
-            // Use immediate update instead of debounced to ensure hooks are saved
-            handleUpdateConcept(updatedConcept);
+            // Use debounced update to prevent losing focus
+            debouncedUpdateConcept(updatedConcept);
         }
     };
 
@@ -1654,15 +1654,15 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
             [conceptId]: updatedHooks
         }));
         
-        // Update the string version for database compatibility
+        // Update the string version for database compatibility with debounced save
         const concept = concepts.find(c => c.id === conceptId);
         if (concept) {
             const updatedConcept = {
                 ...concept,
                 spoken_hook_options: convertHooksToString(updatedHooks)
             };
-            // Use immediate update instead of debounced to ensure hooks are saved
-            handleUpdateConcept(updatedConcept);
+            // Use debounced update to prevent losing focus
+            debouncedUpdateConcept(updatedConcept);
         }
     };
 
@@ -2390,6 +2390,23 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                                                 onChange={(e) => {
                                                                     handleUpdateCaptionHook(concept.id, hook.id, e.target.value);
                                                                 }}
+                                                                onBlur={() => {
+                                                                    // Save immediately on blur
+                                                                    if (saveTimeoutRef.current) {
+                                                                        clearTimeout(saveTimeoutRef.current);
+                                                                        saveTimeoutRef.current = null;
+                                                                    }
+                                                                    
+                                                                    const currentConcept = concepts.find(c => c.id === concept.id);
+                                                                    if (currentConcept) {
+                                                                        const currentHooks = localCaptionHooksList[concept.id] || [];
+                                                                        const updatedConcept = {
+                                                                            ...currentConcept,
+                                                                            caption_hook_options: convertHooksToString(currentHooks)
+                                                                        };
+                                                                        handleUpdateConcept(updatedConcept);
+                                                                    }
+                                                                }}
                                                                 placeholder="Enter caption hook with emojis"
                                                                 className="text-sm w-full min-h-fit"
                                                                 style={{ height: 'auto', overflow: 'hidden' }}
@@ -2445,6 +2462,23 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                                                 value={hook.content}
                                                                 onChange={(e) => {
                                                                     handleUpdateSpokenHook(concept.id, hook.id, e.target.value);
+                                                                }}
+                                                                onBlur={() => {
+                                                                    // Save immediately on blur
+                                                                    if (saveTimeoutRef.current) {
+                                                                        clearTimeout(saveTimeoutRef.current);
+                                                                        saveTimeoutRef.current = null;
+                                                                    }
+                                                                    
+                                                                    const currentConcept = concepts.find(c => c.id === concept.id);
+                                                                    if (currentConcept) {
+                                                                        const currentHooks = localSpokenHooksList[concept.id] || [];
+                                                                        const updatedConcept = {
+                                                                            ...currentConcept,
+                                                                            spoken_hook_options: convertHooksToString(currentHooks)
+                                                                        };
+                                                                        handleUpdateConcept(updatedConcept);
+                                                                    }
                                                                 }}
                                                                 placeholder="Enter spoken hook"
                                                                 className="text-sm w-full min-h-fit"
