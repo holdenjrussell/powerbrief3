@@ -67,7 +67,7 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
     const [sharingConceptId, setSharingConceptId] = useState<string | null>(null);
     const [shareLink, setShareLink] = useState<string>('');
     const [shareEmail, setShareEmail] = useState<string>('');
-    const [shareIsEditable, setShareIsEditable] = useState<boolean>(false);
+    const [shareIsEditable, setShareIsEditable] = useState<boolean>(true);
     const [sharingInProgress, setSharingInProgress] = useState<boolean>(false);
     const [shareSuccess, setShareSuccess] = useState<boolean>(false);
     const [localMediaTypes, setLocalMediaTypes] = useState<Record<string, 'video' | 'image'>>({});

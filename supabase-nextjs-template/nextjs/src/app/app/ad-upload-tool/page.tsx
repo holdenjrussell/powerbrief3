@@ -598,6 +598,7 @@ const AdUploadToolPage = () => {
           <AdSheetView 
             defaults={currentDefaults} 
             activeBatch={null}
+            selectedConfiguration={selectedConfiguration}
           />
         )
       )}

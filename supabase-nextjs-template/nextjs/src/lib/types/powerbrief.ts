@@ -1,5 +1,23 @@
 import { Json } from "./supabase";
 
+// Product models
+export interface Product {
+  id: string;
+  brand_id: string;
+  user_id: string;
+  name: string;
+  identifier: string; // Product identifier/SKU
+  description?: string;
+  category?: string;
+  price?: number;
+  currency?: string;
+  image_url?: string;
+  product_url?: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 // Brand models
 export interface BrandInfoData {
   positioning: string;
@@ -158,6 +176,7 @@ export interface BriefConcept {
   review_link?: string | null;
   reviewer_notes?: string | null;
   brief_revision_comments?: string | null;
+  product_id?: string | null;
   created_at: string;
   updated_at: string;
   uploaded_assets?: UploadedAssetGroup[] | null;
@@ -173,6 +192,7 @@ export interface AiBriefingRequest {
     competition_data: CompetitionData;
     system_instructions_image?: string;
     system_instructions_video?: string;
+    product?: Product;
   };
   conceptSpecificPrompt: string;
   conceptCurrentData?: {

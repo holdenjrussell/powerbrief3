@@ -15,10 +15,12 @@ const supabaseAdmin = createClient(
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { shareId: string } }
+  { params }: { params: Promise<{ shareId: string }> }
 ) {
   try {
-    const { shareId } = params;
+    // Await params for Next.js 15 compatibility
+    const { shareId } = await params;
+    console.log('API called with shareId:', shareId);
 
     if (!shareId) {
       return NextResponse.json(
@@ -26,6 +28,8 @@ export async function GET(
         { status: 400 }
       );
     }
+
+    console.log('Querying concepts with share_settings...');
 
     // Find the concept with this shareId in its share_settings
     const { data: conceptData, error: conceptError } = await supabaseAdmin
@@ -44,12 +48,13 @@ export async function GET(
             competition_data,
             editing_resources,
             resource_logins,
-            stock_resources,
             dos_and_donts
           )
         )
       `)
       .contains('share_settings', { [shareId]: {} });
+
+    console.log('Query result:', { conceptData, conceptError });
 
     if (conceptError) {
       console.error('Error fetching shared concept:', conceptError);

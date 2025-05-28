@@ -50,6 +50,7 @@ import { createSPAClient } from '@/lib/supabase/client';
 interface AdSheetViewProps {
   defaults: DefaultValues; // Uses the imported and aliased DefaultValues
   activeBatch?: AdBatch | null; // Optional active batch info
+  selectedConfiguration?: { id: string; name: string; description?: string } | null; // Selected configuration info
 }
 
 interface AdBatch {
@@ -92,7 +93,7 @@ const initialColumns: ColumnDef<AdDraft>[] = [
 // Define a more specific type for the value in handleCellValueChange
 type AdDraftValue = AdDraft[keyof AdDraft];
 
-const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, activeBatch }) => {
+const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, activeBatch, selectedConfiguration }) => {
   const [adDrafts, setAdDrafts] = useState<AdDraft[]>([]);
   const [columns, setColumns] = useState<ColumnDef<AdDraft>[]>(initialColumns);
   const [isColumnDropdownOpen, setColumnDropdownOpen] = useState(false);
@@ -1082,13 +1083,16 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, activeBatch }) => {
     }
   };
 
-  const handleApplyDefaultsToAll = () => {
-    if (adDrafts.length === 0) {
-      alert('No ad drafts to update.');
+  const handleApplySelectedConfig = () => {
+    if (checkedDraftIds.size === 0) {
+      alert('Please select at least one ad to apply the configuration to.');
       return;
     }
 
-    const confirmMessage = `This will apply the current default settings to all ${adDrafts.length} ad draft(s). This includes:
+    const selectedCount = checkedDraftIds.size;
+    const configName = selectedConfiguration?.name || 'Current Settings';
+    
+    const confirmMessage = `This will apply the "${configName}" configuration to ${selectedCount} selected ad draft(s). This includes:
     
 • Campaign: ${defaults.campaignName || defaults.campaignId || 'Not Set'}
 • Ad Set: ${defaults.adSetName || defaults.adSetId || 'Not Set'}
@@ -1107,26 +1111,31 @@ Are you sure you want to continue?`;
       return;
     }
 
-    // Apply defaults to all ad drafts
-    const updatedDrafts = adDrafts.map(draft => ({
-      ...draft,
-      primaryText: defaults.primaryText,
-      headline: defaults.headline,
-      description: defaults.description,
-      campaignId: defaults.campaignId,
-      campaignName: defaults.campaignName,
-      adSetId: defaults.adSetId,
-      adSetName: defaults.adSetName,
-      destinationUrl: defaults.destinationUrl,
-      callToAction: defaults.callToAction,
-      status: defaults.status as AdCreativeStatus,
-      // Apply new Meta features from defaults
-      siteLinks: [...(defaults.siteLinks || [])],
-      advantageCreative: { ...defaults.advantageCreative }
-    }));
+    // Apply defaults to selected ad drafts only
+    const updatedDrafts = adDrafts.map(draft => {
+      if (checkedDraftIds.has(draft.id)) {
+        return {
+          ...draft,
+          primaryText: defaults.primaryText,
+          headline: defaults.headline,
+          description: defaults.description,
+          campaignId: defaults.campaignId,
+          campaignName: defaults.campaignName,
+          adSetId: defaults.adSetId,
+          adSetName: defaults.adSetName,
+          destinationUrl: defaults.destinationUrl,
+          callToAction: defaults.callToAction,
+          status: defaults.status as AdCreativeStatus,
+          // Apply new Meta features from defaults
+          siteLinks: [...(defaults.siteLinks || [])],
+          advantageCreative: { ...defaults.advantageCreative }
+        };
+      }
+      return draft;
+    });
 
     setAdDrafts(updatedDrafts);
-    alert(`Successfully applied defaults to ${updatedDrafts.length} ad draft(s).`);
+    alert(`Successfully applied "${configName}" to ${selectedCount} ad draft(s).`);
   };
 
   const handleCompressVideos = async () => {
@@ -1353,6 +1362,7 @@ ${compressedCount > 0 ? 'Compressed videos have been updated in your ads.' : ''}
                  >
                     <Sparkles className="mr-2 h-4 w-4" /> Bulk AI Rename ({checkedDraftIds.size})
                 </button>
+                {/* Temporarily hidden - Populate Names button
                 <button
                     onClick={handlePopulateNames}
                     className="px-4 py-2 text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 rounded-md shadow-sm flex items-center"
@@ -1360,13 +1370,17 @@ ${compressedCount > 0 ? 'Compressed videos have been updated in your ads.' : ''}
                  >
                     <Settings className="mr-2 h-4 w-4" /> Populate Names
                 </button>
+                */}
                 <button
-                    onClick={handleApplyDefaultsToAll}
-                    className="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-md shadow-sm flex items-center"
-                    title="Apply current defaults to all ad drafts"
+                    onClick={handleApplySelectedConfig}
+                    disabled={checkedDraftIds.size === 0}
+                    className="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-md shadow-sm flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+                    title={`Apply ${selectedConfiguration?.name || 'current configuration'} to selected ad drafts`}
                  >
-                    <RefreshCw className="mr-2 h-4 w-4" /> Apply Defaults to All
+                    <RefreshCw className="mr-2 h-4 w-4" /> 
+                    Apply Selected Config ({checkedDraftIds.size})
                 </button>
+                {/* Temporarily hidden - Manual Compress button
                 <button
                     onClick={handleCompressVideos}
                     disabled={checkedDraftIds.size === 0 || isCompressing}
@@ -1385,6 +1399,7 @@ ${compressedCount > 0 ? 'Compressed videos have been updated in your ads.' : ''}
                       </>
                     )}
                 </button>
+                */}
                 <button
                     onClick={handleLaunch} 
                     disabled={checkedDraftIds.size === 0 || isLaunching}
