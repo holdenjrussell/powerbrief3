@@ -80,13 +80,30 @@ export default function AdSpySearch({ selectedBrand, userId, onAdDownloaded }: A
       
       if (result.success) {
         setIsAuthenticated(true);
-        alert('AdSpy credentials saved successfully!');
+        if (result.subscriptionValid) {
+          alert('AdSpy credentials saved successfully! ✅');
+        } else {
+          alert('AdSpy credentials saved, but your subscription may not be active. Please check your AdSpy account.');
+        }
       } else {
-        alert(`Authentication failed: ${result.error}`);
+        // Show more specific error messages
+        let errorMessage = result.error || 'Authentication failed';
+        
+        if (errorMessage.includes('subscription')) {
+          errorMessage = '❌ AdSpy API subscription required. Please ensure you have an active AdSpy API subscription in addition to your regular AdSpy account.';
+        } else if (errorMessage.includes('credentials') || errorMessage.includes('401')) {
+          errorMessage = '❌ Invalid credentials. Please check your AdSpy username and password.';
+        } else if (errorMessage.includes('connection') || errorMessage.includes('fetch')) {
+          errorMessage = '❌ Unable to connect to AdSpy. Please check your internet connection and try again.';
+        } else if (errorMessage.includes('error page')) {
+          errorMessage = '❌ AdSpy API error. This may indicate server issues or subscription problems. Please try again later or contact AdSpy support.';
+        }
+        
+        alert(errorMessage);
       }
     } catch (error) {
       console.error('Authentication error:', error);
-      alert('Failed to authenticate with AdSpy');
+      alert('❌ Failed to authenticate with AdSpy. Please check your connection and try again.');
     }
   };
 
@@ -193,6 +210,15 @@ export default function AdSpySearch({ selectedBrand, userId, onAdDownloaded }: A
             <p className="text-sm text-gray-600">
               Enter your AdSpy credentials to enable ad searching for this brand.
             </p>
+            
+            <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
+              <h4 className="text-sm font-medium text-blue-900 mb-2">📋 Requirements:</h4>
+              <ul className="text-xs text-blue-800 space-y-1">
+                <li>• Active AdSpy account with API subscription</li>
+                <li>• API subscription is separate from regular AdSpy subscription</li>
+                <li>• Use your AdSpy login email and password</li>
+              </ul>
+            </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Input

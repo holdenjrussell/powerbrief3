@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { 
-  getAdSpyToken, 
   searchAdSpy, 
   storeAdSpyCredentials,
   getValidAdSpyToken,
   saveAdSpySearch,
   downloadAdSpyAd,
+  testAdSpyConnection,
   type AdSpyCredentials,
   type AdSpySearchParams 
 } from '@/lib/services/adspyService';
@@ -20,18 +20,28 @@ export async function POST(request: NextRequest) {
         const { credentials }: { credentials: AdSpyCredentials } = body;
         
         try {
-          // Test authentication
-          const token = await getAdSpyToken(credentials);
+          console.log('Testing AdSpy credentials...');
           
-          // Store credentials if authentication successful
+          // Use the test function for better error handling
+          const testResult = await testAdSpyConnection(credentials);
+          
+          if (!testResult.success) {
+            return NextResponse.json({ 
+              success: false, 
+              error: testResult.message 
+            }, { status: 401 });
+          }
+
+          // If test successful, store credentials
           await storeAdSpyCredentials(brandId, credentials);
           
           return NextResponse.json({ 
             success: true, 
             message: 'AdSpy credentials stored successfully',
-            subscriptionValid: token.subscriptionValid === 'True'
+            subscriptionValid: testResult.subscriptionValid
           });
         } catch (error) {
+          console.error('AdSpy authentication error:', error);
           return NextResponse.json({ 
             success: false, 
             error: error instanceof Error ? error.message : 'Authentication failed' 

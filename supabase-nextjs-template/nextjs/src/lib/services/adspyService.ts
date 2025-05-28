@@ -82,24 +82,67 @@ export interface AdSpySearchResult {
  * Get AdSpy token for authentication
  */
 export async function getAdSpyToken(credentials: AdSpyCredentials): Promise<AdSpyToken> {
-  const response = await fetch('https://api.adspy.com/api/token', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body: new URLSearchParams({
-      username: credentials.username,
-      password: credentials.password,
-      grant_type: 'password',
-    }),
-  });
+  try {
+    console.log('Attempting AdSpy authentication...');
+    
+    const response = await fetch('https://api.adspy.com/api/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': 'application/json',
+        'User-Agent': 'AdRipper/1.0',
+      },
+      body: new URLSearchParams({
+        username: credentials.username,
+        password: credentials.password,
+        grant_type: 'password',
+      }).toString(),
+    });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`AdSpy authentication failed: ${response.status} ${errorText}`);
+    console.log('AdSpy response status:', response.status);
+    console.log('AdSpy response headers:', Object.fromEntries(response.headers.entries()));
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('AdSpy authentication error response:', errorText);
+      
+      // Check if response is HTML (error page)
+      if (errorText.includes('<html>') || errorText.includes('<!DOCTYPE')) {
+        throw new Error(`AdSpy API returned an error page. Status: ${response.status}. This might indicate invalid credentials, API subscription issues, or server problems.`);
+      }
+      
+      throw new Error(`AdSpy authentication failed: ${response.status} - ${errorText}`);
+    }
+
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      const responseText = await response.text();
+      console.error('AdSpy returned non-JSON response:', responseText);
+      throw new Error('AdSpy API returned non-JSON response. Please check your API subscription status.');
+    }
+
+    const tokenData = await response.json();
+    console.log('AdSpy authentication successful');
+    
+    // Validate required fields
+    if (!tokenData.access_token) {
+      throw new Error('AdSpy response missing access_token');
+    }
+
+    return tokenData;
+  } catch (error) {
+    console.error('AdSpy authentication error:', error);
+    
+    if (error instanceof Error) {
+      // Add more specific error messages
+      if (error.message.includes('Failed to fetch')) {
+        throw new Error('Unable to connect to AdSpy API. Please check your internet connection.');
+      }
+      throw error;
+    }
+    
+    throw new Error('Unknown error during AdSpy authentication');
   }
-
-  return response.json();
 }
 
 /**
@@ -109,21 +152,60 @@ export async function searchAdSpy(
   token: string,
   searchParams: AdSpySearchParams
 ): Promise<AdSpySearchResult> {
-  const response = await fetch('https://api.adspy.com/api/ad', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`,
-    },
-    body: JSON.stringify(searchParams),
-  });
+  try {
+    console.log('Searching AdSpy with params:', searchParams);
+    
+    const response = await fetch('https://api.adspy.com/api/ad', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${token}`,
+        'User-Agent': 'AdRipper/1.0',
+      },
+      body: JSON.stringify(searchParams),
+    });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`AdSpy search failed: ${response.status} ${errorText}`);
+    console.log('AdSpy search response status:', response.status);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('AdSpy search error response:', errorText);
+      
+      if (response.status === 401) {
+        throw new Error('AdSpy authentication expired. Please re-authenticate.');
+      }
+      
+      if (errorText.includes('<html>') || errorText.includes('<!DOCTYPE')) {
+        throw new Error(`AdSpy API returned an error page. Status: ${response.status}. Please check your API subscription.`);
+      }
+      
+      throw new Error(`AdSpy search failed: ${response.status} - ${errorText}`);
+    }
+
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      const responseText = await response.text();
+      console.error('AdSpy search returned non-JSON response:', responseText);
+      throw new Error('AdSpy API returned non-JSON response during search.');
+    }
+
+    const searchResult = await response.json();
+    console.log('AdSpy search successful, found', searchResult.ads?.length || 0, 'ads');
+    
+    return searchResult;
+  } catch (error) {
+    console.error('AdSpy search error:', error);
+    
+    if (error instanceof Error) {
+      if (error.message.includes('Failed to fetch')) {
+        throw new Error('Unable to connect to AdSpy API during search.');
+      }
+      throw error;
+    }
+    
+    throw new Error('Unknown error during AdSpy search');
   }
-
-  return response.json();
 }
 
 /**
@@ -349,5 +431,57 @@ export async function downloadAdSpyAd(
   } catch (error) {
     console.error('Error downloading AdSpy ad:', error);
     throw error;
+  }
+}
+
+/**
+ * Test AdSpy API connection and credentials
+ */
+export async function testAdSpyConnection(credentials: AdSpyCredentials): Promise<{ success: boolean; message: string; subscriptionValid?: boolean }> {
+  try {
+    console.log('Testing AdSpy connection...');
+    
+    // First test authentication
+    const tokenResponse = await getAdSpyToken(credentials);
+    
+    if (!tokenResponse.access_token) {
+      return {
+        success: false,
+        message: 'Authentication failed: No access token received'
+      };
+    }
+
+    // Check subscription status
+    const subscriptionValid = tokenResponse.subscriptionValid === 'True';
+    if (!subscriptionValid) {
+      return {
+        success: false,
+        message: 'AdSpy subscription is not valid. Please check your AdSpy API subscription.',
+        subscriptionValid: false
+      };
+    }
+
+    // Test a simple search to verify API access
+    const testSearchParams: AdSpySearchParams = {
+      siteType: 'facebook',
+      page: 1,
+      orderBy: 'total_loves'
+    };
+
+    await searchAdSpy(tokenResponse.access_token, testSearchParams);
+
+    return {
+      success: true,
+      message: 'AdSpy connection successful',
+      subscriptionValid: true
+    };
+
+  } catch (error) {
+    console.error('AdSpy connection test failed:', error);
+    
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'Unknown connection error'
+    };
   }
 } 
