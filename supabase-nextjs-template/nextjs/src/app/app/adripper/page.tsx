@@ -16,9 +16,12 @@ import {
   Image as ImageIcon,
   Folder,
   ExternalLink,
-  Zap
+  Zap,
+  Database
 } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
+import AdSpySearch from '@/components/AdSpySearch';
+import { useGlobal } from "@/lib/context/GlobalContext";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -47,6 +50,9 @@ interface SocialMediaContent {
   is_favorite: boolean;
   created_at: string;
   download_count: number;
+  source_type?: 'manual' | 'adspy';
+  adspy_ad_id?: string;
+  adspy_metadata?: Record<string, string | number | string[] | boolean>;
 }
 
 export default function AdRipperPage() {
@@ -59,9 +65,12 @@ export default function AdRipperPage() {
   const [filterPlatform, setFilterPlatform] = useState<string>('all');
   const [filterType, setFilterType] = useState<string>('all');
   const [isLoading, setIsLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<'manual' | 'adspy'>('manual');
   const [showAddUrls, setShowAddUrls] = useState(false);
   const [mediaUrls, setMediaUrls] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+
+  const { user } = useGlobal();
 
   // Load brands on component mount
   useEffect(() => {
@@ -343,300 +352,343 @@ export default function AdRipperPage() {
                 </div>
               </div>
 
-              {/* Add URLs Section */}
-              {showAddUrls && (
-                <Card className="border-yellow-200 bg-yellow-50">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Zap className="h-5 w-5 text-yellow-600" />
-                      Rip Ads from Social Media
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="bg-white p-3 rounded-lg border">
-                      <h4 className="text-sm font-medium text-gray-900 mb-2">Supported Platforms:</h4>
-                      <div className="grid grid-cols-3 gap-2 text-xs">
-                        <div className="flex items-center gap-1">
-                          <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                          Facebook
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <div className="w-2 h-2 bg-pink-500 rounded-full"></div>
-                          Instagram
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <div className="w-2 h-2 bg-black rounded-full"></div>
-                          TikTok
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <Textarea
-                      value={mediaUrls}
-                      onChange={(e) => setMediaUrls(e.target.value)}
-                      placeholder="Campaign Name: Holiday Sale&#10;&#10;Facebook Videos:&#10;https://www.facebook.com/page/posts/123456789/&#10;https://www.facebook.com/watch?v=1234567890&#10;&#10;Instagram Posts:&#10;https://www.instagram.com/p/CabcdeFgHij/&#10;&#10;TikTok Videos:&#10;https://www.tiktok.com/@username/video/1234567890123456789&#10;&#10;(Non-URL lines like headers and labels will be automatically skipped)"
-                      rows={8}
-                      disabled={isProcessing}
-                      className="font-mono text-sm"
-                    />
-                    
-                    <div className="bg-green-50 p-3 rounded-lg border border-green-200">
-                      <p className="text-xs text-green-700">
-                        <strong>Smart Filtering:</strong> Paste mixed content with headers, labels, and URLs. 
-                        Only valid social media URLs will be processed - everything else is automatically skipped.
-                      </p>
-                    </div>
-                    
-                    <div className="flex gap-2">
-                      <Button 
-                        onClick={handleAddUrls} 
-                        disabled={isProcessing || !mediaUrls.trim()}
-                        className="bg-yellow-600 hover:bg-yellow-700"
-                      >
-                        {isProcessing ? (
-                          <>
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                            Ripping Ads...
-                          </>
-                        ) : (
-                          <>
-                            <Zap className="h-4 w-4 mr-2" />
-                            Rip Ads
-                          </>
-                        )}
-                      </Button>
-                      <Button 
-                        variant="outline" 
-                        onClick={() => setShowAddUrls(false)}
-                      >
-                        Cancel
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Search and Filters */}
-              <div className="flex gap-4 items-center">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <Input
-                    placeholder="Search ripped ads..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
-                <select
-                  value={filterPlatform}
-                  onChange={(e) => setFilterPlatform(e.target.value)}
-                  className="px-3 py-2 border rounded-md"
-                  title="Filter by platform"
+              {/* Tab Navigation */}
+              <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg">
+                <Button
+                  variant={activeTab === 'manual' ? 'default' : 'ghost'}
+                  onClick={() => setActiveTab('manual')}
+                  className="flex-1"
                 >
-                  <option value="all">All Platforms</option>
-                  <option value="facebook">Facebook</option>
-                  <option value="instagram">Instagram</option>
-                  <option value="tiktok">TikTok</option>
-                </select>
-                <select
-                  value={filterType}
-                  onChange={(e) => setFilterType(e.target.value)}
-                  className="px-3 py-2 border rounded-md"
-                  title="Filter by content type"
+                  <Zap className="h-4 w-4 mr-2" />
+                  Manual Ripping
+                </Button>
+                <Button
+                  variant={activeTab === 'adspy' ? 'default' : 'ghost'}
+                  onClick={() => setActiveTab('adspy')}
+                  className="flex-1"
                 >
-                  <option value="all">All Types</option>
-                  <option value="image">Images</option>
-                  <option value="video">Videos</option>
-                </select>
+                  <Database className="h-4 w-4 mr-2" />
+                  AdSpy Search
+                </Button>
               </div>
 
-              {/* Content Grid/List */}
-              {isLoading ? (
-                <div className="text-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-yellow-600 mx-auto mb-2"></div>
-                  Loading ripped ads...
-                </div>
-              ) : filteredContent.length === 0 ? (
-                <div className="text-center py-12">
-                  <Zap className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No ads ripped yet</h3>
-                  <p className="text-gray-500 mb-4">Start by ripping some ads from social media!</p>
-                  <Button 
-                    onClick={() => setShowAddUrls(true)}
-                    className="bg-yellow-600 hover:bg-yellow-700"
-                  >
-                    <Zap className="h-4 w-4 mr-2" />
-                    Rip Your First Ads
-                  </Button>
-                </div>
-              ) : (
-                <div className={viewMode === 'grid' ? 
-                  'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4' : 
-                  'space-y-2'
-                }>
-                  {filteredContent.map((item) => (
-                    <Card 
-                      key={item.id} 
-                      className={`cursor-pointer transition-all hover:shadow-md ${
-                        selectedContent.has(item.id) ? 'ring-2 ring-yellow-500' : ''
-                      }`}
-                      onClick={() => {
-                        const newSelected = new Set(selectedContent);
-                        if (newSelected.has(item.id)) {
-                          newSelected.delete(item.id);
-                        } else {
-                          newSelected.add(item.id);
-                        }
-                        setSelectedContent(newSelected);
-                      }}
-                    >
-                      {viewMode === 'grid' ? (
-                        <div>
-                          {/* Media Preview */}
-                          <div className="relative aspect-square bg-gray-100 rounded-t-lg overflow-hidden">
-                            {item.content_type === 'image' ? (
-                              <img
-                                src={item.file_url}
-                                alt={item.title}
-                                className="w-full h-full object-cover"
-                                onError={(e) => {
-                                  (e.target as HTMLImageElement).src = '/placeholder-image.png';
-                                }}
-                              />
+              {/* Tab Content */}
+              {activeTab === 'manual' && (
+                <div className="space-y-4">
+                  {/* Add URLs Section */}
+                  {showAddUrls && (
+                    <Card className="border-yellow-200 bg-yellow-50">
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <Zap className="h-5 w-5 text-yellow-600" />
+                          Rip Ads from Social Media
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="bg-white p-3 rounded-lg border">
+                          <h4 className="text-sm font-medium text-gray-900 mb-2">Supported Platforms:</h4>
+                          <div className="grid grid-cols-3 gap-2 text-xs">
+                            <div className="flex items-center gap-1">
+                              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                              Facebook
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <div className="w-2 h-2 bg-pink-500 rounded-full"></div>
+                              Instagram
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <div className="w-2 h-2 bg-black rounded-full"></div>
+                              TikTok
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <Textarea
+                          value={mediaUrls}
+                          onChange={(e) => setMediaUrls(e.target.value)}
+                          placeholder="Campaign Name: Holiday Sale&#10;&#10;Facebook Videos:&#10;https://www.facebook.com/page/posts/123456789/&#10;https://www.facebook.com/watch?v=1234567890&#10;&#10;Instagram Posts:&#10;https://www.instagram.com/p/CabcdeFgHij/&#10;&#10;TikTok Videos:&#10;https://www.tiktok.com/@username/video/1234567890123456789&#10;&#10;(Non-URL lines like headers and labels will be automatically skipped)"
+                          rows={8}
+                          disabled={isProcessing}
+                          className="font-mono text-sm"
+                        />
+                        
+                        <div className="bg-green-50 p-3 rounded-lg border border-green-200">
+                          <p className="text-xs text-green-700">
+                            <strong>Smart Filtering:</strong> Paste mixed content with headers, labels, and URLs. 
+                            Only valid social media URLs will be processed - everything else is automatically skipped.
+                          </p>
+                        </div>
+                        
+                        <div className="flex gap-2">
+                          <Button 
+                            onClick={handleAddUrls} 
+                            disabled={isProcessing || !mediaUrls.trim()}
+                            className="bg-yellow-600 hover:bg-yellow-700"
+                          >
+                            {isProcessing ? (
+                              <>
+                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                                Ripping Ads...
+                              </>
                             ) : (
-                              <div className="w-full h-full flex items-center justify-center bg-gray-200">
-                                {item.thumbnail_url ? (
+                              <>
+                                <Zap className="h-4 w-4 mr-2" />
+                                Rip Ads
+                              </>
+                            )}
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            onClick={() => setShowAddUrls(false)}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Search and Filters */}
+                  <div className="flex gap-4 items-center">
+                    <div className="relative flex-1">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <Input
+                        placeholder="Search ripped ads..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="pl-10"
+                      />
+                    </div>
+                    <select
+                      value={filterPlatform}
+                      onChange={(e) => setFilterPlatform(e.target.value)}
+                      className="px-3 py-2 border rounded-md"
+                      title="Filter by platform"
+                    >
+                      <option value="all">All Platforms</option>
+                      <option value="facebook">Facebook</option>
+                      <option value="instagram">Instagram</option>
+                      <option value="tiktok">TikTok</option>
+                    </select>
+                    <select
+                      value={filterType}
+                      onChange={(e) => setFilterType(e.target.value)}
+                      className="px-3 py-2 border rounded-md"
+                      title="Filter by content type"
+                    >
+                      <option value="all">All Types</option>
+                      <option value="image">Images</option>
+                      <option value="video">Videos</option>
+                    </select>
+                  </div>
+
+                  {/* Content Grid/List */}
+                  {isLoading ? (
+                    <div className="text-center py-8">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-yellow-600 mx-auto mb-2"></div>
+                      Loading ripped ads...
+                    </div>
+                  ) : filteredContent.length === 0 ? (
+                    <div className="text-center py-12">
+                      <Zap className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                      <h3 className="text-lg font-medium text-gray-900 mb-2">No ads ripped yet</h3>
+                      <p className="text-gray-500 mb-4">Start by ripping some ads from social media!</p>
+                      <Button 
+                        onClick={() => setShowAddUrls(true)}
+                        className="bg-yellow-600 hover:bg-yellow-700"
+                      >
+                        <Zap className="h-4 w-4 mr-2" />
+                        Rip Your First Ads
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className={viewMode === 'grid' ? 
+                      'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4' : 
+                      'space-y-2'
+                    }>
+                      {filteredContent.map((item) => (
+                        <Card 
+                          key={item.id} 
+                          className={`cursor-pointer transition-all hover:shadow-md ${
+                            selectedContent.has(item.id) ? 'ring-2 ring-yellow-500' : ''
+                          }`}
+                          onClick={() => {
+                            const newSelected = new Set(selectedContent);
+                            if (newSelected.has(item.id)) {
+                              newSelected.delete(item.id);
+                            } else {
+                              newSelected.add(item.id);
+                            }
+                            setSelectedContent(newSelected);
+                          }}
+                        >
+                          {viewMode === 'grid' ? (
+                            <div>
+                              {/* Media Preview */}
+                              <div className="relative aspect-square bg-gray-100 rounded-t-lg overflow-hidden">
+                                {item.content_type === 'image' ? (
                                   <img
-                                    src={item.thumbnail_url}
+                                    src={item.file_url}
                                     alt={item.title}
                                     className="w-full h-full object-cover"
+                                    onError={(e) => {
+                                      (e.target as HTMLImageElement).src = '/placeholder-image.png';
+                                    }}
                                   />
                                 ) : (
-                                  <Play className="h-12 w-12 text-gray-400" />
+                                  <div className="w-full h-full flex items-center justify-center bg-gray-200">
+                                    {item.thumbnail_url ? (
+                                      <img
+                                        src={item.thumbnail_url}
+                                        alt={item.title}
+                                        className="w-full h-full object-cover"
+                                      />
+                                    ) : (
+                                      <Play className="h-12 w-12 text-gray-400" />
+                                    )}
+                                  </div>
                                 )}
-                              </div>
-                            )}
-                            
-                            {/* Overlay with type and platform */}
-                            <div className="absolute top-2 left-2 flex gap-1">
-                              <Badge variant="secondary" className="text-xs">
-                                {item.content_type === 'image' ? <ImageIcon className="h-3 w-3" /> : <Play className="h-3 w-3" />}
-                              </Badge>
-                              <Badge 
-                                variant="secondary" 
-                                className={`text-xs capitalize ${
-                                  item.platform === 'facebook' ? 'bg-blue-100 text-blue-700' :
-                                  item.platform === 'instagram' ? 'bg-pink-100 text-pink-700' :
-                                  item.platform === 'tiktok' ? 'bg-gray-100 text-gray-700' :
-                                  'bg-gray-100 text-gray-700'
-                                }`}
-                              >
-                                {item.platform}
-                              </Badge>
-                            </div>
-                            
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="absolute top-2 right-2 p-1 h-auto"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                toggleFavorite(item.id);
-                              }}
-                            >
-                              <Heart 
-                                className={`h-4 w-4 ${item.is_favorite ? 'fill-red-500 text-red-500' : 'text-white'}`} 
-                              />
-                            </Button>
-                          </div>
-                          
-                          {/* Content Info */}
-                          <CardContent className="p-3">
-                            <h3 className="font-medium text-sm truncate" title={item.title}>
-                              {item.title}
-                            </h3>
-                            <div className="flex justify-between items-center mt-2 text-xs text-gray-500">
-                              <span>{formatFileSize(item.file_size)}</span>
-                              <span>{formatDate(item.created_at)}</span>
-                            </div>
-                            {item.download_count > 0 && (
-                              <div className="text-xs text-gray-400 mt-1">
-                                Downloaded {item.download_count} times
-                              </div>
-                            )}
-                          </CardContent>
-                        </div>
-                      ) : (
-                        /* List View */
-                        <CardContent className="p-4">
-                          <div className="flex items-center gap-4">
-                            <div className="w-16 h-16 bg-gray-100 rounded overflow-hidden flex-shrink-0">
-                              {item.content_type === 'image' ? (
-                                <img
-                                  src={item.file_url}
-                                  alt={item.title}
-                                  className="w-full h-full object-cover"
-                                />
-                              ) : (
-                                <div className="w-full h-full flex items-center justify-center">
-                                  <Play className="h-6 w-6 text-gray-400" />
+                                
+                                {/* Overlay with type and platform */}
+                                <div className="absolute top-2 left-2 flex gap-1">
+                                  <Badge variant="secondary" className="text-xs">
+                                    {item.content_type === 'image' ? <ImageIcon className="h-3 w-3" /> : <Play className="h-3 w-3" />}
+                                  </Badge>
+                                  <Badge 
+                                    variant="secondary" 
+                                    className={`text-xs capitalize ${
+                                      item.platform === 'facebook' ? 'bg-blue-100 text-blue-700' :
+                                      item.platform === 'instagram' ? 'bg-pink-100 text-pink-700' :
+                                      item.platform === 'tiktok' ? 'bg-gray-100 text-gray-700' :
+                                      'bg-gray-100 text-gray-700'
+                                    }`}
+                                  >
+                                    {item.platform}
+                                  </Badge>
+                                  {item.source_type === 'adspy' && (
+                                    <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-700">
+                                      AdSpy
+                                    </Badge>
+                                  )}
                                 </div>
-                              )}
-                            </div>
-                            
-                            <div className="flex-1 min-w-0">
-                              <h3 className="font-medium truncate">{item.title}</h3>
-                              <div className="flex items-center gap-2 mt-1">
-                                <Badge 
-                                  variant="secondary" 
-                                  className={`text-xs capitalize ${
-                                    item.platform === 'facebook' ? 'bg-blue-100 text-blue-700' :
-                                    item.platform === 'instagram' ? 'bg-pink-100 text-pink-700' :
-                                    item.platform === 'tiktok' ? 'bg-gray-100 text-gray-700' :
-                                    'bg-gray-100 text-gray-700'
-                                  }`}
+                                
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="absolute top-2 right-2 p-1 h-auto"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleFavorite(item.id);
+                                  }}
                                 >
-                                  {item.platform}
-                                </Badge>
-                                <Badge variant="outline" className="text-xs">
-                                  {item.content_type}
-                                </Badge>
-                                <span className="text-xs text-gray-500">
-                                  {formatFileSize(item.file_size)}
-                                </span>
+                                  <Heart 
+                                    className={`h-4 w-4 ${item.is_favorite ? 'fill-red-500 text-red-500' : 'text-white'}`} 
+                                  />
+                                </Button>
                               </div>
+                              
+                              {/* Content Info */}
+                              <CardContent className="p-3">
+                                <h3 className="font-medium text-sm truncate" title={item.title}>
+                                  {item.title}
+                                </h3>
+                                <div className="flex justify-between items-center mt-2 text-xs text-gray-500">
+                                  <span>{formatFileSize(item.file_size)}</span>
+                                  <span>{formatDate(item.created_at)}</span>
+                                </div>
+                                {item.download_count > 0 && (
+                                  <div className="text-xs text-gray-400 mt-1">
+                                    Downloaded {item.download_count} times
+                                  </div>
+                                )}
+                              </CardContent>
                             </div>
-                            
-                            <div className="flex items-center gap-2">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  window.open(item.source_url, '_blank');
-                                }}
-                              >
-                                <ExternalLink className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  toggleFavorite(item.id);
-                                }}
-                              >
-                                <Heart 
-                                  className={`h-4 w-4 ${item.is_favorite ? 'fill-red-500 text-red-500' : ''}`} 
-                                />
-                              </Button>
-                            </div>
-                          </div>
-                        </CardContent>
-                      )}
-                    </Card>
-                  ))}
+                          ) : (
+                            /* List View */
+                            <CardContent className="p-4">
+                              <div className="flex items-center gap-4">
+                                <div className="w-16 h-16 bg-gray-100 rounded overflow-hidden flex-shrink-0">
+                                  {item.content_type === 'image' ? (
+                                    <img
+                                      src={item.file_url}
+                                      alt={item.title}
+                                      className="w-full h-full object-cover"
+                                    />
+                                  ) : (
+                                    <div className="w-full h-full flex items-center justify-center">
+                                      <Play className="h-6 w-6 text-gray-400" />
+                                    </div>
+                                  )}
+                                </div>
+                                
+                                <div className="flex-1 min-w-0">
+                                  <h3 className="font-medium truncate">{item.title}</h3>
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <Badge 
+                                      variant="secondary" 
+                                      className={`text-xs capitalize ${
+                                        item.platform === 'facebook' ? 'bg-blue-100 text-blue-700' :
+                                        item.platform === 'instagram' ? 'bg-pink-100 text-pink-700' :
+                                        item.platform === 'tiktok' ? 'bg-gray-100 text-gray-700' :
+                                        'bg-gray-100 text-gray-700'
+                                      }`}
+                                    >
+                                      {item.platform}
+                                    </Badge>
+                                    <Badge variant="outline" className="text-xs">
+                                      {item.content_type}
+                                    </Badge>
+                                    {item.source_type === 'adspy' && (
+                                      <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-700">
+                                        AdSpy
+                                      </Badge>
+                                    )}
+                                    <span className="text-xs text-gray-500">
+                                      {formatFileSize(item.file_size)}
+                                    </span>
+                                  </div>
+                                </div>
+                                
+                                <div className="flex items-center gap-2">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      window.open(item.source_url, '_blank');
+                                    }}
+                                  >
+                                    <ExternalLink className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      toggleFavorite(item.id);
+                                    }}
+                                  >
+                                    <Heart 
+                                      className={`h-4 w-4 ${item.is_favorite ? 'fill-red-500 text-red-500' : ''}`} 
+                                    />
+                                  </Button>
+                                </div>
+                              </div>
+                            </CardContent>
+                          )}
+                        </Card>
+                      ))}
+                    </div>
+                  )}
                 </div>
+              )}
+
+              {activeTab === 'adspy' && user && (
+                <AdSpySearch 
+                  selectedBrand={selectedBrand}
+                  userId={user.id}
+                  onAdDownloaded={() => loadContent(selectedBrand.id)}
+                />
               )}
             </div>
           ) : (
