@@ -806,6 +806,13 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, activeBatch }) => {
                     }`}>
                       {asset.type === 'image' ? 'I' : 'V'}
                     </div>
+                    
+                    {/* Compression indicator for videos */}
+                    {asset.type === 'video' && asset.name.includes('_compressed') && (
+                      <div className="absolute -bottom-1 -left-1 w-4 h-4 rounded-full bg-green-500 flex items-center justify-center" title="Video was compressed">
+                        <Zap size={8} className="text-white" />
+                      </div>
+                    )}
                   </div>
                 ))}
                 
@@ -993,6 +1000,12 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, activeBatch }) => {
                 {currentAsset.aspectRatios && currentAsset.aspectRatios.length > 0 && (
                   <span className="ml-2">• Aspect Ratios: {currentAsset.aspectRatios.join(', ')}</span>
                 )}
+                {currentAsset.type === 'video' && currentAsset.name.includes('_compressed') && (
+                  <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                    <Zap size={12} className="mr-1" />
+                    Compressed for Meta upload
+                  </span>
+                )}
               </div>
             </div>
             
@@ -1142,12 +1155,15 @@ Are you sure you want to continue?`;
 
     const confirmMessage = `Found ${videosToCompress.length} video asset(s) in ${selectedDrafts.length} selected ad(s).
 
-This will:
+This will manually compress existing videos:
 • Download each video from Supabase
 • Check if compression is needed (>50MB)
 • Compress large videos automatically
 • Upload compressed versions back to Supabase
 • Update the ad drafts with new URLs
+
+Note: New asset uploads are automatically compressed if over 50MB during import.
+This manual compression is for existing assets that may need optimization.
 
 This process may take several minutes. Continue?`;
 
@@ -1355,7 +1371,7 @@ ${compressedCount > 0 ? 'Compressed videos have been updated in your ads.' : ''}
                     onClick={handleCompressVideos}
                     disabled={checkedDraftIds.size === 0 || isCompressing}
                     className="px-4 py-2 text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 rounded-md shadow-sm flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
-                    title="Compress videos in selected ads"
+                    title="Manually compress videos in selected ads (Note: New uploads are automatically compressed if over 50MB)"
                  >
                     {isCompressing ? (
                       <>
@@ -1365,7 +1381,7 @@ ${compressedCount > 0 ? 'Compressed videos have been updated in your ads.' : ''}
                     ) : (
                       <>
                         <Zap className="mr-2 h-4 w-4" /> 
-                        Compress Videos ({checkedDraftIds.size})
+                        Manual Compress ({checkedDraftIds.size})
                       </>
                     )}
                 </button>

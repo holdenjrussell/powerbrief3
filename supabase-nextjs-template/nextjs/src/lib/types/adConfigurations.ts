@@ -6,6 +6,15 @@ export interface AdConfigurationSettings {
   campaignName?: string | null; // Store campaign name for display
   adSetId: string | null;
   adSetName?: string | null; // Store ad set name for display
+  // Meta account settings with names for display
+  adAccountId?: string | null;
+  adAccountName?: string | null; // Store ad account name for display
+  fbPage?: string;
+  fbPageName?: string | null; // Store Facebook page name for display
+  igAccount?: string;
+  igAccountName?: string | null; // Store Instagram account name for display
+  pixel?: string;
+  pixelName?: string | null; // Store pixel name for display
   urlParams: string;
   status: 'ACTIVE' | 'PAUSED';
   primaryText: string;
@@ -15,6 +24,8 @@ export interface AdConfigurationSettings {
   callToAction: string;
   siteLinks: SiteLink[];
   advantageCreative: AdvantageCreativeEnhancements;
+  // Use Page as Actor setting
+  usePageAsActor?: boolean;
 }
 
 // Full configuration object

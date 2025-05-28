@@ -1,9 +1,10 @@
 "use client";
 import React, { useState, useCallback, ChangeEvent } from 'react';
-import { X, UploadCloud, Check, Trash2, Loader2, FileVideo, FileImage, AlertCircle, Info } from 'lucide-react';
+import { X, UploadCloud, Check, Trash2, Loader2, FileVideo, FileImage, AlertCircle, Info, Zap } from 'lucide-react';
 import { createSPAClient } from '@/lib/supabase/client';
 import AssetGroupingPreview from './PowerBriefAssetGroupingPreview';
 import { UploadedAssetGroup, UploadedAsset } from '@/lib/types/powerbrief';
+import { needsCompression, compressVideo, getFileSizeMB } from '@/lib/utils/videoCompression';
 
 // Logging utility
 const logger = {
@@ -33,29 +34,16 @@ interface AssetFile {
   detectedRatio?: string | null;
   baseName?: string;
   groupKey?: string;
-}
-
-interface UploadedAsset {
-  id: string;
-  name: string;
-  supabaseUrl: string;
-  type: 'image' | 'video';
-  aspectRatio: string;
-  baseName: string;
-  groupKey: string;
+  compressing?: boolean;
+  compressionProgress?: number;
+  needsCompression?: boolean;
+  originalSize?: number;
 }
 
 interface AssetGroup {
   baseName: string;
   assets: UploadedAsset[];
   aspectRatios: string[];
-}
-
-interface UploadedAssetGroup {
-  baseName: string;
-  assets: UploadedAsset[];
-  aspectRatios: string[];
-  uploadedAt: string;
 }
 
 interface PowerBriefAssetUploadProps {
@@ -73,7 +61,7 @@ interface ToastMessage {
   message: string;
 }
 
-const ASPECT_RATIO_IDENTIFIERS = ['4x5', '9x16', '1x1', '16x9'];
+const ASPECT_RATIO_IDENTIFIERS = ['4x5', '9x16'];
 const KNOWN_FILENAME_SUFFIXES_TO_REMOVE = ['_compressed', '-compressed', '_comp', '-comp'];
 const MAX_FILE_SIZE = 1024 * 1024 * 1024; // 1GB in bytes (increased from 200MB)
 const SUPPORTED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
@@ -95,37 +83,21 @@ const getBaseNameRatioAndVersion = (filename: string): { baseName: string; detec
     }
   }
 
-  // Extract version information (v1, v2, v3, etc.)
-  let version: string | null = null;
-  const versionPatterns = ['_v1', '_v2', '_v3', '_v4', '_v5', '-v1', '-v2', '-v3', '-v4', '-v5'];
-  for (const versionPattern of versionPatterns) {
-    if (nameWorkInProgress.includes(versionPattern)) {
-      version = versionPattern.substring(1); // Remove the _ or - prefix
-      logger.debug('Found version', { versionPattern, version });
-      break;
-    }
-  }
-  logger.debug('Version detection result', { version });
-
-  // Look for aspect ratio identifiers
+  // Look for aspect ratio identifiers at the end (right before extension)
   let detectedRatio: string | null = null;
   let baseNameWithoutRatio = nameWorkInProgress;
   
   for (const id of ASPECT_RATIO_IDENTIFIERS) {
     const patternsToTest = [
       `_${id}`,
-      `-${id}`,
-      ` - ${id}`,
-      `:${id}`,
-      `(${id})`,
-      `(${id}`
+      `-${id}`
     ];
     
     for (const pattern of patternsToTest) {
-      if (nameWorkInProgress.includes(pattern)) {
+      if (nameWorkInProgress.endsWith(pattern)) {
         detectedRatio = id;
-        baseNameWithoutRatio = nameWorkInProgress.replace(pattern, '').trim();
-        logger.debug('Found aspect ratio', { pattern, detectedRatio, baseNameWithoutRatio });
+        baseNameWithoutRatio = nameWorkInProgress.substring(0, nameWorkInProgress.length - pattern.length).trim();
+        logger.debug('Found aspect ratio at end', { pattern, detectedRatio, baseNameWithoutRatio });
         break;
       }
     }
@@ -133,21 +105,33 @@ const getBaseNameRatioAndVersion = (filename: string): { baseName: string; detec
   }
   logger.debug('Aspect ratio detection result', { detectedRatio, baseNameWithoutRatio });
 
+  // Extract version information (v1, v2, v3, etc.) from the remaining name
+  let version: string | null = null;
+  let finalBaseName = baseNameWithoutRatio;
+  const versionPatterns = ['_v1', '_v2', '_v3', '_v4', '_v5', '-v1', '-v2', '-v3', '-v4', '-v5'];
+  for (const versionPattern of versionPatterns) {
+    if (baseNameWithoutRatio.endsWith(versionPattern)) {
+      version = versionPattern.substring(1); // Remove the _ or - prefix
+      finalBaseName = baseNameWithoutRatio.substring(0, baseNameWithoutRatio.length - versionPattern.length).trim();
+      logger.debug('Found version', { versionPattern, version, finalBaseName });
+      break;
+    }
+  }
+  logger.debug('Version detection result', { version, finalBaseName });
+
   // Create a group key that combines base name and version
   // This ensures assets with same version but different aspect ratios are grouped together
   let groupKey: string;
   if (version) {
-    // Remove version from base name to get the core concept name
-    const coreBaseName = baseNameWithoutRatio.replace(new RegExp(`[_-]?${version}$`), '').trim();
-    groupKey = `${coreBaseName}_${version}`;
-    logger.debug('Created groupKey with version', { coreBaseName, version, groupKey });
+    groupKey = `${finalBaseName}_${version}`;
+    logger.debug('Created groupKey with version', { finalBaseName, version, groupKey });
   } else {
-    groupKey = baseNameWithoutRatio;
+    groupKey = finalBaseName;
     logger.debug('Created groupKey without version', { groupKey });
   }
   
   const result = { 
-    baseName: baseNameWithoutRatio.trim(), 
+    baseName: finalBaseName.trim(), 
     detectedRatio, 
     version,
     groupKey
@@ -234,7 +218,6 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
   const [dragActive, setDragActive] = useState(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [showGroupingPreview, setShowGroupingPreview] = useState(false);
-  const [previewGroups, setPreviewGroups] = useState<Record<string, AssetFile[]>>({});
   const [previewAssetGroups, setPreviewAssetGroups] = useState<UploadedAssetGroup[]>([]);
 
   // Log component initialization
@@ -360,7 +343,12 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
         groupKey,
         uploading: false,
         uploadError: null,
-        supabaseUrl: null
+        supabaseUrl: null,
+        // Add compression detection
+        needsCompression: needsCompression(file),
+        originalSize: file.size,
+        compressing: false,
+        compressionProgress: 0
       };
       
       newFiles.push(assetFile);
@@ -368,7 +356,9 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
         fileName: file.name, 
         baseName, 
         detectedRatio,
-        fileId: assetFile.id
+        fileId: assetFile.id,
+        needsCompression: assetFile.needsCompression,
+        fileSize: getFileSizeMB(file).toFixed(2) + 'MB'
       });
     }
     
@@ -380,10 +370,17 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
     
     // Show success message for valid files
     if (newFiles.length > 0) {
-      addToast('success', 'Files Added', `${newFiles.length} file(s) added successfully.`);
+      const compressionCount = newFiles.filter(f => f.needsCompression).length;
+      let message = `${newFiles.length} file(s) added successfully.`;
+      if (compressionCount > 0) {
+        message += ` ${compressionCount} video(s) over 50MB will be automatically compressed.`;
+      }
+      
+      addToast('success', 'Files Added', message);
       logger.info('Files successfully added to queue', { 
         addedCount: newFiles.length,
-        totalInQueue: selectedFiles.length + newFiles.length
+        totalInQueue: selectedFiles.length + newFiles.length,
+        compressionCount
       });
     }
     
@@ -428,7 +425,6 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
       uploadedAt: new Date().toISOString()
     }));
     
-    setPreviewGroups(groups);
     setPreviewAssetGroups(assetGroups);
     setShowGroupingPreview(true);
     
@@ -466,11 +462,6 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
     processAndUpload();
   };
 
-  const proceedWithUpload = () => {
-    setShowGroupingPreview(false);
-    processAndUpload();
-  };
-
   const processAndUpload = async () => {
     if (selectedFiles.length === 0) {
       logger.warn('Upload attempted with no files selected');
@@ -486,7 +477,8 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
         size: f.file.size,
         type: f.file.type,
         baseName: f.baseName,
-        detectedRatio: f.detectedRatio
+        detectedRatio: f.detectedRatio,
+        needsCompression: f.needsCompression
       }))
     });
 
@@ -501,7 +493,71 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
 
     addToast('info', 'Upload Started', `Starting upload of ${selectedFiles.length} file(s)...`);
 
+    // Step 1: Compress videos that need compression
+    const filesToProcess: AssetFile[] = [];
     for (const assetFile of selectedFiles) {
+      if (assetFile.needsCompression) {
+        try {
+          logger.info(`Compressing ${assetFile.file.name} (${getFileSizeMB(assetFile.file).toFixed(2)}MB)`);
+          
+          // Update UI to show compression in progress
+          setSelectedFiles(prev => prev.map(sf => 
+            sf.id === assetFile.id 
+              ? { ...sf, compressing: true, compressionProgress: 0 }
+              : sf
+          ));
+
+          const compressedFile = await compressVideo(assetFile.file, (progress) => {
+            setSelectedFiles(prev => prev.map(sf => 
+              sf.id === assetFile.id 
+                ? { ...sf, compressionProgress: progress }
+                : sf
+            ));
+          });
+
+          // Update the asset file with the compressed version
+          const updatedAssetFile: AssetFile = {
+            ...assetFile,
+            file: compressedFile,
+            compressing: false,
+            compressionProgress: 100,
+            needsCompression: false, // No longer needs compression
+          };
+
+          filesToProcess.push(updatedAssetFile);
+          
+          // Update UI to show compression complete
+          setSelectedFiles(prev => prev.map(sf => 
+            sf.id === assetFile.id ? updatedAssetFile : sf
+          ));
+
+          logger.info(`Compression complete: ${getFileSizeMB(assetFile.file).toFixed(2)}MB → ${getFileSizeMB(compressedFile).toFixed(2)}MB`);
+
+        } catch (compressionError) {
+          logger.error(`Failed to compress ${assetFile.file.name}:`, compressionError);
+          
+          // Update UI to show compression error
+          setSelectedFiles(prev => prev.map(sf => 
+            sf.id === assetFile.id 
+              ? { 
+                  ...sf, 
+                  compressing: false, 
+                  uploadError: `Compression failed: ${compressionError instanceof Error ? compressionError.message : 'Unknown error'}` 
+                }
+              : sf
+          ));
+          
+          // Skip this file for upload
+          continue;
+        }
+      } else {
+        // File doesn't need compression, use as-is
+        filesToProcess.push(assetFile);
+      }
+    }
+
+    // Step 2: Upload the processed files
+    for (const assetFile of filesToProcess) {
       const file = assetFile.file;
       const filePath = `powerbrief/${userId}/${conceptId}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '')}`;
       const fileUploadStartTime = Date.now();
@@ -510,19 +566,11 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
         fileName: file.name,
         filePath,
         fileSize: file.size,
-        fileType: file.type
+        fileType: file.type,
+        wasCompressed: assetFile.originalSize && assetFile.originalSize !== file.size
       });
 
       try {
-        // For very large files (>50MB), use API route upload to bypass client limits
-        const isVeryLargeFile = file.size > 50 * 1024 * 1024; // 50MB threshold
-        
-        // Use direct Supabase upload for all files to bypass Vercel limits
-        logger.info('Using direct Supabase upload', { 
-          fileName: file.name,
-          fileSize: file.size 
-        });
-        
         // Direct upload to Supabase Storage
         const uploadResult = await supabase.storage
           .from('ad-creatives')
@@ -534,30 +582,13 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
         const { data, error } = uploadResult;
 
         if (error) {
-          // Enhanced error logging for debugging
           logger.error('Supabase storage upload error', { 
             fileName: file.name,
             fileSize: file.size,
             filePath,
             error: error,
-            errorMessage: error.message,
-            isVeryLargeFile,
-            isLargeFile: file.size > 10 * 1024 * 1024
+            errorMessage: error.message
           });
-          
-          // Check if it's a bucket creation issue
-          if (error.message?.includes('bucket') || error.message?.includes('not found')) {
-            throw new Error(`Storage bucket 'ad-creatives' not found. Please contact support to set up the storage bucket.`);
-          }
-          
-          // Check if it's a size limit issue - suggest API route for large files
-          if (error.message?.includes('size') || error.message?.includes('exceeded') || error.message?.includes('Payload too large')) {
-            if (file.size > 50 * 1024 * 1024) {
-              throw new Error(`File too large for direct upload. Retrying with server-side upload...`);
-            } else {
-              throw new Error(`File size limit exceeded. Your file is ${(file.size / 1024 / 1024).toFixed(2)}MB. Please try compressing the file or contact support to increase limits.`);
-            }
-          }
           
           throw error;
         }
@@ -578,7 +609,7 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
             type: file.type.startsWith('image/') ? 'image' : 'video',
             aspectRatio: assetFile.detectedRatio || 'unknown',
             baseName: assetFile.baseName || file.name,
-            groupKey: assetFile.groupKey || assetFile.baseName
+            uploadedAt: new Date().toISOString()
           };
 
           uploadedAssets.push(uploadedAsset);
@@ -596,118 +627,62 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
             uploadDuration,
             fileSize: file.size,
             uploadSpeed: (file.size / 1024 / 1024) / (uploadDuration / 1000), // MB/s
-            isLargeFile: file.size > 10 * 1024 * 1024
+            wasCompressed: assetFile.originalSize && assetFile.originalSize !== file.size
           });
         }
       } catch (e: unknown) {
-        let errorMessage = 'Upload failed';
-        let shouldRetryWithAPI = false;
+        const uploadError = e as Error | { message: string } | string;
+        const errorMessage = typeof uploadError === 'string' ? uploadError : (uploadError as Error)?.message || 'Upload failed';
         
-        // Better error handling for different error types
-        if (e && typeof e === 'object') {
-          if ('message' in e && typeof e.message === 'string') {
-            errorMessage = e.message;
-          } else if ('error' in e && typeof e.error === 'string') {
-            errorMessage = e.error;
-          } else if ('statusCode' in e && 'message' in e) {
-            errorMessage = `${e.statusCode}: ${e.message}`;
-          } else {
-            // Try to stringify the error object for debugging
-            try {
-              const errorStr = JSON.stringify(e);
-              if (errorStr !== '{}') {
-                errorMessage = `Upload error: ${errorStr}`;
-              }
-            } catch {
-              errorMessage = 'Unknown upload error occurred';
-            }
-          }
-        } else if (typeof e === 'string') {
-          errorMessage = e;
-        }
-        
-        // Check for specific error types and provide helpful messages
-        if (errorMessage.toLowerCase().includes('payload too large') || 
-            errorMessage.toLowerCase().includes('413') ||
-            (errorMessage.toLowerCase().includes('file') && errorMessage.toLowerCase().includes('size'))) {
-          
-          if (file.size > 50 * 1024 * 1024 && !errorMessage.includes('Retrying with server-side upload')) {
-            shouldRetryWithAPI = true;
-            errorMessage = `File too large for direct upload (${(file.size / 1024 / 1024).toFixed(2)}MB). Retrying with server-side upload...`;
-          } else {
-            errorMessage = `File too large. Your file is ${(file.size / 1024 / 1024).toFixed(2)}MB. Try compressing the file or contact support.`;
-          }
-        } else if (errorMessage.toLowerCase().includes('timeout')) {
-          errorMessage = 'Upload timed out. Please try again with a smaller file or check your internet connection.';
-        } else if (errorMessage.toLowerCase().includes('network')) {
-          errorMessage = 'Network error. Please check your internet connection and try again.';
-        } else if (errorMessage.toLowerCase().includes('unauthorized') || errorMessage.toLowerCase().includes('forbidden')) {
-          errorMessage = 'Permission denied. Please check your account permissions.';
-        } else if (errorMessage.toLowerCase().includes('bucket')) {
-          errorMessage = 'Storage bucket not configured. Please contact support.';
-        }
-        
-        // If we should retry with API and haven't already tried it, attempt API upload
-        if (shouldRetryWithAPI && file.size > 50 * 1024 * 1024) {
-          // API retry removed - using direct Supabase uploads only
-          logger.info('Skipping API retry - using direct uploads only', { 
-            fileName: file.name,
-            fileSize: file.size 
-          });
-        }
-        
-        const uploadDuration = Date.now() - fileUploadStartTime;
-        
-        logger.error('File upload failed', {
+        logger.error('File upload failed', { 
           fileName: file.name,
-          filePath,
           fileSize: file.size,
-          uploadDuration,
-          errorType: typeof e,
-          errorMessage,
-          originalError: e,
-          triedAPIRetry: shouldRetryWithAPI
+          filePath,
+          error: uploadError,
+          errorMessage
         });
-        
+
         setSelectedFiles(prev => prev.map(sf => 
           sf.id === assetFile.id ? { ...sf, uploading: false, uploadError: errorMessage } : sf
         ));
         
+        const uploadDuration = Date.now() - fileUploadStartTime;
         errorCount++;
+
+        logger.error('File upload error', { 
+          fileName: file.name,
+          errorMessage,
+          uploadDuration,
+          fileSize: file.size
+        });
       }
     }
 
-    const totalUploadDuration = Date.now() - uploadStartTime;
+    // Rest of the upload completion logic remains the same...
+    const totalDuration = Date.now() - uploadStartTime;
+    
+    logger.info('Upload process completed', { 
+      totalDuration,
+      successCount,
+      errorCount,
+      totalFiles: selectedFiles.length,
+      uploadedAssets: uploadedAssets.length
+    });
 
-    // Show final upload results
-    if (successCount > 0 && errorCount === 0) {
-      addToast('success', 'Upload Complete', `All ${successCount} file(s) uploaded successfully!`);
-      logger.info('Upload process completed successfully', { 
-        successCount, 
-        totalDuration: totalUploadDuration,
-        averageTimePerFile: totalUploadDuration / successCount
-      });
-    } else if (successCount > 0 && errorCount > 0) {
-      addToast('warning', 'Upload Partially Complete', `${successCount} file(s) uploaded successfully, ${errorCount} failed.`);
-      logger.warn('Upload process partially completed', { 
-        successCount, 
-        errorCount, 
-        totalDuration: totalUploadDuration 
-      });
-    } else if (errorCount > 0) {
-      addToast('error', 'Upload Failed', `All ${errorCount} file(s) failed to upload. Please check the errors and try again.`);
-      logger.error('Upload process failed completely', { 
-        errorCount, 
-        totalDuration: totalUploadDuration 
-      });
+    if (successCount > 0) {
+      addToast('success', 'Upload Complete', `Successfully uploaded ${successCount} file(s).`);
+    }
+    
+    if (errorCount > 0) {
+      addToast('error', 'Upload Errors', `${errorCount} file(s) failed to upload. Check individual file errors below.`);
     }
 
-    // Group assets by group key (which includes version)
+    // Group uploaded assets by their groupKey/baseName for the callback
     const assetGroups: AssetGroup[] = [];
     const groupsByGroupKey: Record<string, UploadedAsset[]> = {};
 
     uploadedAssets.forEach(asset => {
-      const groupKey = asset.groupKey || asset.baseName; // Fallback to baseName if groupKey is missing
+      const groupKey = asset.baseName; // Use baseName as groupKey since UploadedAsset doesn't have groupKey
       if (!groupsByGroupKey[groupKey]) {
         groupsByGroupKey[groupKey] = [];
       }
@@ -716,7 +691,7 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
 
     Object.entries(groupsByGroupKey).forEach(([groupKey, assets]) => {
       assetGroups.push({
-        baseName: groupKey, // Use groupKey as the display name
+        baseName: groupKey,
         assets,
         aspectRatios: [...new Set(assets.map(a => a.aspectRatio).filter(r => r !== 'unknown'))]
       });
@@ -797,14 +772,55 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
             <div>
               <h4 className="font-medium mb-1">Naming Convention:</h4>
               <ul className="space-y-1">
-                <li>• Use: &ldquo;ConceptName_4x5_v1.jpg&rdquo;</li>
-                <li>• Include aspect ratios: 4x5, 9x16, 1x1, 16x9</li>
-                <li>• Version numbers: v1, v2, v3</li>
+                <li>• Use: &ldquo;ConceptName_v1_4x5.mp4&rdquo;</li>
+                <li>• Include aspect ratios: 4x5, 9x16 (before file extension)</li>
+                <li>• Version numbers: v1, v2, v3 (before aspect ratio)</li>
                 <li>• Upload multiple versions per concept</li>
               </ul>
             </div>
           </div>
         </div>
+
+        {/* Auto-Compression Information Banner */}
+        <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+          <div className="flex items-start">
+            <Zap size={20} className="text-amber-600 mr-3 mt-0.5 flex-shrink-0" />
+            <div className="flex-1">
+              <h4 className="text-sm font-semibold text-amber-800 mb-1">
+                Smart Auto-Compression
+              </h4>
+              <p className="text-sm text-blue-700 mb-2">
+                Videos over 50MB are automatically compressed during upload to ensure successful processing and Meta compatibility. 
+                Files under 50MB will maintain original quality.
+                <span className="block text-xs mt-1 text-blue-600">⚡ Aggressive compression - typically takes 30 seconds per 60MB with 60-80% size reduction</span>
+              </p>
+              <p className="text-xs text-amber-600">
+                💡 <strong>Pro Tip:</strong> Our compression mirrors Meta&apos;s internal settings for optimal upload speed and platform compatibility.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Large Files Detected Banner */}
+        {selectedFiles.some(f => f.needsCompression) && (
+          <div className="mb-4 p-4 bg-orange-50 border border-orange-200 rounded-md">
+            <div className="flex items-start">
+              <Zap size={20} className="text-orange-600 mr-3 mt-0.5 flex-shrink-0" />
+              <div className="flex-1">
+                <h4 className="text-sm font-semibold text-orange-800 mb-1">
+                  Large Assets Detected - Auto-Compression Enabled
+                </h4>
+                <p className="text-sm text-orange-700 mb-2">
+                  {selectedFiles.filter(f => f.needsCompression).length} video(s) over 50MB will be automatically compressed during upload.
+                  <span className="block text-xs mt-1 text-orange-600">⚡ Aggressive compression - typically takes 30 seconds per 60MB with 60-80% size reduction</span>
+                </p>
+                <p className="text-xs text-orange-600">
+                  ⚡ Compression will happen automatically when you upload - no action needed!
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Upload Area */}
         <div
@@ -850,24 +866,87 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
             </h3>
             <div className="space-y-2 max-h-60 overflow-y-auto">
               {selectedFiles.map((file) => (
-                <div key={file.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div key={file.id} className={`flex items-center justify-between p-3 rounded-lg border transition-all ${
+                  file.needsCompression && !file.compressing && !file.uploadError
+                    ? 'bg-amber-50 border-amber-200'
+                    : file.compressing
+                      ? 'bg-blue-50 border-blue-200'
+                      : file.originalSize && file.originalSize !== file.file.size
+                        ? 'bg-green-50 border-green-200'
+                        : 'bg-gray-50 border-gray-200'
+                }`}>
                   <div className="flex items-center space-x-3">
                     {file.file.type.startsWith('image/') ? (
                       <FileImage className="h-5 w-5 text-blue-500" />
                     ) : (
                       <FileVideo className="h-5 w-5 text-purple-500" />
                     )}
-                    <div>
+                    <div className="flex-1">
                       <p className="text-sm font-medium text-gray-700">{file.file.name}</p>
-                      <div className="flex items-center space-x-2 text-xs text-gray-500">
+                      <div className="flex items-center space-x-2 text-xs text-gray-500 mb-1">
                         <span>Base: {file.baseName}</span>
                         {file.detectedRatio && (
                           <span className="px-2 py-1 bg-green-100 text-green-700 rounded">
                             {file.detectedRatio}
                           </span>
                         )}
-                        <span>{(file.file.size / 1024 / 1024).toFixed(2)} MB</span>
+                        <span>{getFileSizeMB(file.file).toFixed(2)} MB</span>
                       </div>
+                      
+                      {/* Status indicators */}
+                      <div className="flex items-center flex-wrap gap-2">
+                        {file.needsCompression && !file.compressing && !file.uploadError && (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                            <Zap size={12} className="mr-1" />
+                            Will auto-compress (over 50MB)
+                          </span>
+                        )}
+                        
+                        {file.compressing && (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                            <Loader2 size={12} className="animate-spin mr-1" />
+                            Compressing... {file.compressionProgress || 0}%
+                          </span>
+                        )}
+                        
+                        {file.originalSize && file.originalSize !== file.file.size && (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            ✓ Compressed: {getFileSizeMB(file.file).toFixed(1)}MB 
+                            (was {(file.originalSize / (1024 * 1024)).toFixed(1)}MB)
+                          </span>
+                        )}
+                        
+                        {!file.needsCompression && !file.originalSize && file.file.type.startsWith('video/') && (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            ✓ Under 50MB - No compression needed
+                          </span>
+                        )}
+                        
+                        {file.uploading && !file.compressing && (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                            <Loader2 size={12} className="animate-spin mr-1" />
+                            Uploading...
+                          </span>
+                        )}
+                        
+                        {file.supabaseUrl && (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            ✓ Uploaded successfully
+                          </span>
+                        )}
+                      </div>
+                      
+                      {file.compressing && (
+                        <div className="mt-2">
+                          <div className="w-full bg-gray-200 rounded-full h-2">
+                            <div 
+                              className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
+                              style={{ width: `${file.compressionProgress || 0}%` }}
+                            ></div>
+                          </div>
+                        </div>
+                      )}
+                      
                       {file.uploadError && (
                         <div className="text-xs text-red-600 mt-1 max-w-xs truncate" title={file.uploadError}>
                           Error: {file.uploadError}

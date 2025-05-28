@@ -1,16 +1,86 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSSRClient } from '@/lib/supabase/server';
 
+interface MetaAdAccount {
+  id: string;
+  name: string;
+  account_status: string;
+  account_id: string;
+  business_name?: string;
+  currency: string;
+  timezone_name: string;
+}
+
+interface MetaPage {
+  id: string;
+  name: string;
+  category: string;
+  tasks: string[];
+  access_token: string;
+  instagram_business_account?: {
+    id: string;
+    name: string;
+    username: string;
+  };
+}
+
+interface MetaPixel {
+  id: string;
+  name: string;
+}
+
+interface MetaInstagramAccount {
+  id: string;
+  name: string;
+  username: string;
+}
+
 interface SaveAssetsRequest {
   brandId: string;
-  adAccountId?: string | null;
-  facebookPageId?: string | null;
-  instagramAccountId?: string | null;
-  pixelId?: string | null;
+  // Multiple accounts/pages arrays
+  adAccounts?: MetaAdAccount[];
+  facebookPages?: MetaPage[];
+  instagramAccounts?: MetaInstagramAccount[];
+  pixels?: MetaPixel[];
+  // Default selections
+  defaultAdAccountId?: string | null;
+  defaultFacebookPageId?: string | null;
+  defaultInstagramAccountId?: string | null;
+  defaultPixelId?: string | null;
+  // Manual entries (for backward compatibility and manual input)
+  manualFacebookPageId?: string | null;
+  manualInstagramAccountId?: string | null;
+  // Manual entry labels
+  manualPageLabels?: Record<string, string>;
+  manualInstagramLabels?: Record<string, string>;
+  // Manual Instagram pairings (pageId -> instagramId)
+  manualInstagramPairings?: Record<string, string>;
+  // Use Page As Actor settings
+  usePageAsActor?: boolean;
+  pageBackedInstagramAccounts?: Record<string, string>;
 }
 
 interface BrandMetaUpdateData {
   updated_at: string;
+  // New multiple accounts structure
+  meta_ad_accounts?: MetaAdAccount[];
+  meta_facebook_pages?: MetaPage[];
+  meta_instagram_accounts?: MetaInstagramAccount[];
+  meta_pixels?: MetaPixel[];
+  // Default selections
+  meta_default_ad_account_id?: string | null;
+  meta_default_facebook_page_id?: string | null;
+  meta_default_instagram_account_id?: string | null;
+  meta_default_pixel_id?: string | null;
+  // Manual entry labels
+  meta_manual_page_labels?: Record<string, string>;
+  meta_manual_instagram_labels?: Record<string, string>;
+  // Manual Instagram pairings
+  meta_manual_instagram_pairings?: Record<string, string>;
+  // Use Page As Actor settings
+  meta_use_page_as_actor?: boolean;
+  meta_page_backed_instagram_accounts?: Record<string, string>;
+  // Keep legacy fields for backward compatibility
   meta_ad_account_id?: string | null;
   meta_facebook_page_id?: string | null;
   meta_instagram_actor_id?: string | null; 
@@ -20,7 +90,24 @@ interface BrandMetaUpdateData {
 export async function POST(request: NextRequest) {
   try {
     const body: SaveAssetsRequest = await request.json();
-    const { brandId, adAccountId, facebookPageId, instagramAccountId, pixelId } = body;
+    const { 
+      brandId, 
+      adAccounts = [], 
+      facebookPages = [], 
+      instagramAccounts = [], 
+      pixels = [],
+      defaultAdAccountId,
+      defaultFacebookPageId,
+      defaultInstagramAccountId,
+      defaultPixelId,
+      manualFacebookPageId,
+      manualInstagramAccountId,
+      manualPageLabels,
+      manualInstagramLabels,
+      manualInstagramPairings,
+      usePageAsActor,
+      pageBackedInstagramAccounts
+    } = body;
 
     if (!brandId) {
       return NextResponse.json(
@@ -53,13 +140,60 @@ export async function POST(request: NextRequest) {
         );
     }
 
+    // Handle manual entries by adding them to the arrays if they don't exist
+    const processedFacebookPages = [...facebookPages];
+    const processedInstagramAccounts = [...instagramAccounts];
+
+    // Add manual Facebook page if provided and not already in the list
+    if (manualFacebookPageId && !processedFacebookPages.find(p => p.id === manualFacebookPageId)) {
+      processedFacebookPages.push({
+        id: manualFacebookPageId,
+        name: 'Manually Added Page',
+        category: 'Manual Entry',
+        tasks: [],
+        access_token: ''
+      });
+    }
+
+    // Add manual Instagram account if provided and not already in the list
+    if (manualInstagramAccountId && !processedInstagramAccounts.find(a => a.id === manualInstagramAccountId)) {
+      processedInstagramAccounts.push({
+        id: manualInstagramAccountId,
+        name: 'Manually Added Account',
+        username: 'manual_entry'
+      });
+    }
+
+    // Determine effective default IDs (prioritize manual entries for backward compatibility)
+    const effectiveDefaultFacebookPageId = manualFacebookPageId || defaultFacebookPageId;
+    const effectiveDefaultInstagramAccountId = manualInstagramAccountId || defaultInstagramAccountId;
+
     const updateData: BrandMetaUpdateData = {
       updated_at: new Date().toISOString(),
+      // Store multiple accounts/pages
+      meta_ad_accounts: adAccounts,
+      meta_facebook_pages: processedFacebookPages,
+      meta_instagram_accounts: processedInstagramAccounts,
+      meta_pixels: pixels,
+      // Store default selections
+      meta_default_ad_account_id: defaultAdAccountId,
+      meta_default_facebook_page_id: effectiveDefaultFacebookPageId,
+      meta_default_instagram_account_id: effectiveDefaultInstagramAccountId,
+      meta_default_pixel_id: defaultPixelId,
+      // Update legacy fields for backward compatibility
+      meta_ad_account_id: defaultAdAccountId,
+      meta_facebook_page_id: effectiveDefaultFacebookPageId,
+      meta_instagram_actor_id: effectiveDefaultInstagramAccountId,
+      meta_pixel_id: defaultPixelId,
+      // Manual entry labels
+      meta_manual_page_labels: manualPageLabels,
+      meta_manual_instagram_labels: manualInstagramLabels,
+      // Manual Instagram pairings
+      meta_manual_instagram_pairings: manualInstagramPairings,
+      // Use Page As Actor settings
+      meta_use_page_as_actor: usePageAsActor,
+      meta_page_backed_instagram_accounts: pageBackedInstagramAccounts,
     };
-    if (adAccountId !== undefined) updateData.meta_ad_account_id = adAccountId;
-    if (facebookPageId !== undefined) updateData.meta_facebook_page_id = facebookPageId;
-    if (instagramAccountId !== undefined) updateData.meta_instagram_actor_id = instagramAccountId;
-    if (pixelId !== undefined) updateData.meta_pixel_id = pixelId;
     
     const { data: updatedBrand, error: updateError } = await supabase
       .from('brands')
@@ -79,7 +213,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       message: 'Meta assets saved successfully',
-      brand: updatedBrand
+      brand: updatedBrand,
+      summary: {
+        adAccounts: adAccounts.length,
+        facebookPages: processedFacebookPages.length,
+        instagramAccounts: processedInstagramAccounts.length,
+        pixels: pixels.length,
+        defaults: {
+          adAccount: defaultAdAccountId,
+          facebookPage: effectiveDefaultFacebookPageId,
+          instagramAccount: effectiveDefaultInstagramAccountId,
+          pixel: defaultPixelId
+        }
+      }
     });
 
   } catch (error) {

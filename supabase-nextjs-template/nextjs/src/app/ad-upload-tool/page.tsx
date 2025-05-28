@@ -16,14 +16,18 @@ import { AdConfiguration, AdConfigurationSettings } from '@/lib/types/adConfigur
 interface DefaultValues {
   brandId: string | null;
   adAccountId: string | null;
+  adAccountName?: string | null; // Store ad account name for display
   campaignId: string | null;
   campaignName?: string | null;
   adSetId: string | null;
   adSetName?: string | null;
   fbPage: string;
+  fbPageName?: string | null; // Store Facebook page name for display
   igAccount: string;
+  igAccountName?: string | null; // Store Instagram account name for display
   urlParams: string;
   pixel: string;
+  pixelName?: string | null; // Store pixel name for display
   status: 'ACTIVE' | 'PAUSED';
   primaryText: string; 
   headline: string;    
@@ -35,13 +39,45 @@ interface DefaultValues {
   advantageCreative: AdvantageCreativeEnhancements;
 }
 
+interface MetaAccount {
+  id: string;
+  name: string;
+  [key: string]: unknown;
+}
+
+interface MetaConfig {
+  adAccounts: MetaAccount[];
+  facebookPages: MetaAccount[];
+  instagramAccounts: MetaAccount[];
+  pixels: MetaAccount[];
+  manualPageLabels: Record<string, string>;
+  manualInstagramLabels: Record<string, string>;
+  manualInstagramPairings: Record<string, string>;
+  usePageAsActor?: boolean;
+  pageBackedInstagramAccounts?: Record<string, string>;
+}
+
 interface Brand {
   id: string;
   name: string;
   fbPage: string;
+  fbPageName?: string;
   igAccount: string;
+  igAccountName?: string;
   pixel: string;
+  pixelName?: string;
   adAccountId: string;
+  adAccountName?: string;
+  // Meta accounts arrays for dropdowns
+  metaAdAccounts?: MetaAccount[];
+  metaFacebookPages?: MetaAccount[];
+  metaInstagramAccounts?: MetaAccount[];
+  metaPixels?: MetaAccount[];
+  // Manual entry labels
+  manualPageLabels?: Record<string, string>;
+  manualInstagramLabels?: Record<string, string>;
+  // Full Meta configuration for enhanced display
+  metaConfig?: MetaConfig;
 }
 
 const AdUploadToolPage = () => {
@@ -81,14 +117,76 @@ const AdUploadToolPage = () => {
       // Load brands
       setIsLoadingBrands(true);
       const fetchedBrands: PowerBriefBrand[] = await getBrands(user!.id);
-      const mappedBrands: Brand[] = fetchedBrands.map(b => ({
-        id: b.id,
-        name: b.name,
-        fbPage: b.meta_facebook_page_id || '',
-        igAccount: b.meta_instagram_actor_id || '',
-        pixel: b.meta_pixel_id || '',
-        adAccountId: b.meta_ad_account_id || '',
-      }));
+      
+      // Enhanced brand mapping with Meta configuration
+      const mappedBrands: Brand[] = await Promise.all(
+        fetchedBrands.map(async (b) => {
+          // Fetch Meta configuration for each brand to get names and labels
+          let metaConfig = null;
+          try {
+            const metaResponse = await fetch(`/api/meta/brand-config?brandId=${b.id}`);
+            if (metaResponse.ok) {
+              const metaData = await metaResponse.json();
+              metaConfig = metaData.config;
+            }
+          } catch (error) {
+            console.error(`Error fetching Meta config for brand ${b.id}:`, error);
+          }
+
+          // Helper function to get display name for an account
+          const getAccountDisplayName = (id: string, accounts: MetaAccount[], manualLabels: Record<string, string>) => {
+            if (!id) return null;
+            
+            // Check manual labels first
+            if (manualLabels[id]) {
+              return manualLabels[id];
+            }
+            
+            // Then check API accounts
+            const account = accounts.find(acc => acc.id === id);
+            return account?.name || null;
+          };
+
+          return {
+            id: b.id,
+            name: b.name,
+            fbPage: b.meta_facebook_page_id || '',
+            fbPageName: metaConfig ? getAccountDisplayName(
+              b.meta_facebook_page_id || '', 
+              metaConfig.facebookPages || [], 
+              metaConfig.manualPageLabels || {}
+            ) : null,
+            igAccount: b.meta_instagram_actor_id || '',
+            igAccountName: metaConfig ? getAccountDisplayName(
+              b.meta_instagram_actor_id || '', 
+              metaConfig.instagramAccounts || [], 
+              metaConfig.manualInstagramLabels || {}
+            ) : null,
+            pixel: b.meta_pixel_id || '',
+            pixelName: metaConfig ? getAccountDisplayName(
+              b.meta_pixel_id || '', 
+              metaConfig.pixels || [], 
+              {}
+            ) : null,
+            adAccountId: b.meta_ad_account_id || '',
+            adAccountName: metaConfig ? getAccountDisplayName(
+              b.meta_ad_account_id || '', 
+              metaConfig.adAccounts || [], 
+              {}
+            ) : null,
+            // Include full Meta config for enhanced functionality
+            metaConfig,
+            // Legacy fields for backward compatibility
+            metaAdAccounts: metaConfig?.adAccounts || [],
+            metaFacebookPages: metaConfig?.facebookPages || [],
+            metaInstagramAccounts: metaConfig?.instagramAccounts || [],
+            metaPixels: metaConfig?.pixels || [],
+            manualPageLabels: metaConfig?.manualPageLabels || {},
+            manualInstagramLabels: metaConfig?.manualInstagramLabels || {},
+          };
+        })
+      );
+      
       setBrands(mappedBrands);
       setIsLoadingBrands(false);
       
@@ -141,9 +239,13 @@ const AdUploadToolPage = () => {
     const defaults: DefaultValues = {
       brandId: selectedBrand.id,
       adAccountId: selectedBrand.adAccountId,
+      adAccountName: selectedBrand.adAccountName,
       fbPage: selectedBrand.fbPage,
+      fbPageName: selectedBrand.fbPageName,
       igAccount: selectedBrand.igAccount,
+      igAccountName: selectedBrand.igAccountName,
       pixel: selectedBrand.pixel,
+      pixelName: selectedBrand.pixelName,
       // Spread the configuration settings to preserve all saved values including names
       ...config.settings
     };
@@ -162,14 +264,18 @@ const AdUploadToolPage = () => {
       const defaults: DefaultValues = {
         brandId: brand.id,
         adAccountId: brand.adAccountId,
+        adAccountName: brand.adAccountName,
         campaignId: null,
         campaignName: null,
         adSetId: null,
         adSetName: null,
         fbPage: brand.fbPage,
+        fbPageName: brand.fbPageName,
         igAccount: brand.igAccount,
+        igAccountName: brand.igAccountName,
         urlParams: '',
         pixel: brand.pixel,
+        pixelName: brand.pixelName,
         status: 'PAUSED',
         primaryText: 'Check out our latest offer!',
         headline: 'Amazing New Product',
@@ -192,7 +298,6 @@ const AdUploadToolPage = () => {
           description_automation: false,
           add_text_overlay: false,
           site_extensions: false,
-          music: false,
           '3d_animation': false,
           translate_text: false
         }
@@ -678,10 +783,21 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ defaults, brand, onSave, 
             <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
               <h4 className="text-sm font-medium text-blue-800 mb-3">Meta Integration Status</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
-                <div>Ad Account: {brand.adAccountId || 'Not connected'}</div>
-                <div>Facebook Page: {brand.fbPage || 'Not connected'}</div>
-                <div>Instagram Account: {brand.igAccount || 'Not connected'}</div>
-                <div>Pixel ID: {brand.pixel || 'Not connected'}</div>
+                <div>Ad Account: {brand.adAccountName ? `${brand.adAccountName} (${brand.adAccountId})` : (brand.adAccountId || 'Not connected')}</div>
+                <div>Facebook Page: {brand.fbPageName ? `${brand.fbPageName} (${brand.fbPage})` : (brand.fbPage || 'Not connected')}</div>
+                <div>Instagram Account: {brand.igAccountName ? `${brand.igAccountName} (${brand.igAccount})` : (brand.igAccount || 'Not connected')}</div>
+                <div>Pixel ID: {brand.pixelName ? `${brand.pixelName} (${brand.pixel})` : (brand.pixel || 'Not connected')}</div>
+              </div>
+              <div className="mt-3 pt-3 border-t border-blue-200">
+                <div className="flex items-center space-x-2 text-sm">
+                  <span className="font-medium text-blue-800">Use Page As Actor:</span>
+                  <span className="px-2 py-1 rounded-full text-xs bg-pink-100 text-pink-800">
+                    Feature Available - Configure in Brand Settings → Meta Integration
+                  </span>
+                </div>
+                <p className="text-xs text-blue-600 mt-1">
+                  When enabled, creates Page-Backed Instagram Accounts for Instagram ads using your Facebook Page identity.
+                </p>
               </div>
             </div>
 
