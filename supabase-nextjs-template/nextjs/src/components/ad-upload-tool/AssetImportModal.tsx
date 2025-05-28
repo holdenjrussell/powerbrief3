@@ -428,7 +428,7 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
                 <div className="text-xs text-gray-600 space-y-1">
                   <p>• <strong>Aspect ratios:</strong> Only 4x5 and 9x16 (place right before file extension)</p>
                   <p>• <strong>Version numbers:</strong> v1, v2, v3 (place before aspect ratio)</p>
-                  <p>• <strong>Examples:</strong> ProductDemo_v1_4x5.mp4, ProductDemo_v2_9x16.jpg</p>
+                  <p>• <strong>Examples:</strong> ProductDemo_v1_4x5.mp4, ProductDemo_v1_9x16.mp4</p>
                 </div>
               </div>
             </div>

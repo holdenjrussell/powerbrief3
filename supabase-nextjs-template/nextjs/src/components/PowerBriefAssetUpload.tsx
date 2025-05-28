@@ -775,7 +775,7 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
                 <li>• Use: &ldquo;ConceptName_v1_4x5.mp4&rdquo;</li>
                 <li>• Include aspect ratios: 4x5, 9x16 (before file extension)</li>
                 <li>• Version numbers: v1, v2, v3 (before aspect ratio)</li>
-                <li>• Upload multiple versions per concept</li>
+                <li>• Examples: ProductDemo_v1_4x5.mp4, ProductDemo_v1_9x16.mp4</li>
               </ul>
             </div>
           </div>
