@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -17,16 +18,19 @@ import {
   Folder,
   ExternalLink,
   Zap,
-  Database
+  Database,
+  Trash2,
+  X,
+  Volume2,
+  VolumeX
 } from 'lucide-react';
-import { createClient } from '@supabase/supabase-js';
+import { createSPAClient } from '@/lib/supabase/client';
 import AdSpySearch from '@/components/AdSpySearch';
 import { useGlobal } from "@/lib/context/GlobalContext";
+import { getBrands } from '@/lib/services/powerbriefService';
+import { Brand as PowerBriefBrand } from '@/lib/types/powerbrief';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabase = createSPAClient();
 
 interface Brand {
   id: string;
@@ -55,6 +59,96 @@ interface SocialMediaContent {
   adspy_metadata?: Record<string, string | number | string[] | boolean>;
 }
 
+// Video Modal Component
+interface VideoModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  videoItem: SocialMediaContent | null;
+}
+
+const VideoModal: React.FC<VideoModalProps> = ({ isOpen, onClose, videoItem }) => {
+  const [isMuted, setIsMuted] = useState(true);
+
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener('keydown', handleEscape);
+      document.body.style.overflow = 'hidden';
+    }
+
+    return () => {
+      document.removeEventListener('keydown', handleEscape);
+      document.body.style.overflow = 'unset';
+    };
+  }, [isOpen, onClose]);
+
+  if (!isOpen || !videoItem) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75">
+      <div className="relative max-w-4xl max-h-[90vh] w-full mx-4">
+        {/* Close button - positioned outside video area */}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="absolute -top-12 right-0 text-white hover:text-gray-300 z-20 bg-black bg-opacity-50 hover:bg-opacity-75"
+          onClick={onClose}
+        >
+          <X className="h-6 w-6" />
+        </Button>
+
+        {/* Video container */}
+        <div className="relative bg-black rounded-lg overflow-hidden">
+          <video
+            src={videoItem.file_url}
+            controls
+            autoPlay
+            muted={isMuted}
+            className="w-full h-auto max-h-[80vh]"
+            style={{ outline: 'none' }}
+            onError={(e) => {
+              console.error('Video failed to load:', e);
+            }}
+          >
+            Your browser does not support the video tag.
+          </video>
+
+          {/* Mute/Unmute button - positioned to not interfere with controls */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="absolute top-4 right-4 text-white bg-black bg-opacity-50 hover:bg-opacity-75 z-10"
+            onClick={() => setIsMuted(!isMuted)}
+          >
+            {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+          </Button>
+
+          {/* Video info overlay - positioned to not cover controls */}
+          <div className="absolute top-4 left-4 right-16 pointer-events-none">
+            <div className="bg-black bg-opacity-50 rounded-lg p-3 backdrop-blur-sm">
+              <h3 className="text-white font-medium mb-1 text-sm">{videoItem.title}</h3>
+              <div className="flex items-center gap-2 text-xs text-gray-300">
+                <Badge variant="secondary" className="bg-white bg-opacity-20 text-white text-xs">
+                  {videoItem.platform}
+                </Badge>
+                <span>•</span>
+                <span>{new Date(videoItem.created_at).toLocaleDateString()}</span>
+                <span>•</span>
+                <span>{(videoItem.file_size / (1024 * 1024)).toFixed(1)} MB</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export default function AdRipperPage() {
   const [brands, setBrands] = useState<Brand[]>([]);
   const [selectedBrand, setSelectedBrand] = useState<Brand | null>(null);
@@ -70,13 +164,45 @@ export default function AdRipperPage() {
   const [mediaUrls, setMediaUrls] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingProgress, setProcessingProgress] = useState({ current: 0, total: 0, currentUrl: '' });
+  
+  // Video modal state
+  const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
+  const [selectedVideoItem, setSelectedVideoItem] = useState<SocialMediaContent | null>(null);
 
   const { user } = useGlobal();
+
+  // Open video modal
+  const openVideoModal = (item: SocialMediaContent) => {
+    setSelectedVideoItem(item);
+    setIsVideoModalOpen(true);
+  };
+
+  // Close video modal
+  const closeVideoModal = () => {
+    setIsVideoModalOpen(false);
+    setSelectedVideoItem(null);
+  };
+
+  // Handle card click - open video modal for videos, toggle selection for images
+  const handleCardClick = (item: SocialMediaContent) => {
+    if (item.content_type === 'video') {
+      openVideoModal(item);
+    } else {
+      // For images, toggle selection as before
+      const newSelected = new Set(selectedContent);
+      if (newSelected.has(item.id)) {
+        newSelected.delete(item.id);
+      } else {
+        newSelected.add(item.id);
+      }
+      setSelectedContent(newSelected);
+    }
+  };
 
   // Load brands on component mount
   useEffect(() => {
     loadBrands();
-  }, []);
+  }, [user?.id]);
 
   // Load content when brand is selected
   useEffect(() => {
@@ -86,18 +212,24 @@ export default function AdRipperPage() {
   }, [selectedBrand]);
 
   const loadBrands = async () => {
+    if (!user?.id) return;
+    
     try {
-      const { data, error } = await supabase
-        .from('brands')
-        .select('id, name, created_at')
-        .order('name');
-
-      if (error) throw error;
-      setBrands(data || []);
+      // Use the same getBrands service that PowerBrief and ad uploader use
+      const brandsData = await getBrands(user.id);
+      
+      // Map to the local Brand interface
+      const mappedBrands = brandsData.map((brand: PowerBriefBrand) => ({
+        id: brand.id,
+        name: brand.name,
+        created_at: brand.created_at
+      }));
+      
+      setBrands(mappedBrands);
       
       // Auto-select first brand if available
-      if (data && data.length > 0 && !selectedBrand) {
-        setSelectedBrand(data[0]);
+      if (mappedBrands.length > 0 && !selectedBrand) {
+        setSelectedBrand(mappedBrands[0]);
       }
     } catch (error) {
       console.error('Error loading brands:', error);
@@ -107,16 +239,76 @@ export default function AdRipperPage() {
   const loadContent = async (brandId: string) => {
     setIsLoading(true);
     try {
+      console.log('=== LOADING CONTENT DEBUG ===');
+      console.log('Brand ID:', brandId);
+      console.log('User:', user);
+      console.log('User ID:', user?.id);
+      console.log('Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL);
+      
+      // First, let's check if we can query the table at all
+      const { data: tableCheck, error: tableError } = await supabase
+        .from('social_media_content' as any)
+        .select('count(*)', { count: 'exact' });
+      
+      console.log('Table check result:', tableCheck);
+      console.log('Table check error:', tableError);
+      
+      // Check if there's any content for this brand (without user filtering)
+      const { data: allBrandContent, error: allBrandError } = await supabase
+        .from('social_media_content' as any)
+        .select('id, user_id, brand_id, title, created_at')
+        .eq('brand_id', brandId);
+      
+      console.log('All content for brand (no user filter):', allBrandContent);
+      console.log('All brand content error:', allBrandError);
+      
+      // Check if there's any content for this user
+      const { data: allUserContent, error: allUserError } = await supabase
+        .from('social_media_content' as any)
+        .select('id, user_id, brand_id, title, created_at')
+        .eq('user_id', user?.id);
+      
+      console.log('All content for user (no brand filter):', allUserContent);
+      console.log('All user content error:', allUserError);
+      
+      // Now try to get content for this specific brand with user filter
       const { data, error } = await supabase
-        .from('social_media_content')
+        .from('social_media_content' as any)
         .select('*')
         .eq('brand_id', brandId)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      setContent(data || []);
+      console.log('Content query result:', data);
+      console.log('Content query error:', error);
+      console.log('Number of items found:', data?.length || 0);
+
+      if (error) {
+        console.error('Error loading content:', error);
+        throw error;
+      }
+      
+      // Ensure all items have required properties with defaults
+      const contentWithDefaults = ((data as any[]) || []).map(item => ({
+        ...item,
+        download_count: item.download_count ?? 0,
+        source_type: item.source_type ?? 'manual',
+        adspy_ad_id: item.adspy_ad_id ?? null,
+        adspy_metadata: item.adspy_metadata ?? null,
+        original_filename: item.original_filename ?? item.file_name,
+        mime_type: item.mime_type ?? null,
+        tags: item.tags ?? [],
+        is_favorite: item.is_favorite ?? false,
+        thumbnail_url: item.thumbnail_url ?? null,
+        notes: item.notes ?? null
+      })) as SocialMediaContent[];
+      
+      console.log(`Loaded ${contentWithDefaults.length} content items for brand ${brandId}`);
+      console.log('Content with defaults:', contentWithDefaults);
+      setContent(contentWithDefaults);
     } catch (error) {
       console.error('Error loading content:', error);
+      // Don't throw the error, just set empty content and show a message
+      setContent([]);
     } finally {
       setIsLoading(false);
     }
@@ -158,25 +350,51 @@ export default function AdRipperPage() {
       // Set initial progress
       setProcessingProgress({ current: 0, total: urls.length, currentUrl: 'Starting...' });
 
-      // Call API to save to Supabase
-      const response = await fetch('/api/social-media-download', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          brandId: selectedBrand.id,
-          userId: user.id, // Pass the actual user ID
-          urls: urls
-        }),
-      });
+      // Process URLs one by one for real-time progress
+      const results = [];
+      let successCount = 0;
 
-      if (!response.ok) {
-        throw new Error('Failed to process URLs');
+      for (let i = 0; i < urls.length; i++) {
+        const url = urls[i];
+        setProcessingProgress({ 
+          current: i, 
+          total: urls.length, 
+          currentUrl: `Processing: ${url.substring(0, 50)}...` 
+        });
+
+        try {
+          // Call API for single URL
+          const response = await fetch('/api/social-media-download', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              brandId: selectedBrand.id,
+              userId: user.id,
+              urls: [url] // Process one URL at a time
+            }),
+          });
+
+          if (!response.ok) {
+            throw new Error('Failed to process URL');
+          }
+
+          const result = await response.json();
+          results.push(...result.results);
+          
+          if (result.results[0]?.status === 'success') {
+            successCount++;
+          }
+        } catch (error) {
+          console.error(`Error processing URL ${url}:`, error);
+          results.push({
+            url,
+            status: 'error',
+            error: 'Failed to process URL'
+          });
+        }
       }
-
-      const result = await response.json();
-      const successCount = result.results.filter((r: { status: string }) => r.status === 'success').length;
       
       // Show final progress
       setProcessingProgress({ current: urls.length, total: urls.length, currentUrl: 'Complete!' });
@@ -223,7 +441,7 @@ export default function AdRipperPage() {
 
         // Update download count
         await supabase
-          .from('social_media_content')
+          .from('social_media_content' as any)
           .update({ 
             download_count: item.download_count + 1,
             last_downloaded_at: new Date().toISOString()
@@ -246,13 +464,110 @@ export default function AdRipperPage() {
 
     try {
       await supabase
-        .from('social_media_content')
+        .from('social_media_content' as any)
         .update({ is_favorite: !item.is_favorite })
         .eq('id', contentId);
       
       await loadContent(selectedBrand!.id);
     } catch (error) {
       console.error('Error toggling favorite:', error);
+    }
+  };
+
+  const deleteContent = async (contentIds: string[]) => {
+    if (contentIds.length === 0) return;
+    
+    const confirmMessage = contentIds.length === 1 
+      ? 'Are you sure you want to delete this item?' 
+      : `Are you sure you want to delete ${contentIds.length} items?`;
+    
+    if (!confirm(confirmMessage)) return;
+
+    try {
+      // Get the items to delete for file cleanup
+      const itemsToDelete = content.filter(item => contentIds.includes(item.id));
+      
+      // Delete from database
+      const { error: dbError } = await supabase
+        .from('social_media_content' as any)
+        .delete()
+        .in('id', contentIds);
+
+      if (dbError) throw dbError;
+
+      // Delete files from storage
+      const filePaths = itemsToDelete.map(item => {
+        // Extract the file path from the public URL
+        const url = new URL(item.file_url);
+        const pathParts = url.pathname.split('/');
+        // Remove '/storage/v1/object/public/social-media-content/' part
+        return pathParts.slice(5).join('/');
+      });
+
+      if (filePaths.length > 0) {
+        const { error: storageError } = await supabase.storage
+          .from('social-media-content')
+          .remove(filePaths);
+
+        if (storageError) {
+          console.error('Error deleting files from storage:', storageError);
+          // Don't throw here as the database deletion was successful
+        }
+      }
+
+      // Clear selection and reload content
+      setSelectedContent(new Set());
+      await loadContent(selectedBrand!.id);
+      
+      const deletedCount = contentIds.length;
+      alert(`Successfully deleted ${deletedCount} item${deletedCount > 1 ? 's' : ''}!`);
+      
+    } catch (error) {
+      console.error('Error deleting content:', error);
+      alert('Failed to delete content. Please try again.');
+    }
+  };
+
+  const handleDeleteSelected = () => {
+    const selectedIds = Array.from(selectedContent);
+    deleteContent(selectedIds);
+  };
+
+  const handleDeleteSingle = (contentId: string) => {
+    deleteContent([contentId]);
+  };
+
+  const debugContentLoading = async () => {
+    if (!selectedBrand) return;
+    
+    console.log('=== DEBUG: Content Loading ===');
+    console.log('Selected brand:', selectedBrand);
+    console.log('User:', user);
+    
+    try {
+      // Check if we can connect to Supabase
+      const { data: testData, error: testError } = await supabase
+        .from('social_media_content' as any)
+        .select('count(*)')
+        .eq('brand_id', selectedBrand.id);
+      
+      console.log('Total content count for brand:', testData);
+      if (testError) console.error('Count query error:', testError);
+      
+      // Get all content for this brand
+      const { data: allData, error: allError } = await supabase
+        .from('social_media_content' as any)
+        .select('*')
+        .eq('brand_id', selectedBrand.id);
+      
+      console.log('All content for brand:', allData);
+      if (allError) console.error('All content query error:', allError);
+      
+      // Force reload
+      await loadContent(selectedBrand.id);
+      
+    } catch (error) {
+      console.error('Debug error:', error);
     }
   };
 
@@ -357,10 +672,27 @@ export default function AdRipperPage() {
                     <Zap className="h-4 w-4 mr-2 text-yellow-600" />
                     Rip Ads
                   </Button>
+                  <Button
+                    onClick={debugContentLoading}
+                    variant="outline"
+                    size="sm"
+                    className="text-xs"
+                  >
+                    🔍 Debug
+                  </Button>
                   {selectedContent.size > 0 && (
                     <Button onClick={handleDownloadSelected}>
                       <Download className="h-4 w-4 mr-2" />
                       Download Selected ({selectedContent.size})
+                    </Button>
+                  )}
+                  {selectedContent.size > 0 && (
+                    <Button 
+                      onClick={handleDeleteSelected}
+                      variant="destructive"
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete Selected ({selectedContent.size})
                     </Button>
                   )}
                 </div>
@@ -545,15 +877,7 @@ export default function AdRipperPage() {
                           className={`cursor-pointer transition-all hover:shadow-md ${
                             selectedContent.has(item.id) ? 'ring-2 ring-yellow-500' : ''
                           }`}
-                          onClick={() => {
-                            const newSelected = new Set(selectedContent);
-                            if (newSelected.has(item.id)) {
-                              newSelected.delete(item.id);
-                            } else {
-                              newSelected.add(item.id);
-                            }
-                            setSelectedContent(newSelected);
-                          }}
+                          onClick={() => handleCardClick(item)}
                         >
                           {viewMode === 'grid' ? (
                             <div>
@@ -570,15 +894,23 @@ export default function AdRipperPage() {
                                   />
                                 ) : (
                                   <div className="w-full h-full flex items-center justify-center bg-gray-200">
-                                    {item.thumbnail_url ? (
-                                      <img
-                                        src={item.thumbnail_url}
-                                        alt={item.title}
+                                    <div className="relative w-full h-full">
+                                      <video
+                                        src={item.file_url}
                                         className="w-full h-full object-cover"
+                                        muted
+                                        preload="metadata"
+                                        onError={(e) => {
+                                          console.error('Video preview failed to load:', e);
+                                        }}
                                       />
-                                    ) : (
-                                      <Play className="h-12 w-12 text-gray-400" />
-                                    )}
+                                      {/* Play overlay for videos */}
+                                      <div className="absolute inset-0 flex items-center justify-center">
+                                        <div className="bg-black bg-opacity-50 rounded-full p-3">
+                                          <Play className="h-8 w-8 text-white fill-white" />
+                                        </div>
+                                      </div>
+                                    </div>
                                   </div>
                                 )}
                                 
@@ -618,6 +950,18 @@ export default function AdRipperPage() {
                                     className={`h-4 w-4 ${item.is_favorite ? 'fill-red-500 text-red-500' : 'text-white'}`} 
                                   />
                                 </Button>
+                                
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="absolute top-2 right-8 p-1 h-auto"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteSingle(item.id);
+                                  }}
+                                >
+                                  <Trash2 className="h-4 w-4 text-white" />
+                                </Button>
                               </div>
                               
                               {/* Content Info */}
@@ -649,7 +993,23 @@ export default function AdRipperPage() {
                                     />
                                   ) : (
                                     <div className="w-full h-full flex items-center justify-center">
-                                      <Play className="h-6 w-6 text-gray-400" />
+                                      <div className="relative w-full h-full">
+                                        <video
+                                          src={item.file_url}
+                                          className="w-full h-full object-cover"
+                                          muted
+                                          preload="metadata"
+                                          onError={(e) => {
+                                            console.error('Video preview failed to load:', e);
+                                          }}
+                                        />
+                                        {/* Play overlay for videos */}
+                                        <div className="absolute inset-0 flex items-center justify-center">
+                                          <div className="bg-black bg-opacity-50 rounded-full p-1">
+                                            <Play className="h-3 w-3 text-white fill-white" />
+                                          </div>
+                                        </div>
+                                      </div>
                                     </div>
                                   )}
                                 </div>
@@ -705,6 +1065,16 @@ export default function AdRipperPage() {
                                       className={`h-4 w-4 ${item.is_favorite ? 'fill-red-500 text-red-500' : ''}`} 
                                     />
                                   </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDeleteSingle(item.id);
+                                    }}
+                                  >
+                                    <Trash2 className="h-4 w-4 text-red-500" />
+                                  </Button>
                                 </div>
                               </div>
                             </CardContent>
@@ -733,6 +1103,15 @@ export default function AdRipperPage() {
           )}
         </div>
       </div>
+
+      {/* Video Modal */}
+      {isVideoModalOpen && selectedVideoItem && (
+        <VideoModal
+          isOpen={isVideoModalOpen}
+          onClose={closeVideoModal}
+          videoItem={selectedVideoItem}
+        />
+      )}
     </div>
   );
 } 
