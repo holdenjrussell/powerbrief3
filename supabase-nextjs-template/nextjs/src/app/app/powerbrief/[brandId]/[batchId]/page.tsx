@@ -39,6 +39,7 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
     const fileInputRef = useRef<HTMLInputElement>(null);
     const multipleFileInputRef = useRef<HTMLInputElement>(null);
     const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const isTypingRef = useRef<Record<string, boolean>>({});
     const [localPrompts, setLocalPrompts] = useState<Record<string, string>>({});
     const [localCaptionHooks, setLocalCaptionHooks] = useState<Record<string, string>>({});
     const [localSpokenHooks, setLocalSpokenHooks] = useState<Record<string, string>>({});
@@ -1173,8 +1174,6 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
         const designerInstructionsMap: Record<string, string> = {};
         const mediaTypesMap: Record<string, 'video' | 'image'> = {};
         const descriptionsMap: Record<string, string> = {};
-        const captionHooksListMap: Record<string, Hook[]> = {};
-        const spokenHooksListMap: Record<string, Hook[]> = {};
         
         concepts.forEach(concept => {
             promptMap[concept.id] = concept.ai_custom_prompt || '';
@@ -1191,32 +1190,6 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
             designerInstructionsMap[concept.id] = concept.designerInstructions || '';
             mediaTypesMap[concept.id] = (concept.media_type as 'video' | 'image') || 'video';
             descriptionsMap[concept.id] = concept.description || '';
-            
-            // For hook lists, preserve existing local state if it exists and has more hooks than what's in the database
-            // This prevents newly added empty hooks from disappearing
-            const existingCaptionHooks = localCaptionHooksList[concept.id] || [];
-            const existingSpokenHooks = localSpokenHooksList[concept.id] || [];
-            const parsedCaptionHooks = parseHooksFromString(concept.caption_hook_options || '');
-            const parsedSpokenHooks = parseHooksFromString(concept.spoken_hook_options || '');
-            
-            // Check if any local hooks were recently added (within last 5 seconds)
-            const now = Date.now();
-            const hasRecentCaptionHooks = existingCaptionHooks.some(hook => {
-                const hookTimestamp = parseInt(hook.id.split('-').pop() || '0');
-                return now - hookTimestamp < 5000; // 5 seconds
-            });
-            const hasRecentSpokenHooks = existingSpokenHooks.some(hook => {
-                const hookTimestamp = parseInt(hook.id.split('-').pop() || '0');
-                return now - hookTimestamp < 5000; // 5 seconds
-            });
-            
-            // Preserve local hooks if they have more hooks OR if there are recently added hooks
-            captionHooksListMap[concept.id] = (existingCaptionHooks.length > parsedCaptionHooks.length || hasRecentCaptionHooks)
-                ? existingCaptionHooks 
-                : parsedCaptionHooks;
-            spokenHooksListMap[concept.id] = (existingSpokenHooks.length > parsedSpokenHooks.length || hasRecentSpokenHooks)
-                ? existingSpokenHooks 
-                : parsedSpokenHooks;
         });
         
         setLocalPrompts(promptMap);
@@ -1233,8 +1206,43 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
         setLocalDesignerInstructions(designerInstructionsMap);
         setLocalMediaTypes(mediaTypesMap);
         setLocalDescriptions(descriptionsMap);
-        setLocalCaptionHooksList(captionHooksListMap);
-        setLocalSpokenHooksList(spokenHooksListMap);
+        
+        // Handle hook lists separately to prevent focus loss during typing
+        setLocalCaptionHooksList(prev => {
+            const newState = { ...prev };
+            concepts.forEach(concept => {
+                // Only update if user is not currently typing in this concept's hooks
+                if (!isTypingRef.current[`caption-${concept.id}`]) {
+                    const existingHooks = prev[concept.id] || [];
+                    const parsedHooks = parseHooksFromString(concept.caption_hook_options || '');
+                    
+                    // Only update if we have new hooks from database (e.g., from AI generation)
+                    // or if this is the first load (no existing hooks)
+                    if (existingHooks.length === 0 || parsedHooks.length > existingHooks.length) {
+                        newState[concept.id] = parsedHooks;
+                    }
+                }
+            });
+            return newState;
+        });
+        
+        setLocalSpokenHooksList(prev => {
+            const newState = { ...prev };
+            concepts.forEach(concept => {
+                // Only update if user is not currently typing in this concept's hooks
+                if (!isTypingRef.current[`spoken-${concept.id}`]) {
+                    const existingHooks = prev[concept.id] || [];
+                    const parsedHooks = parseHooksFromString(concept.spoken_hook_options || '');
+                    
+                    // Only update if we have new hooks from database (e.g., from AI generation)
+                    // or if this is the first load (no existing hooks)
+                    if (existingHooks.length === 0 || parsedHooks.length > existingHooks.length) {
+                        newState[concept.id] = parsedHooks;
+                    }
+                }
+            });
+            return newState;
+        });
     }, [concepts]);
 
     // Debug prompt for a concept
@@ -1628,6 +1636,9 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
 
     // Update caption hook
     const handleUpdateCaptionHook = (conceptId: string, hookId: string, content: string) => {
+        // Set typing state to prevent useEffect from updating hooks while user is typing
+        isTypingRef.current[`caption-${conceptId}`] = true;
+        
         const currentHooks = localCaptionHooksList[conceptId] || [];
         const updatedHooks = currentHooks.map(hook => 
             hook.id === hookId ? { ...hook, content } : hook
@@ -1692,6 +1703,9 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
 
     // Update spoken hook
     const handleUpdateSpokenHook = (conceptId: string, hookId: string, content: string) => {
+        // Set typing state to prevent useEffect from updating hooks while user is typing
+        isTypingRef.current[`spoken-${conceptId}`] = true;
+        
         const currentHooks = localSpokenHooksList[conceptId] || [];
         const updatedHooks = currentHooks.map(hook => 
             hook.id === hookId ? { ...hook, content } : hook
@@ -2466,10 +2480,17 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                                             </div>
                                                             <Textarea
                                                                 value={hook.content}
+                                                                onFocus={() => {
+                                                                    // Set typing state when user focuses on the field
+                                                                    isTypingRef.current[`caption-${concept.id}`] = true;
+                                                                }}
                                                                 onChange={(e) => {
                                                                     handleUpdateCaptionHook(concept.id, hook.id, e.target.value);
                                                                 }}
                                                                 onBlur={() => {
+                                                                    // Clear typing state when user leaves the field
+                                                                    isTypingRef.current[`caption-${concept.id}`] = false;
+                                                                    
                                                                     // Save immediately on blur
                                                                     if (saveTimeoutRef.current) {
                                                                         clearTimeout(saveTimeoutRef.current);
@@ -2539,10 +2560,17 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                                             </div>
                                                             <Textarea
                                                                 value={hook.content}
+                                                                onFocus={() => {
+                                                                    // Set typing state when user focuses on the field
+                                                                    isTypingRef.current[`spoken-${concept.id}`] = true;
+                                                                }}
                                                                 onChange={(e) => {
                                                                     handleUpdateSpokenHook(concept.id, hook.id, e.target.value);
                                                                 }}
                                                                 onBlur={() => {
+                                                                    // Clear typing state when user leaves the field
+                                                                    isTypingRef.current[`spoken-${concept.id}`] = false;
+                                                                    
                                                                     // Save immediately on blur
                                                                     if (saveTimeoutRef.current) {
                                                                         clearTimeout(saveTimeoutRef.current);
