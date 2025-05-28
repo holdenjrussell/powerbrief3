@@ -69,6 +69,17 @@ interface ConceptReadyForEditorData {
   batchShareUrl: string;
 }
 
+interface BriefRevisionsNeededData {
+  brandId: string;
+  conceptId: string;
+  conceptTitle: string;
+  batchName: string;
+  assignedStrategist?: string;
+  assignedCreativeCoordinator?: string;
+  conceptShareUrl: string;
+  batchShareUrl: string;
+}
+
 interface BrandSlackSettings {
   name: string;
   slack_webhook_url: string;
@@ -498,6 +509,71 @@ export async function sendConceptReadyForEditorNotification(data: ConceptReadyFo
 
   } catch (error) {
     console.error('Error sending concept ready for editor notification:', error);
+  }
+}
+
+// New function for brief revisions needed notifications
+export async function sendBriefRevisionsNeededNotification(data: BriefRevisionsNeededData): Promise<void> {
+  try {
+    const supabase = await createSSRClient();
+    
+    // Get brand Slack settings
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: brand, error: brandError } = await supabase
+      .from('brands' as any)
+      .select('name, slack_webhook_url, slack_channel_name, slack_notifications_enabled, slack_channel_config')
+      .eq('id', data.brandId)
+      .single();
+
+    if (brandError || !brand) {
+      console.error('Error fetching brand for brief revisions needed notification:', brandError);
+      return;
+    }
+
+    const typedBrand = brand as unknown as BrandSlackSettings;
+
+    // Check if Slack notifications are enabled
+    if (!typedBrand.slack_notifications_enabled || !typedBrand.slack_webhook_url) {
+      console.log('Slack notifications not enabled for brand:', data.brandId);
+      return;
+    }
+
+    // Create Slack message for brief revisions needed
+    const message = createBriefRevisionsNeededMessage({
+      brandName: typedBrand.name,
+      conceptTitle: data.conceptTitle,
+      batchName: data.batchName,
+      assignedStrategist: data.assignedStrategist,
+      assignedCreativeCoordinator: data.assignedCreativeCoordinator,
+      conceptShareUrl: data.conceptShareUrl,
+      batchShareUrl: data.batchShareUrl
+    });
+
+    // Add channel override for concept revision notifications (similar category)
+    const channelOverride = getChannelForNotificationType(typedBrand, 'concept_revision');
+    
+    if (channelOverride) {
+      (message as { channel?: string }).channel = channelOverride;
+    }
+
+    // Send to Slack
+    const response = await fetch(typedBrand.slack_webhook_url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(message),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Failed to send brief revisions needed notification:', response.status, errorText);
+    } else {
+      console.log('Brief revisions needed notification sent successfully for brand:', data.brandId);
+    }
+
+  } catch (error) {
+    console.error('Error sending brief revisions needed notification:', error);
   }
 }
 
@@ -1126,6 +1202,124 @@ function createConceptReadyForEditorMessage(data: ConceptReadyForEditorMessageDa
     attachments: [
       {
         color: "good",
+        blocks: blocks
+      }
+    ]
+  };
+}
+
+// New function for brief revisions needed notifications
+interface BriefRevisionsNeededMessageData {
+  brandName: string;
+  conceptTitle: string;
+  batchName: string;
+  assignedStrategist?: string;
+  assignedCreativeCoordinator?: string;
+  conceptShareUrl: string;
+  batchShareUrl: string;
+}
+
+function createBriefRevisionsNeededMessage(data: BriefRevisionsNeededMessageData) {
+  const {
+    brandName,
+    conceptTitle,
+    batchName,
+    assignedStrategist,
+    assignedCreativeCoordinator,
+    conceptShareUrl,
+    batchShareUrl
+  } = data;
+
+  const blocks = [
+    {
+      type: "header",
+      text: {
+        type: "plain_text",
+        text: "🔄 Brief Revisions Needed",
+        emoji: true
+      }
+    },
+    {
+      type: "section",
+      fields: [
+        {
+          type: "mrkdwn",
+          text: `*Brand:*\n${brandName}`
+        },
+        {
+          type: "mrkdwn",
+          text: `*Batch:*\n${batchName}`
+        },
+        {
+          type: "mrkdwn",
+          text: `*Concept:*\n${conceptTitle}`
+        },
+        {
+          type: "mrkdwn",
+          text: `*Assigned Strategist:*\n${assignedStrategist || 'Not assigned'}`
+        }
+      ]
+    }
+  ];
+
+  // Add creative coordinator field if available
+  if (assignedCreativeCoordinator) {
+    blocks[1].fields.push({
+      type: "mrkdwn",
+      text: `*Creative Coordinator:*\n${assignedCreativeCoordinator}`
+    });
+  }
+
+  blocks.push({
+    type: "section",
+    text: {
+      type: "mrkdwn",
+      text: "*Status:* 🔄 The brief requires revisions before proceeding to production. Please review and update the concept brief."
+    }
+  });
+
+  // Add action buttons
+  blocks.push({
+    type: "actions",
+    elements: [
+      {
+        type: "button",
+        text: {
+          type: "plain_text",
+          text: "View Concept",
+          emoji: true
+        },
+        url: conceptShareUrl
+      },
+      {
+        type: "button",
+        text: {
+          type: "plain_text",
+          text: "View Batch",
+          emoji: true
+        },
+        url: batchShareUrl,
+        style: "primary"
+      }
+    ]
+  });
+
+  // Add timestamp
+  blocks.push({
+    type: "context",
+    elements: [
+      {
+        type: "mrkdwn",
+        text: `Brief revisions requested at ${new Date().toLocaleString()}`
+      }
+    ]
+  });
+
+  return {
+    text: `🔄 Brief Revisions Needed - ${conceptTitle} (${brandName})`,
+    attachments: [
+      {
+        color: "warning",
         blocks: blocks
       }
     ]

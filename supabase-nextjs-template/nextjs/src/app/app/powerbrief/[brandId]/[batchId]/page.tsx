@@ -413,6 +413,47 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                 }
             }
             
+            // Send Slack notification if status changed to "BRIEF REVISIONS NEEDED"
+            if (previousStatus !== 'BRIEF REVISIONS NEEDED' && concept.status === 'BRIEF REVISIONS NEEDED' && batch) {
+                try {
+                    // Create share links for the concept and batch
+                    const conceptShareSettings = {
+                        is_editable: true,
+                        expires_at: null
+                    };
+                    
+                    const batchShareSettings = {
+                        is_editable: true,
+                        expires_at: null
+                    };
+                    
+                    const [conceptShareResult, batchShareResult] = await Promise.all([
+                        shareBriefConcept(concept.id, 'link', conceptShareSettings),
+                        shareBriefBatch(batch.id, 'link', batchShareSettings)
+                    ]);
+                    
+                    await fetch('/api/slack/brief-revisions-needed', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            conceptId: concept.id,
+                            conceptTitle: concept.concept_title,
+                            batchName: batch.name,
+                            brandId: batch.brand_id,
+                            assignedStrategist: concept.strategist,
+                            assignedCreativeCoordinator: concept.creative_coordinator,
+                            conceptShareUrl: conceptShareResult.share_url,
+                            batchShareUrl: batchShareResult.share_url
+                        }),
+                    });
+                } catch (slackError) {
+                    console.error('Failed to send Slack notification for brief revisions needed:', slackError);
+                    // Don't fail the status update if Slack notification fails
+                }
+            }
+            
             return updatedConcept;
         } catch (err) {
             console.error('Error updating concept:', err);
@@ -1976,6 +2017,7 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                             <option value="">Select Status</option>
                                             <option value="BRIEFING IN PROGRESS">BRIEFING IN PROGRESS</option>
                                             <option value="BRIEF REVIEW">BRIEF REVIEW</option>
+                                            <option value="BRIEF REVISIONS NEEDED">BRIEF REVISIONS NEEDED</option>
                                             <option value="READY FOR DESIGNER">READY FOR DESIGNER</option>
                                             <option value="READY FOR EDITOR">READY FOR EDITOR</option>
                                             <option value="READY FOR EDITOR ASSIGNMENT">READY FOR EDITOR ASSIGNMENT</option>
@@ -2065,11 +2107,13 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                             <div className={`text-xs px-3 py-1.5 rounded-full font-medium ${
                                                 concept.status === "REVISIONS REQUESTED" 
                                                 ? "bg-amber-100 text-amber-800 border border-amber-300" 
-                                                : concept.status === "APPROVED" 
-                                                    ? "bg-green-100 text-green-800 border border-green-300"
-                                                    : concept.status === "READY FOR REVIEW"
-                                                        ? "bg-blue-100 text-blue-800 border border-blue-300"
-                                                        : "bg-green-100 text-green-700 border border-green-200"
+                                                : concept.status === "BRIEF REVISIONS NEEDED"
+                                                    ? "bg-red-100 text-red-800 border border-red-300"
+                                                    : concept.status === "APPROVED" 
+                                                        ? "bg-green-100 text-green-800 border border-green-300"
+                                                        : concept.status === "READY FOR REVIEW"
+                                                            ? "bg-blue-100 text-blue-800 border border-blue-300"
+                                                            : "bg-green-100 text-green-700 border border-green-200"
                                             }`}>
                                                 Status: {concept.status}
                                             </div>
