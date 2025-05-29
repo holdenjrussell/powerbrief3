@@ -174,7 +174,7 @@ export default function AdRipperPage() {
   const [selectedVideoItem, setSelectedVideoItem] = useState<SocialMediaContent | null>(null);
 
   // Send to ad batch state
-  const [showSentToAdBatch, setShowSentToAdBatch] = useState(true); // Filter for showing sent items
+  const [showSentToAdBatch, setShowSentToAdBatch] = useState(false); // Filter for showing sent items
   const [isSendingToAdBatch, setIsSendingToAdBatch] = useState(false);
   const [availableAdBatches, setAvailableAdBatches] = useState<Array<{id: string; name: string;}>>([]);
   const [selectedAdBatchId, setSelectedAdBatchId] = useState<string>('');
