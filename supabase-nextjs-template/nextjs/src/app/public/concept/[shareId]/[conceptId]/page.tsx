@@ -1570,14 +1570,14 @@ export default function SharedSingleConceptPage({ params }: { params: ParamsType
             </Card>
           )}
 
-          {/* Caption hooks */}
-          {concept.caption_hook_options && (
+          {/* Text hooks */}
+          {concept.text_hook_options && (
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Caption Hook Options</CardTitle>
+                <CardTitle className="text-lg">Text Hook Options</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="whitespace-pre-wrap">{concept.caption_hook_options}</p>
+                <p className="whitespace-pre-wrap">{concept.text_hook_options}</p>
               </CardContent>
             </Card>
           )}

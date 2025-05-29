@@ -150,6 +150,8 @@ export interface BriefConcept {
   concept_title: string;
   body_content_structured: Scene[];
   order_in_batch: number;
+  created_at: string;
+  updated_at: string;
   clickup_id: string | null;
   clickup_link: string | null;
   strategist: string | null;
@@ -161,48 +163,39 @@ export interface BriefConcept {
   media_url: string | null;
   media_type: string | null;
   ai_custom_prompt: string | null;
-  caption_hook_options: string | null;
+  text_hook_options: string | null;
   spoken_hook_options: string | null;
   cta_script: string | null;
   cta_text_overlay: string | null;
   description: string | null;
   videoInstructions: string | null;
   designerInstructions: string | null;
-  hook_type?: 'caption' | 'verbal' | 'both' | null;
-  hook_count?: number | null;
-  shared_with?: string[] | null;
-  share_settings?: Record<string, ShareSettings> | null;
-  review_status?: 'pending' | 'ready_for_review' | 'approved' | 'needs_revisions' | null;
-  review_link?: string | null;
-  reviewer_notes?: string | null;
-  brief_revision_comments?: string | null;
-  product_id?: string | null;
-  created_at: string;
-  updated_at: string;
-  uploaded_assets?: UploadedAssetGroup[] | null;
-  asset_upload_status?: 'pending' | 'uploaded' | 'approved' | 'sent_to_ad_batch' | null;
-  selected_ad_batch_id?: string | null;
+  review_status: 'pending' | 'ready_for_review' | 'approved' | 'needs_revisions' | null;
+  review_link: string | null;
+  review_comments: string | null;
+  brief_revision_comments: string | null;
+  hook_type: 'caption' | 'verbal' | 'both' | null;
+  hook_count: number | null;
 }
 
 // AI Generation models
 export interface AiBriefingRequest {
   brandContext: {
-    brand_info_data: BrandInfoData;
-    target_audience_data: TargetAudienceData;
-    competition_data: CompetitionData;
-    system_instructions_image?: string;
-    system_instructions_video?: string;
-    product?: Product;
+    brand_info_data: string | null;
+    target_audience_data: string | null;
+    competition_data: string | null;
+    system_instructions_image: string | null;
+    system_instructions_video: string | null;
   };
   conceptSpecificPrompt: string;
-  conceptCurrentData?: {
-    caption_hook_options?: string;
+  conceptCurrentData: {
+    text_hook_options?: string;
     body_content_structured?: Scene[];
     cta_script?: string;
     cta_text_overlay?: string;
     description?: string;
   };
-  media?: {
+  media: {
     url: string;
     type: string;
   };
@@ -214,12 +207,12 @@ export interface AiBriefingRequest {
 }
 
 export interface AiBriefingResponse {
-  caption_hook_options: string;
-  spoken_hook_options?: string;
+  text_hook_options: string;
+  spoken_hook_options: string;
   body_content_structured_scenes: Scene[];
   cta_script: string;
   cta_text_overlay: string;
-  description?: string;
+  description: string;
 }
 
 // Type helpers for database interactions
@@ -360,4 +353,30 @@ export interface CreateEditorRequest {
 export interface UpdateEditorRequest extends Partial<CreateEditorRequest> {
   id: string;
   is_active?: boolean;
+}
+
+export interface CreateBriefConceptInput {
+  brief_batch_id: string;
+  user_id: string;
+  concept_title: string;
+  body_content_structured: Scene[];
+  order_in_batch: number;
+  clickup_id: string | null;
+  clickup_link: string | null;
+  strategist: string | null;
+  creative_coordinator: string | null;
+  video_editor: string | null;
+  editor_id: string | null;
+  custom_editor_name: string | null;
+  status: string | null;
+  media_url: string | null;
+  media_type: string | null;
+  ai_custom_prompt: string | null;
+  text_hook_options: string | null;
+  spoken_hook_options: string | null;
+  cta_script: string | null;
+  cta_text_overlay: string | null;
+  description: string | null;
+  videoInstructions: string | null;
+  designerInstructions: string | null;
 } 

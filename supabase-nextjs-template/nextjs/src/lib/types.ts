@@ -448,125 +448,101 @@ export type Database = {
       brief_concepts: {
         Row: {
           ai_custom_prompt: string | null
-          asset_upload_status: string | null
           body_content_structured: Json | null
           brief_batch_id: string
-          caption_hook_options: string | null
+          brief_revision_comments: string | null
+          text_hook_options: string | null
           clickup_id: string | null
           clickup_link: string | null
-          concept_title: string | null
+          concept_title: string
           created_at: string
-          creator_footage: string | null
+          creative_coordinator: string | null
           cta_script: string | null
           cta_text_overlay: string | null
-          custom_editor_name: string | null
           description: string | null
-          designer_instructions: string | null
           designerInstructions: string | null
           editor_id: string | null
           hook_count: number | null
           hook_type: string | null
           id: string
-          linked_creator_ids: string[] | null
           media_type: string | null
           media_url: string | null
-          order_in_batch: number | null
-          original_creator_script: string | null
+          order_in_batch: number
+          review_comments: string | null
           review_link: string | null
           review_status: string | null
-          reviewer_notes: string | null
-          selected_ad_batch_id: string | null
-          share_settings: Json | null
           spoken_hook_options: string | null
           status: string | null
           strategist: string | null
           updated_at: string
-          uploaded_assets: Json | null
           user_id: string
           video_editor: string | null
-          video_instructions: string | null
           videoInstructions: string | null
         }
         Insert: {
           ai_custom_prompt?: string | null
-          asset_upload_status?: string | null
           body_content_structured?: Json | null
           brief_batch_id: string
-          caption_hook_options?: string | null
+          brief_revision_comments?: string | null
+          text_hook_options?: string | null
           clickup_id?: string | null
           clickup_link?: string | null
-          concept_title?: string | null
+          concept_title: string
           created_at?: string
-          creator_footage?: string | null
+          creative_coordinator?: string | null
           cta_script?: string | null
           cta_text_overlay?: string | null
-          custom_editor_name?: string | null
           description?: string | null
-          designer_instructions?: string | null
           designerInstructions?: string | null
           editor_id?: string | null
           hook_count?: number | null
           hook_type?: string | null
           id?: string
-          linked_creator_ids?: string[] | null
           media_type?: string | null
           media_url?: string | null
-          order_in_batch?: number | null
-          original_creator_script?: string | null
+          order_in_batch: number
+          review_comments?: string | null
           review_link?: string | null
           review_status?: string | null
-          reviewer_notes?: string | null
-          selected_ad_batch_id?: string | null
-          share_settings?: Json | null
           spoken_hook_options?: string | null
           status?: string | null
           strategist?: string | null
           updated_at?: string
-          uploaded_assets?: Json | null
           user_id: string
           video_editor?: string | null
-          video_instructions?: string | null
           videoInstructions?: string | null
         }
         Update: {
           ai_custom_prompt?: string | null
-          asset_upload_status?: string | null
           body_content_structured?: Json | null
           brief_batch_id?: string
-          caption_hook_options?: string | null
+          brief_revision_comments?: string | null
+          text_hook_options?: string | null
           clickup_id?: string | null
           clickup_link?: string | null
-          concept_title?: string | null
+          concept_title?: string
           created_at?: string
-          creator_footage?: string | null
+          creative_coordinator?: string | null
           cta_script?: string | null
           cta_text_overlay?: string | null
-          custom_editor_name?: string | null
           description?: string | null
-          designer_instructions?: string | null
           designerInstructions?: string | null
           editor_id?: string | null
           hook_count?: number | null
           hook_type?: string | null
           id?: string
-          linked_creator_ids?: string[] | null
           media_type?: string | null
           media_url?: string | null
-          order_in_batch?: number | null
-          original_creator_script?: string | null
+          order_in_batch?: number
+          review_comments?: string | null
           review_link?: string | null
           review_status?: string | null
-          reviewer_notes?: string | null
-          selected_ad_batch_id?: string | null
-          share_settings?: Json | null
           spoken_hook_options?: string | null
           status?: string | null
           strategist?: string | null
           updated_at?: string
-          uploaded_assets?: Json | null
           user_id?: string
           video_editor?: string | null
-          video_instructions?: string | null
           videoInstructions?: string | null
         }
         Relationships: [
@@ -578,17 +554,10 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "brief_concepts_editor_id_fkey"
-            columns: ["editor_id"]
+            foreignKeyName: "brief_concepts_user_id_fkey"
+            columns: ["user_id"]
             isOneToOne: false
-            referencedRelation: "editors"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "brief_concepts_selected_ad_batch_id_fkey"
-            columns: ["selected_ad_batch_id"]
-            isOneToOne: false
-            referencedRelation: "ad_batches"
+            referencedRelation: "users"
             referencedColumns: ["id"]
           },
         ]

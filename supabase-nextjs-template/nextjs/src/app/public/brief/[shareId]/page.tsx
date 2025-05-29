@@ -518,13 +518,13 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
                         </div>
                       )}
                       
-                      {/* Caption Hooks */}
-                      {concept.caption_hook_options && (
-                        <div>
-                          <h3 className="font-medium text-sm mb-1">Caption Hook options</h3>
-                          <p className="text-sm bg-gray-50 p-3 rounded">
-                            {concept.caption_hook_options}
-                          </p>
+                      {/* Text Hooks */}
+                      {concept.text_hook_options && (
+                        <div className="mt-4">
+                          <h3 className="font-medium text-sm mb-1">Text Hook options</h3>
+                          <div className="whitespace-pre-wrap text-sm bg-gray-50 p-2 rounded">
+                            {concept.text_hook_options}
+                          </div>
                         </div>
                       )}
                       

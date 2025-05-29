@@ -47,7 +47,7 @@ interface ConceptWithShareSettings {
   status?: string;
   media_url?: string;
   media_type?: string;
-  caption_hook_options?: string;
+  text_hook_options?: string;
   videoInstructions?: string;
   designerInstructions?: string;
   body_content_structured?: Scene[];
@@ -63,6 +63,7 @@ interface ConceptWithShareSettings {
   spoken_hook_options?: string;
   uploaded_assets?: UploadedAssetGroup[];
   asset_upload_status?: string;
+  description?: string;
   [key: string]: unknown;
 }
 
@@ -698,13 +699,13 @@ export default function SharedConceptPage({ params }: { params: ParamsType | Pro
           )}
 
           {/* Caption hooks */}
-          {concept.caption_hook_options && (
+          {concept.text_hook_options && (
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Caption Hook Options</CardTitle>
+                <CardTitle className="text-lg">Text Hook Options</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="whitespace-pre-wrap">{concept.caption_hook_options}</p>
+                <p className="whitespace-pre-wrap">{concept.text_hook_options}</p>
               </CardContent>
             </Card>
           )}

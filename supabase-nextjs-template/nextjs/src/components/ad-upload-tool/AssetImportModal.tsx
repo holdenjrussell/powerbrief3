@@ -407,10 +407,9 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
                 <h4 className="text-sm font-semibold text-blue-800 mb-1">
                   Smart Auto-Compression
                 </h4>
-                <p className="text-sm text-blue-700 mb-2">
-                  Videos over 50MB are automatically compressed during import to ensure successful Meta uploads. 
-                  <span className="text-blue-600"> Files under 50MB bypass compression.</span>
-                  <span className="block text-xs mt-1 text-blue-600">⚡ Balanced compression - optimized for quality while maintaining reasonable file sizes</span>
+                <p className="text-sm text-gray-600 mb-3">
+                  Videos over 125MB are automatically compressed during import to ensure successful Meta uploads.
+                  <span className="text-blue-600"> Files under 125MB bypass compression.</span>
                 </p>
                 <p className="text-xs text-blue-600">
                   💡 <strong>Pro Tip:</strong> Our compression balances quality and file size for optimal Meta compatibility.
@@ -467,11 +466,11 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
                       Large Assets Detected - Auto-Compression Enabled
                     </h4>
                     <p className="text-sm text-amber-700 mb-2">
-                      {selectedFiles.filter(f => f.needsCompression).length} video(s) over 50MB will be automatically compressed to ensure successful upload to Meta.
+                      {selectedFiles.filter(f => f.needsCompression).length} video(s) over 125MB will be automatically compressed to ensure successful upload to Meta.
                       <span className="block text-xs mt-1 text-amber-600">⚡ Balanced compression - optimized for quality while maintaining reasonable file sizes</span>
                     </p>
                     <p className="text-xs text-amber-600">
-                      💡 <strong>Tip:</strong> You can bypass compression by ensuring your video files are under 50MB before uploading.
+                      💡 <strong>Tip:</strong> You can bypass compression by ensuring your video files are under 125MB before uploading.
                     </p>
                   </div>
                 </div>
@@ -537,7 +536,7 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
                         {assetFile.needsCompression && !assetFile.compressing && !assetFile.uploadError && (
                           <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
                             <Zap size={12} className="mr-1" />
-                            Will auto-compress (over 50MB)
+                            Will auto-compress (over 125MB)
                           </span>
                         )}
                         
@@ -557,7 +556,7 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
                         
                         {!assetFile.needsCompression && !assetFile.originalSize && assetFile.file.type.startsWith('video/') && (
                           <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                            ✓ Under 50MB - No compression needed
+                            ✓ Under 125MB - No compression needed
                           </span>
                         )}
                         

@@ -1166,12 +1166,12 @@ Are you sure you want to continue?`;
 
 This will manually compress existing videos:
 • Download each video from Supabase
-• Check if compression is needed (>50MB)
+• Check if compression is needed (>125MB)
 • Compress large videos automatically
 • Upload compressed versions back to Supabase
 • Update the ad drafts with new URLs
 
-Note: New asset uploads are automatically compressed if over 50MB during import.
+Note: New asset uploads are automatically compressed if over 125MB during import.
 This manual compression is for existing assets that may need optimization.
 
 This process may take several minutes. Continue?`;
@@ -1277,7 +1277,7 @@ This process may take several minutes. Continue?`;
       const message = `Video compression complete!
 
 ✅ Compressed: ${compressedCount} videos
-⏭️ Skipped: ${skippedCount} videos (already under 50MB)
+⏭️ Skipped: ${skippedCount} videos (already under 125MB)
 ❌ Errors: ${errorCount} videos
 
 ${compressedCount > 0 ? 'Compressed videos have been updated in your ads.' : ''}`;
@@ -1389,7 +1389,7 @@ ${compressedCount > 0 ? 'Compressed videos have been updated in your ads.' : ''}
                     onClick={handleCompressVideos}
                     disabled={checkedDraftIds.size === 0 || isCompressing}
                     className="px-4 py-2 text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 rounded-md shadow-sm flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
-                    title="Manually compress videos in selected ads (Note: New uploads are automatically compressed if over 50MB)"
+                    title="Manually compress videos in selected ads (Note: New uploads are automatically compressed if over 125MB)"
                  >
                     {isCompressing ? (
                       <>

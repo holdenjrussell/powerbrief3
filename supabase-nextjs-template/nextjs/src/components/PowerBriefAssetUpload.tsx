@@ -373,7 +373,7 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
       const compressionCount = newFiles.filter(f => f.needsCompression).length;
       let message = `${newFiles.length} file(s) added successfully.`;
       if (compressionCount > 0) {
-        message += ` ${compressionCount} video(s) over 50MB will be automatically compressed.`;
+        message += ` ${compressionCount} video(s) over 125MB will be automatically compressed.`;
       }
       
       addToast('success', 'Files Added', message);
@@ -794,9 +794,8 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
                 Smart Auto-Compression
               </h4>
               <p className="text-sm text-blue-700 mb-2">
-                Videos over 50MB are automatically compressed during upload to ensure successful processing and Meta compatibility. 
-                Files under 50MB will maintain original quality.
-                <span className="block text-xs mt-1 text-blue-600">⚡ Balanced compression - optimized for quality while maintaining reasonable file sizes</span>
+                Videos over 125MB are automatically compressed during upload to ensure successful processing and Meta compatibility.
+                Files under 125MB will maintain original quality.
               </p>
               <p className="text-xs text-amber-600">
                 💡 <strong>Pro Tip:</strong> Our compression balances quality and file size for optimal Meta compatibility.
@@ -815,8 +814,8 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
                   Large Assets Detected - Auto-Compression Enabled
                 </h4>
                 <p className="text-sm text-orange-700 mb-2">
-                  {selectedFiles.filter(f => f.needsCompression).length} video(s) over 50MB will be automatically compressed during upload.
-                  <span className="block text-xs mt-1 text-orange-600">⚡ Balanced compression - optimized for quality while maintaining reasonable file sizes</span>
+                  {selectedFiles.filter(f => f.needsCompression).length} video(s) over 125MB will be automatically compressed during upload.
+                  <span className="block text-xs mt-1 text-orange-600">⚡ Balanced compression - optimized for speed while maintaining good quality</span>
                 </p>
                 <p className="text-xs text-orange-600">
                   ⚡ Compression will happen automatically when you upload - no action needed!
@@ -902,7 +901,7 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
                         {file.needsCompression && !file.compressing && !file.uploadError && (
                           <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
                             <Zap size={12} className="mr-1" />
-                            Will auto-compress (over 50MB)
+                            Will auto-compress (over 125MB)
                           </span>
                         )}
                         
@@ -922,7 +921,7 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
                         
                         {!file.needsCompression && !file.originalSize && file.file.type.startsWith('video/') && (
                           <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                            ✓ Under 50MB - No compression needed
+                            ✓ Under 125MB - No compression needed
                           </span>
                         )}
                         

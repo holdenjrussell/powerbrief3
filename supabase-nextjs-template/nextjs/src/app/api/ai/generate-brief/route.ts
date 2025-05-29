@@ -142,9 +142,9 @@ export async function POST(request: NextRequest) {
       hookInstructions = `\nHOOK OPTIONS INSTRUCTIONS:
 - Generate ${count} unique hook options
 - Hook type: ${type}
-- For caption hooks: Use emojis and catchy phrases suitable for social media captions
+- For text hooks: Use emojis and catchy phrases suitable for social media captions
 - For verbal hooks: Create spoken phrases that would work well when read aloud in videos
-- If hook type is 'caption', only populate the caption_hook_options field
+- If hook type is 'caption', only populate the text_hook_options field
 - If hook type is 'verbal', only populate the spoken_hook_options field 
 - If hook type is 'both', populate both fields with ${count} options each
 `;
@@ -165,8 +165,8 @@ Given the brand context (positioning, target audience, competitors), concept pro
 
 IMPORTANT: Your response MUST be valid JSON and nothing else. Format:
 {
-  "caption_hook_options": "Generate caption hooks here as simple text with each hook on a new line. Include emojis and catchy phrases suitable for social media captions. Do NOT use JSON formatting or escaped quotes - just plain text with line breaks between hooks.",
-  "spoken_hook_options": "Generate verbal/spoken hooks here as simple text with each hook on a new line. These are hooks meant to be spoken in videos, not written as captions. Do NOT use JSON formatting or escaped quotes - just plain text with line breaks between hooks.",
+  "text_hook_options": "Generate text hooks here as simple text with each hook on a new line. Include emojis and catchy phrases suitable for social media captions. Do NOT use JSON formatting or escaped quotes - just plain text with line breaks between hooks.",
+  "spoken_hook_options": "Generate spoken hook options here as simple text with each hook on a new line. These should be phrases designed to be spoken in videos, not written as captions. Do NOT use JSON formatting or escaped quotes - just plain text with line breaks between hooks.",
   "body_content_structured_scenes": [
     { 
       "scene_title": "Scene 1 (optional)", 
@@ -276,7 +276,7 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
           // Handle image-specific format (description and cta)
           console.log('Detected image-specific response format with description and/or cta');
           responseData = {
-            caption_hook_options: "",
+            text_hook_options: "",
             spoken_hook_options: "",
             body_content_structured_scenes: [],
             cta_script: jsonResponse.cta || "",
@@ -287,7 +287,7 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
           // Handle case where image was requested but response doesn't match expected format
           console.log('Image request but response format not recognized, attempting to extract description and cta');
           responseData = {
-            caption_hook_options: "",
+            text_hook_options: "",
             spoken_hook_options: "",
             body_content_structured_scenes: [],
             cta_script: jsonResponse.cta_script || jsonResponse.cta || "",
@@ -299,20 +299,20 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
           const hookType = body.hookOptions?.type || 'both';
           
           // Ensure we have hook options in the expected format based on hook type
-          let captionHooks = jsonResponse.caption_hook_options || "";
+          let textHooks = jsonResponse.text_hook_options || "";
           let spokenHooks = jsonResponse.spoken_hook_options || "";
           
           // If we requested a specific hook type but got empty result, try to extract from the other field
-          if (hookType === 'caption' && !captionHooks && spokenHooks) {
-            console.log('Caption hooks missing but verbal hooks present - trying to use verbal hooks');
-            captionHooks = spokenHooks;
-          } else if (hookType === 'verbal' && !spokenHooks && captionHooks) {
-            console.log('Verbal hooks missing but caption hooks present - trying to use caption hooks');
-            spokenHooks = captionHooks;
+          if (hookType === 'caption' && !textHooks && spokenHooks) {
+            console.log('Text hooks missing but verbal hooks present - trying to use verbal hooks');
+            textHooks = spokenHooks;
+          } else if (hookType === 'verbal' && !spokenHooks && textHooks) {
+            console.log('Verbal hooks missing but text hooks present - trying to use text hooks');
+            spokenHooks = textHooks;
           }
           
           responseData = {
-            caption_hook_options: captionHooks,
+            text_hook_options: textHooks,
             spoken_hook_options: spokenHooks,
             body_content_structured_scenes: jsonResponse.body_content_structured_scenes || [],
             cta_script: jsonResponse.cta_script || "",
@@ -342,7 +342,7 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                 
                 // Return transformed response
                 return NextResponse.json({
-                  caption_hook_options: "",
+                  text_hook_options: "",
                   spoken_hook_options: "",
                   body_content_structured_scenes: [],
                   cta_script: cta,

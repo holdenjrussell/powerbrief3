@@ -19,6 +19,8 @@ const MarkdownTextarea = React.forwardRef<
 >(({ className, value, onChange, onFocus, onBlur, placeholder, disabled, ...props }, forwardedRef) => {
   const [isEditing, setIsEditing] = useState(false);
   const editorRef = useRef<HTMLDivElement>(null);
+  const lastValueRef = useRef<string>('');
+  
   const combinedRef = (node: HTMLDivElement) => {
     editorRef.current = node;
     if (typeof forwardedRef === 'function') {
@@ -35,23 +37,28 @@ const MarkdownTextarea = React.forwardRef<
     return DOMPurify.sanitize(html);
   };
 
-  // Update the editor content
+  // Update the editor content only when not editing and value actually changed
   useEffect(() => {
-    if (editorRef.current && !isEditing) {
+    if (editorRef.current && !isEditing && value !== lastValueRef.current) {
       const html = renderHTML(value);
       editorRef.current.innerHTML = html || '<p><br></p>';
+      lastValueRef.current = value;
     }
   }, [value, isEditing]);
 
   const handleFocus = (e: React.FocusEvent<HTMLDivElement>) => {
     setIsEditing(true);
-    editorRef.current!.innerHTML = value || '';
+    // Only set innerHTML to value if it's different from current content
+    if (editorRef.current && editorRef.current.innerText !== value) {
+      editorRef.current.innerHTML = value || '';
+    }
     if (onFocus) onFocus(e);
   };
 
   const handleBlur = (e: React.FocusEvent<HTMLDivElement>) => {
     setIsEditing(false);
     const newValue = editorRef.current!.innerText || '';
+    lastValueRef.current = newValue;
     onChange(newValue);
     if (onBlur) onBlur(e);
   };
@@ -59,14 +66,17 @@ const MarkdownTextarea = React.forwardRef<
   const handlePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
     e.preventDefault();
     const text = e.clipboardData.getData('text/plain');
+    
+    // Save cursor position before paste
+    const selection = window.getSelection();
+    const range = selection?.getRangeAt(0);
+    
+    // Use execCommand for better cursor handling
     document.execCommand('insertText', false, text);
     
-    // After paste, we immediately apply markdown formatting when the user stops typing
-    setTimeout(() => {
-      const newValue = editorRef.current!.innerText || '';
-      onChange(newValue);
-      setIsEditing(false);
-    }, 100);
+    // Don't automatically exit editing mode on paste - let user continue typing
+    const newValue = editorRef.current!.innerText || '';
+    onChange(newValue);
   };
 
   const handleInput = (e: React.FormEvent<HTMLDivElement>) => {

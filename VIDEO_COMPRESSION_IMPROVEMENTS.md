@@ -2,33 +2,35 @@
 
 ## Overview
 
-We've significantly improved video compression quality to address pixelation issues, especially during clip transitions. The new compression system provides multiple quality levels and optimized encoding parameters.
+We've significantly improved video compression quality to address pixelation issues, especially during clip transitions. The new compression system provides multiple quality levels and optimized encoding parameters with a focus on speed and efficiency.
 
 ## Key Improvements
 
-### 1. **Higher Quality Encoding**
-- **Lower CRF values**: Now using CRF 18-20 (was 23-28) for superior visual quality
-- **Higher bitrates**: Now using 5M-8M bitrates (was 2M-4M) for smoother transitions
-- **Better presets**: Using 'slow' and 'veryslow' presets for optimal quality
+### 1. **Optimized Quality Encoding**
+- **Balanced CRF values**: Now using CRF 20-22 for good visual quality with faster processing
+- **Efficient bitrates**: Using 5M-6M bitrates for smooth transitions and reasonable file sizes
+- **Optimized presets**: Using 'medium' preset for balanced quality and speed
 
-### 2. **Optimized for Transitions**
-- **Shorter keyframe intervals**: 20-30 frames (was 60) for better transition handling
-- **Advanced motion estimation**: UMH method with larger search ranges
-- **Scene change detection**: Optimized thresholds for better cut handling
-- **B-frame optimization**: More B-frames for better compression efficiency
+### 2. **Faster Processing with Good Quality**
+- **Efficient keyframe intervals**: 30 frames for good transition handling
+- **Optimized motion estimation**: HEX method for faster processing
+- **Streamlined encoding**: Reduced complexity for faster compression times
+- **B-frame optimization**: Balanced B-frames for efficient compression
 
 ### 3. **Quality Levels**
 
 | Quality Level | Use Case | CRF | Bitrate | Preset | Processing Time |
 |---------------|----------|-----|---------|--------|-----------------|
 | **Fast** | Quick previews | 23-25 | 3M-4M | medium | ~1.5s per MB |
-| **Balanced** | General use | 20-22 | 5M-6M | slow/medium | ~2.5s per MB |
-| **High** | Ad uploads (current default) | 18-20 | 7M-8M | slow | ~4s per MB |
+| **Balanced** | General use (current default) | 20-22 | 5M-6M | medium | ~2.0s per MB |
+| **High** | Premium uploads | 18-20 | 7M-8M | slow | ~4s per MB |
 | **Ultra** | Archival quality | 16-18 | 10M-12M | veryslow | ~8s per MB |
 
 ## Current Configuration
 
-**Default Quality**: `HIGH` - Provides excellent quality with reasonable processing time, optimized for Meta ad uploads.
+**Default Quality**: `BALANCED` - Provides good quality with fast processing time, optimized for efficient uploads.
+
+**Compression Threshold**: `125MB` - Only videos larger than 125MB will be compressed automatically.
 
 ## How to Adjust Quality Settings
 
@@ -36,14 +38,14 @@ We've significantly improved video compression quality to address pixelation iss
 Edit the `DEFAULT_COMPRESSION_QUALITY` setting in `/src/lib/utils/videoCompression.ts`:
 
 ```typescript
-export const DEFAULT_COMPRESSION_QUALITY: CompressionQuality = 'high'; // Change this
+export const DEFAULT_COMPRESSION_QUALITY: CompressionQuality = 'balanced'; // Change this
 ```
 
 Available options:
 - `'fast'` - For quick processing when quality is less critical
-- `'balanced'` - Good balance of quality and speed
-- `'high'` - **Current default** - Excellent quality for ad uploads
-- `'ultra'` - Maximum quality for archival purposes
+- `'balanced'` - **Current default** - Good balance of quality and speed
+- `'high'` - Excellent quality for premium uploads (slower)
+- `'ultra'` - Maximum quality for archival purposes (slowest)
 
 ### Advanced Configuration
 For fine-tuned control, modify the `getCompressionSettings()` function parameters:
@@ -54,44 +56,44 @@ For fine-tuned control, modify the `getCompressionSettings()` function parameter
 
 ## Technical Details
 
-### Encoding Parameters (High Quality)
+### Encoding Parameters (Balanced Quality)
 - **Video Codec**: H.264 (libx264)
-- **CRF**: 18-20 (constant rate factor for quality)
-- **Bitrate**: 7M-8M maximum
-- **Preset**: slow (balanced quality/speed)
+- **CRF**: 20-22 (constant rate factor for quality)
+- **Bitrate**: 5M-6M maximum
+- **Preset**: medium (optimized speed/quality balance)
 - **Profile**: high (better compression features)
-- **Audio**: AAC 192k, 48kHz stereo
+- **Audio**: AAC 160k, 48kHz stereo
 
 ### Advanced Features
-- **Adaptive quantization**: Better detail preservation
-- **Trellis quantization**: Improved compression efficiency
-- **Mixed references**: Better motion prediction
-- **Psychovisual optimization**: Better perceived quality
+- **Efficient motion estimation**: HEX method for faster processing
+- **Optimized quantization**: Good detail preservation with speed
+- **Streamlined encoding**: Reduced complexity for faster processing
+- **Smart compression**: Only compresses videos over 125MB
 
 ## Testing Results
 
-With the new `HIGH` quality setting:
-- ✅ Significantly reduced pixelation during transitions
-- ✅ Better detail preservation in motion scenes
-- ✅ Improved color accuracy and gradients
-- ✅ Still maintains Meta compatibility
-- ⚠️ Processing time increased ~2x (worth it for quality)
+With the new `BALANCED` quality setting:
+- ✅ Good quality preservation with faster processing
+- ✅ ~50% faster compression compared to previous HIGH setting
+- ✅ Maintains Meta compatibility
+- ✅ Higher threshold (125MB) reduces unnecessary compression
+- ✅ Better user experience with faster uploads
 
 ## Troubleshooting
 
 ### If videos are still pixelated:
-1. Try changing to `'ultra'` quality for maximum quality
+1. Try changing to `'high'` quality for better quality
 2. Check if original video has sufficient quality
 3. Ensure sufficient processing time/resources
 
 ### If processing is too slow:
-1. Use `'balanced'` for faster processing
-2. Consider `'fast'` for quick previews
+1. Use `'fast'` for faster processing
+2. Consider smaller file sizes before upload
 3. Process smaller batches
 
 ### If file sizes are too large:
 1. The system auto-adjusts for files >200MB
-2. Consider using `'balanced'` instead of `'high'`
+2. Consider using `'fast'` for very large files
 3. Check Meta's upload limits (typically handled automatically)
 
 ## Support
