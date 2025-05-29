@@ -194,8 +194,8 @@ export async function sendSlackNotification(data: SlackNotificationData): Promis
     }
 
     // Prepare successful ads list
-    const successfulAds = data.launchedAds.filter(ad => ad.status === 'AD_CREATED');
-    const failedAds = data.launchedAds.filter(ad => ad.status !== 'AD_CREATED');
+    const successfulAds = data.launchedAds?.filter(ad => ad.status === 'PUBLISHED') || [];
+    const failedAds = data.launchedAds?.filter(ad => ad.status !== 'PUBLISHED') || [];
 
     // Create Slack message
     const message = createSlackMessage({

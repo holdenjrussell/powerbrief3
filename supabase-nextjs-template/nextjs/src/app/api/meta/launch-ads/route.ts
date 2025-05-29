@@ -438,7 +438,7 @@ export async function POST(req: NextRequest) {
 
     // Now, iterate through draftsWithMetaAssets to create Ad Creatives and Ads
     for (const draft of draftsWithMetaAssets) {
-      const adId: string | undefined = undefined;
+      let adId: string | undefined = undefined;
       let finalStatus = 'ASSETS_PROCESSED'; // Default status after asset processing
       let adError: string | undefined = undefined;
 
@@ -783,7 +783,9 @@ export async function POST(req: NextRequest) {
         
         const adSetResponse = await fetch(adSetApiUrl);
         if (!adSetResponse.ok) {
-          throw new Error(`Ad set validation failed: ${adSetResponse.status} ${adSetResponse.statusText}`);
+          const errorText = await adSetResponse.text();
+          console.error(`[Launch API] Ad set validation error response:`, errorText);
+          throw new Error(`Ad set validation failed: ${adSetResponse.status} ${adSetResponse.statusText} - ${errorText}`);
         }
         
         const adSetData = await adSetResponse.json();
@@ -792,17 +794,91 @@ export async function POST(req: NextRequest) {
         }
         
         console.log(`[Launch API]     Ad set validated: ${adSetData.name} (Campaign: ${adSetData.campaign_id})`);
-        
-        // Continue with ad creation...
-        // (Rest of the ad creation logic would go here)
-        
-        finalStatus = 'COMPLETED';
-        console.log(`[Launch API] Successfully processed draft: ${draft.adName}`);
+
+        // Note: DSA and regional regulation settings are handled at ad set level or by Meta automatically
+        // Creative spec should only contain visual/content elements
+        console.log(`[Launch API]     Building creative spec with visual/content elements only`);
+
+        // Step 2: Create Ad with inline creative spec
+        const adApiUrl = `https://graph.facebook.com/${META_API_VERSION}/${adAccountId}/ads`;
+        console.log(`[Launch API]     Creating ad for ${draft.adName} with inline creative...`);
+
+        // Debug: Log the creative spec to see the final fields being sent
+        console.log(`[Launch API]     Creative spec debug:`, JSON.stringify(creativeSpec, null, 2));
+
+        const adParams = {
+          access_token: accessToken,
+          name: draft.adName,
+          adset_id: draft.adSetId,
+          creative: JSON.stringify(creativeSpec), // Pass the full creativeSpec here
+          status: draft.status.toUpperCase() // Use the draft's status (ACTIVE/PAUSED)
+        };
+
+        const adResponse = await fetch(adApiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams(adParams)
+        });
+
+        if (!adResponse.ok) {
+          const errorText = await adResponse.text();
+          throw new Error(`Ad creation failed: ${adResponse.status} ${adResponse.statusText} - ${errorText}`);
+        }
+
+        const adResponseData = await adResponse.json() as AdResponse;
+        if (adResponseData.error) {
+          throw new Error(`Ad creation error: ${adResponseData.error.message}`);
+        }
+
+        adId = adResponseData.id;
+        // Since creative is created inline, we can't get its ID separately here
+        // But the ad creation succeeded, so we mark as PUBLISHED
+        finalStatus = 'PUBLISHED'; 
+        console.log(`[Launch API] Successfully created ad: ${adId} for draft: ${draft.adName} (creative created inline)`);
         
       } catch (error) {
         console.error(`[Launch API] Error processing draft ${draft.adName}:`, error);
-        finalStatus = 'AD_CREATION_FAILED';
-        adError = error instanceof Error ? error.message : 'Unknown error';
+        
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        
+        // Debug logging to understand error detection
+        console.log(`[Launch API] Error message for ${draft.adName}: "${errorMessage}"`);
+        
+        // Check if assets were uploaded successfully
+        const hasUploadedAssets = (draft.assets as ProcessedAdDraftAsset[]).some(
+          asset => (asset.metaHash || asset.metaVideoId) && !asset.metaUploadError
+        );
+        
+        console.log(`[Launch API] Has uploaded assets: ${hasUploadedAssets}`);
+        
+        // Determine if this is a configuration/validation error vs upload failure
+        const isConfigurationError = errorMessage.includes('regional_regulation') || 
+                                    errorMessage.includes('Invalid parameter') ||
+                                    errorMessage.includes('OAuthException') ||
+                                    // Note: We don't have a separate creative creation step anymore
+                                    // errorMessage.includes('Creative creation failed') ||
+                                    errorMessage.includes('Ad creation failed') ||
+                                    errorMessage.includes('Ad set validation failed') ||
+                                    errorMessage.includes('dsa_payor') ||
+                                    errorMessage.includes('dsa_beneficiary');
+        
+        console.log(`[Launch API] Is configuration error: ${isConfigurationError}`);
+        
+        if (hasUploadedAssets && !isConfigurationError) {
+          // Assets uploaded but ad creation failed due to non-configuration issues
+          finalStatus = 'UPLOADED';
+          adError = errorMessage;
+          console.log(`[Launch API] Assets uploaded but ad creation failed for ${draft.adName}, marking as UPLOADED`);
+        } else {
+          // Configuration error, validation error, or upload failure
+          finalStatus = 'ERROR';
+          adError = errorMessage;
+          if (isConfigurationError) {
+            console.log(`[Launch API] Configuration/validation error for ${draft.adName}, marking as ERROR`);
+          } else {
+            console.log(`[Launch API] Upload or other error for ${draft.adName}, marking as ERROR`);
+          }
+        }
       }
 
       // Add result to processing results
@@ -825,7 +901,15 @@ export async function POST(req: NextRequest) {
 
       // Update the draft's app_status in the database
       try {
-        const dbStatus = finalStatus === 'COMPLETED' ? 'COMPLETED' : 'ERROR';
+        let dbStatus: string;
+        if (finalStatus === 'PUBLISHED') {
+          dbStatus = 'PUBLISHED';
+        } else if (finalStatus === 'UPLOADED') {
+          dbStatus = 'UPLOADED';
+        } else {
+          dbStatus = 'ERROR';
+        }
+        
         await supabase
           .from('ad_drafts')
           .update({ app_status: dbStatus })
@@ -839,18 +923,25 @@ export async function POST(req: NextRequest) {
 
     // Send Slack notification about the batch processing results
     try {
-      const successCount = processingResults.filter(r => r.status === 'COMPLETED').length;
+      const successCount = processingResults.filter(r => r.status === 'PUBLISHED').length;
       const failureCount = processingResults.length - successCount;
+
+      // Get campaign and ad set names for the first draft (assuming they are the same for the batch)
+      const firstDraft = draftsWithMetaAssets[0]; // Get the first draft from the processed list
+      const campaignName = firstDraft?.campaignName;
+      const adSetName = firstDraft?.adSetName;
       
       await sendSlackNotification({
-        type: 'ad_launch_batch_complete',
         brandId,
-        data: {
-          totalAds: processingResults.length,
-          successCount,
-          failureCount,
-          results: processingResults
-        }
+        batchName: 'Ad Launch Batch', // You might want to make this dynamic if batches have names
+        campaignId: firstDraft?.campaignId,
+        adSetId: firstDraft?.adSetId,
+        campaignName,
+        adSetName,
+        launchedAds: processingResults,
+        totalAds: processingResults.length,
+        successfulAds: successCount,
+        failedAds: failureCount
       });
     } catch (slackError) {
       console.error('[Launch API] Failed to send Slack notification:', slackError);
@@ -862,8 +953,9 @@ export async function POST(req: NextRequest) {
       results: processingResults,
       summary: {
         total: processingResults.length,
-        successful: processingResults.filter(r => r.status === 'COMPLETED').length,
-        failed: processingResults.filter(r => r.status !== 'COMPLETED').length
+        successful: processingResults.filter(r => r.status === 'PUBLISHED').length,
+        uploaded: processingResults.filter(r => r.status === 'UPLOADED').length,
+        failed: processingResults.filter(r => !['PUBLISHED', 'UPLOADED'].includes(r.status)).length
       }
     });
 
