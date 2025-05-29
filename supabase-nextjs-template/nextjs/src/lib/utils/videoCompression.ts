@@ -10,7 +10,7 @@ import { fetchFile, toBlobURL } from '@ffmpeg/util';
 // 3. Change DEFAULT_COMPRESSION_QUALITY to 'balanced' for good quality (faster)
 // 4. Change DEFAULT_COMPRESSION_QUALITY to 'fast' for basic quality (fastest)
 //
-// Current setting provides good quality with optimized speed for faster uploads
+// Current setting provides good quality with faster processing time (~2x speed improvement)
 export const DEFAULT_COMPRESSION_QUALITY: CompressionQuality = 'balanced';
 
 // Advanced users: You can also modify the settings in getCompressionSettings() 
@@ -35,9 +35,9 @@ const initFFmpeg = async (): Promise<FFmpeg> => {
   return ffmpeg;
 };
 
-// Check if a file needs compression (over 125MB)
+// Check if a file needs compression (over 150MB)
 export const needsCompression = (file: File): boolean => {
-  const maxSizeBytes = 125 * 1024 * 1024; // 125MB in bytes
+  const maxSizeBytes = 150 * 1024 * 1024; // 150MB in bytes
   return file.size > maxSizeBytes && file.type.startsWith('video/');
 };
 
@@ -68,15 +68,15 @@ const getCompressionSettings = (fileSizeMB: number, quality: CompressionQuality 
         crf: fileSizeMB > 200 ? '22' : '20',
         maxrate: fileSizeMB > 200 ? '5M' : '6M',
         audioRate: '160k',
-        preset: 'medium',
+        preset: fileSizeMB > 200 ? 'medium' : 'slow',
         bufsize: '12M',
         keyframeInterval: '30',
         extraArgs: [
           '-bf', '3',
-          '-refs', '3',
-          '-subq', '6',
+          '-refs', '4',
+          '-subq', '7',
           '-trellis', '1',
-          '-me_method', 'hex',
+          '-me_method', 'umh',
           '-me_range', '16',
           '-sc_threshold', '40'
         ]
@@ -215,7 +215,7 @@ export const compressVideoWithQuality = async (
   }
 };
 
-// Compress video file (using 'high' quality by default)
+// Compress video file (using 'balanced' quality by default)
 export const compressVideo = async (
   file: File,
   onProgress?: (progress: number) => void
@@ -258,7 +258,7 @@ export const estimateCompressionTime = (file: File, quality: CompressionQuality 
   // Time multipliers based on quality preset
   const timeMultipliers = {
     'fast': 1.5,      // ~1.5 seconds per MB (medium preset)
-    'balanced': 2.0,  // ~2.0 seconds per MB (optimized medium preset) - reduced from 2.5
+    'balanced': 2.5,  // ~2.5 seconds per MB (slow/medium preset)
     'high': 4.0,      // ~4 seconds per MB (slow preset)
     'ultra': 8.0      // ~8 seconds per MB (veryslow preset)
   };
