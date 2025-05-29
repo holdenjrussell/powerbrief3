@@ -16,7 +16,7 @@ import {
   SelectGroup,
   SelectLabel
 } from "@/components/ui";
-import { ChevronRight, User2, ShoppingBag, FileVideo, AtSign, Package } from 'lucide-react';
+import { ChevronRight, User2, ShoppingBag, FileVideo, AtSign, Package, ExternalLink, Instagram } from 'lucide-react';
 import { UgcCreator, UGC_CREATOR_ONBOARDING_STATUSES, UGC_CREATOR_CONTRACT_STATUSES, UGC_CREATOR_PRODUCT_SHIPMENT_STATUSES } from '@/lib/types/ugcCreator';
 import { updateUgcCreator } from '@/lib/services/ugcCreatorService';
 
@@ -253,6 +253,53 @@ export default function CreatorCard({ creator, brandId, onUpdate }: CreatorCardP
             <div className="flex items-center text-sm">
               <AtSign className="h-4 w-4 mr-2 text-gray-500" />
               <span className="truncate">{creator.email}</span>
+            </div>
+          )}
+          
+          {creator.instagram_handle && (
+            <div className="flex items-center text-sm">
+              <Instagram className="h-4 w-4 mr-2 text-gray-500" />
+              <a 
+                href={`https://instagram.com/${creator.instagram_handle}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary-600 hover:underline truncate"
+                onClick={(e) => e.stopPropagation()}
+              >
+                @{creator.instagram_handle}
+              </a>
+            </div>
+          )}
+          
+          {creator.tiktok_handle && (
+            <div className="flex items-center text-sm">
+              <svg className="h-4 w-4 mr-2 text-gray-500" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M19.321 5.562a5.124 5.124 0 0 1-.443-.258 6.228 6.228 0 0 1-1.137-.966c-.849-.849-1.294-1.903-1.294-3.056V.91h-3.239v14.19c0 2.084-1.695 3.779-3.779 3.779s-3.779-1.695-3.779-3.779 1.695-3.779 3.779-3.779c.211 0 .418.017.621.051v-3.301a7.084 7.084 0 0 0-.621-.027C4.771 7.044.944 10.871.944 15.529s3.827 8.485 8.485 8.485 8.485-3.827 8.485-8.485V9.831a9.109 9.109 0 0 0 5.165 1.591v-3.239a5.85 5.85 0 0 1-3.758-2.621z"/>
+              </svg>
+              <a 
+                href={`https://tiktok.com/@${creator.tiktok_handle}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary-600 hover:underline truncate"
+                onClick={(e) => e.stopPropagation()}
+              >
+                @{creator.tiktok_handle}
+              </a>
+            </div>
+          )}
+          
+          {creator.portfolio_link && (
+            <div className="flex items-center text-sm">
+              <ExternalLink className="h-4 w-4 mr-2 text-gray-500" />
+              <a 
+                href={creator.portfolio_link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary-600 hover:underline truncate"
+                onClick={(e) => e.stopPropagation()}
+              >
+                Portfolio
+              </a>
             </div>
           )}
         </div>
