@@ -107,6 +107,23 @@ export async function updateUgcCreator(creator: Partial<UgcCreator> & { id: stri
 }
 
 export async function deleteUgcCreator(creatorId: string): Promise<void> {
+  // First, get the creator to check if it's the "To Be Determined" creator
+  const { data: creator, error: fetchError } = await supabase
+    .from('ugc_creators')
+    .select('name')
+    .eq('id', creatorId)
+    .single();
+
+  if (fetchError) {
+    console.error('Error fetching creator for deletion check:', fetchError);
+    throw fetchError;
+  }
+
+  // Prevent deletion of the "To Be Determined" creator
+  if (creator && creator.name === 'To Be Determined') {
+    throw new Error('Cannot delete the "To Be Determined" creator as it is a system creator.');
+  }
+
   const { error } = await supabase
     .from('ugc_creators')
     .delete()

@@ -861,13 +861,17 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
   const filteredCreators = creators.filter(creator => {
     const matchesSearch = creator.name.toLowerCase().includes(creatorSearch.toLowerCase());
     const matchesStatus = activeCreatorStatus === 'All' || creator.status === activeCreatorStatus;
-    return matchesSearch && matchesStatus;
+    // Hide the "To Be Determined" creator from the creator view
+    const isNotTBDCreator = creator.name !== 'To Be Determined';
+    return matchesSearch && matchesStatus && isNotTBDCreator;
   });
 
   // Get creator count by status for filter badges
   const getCreatorCountByStatus = (status: string) => {
-    if (status === 'All') return creators.length;
-    return creators.filter(creator => creator.status === status).length;
+    // Filter out "To Be Determined" creator from counts
+    const creatorsExcludingTBD = creators.filter(creator => creator.name !== 'To Be Determined');
+    if (status === 'All') return creatorsExcludingTBD.length;
+    return creatorsExcludingTBD.filter(creator => creator.status === status).length;
   };
 
   // Handle creator update from CreatorCard

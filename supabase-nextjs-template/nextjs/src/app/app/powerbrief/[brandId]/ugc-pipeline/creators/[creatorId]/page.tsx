@@ -235,14 +235,16 @@ export default function CreatorDetailPage({ params }: { params: ParamsType | Pro
         </div>
         
         <div className="flex gap-2">
-          <Button 
-            variant="destructive" 
-            size="sm"
-            onClick={() => setShowDeleteDialog(true)}
-          >
-            <Trash2 className="h-4 w-4 mr-2" />
-            Delete
-          </Button>
+          {creator.name !== 'To Be Determined' && (
+            <Button 
+              variant="destructive" 
+              size="sm"
+              onClick={() => setShowDeleteDialog(true)}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete
+            </Button>
+          )}
           <Link href={`/app/powerbrief/${brandId}/ugc-pipeline/creators/${creatorId}/edit`}>
             <Button variant="outline" size="sm">
               <PenLine className="h-4 w-4 mr-2" />
