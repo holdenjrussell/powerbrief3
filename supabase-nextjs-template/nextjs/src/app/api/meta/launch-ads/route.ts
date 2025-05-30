@@ -347,16 +347,36 @@ const findVideoThumbnail = async (videoName: string, conceptId: string, supabase
   try {
     console.log(`[Launch API]       Looking for thumbnail for video: ${videoName}`);
     
+    // First, check the database for a thumbnail_url for this specific video asset
+    const { data: assetData, error: assetError } = await supabase
+      .from('ad_draft_assets')
+      .select('thumbnail_url')
+      .eq('ad_draft_id', conceptId)
+      .eq('name', videoName)
+      .eq('type', 'video')
+      .single();
+    
+    if (!assetError && assetData?.thumbnail_url) {
+      console.log(`[Launch API]       Found thumbnail in database for ${videoName}: ${assetData.thumbnail_url}`);
+      return { thumbnailUrl: assetData.thumbnail_url };
+    }
+    
+    if (assetError && assetError.code !== 'PGRST116') { // PGRST116 = no rows returned
+      console.warn(`[Launch API]       Database error searching for thumbnail: ${assetError.message}`);
+    } else {
+      console.log(`[Launch API]       No thumbnail found in database for ${videoName}, trying file system...`);
+    }
+    
+    // Fallback: search for thumbnail files in storage (legacy method)
     // Extract base name from video (remove extension and common suffixes)
     const baseName = videoName.split('.')[0].replace(/_compressed|_comp|-compressed|-comp/g, '');
-    const thumbnailName = `${baseName}_thumbnail.jpg`;
     
     // List files in the concept folder to find the thumbnail
     const { data: files, error } = await supabase.storage
       .from('ad-creatives')
       .list(conceptId, {
         limit: 100,
-        search: thumbnailName
+        search: '_thumbnail.jpg'
       });
     
     if (error) {
@@ -365,7 +385,10 @@ const findVideoThumbnail = async (videoName: string, conceptId: string, supabase
     }
     
     // Look for the thumbnail file
-    const thumbnailFile = files?.find(file => file.name.includes('_thumbnail.jpg'));
+    const thumbnailFile = files?.find(file => 
+      file.name.includes('_thumbnail.jpg') && 
+      (file.name.includes(baseName) || file.name.includes(videoName.split('.')[0]))
+    );
     
     if (thumbnailFile) {
       const { data: { publicUrl } } = supabase.storage
@@ -373,7 +396,7 @@ const findVideoThumbnail = async (videoName: string, conceptId: string, supabase
         .getPublicUrl(`${conceptId}/${thumbnailFile.name}`);
       
       if (publicUrl) {
-        console.log(`[Launch API]       Found thumbnail for ${videoName}: ${publicUrl}`);
+        console.log(`[Launch API]       Found thumbnail file for ${videoName}: ${publicUrl}`);
         return { thumbnailUrl: publicUrl };
       }
     }

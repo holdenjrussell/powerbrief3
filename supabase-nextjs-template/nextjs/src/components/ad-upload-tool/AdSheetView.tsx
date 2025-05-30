@@ -38,7 +38,6 @@ import {
 } from './adUploadTypes';
 import BulkEditModal from './BulkEditModal'; // Import BulkEditModal
 import BulkRenameModal from './BulkRenameModal'; // Import BulkRenameModal
-import { needsCompression, compressVideoWithQuality, getFileSizeMB } from '@/lib/utils/videoCompression';
 import { createSPAClient } from '@/lib/supabase/client';
 
 // DefaultValues interface is now imported and aliased
@@ -1314,20 +1313,28 @@ Are you sure you want to continue?`;
     try {
       // Get all video assets from checked drafts that might need thumbnails
       const checkedDrafts = filteredAdDrafts.filter(draft => checkedDraftIds.has(draft.id));
-      const videoAssets: { assetId: string; assetName: string; supabaseUrl: string; draftId: string }[] = [];
       
-      checkedDrafts.forEach(draft => {
-        draft.assets.forEach(asset => {
-          if (asset.type === 'video') {
-            videoAssets.push({
-              assetId: crypto.randomUUID(), // This would be the actual asset ID from database
-              assetName: asset.name,
-              supabaseUrl: asset.supabaseUrl,
-              draftId: draft.id
-            });
-          }
-        });
+      if (checkedDrafts.length === 0) {
+        alert('No video assets found in selected drafts.');
+        return;
+      }
+      
+      // First, get the actual asset IDs from the database
+      const response = await fetch('/api/ad-drafts/assets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          brandId: defaults.brandId,
+          draftIds: checkedDrafts.map(d => d.id)
+        }),
       });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch asset information from database');
+      }
+      
+      const assetsFromDb = await response.json();
+      const videoAssets = assetsFromDb.filter((asset: { id: string; name: string; supabase_url: string; type: string; ad_draft_id: string }) => asset.type === 'video');
       
       if (videoAssets.length === 0) {
         alert('No video assets found in selected drafts.');
@@ -1338,25 +1345,25 @@ Are you sure you want to continue?`;
       const supabase = createSPAClient();
       let processed = 0;
       
-      for (const videoAsset of videoAssets) {
+      for (const dbAsset of videoAssets) {
         try {
-          setThumbnailProgress(prev => ({ ...prev, [videoAsset.assetId]: 0 }));
+          setThumbnailProgress(prev => ({ ...prev, [dbAsset.id]: 0 }));
           
           // Extract thumbnail from video
-          const { thumbnailBlob, error } = await extractVideoThumbnailFromUrl(videoAsset.supabaseUrl);
+          const { thumbnailBlob, error } = await extractVideoThumbnailFromUrl(dbAsset.supabase_url);
           
-          setThumbnailProgress(prev => ({ ...prev, [videoAsset.assetId]: 50 }));
+          setThumbnailProgress(prev => ({ ...prev, [dbAsset.id]: 50 }));
           
           if (error || !thumbnailBlob || thumbnailBlob.size === 0) {
-            console.warn(`Could not extract thumbnail for ${videoAsset.assetName}: ${error}`);
-            setThumbnailProgress(prev => ({ ...prev, [videoAsset.assetId]: -1 })); // Error state
+            console.warn(`Could not extract thumbnail for ${dbAsset.name}: ${error}`);
+            setThumbnailProgress(prev => ({ ...prev, [dbAsset.id]: -1 })); // Error state
             continue;
           }
           
           // Upload thumbnail to Supabase
           const timestamp = Date.now();
-          const thumbnailFileName = `${videoAsset.assetName.split('.')[0]}_thumbnail.jpg`;
-          const thumbnailPath = `${videoAsset.draftId}/${timestamp}_${thumbnailFileName}`;
+          const thumbnailFileName = `${dbAsset.name.split('.')[0]}_thumbnail.jpg`;
+          const thumbnailPath = `${dbAsset.ad_draft_id}/${timestamp}_${thumbnailFileName}`;
           
           const { data, error: uploadError } = await supabase.storage
             .from('ad-creatives')
@@ -1366,8 +1373,8 @@ Are you sure you want to continue?`;
             });
           
           if (uploadError || !data) {
-            console.error(`Failed to upload thumbnail for ${videoAsset.assetName}:`, uploadError);
-            setThumbnailProgress(prev => ({ ...prev, [videoAsset.assetId]: -1 })); // Error state
+            console.error(`Failed to upload thumbnail for ${dbAsset.name}:`, uploadError);
+            setThumbnailProgress(prev => ({ ...prev, [dbAsset.id]: -1 })); // Error state
             continue;
           }
           
@@ -1377,18 +1384,33 @@ Are you sure you want to continue?`;
             .getPublicUrl(thumbnailPath);
           
           if (publicUrl) {
-            console.log(`Thumbnail generated and uploaded for ${videoAsset.assetName}: ${publicUrl}`);
-            setThumbnailProgress(prev => ({ ...prev, [videoAsset.assetId]: 100 }));
+            // Update the database with the thumbnail URL
+            const { error: updateError } = await supabase
+              .from('ad_draft_assets')
+              .update({ thumbnail_url: publicUrl })
+              .eq('id', dbAsset.id);
+            
+            if (updateError) {
+              console.error(`Failed to update thumbnail URL in database for ${dbAsset.name}:`, updateError);
+              setThumbnailProgress(prev => ({ ...prev, [dbAsset.id]: -1 })); // Error state
+              continue;
+            }
+            
+            console.log(`Thumbnail generated, uploaded, and saved to database for ${dbAsset.name}: ${publicUrl}`);
+            setThumbnailProgress(prev => ({ ...prev, [dbAsset.id]: 100 }));
             processed++;
           }
           
         } catch (error) {
-          console.error(`Error processing ${videoAsset.assetName}:`, error);
-          setThumbnailProgress(prev => ({ ...prev, [videoAsset.assetId]: -1 })); // Error state
+          console.error(`Error processing ${dbAsset.name}:`, error);
+          setThumbnailProgress(prev => ({ ...prev, [dbAsset.id]: -1 })); // Error state
         }
       }
       
       alert(`Thumbnail generation complete. Processed ${processed} of ${videoAssets.length} videos.`);
+      
+      // Refresh the ad drafts to show the updated thumbnails
+      await refreshAdDrafts();
       
     } catch (error) {
       console.error('Error in thumbnail generation:', error);
