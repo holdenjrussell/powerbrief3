@@ -846,6 +846,8 @@ export async function POST(req: NextRequest) {
           });
         }
 
+              }
+
       } else if (feedAssets.length > 0 || storyAssets.length > 0) {
         // Use the first available asset (fallback to simple approach)
         const availableAssets = feedAssets.length > 0 ? feedAssets : storyAssets;
