@@ -168,6 +168,122 @@ const createPageBackedInstagramAccount = async (pageId: string, accessToken: str
   }
 };
 
+// Helper function to upload large videos using Meta's Resumable Upload API
+async function uploadVideoUsingResumableAPI(
+  assetBlob: Blob, 
+  assetName: string, 
+  adAccountId: string, 
+  accessToken: string
+): Promise<{ videoId?: string; error?: string }> {
+  try {
+    console.log(`[Launch API]     Using Resumable Upload API for video: ${assetName} (${(assetBlob.size / 1024 / 1024).toFixed(2)}MB)`);
+    
+    // Ensure adAccountId has the proper format (remove extra 'act_' if it exists)
+    const formattedAdAccountId = adAccountId.startsWith('act_') ? adAccountId.substring(4) : adAccountId;
+    
+    // Step 1: Initialize upload session
+    console.log(`[Launch API]       Step 1: Initializing upload session...`);
+    const initUrl = `https://graph.facebook.com/${META_API_VERSION}/act_${formattedAdAccountId}/video_ads`;
+    const initParams = new URLSearchParams({
+      upload_phase: 'start',
+      access_token: accessToken
+    });
+
+    const initResponse = await fetch(initUrl, {
+      method: 'POST',
+      body: initParams
+    });
+
+    if (!initResponse.ok) {
+      const errorText = await initResponse.text();
+      console.error(`[Launch API]       Failed to initialize upload session:`, {
+        status: initResponse.status,
+        statusText: initResponse.statusText,
+        error: errorText
+      });
+      return { error: `Failed to initialize upload: ${initResponse.status} ${initResponse.statusText}` };
+    }
+
+    const initResult = await initResponse.json();
+    if (initResult.error) {
+      console.error(`[Launch API]       Upload initialization error:`, initResult.error);
+      return { error: initResult.error.message || 'Failed to initialize upload session' };
+    }
+
+    const { video_id: videoId, upload_url: uploadUrl } = initResult;
+    if (!videoId || !uploadUrl) {
+      console.error(`[Launch API]       Missing video_id or upload_url in response:`, initResult);
+      return { error: 'Invalid response from upload initialization' };
+    }
+
+    console.log(`[Launch API]       Step 2: Uploading video to ${uploadUrl}...`);
+    
+    // Step 2: Upload the video file
+    const uploadResponse = await fetch(uploadUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `OAuth ${accessToken}`,
+        'offset': '0',
+        'file_size': assetBlob.size.toString()
+      },
+      body: assetBlob
+    });
+
+    if (!uploadResponse.ok) {
+      const errorText = await uploadResponse.text();
+      console.error(`[Launch API]       Failed to upload video:`, {
+        status: uploadResponse.status,
+        statusText: uploadResponse.statusText,
+        error: errorText
+      });
+      return { error: `Failed to upload video: ${uploadResponse.status} ${uploadResponse.statusText}` };
+    }
+
+    const uploadResult = await uploadResponse.json();
+    if (!uploadResult.success) {
+      console.error(`[Launch API]       Video upload was not successful:`, uploadResult);
+      return { error: 'Video upload was not successful' };
+    }
+
+    console.log(`[Launch API]       Step 3: Finishing upload session...`);
+    
+    // Step 3: Finish the upload session to publish the video
+    const finishParams = new URLSearchParams({
+      upload_phase: 'finish',
+      video_id: videoId,
+      access_token: accessToken
+    });
+
+    const finishResponse = await fetch(initUrl, {
+      method: 'POST',
+      body: finishParams
+    });
+
+    if (!finishResponse.ok) {
+      const errorText = await finishResponse.text();
+      console.error(`[Launch API]       Failed to finish upload session:`, {
+        status: finishResponse.status,
+        statusText: finishResponse.statusText,
+        error: errorText
+      });
+      return { error: `Failed to finish upload: ${finishResponse.status} ${finishResponse.statusText}` };
+    }
+
+    const finishResult = await finishResponse.json();
+    if (!finishResult.success) {
+      console.error(`[Launch API]       Upload session finish was not successful:`, finishResult);
+      return { error: 'Failed to finish upload session' };
+    }
+
+    console.log(`[Launch API]       Video upload completed successfully. ID: ${videoId}`);
+    return { videoId };
+
+  } catch (error) {
+    console.error(`[Launch API]       Error in Resumable Upload API:`, error);
+    return { error: `Resumable upload failed: ${(error as Error).message}` };
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json() as LaunchAdsRequestBody;
@@ -334,93 +450,101 @@ export async function POST(req: NextRequest) {
           }
           const assetBlob = await assetResponse.blob();
 
-          const formData = new FormData();
-          formData.append('access_token', accessToken);
-          formData.append('source', assetBlob, asset.name);
-
           // Ensure adAccountId has the proper format (remove extra 'act_' if it exists)
           const formattedAdAccountId = adAccountId.startsWith('act_') ? adAccountId.substring(4) : adAccountId;
           
-          let metaUploadUrl = '';
           if (asset.type === 'image') {
-            metaUploadUrl = `https://graph.facebook.com/${META_API_VERSION}/act_${formattedAdAccountId}/adimages`;
+            // Use existing direct upload for images
+            const formData = new FormData();
+            formData.append('access_token', accessToken);
+            formData.append('source', assetBlob, asset.name);
+
+            const metaUploadUrl = `https://graph.facebook.com/${META_API_VERSION}/act_${formattedAdAccountId}/adimages`;
+
+            console.log(`[Launch API]     Uploading image ${asset.name} to ${metaUploadUrl.split('?')[0]}...`);
+            const metaResponse = await fetch(metaUploadUrl, {
+              method: 'POST',
+              body: formData,
+            });
+
+            // Check if response is ok and has content before parsing JSON
+            if (!metaResponse.ok) {
+              console.error(`[Launch API]     HTTP error uploading ${asset.name} to Meta:`, {
+                status: metaResponse.status,
+                statusText: metaResponse.statusText,
+                url: metaUploadUrl.split('?')[0]
+              });
+              updatedAssets.push({ ...asset, metaUploadError: `HTTP ${metaResponse.status}: ${metaResponse.statusText}` });
+              continue;
+            }
+
+            // Check if response has content and is JSON
+            const contentType = metaResponse.headers.get('content-type');
+            if (!contentType || !contentType.includes('application/json')) {
+              console.error(`[Launch API]     Non-JSON response uploading ${asset.name} to Meta:`, {
+                contentType,
+                status: metaResponse.status,
+                statusText: metaResponse.statusText
+              });
+              updatedAssets.push({ ...asset, metaUploadError: 'Meta API returned non-JSON response' });
+              continue;
+            }
+
+            let metaResult;
+            try {
+              const responseText = await metaResponse.text();
+              if (!responseText.trim()) {
+                console.error(`[Launch API]     Empty response uploading ${asset.name} to Meta`);
+                updatedAssets.push({ ...asset, metaUploadError: 'Meta API returned empty response' });
+                continue;
+              }
+              metaResult = JSON.parse(responseText);
+            } catch (jsonError) {
+              console.error(`[Launch API]     JSON parse error uploading ${asset.name} to Meta:`, jsonError);
+              updatedAssets.push({ ...asset, metaUploadError: `Failed to parse Meta API response: ${(jsonError as Error).message}` });
+              continue;
+            }
+
+            // Check if the parsed result contains an error
+            if (metaResult.error) {
+              console.error(`[Launch API]     Error uploading ${asset.name} to Meta:`, metaResult.error);
+              updatedAssets.push({ ...asset, metaUploadError: metaResult.error?.message || `Failed to upload ${asset.name}` });
+              continue;
+            }
+
+            const imageHash = metaResult.images?.[asset.name]?.hash;
+            if (!imageHash) {
+              console.error('[Launch API]     Could not find image hash in Meta response for:', asset.name, metaResult);
+              updatedAssets.push({ ...asset, metaUploadError: 'Image hash not found in Meta response' });
+              continue;
+            }
+            console.log(`[Launch API]     Image ${asset.name} uploaded. Hash: ${imageHash}`);
+            updatedAssets.push({ ...asset, metaHash: imageHash });
+
           } else if (asset.type === 'video') {
-            metaUploadUrl = `https://graph.facebook.com/${META_API_VERSION}/act_${formattedAdAccountId}/advideos`;
+            // Always use Resumable Upload API for videos - it supports larger files (up to 10GB)
+            // and is more reliable than direct upload which has size limitations that cause 413 errors
+            const { videoId, error } = await uploadVideoUsingResumableAPI(assetBlob, asset.name, adAccountId, accessToken);
+            
+            if (error) {
+              console.error(`[Launch API]     Failed to upload video ${asset.name}:`, error);
+              updatedAssets.push({ ...asset, metaUploadError: error });
+              continue;
+            }
+
+            if (!videoId) {
+              console.error('[Launch API]     Video upload succeeded but no video ID returned for:', asset.name);
+              updatedAssets.push({ ...asset, metaUploadError: 'Video ID not found in Meta response' });
+              continue;
+            }
+
+            console.log(`[Launch API]     Video ${asset.name} uploaded using Resumable API. ID: ${videoId}`);
+            updatedAssets.push({ ...asset, metaVideoId: videoId });
+
           } else {
             console.warn(`[Launch API]     Unsupported asset type: ${asset.type} for asset ${asset.name}`);
             updatedAssets.push({ ...asset, metaUploadError: 'Unsupported type' });
             continue;
-          }
-
-          console.log(`[Launch API]     Uploading ${asset.name} to ${metaUploadUrl.split('?')[0]}...`);
-          const metaResponse = await fetch(metaUploadUrl, {
-            method: 'POST',
-            body: formData,
-          });
-
-          // Check if response is ok and has content before parsing JSON
-          if (!metaResponse.ok) {
-            console.error(`[Launch API]     HTTP error uploading ${asset.name} to Meta:`, {
-              status: metaResponse.status,
-              statusText: metaResponse.statusText,
-              url: metaUploadUrl.split('?')[0]
-            });
-            updatedAssets.push({ ...asset, metaUploadError: `HTTP ${metaResponse.status}: ${metaResponse.statusText}` });
-            continue;
-          }
-
-          // Check if response has content and is JSON
-          const contentType = metaResponse.headers.get('content-type');
-          if (!contentType || !contentType.includes('application/json')) {
-            console.error(`[Launch API]     Non-JSON response uploading ${asset.name} to Meta:`, {
-              contentType,
-              status: metaResponse.status,
-              statusText: metaResponse.statusText
-            });
-            updatedAssets.push({ ...asset, metaUploadError: 'Meta API returned non-JSON response' });
-            continue;
-          }
-
-          let metaResult;
-          try {
-            const responseText = await metaResponse.text();
-            if (!responseText.trim()) {
-              console.error(`[Launch API]     Empty response uploading ${asset.name} to Meta`);
-              updatedAssets.push({ ...asset, metaUploadError: 'Meta API returned empty response' });
-              continue;
-            }
-            metaResult = JSON.parse(responseText);
-          } catch (jsonError) {
-            console.error(`[Launch API]     JSON parse error uploading ${asset.name} to Meta:`, jsonError);
-            updatedAssets.push({ ...asset, metaUploadError: `Failed to parse Meta API response: ${(jsonError as Error).message}` });
-            continue;
-          }
-
-          // Check if the parsed result contains an error
-          if (metaResult.error) {
-            console.error(`[Launch API]     Error uploading ${asset.name} to Meta:`, metaResult.error);
-            updatedAssets.push({ ...asset, metaUploadError: metaResult.error?.message || `Failed to upload ${asset.name}` });
-            continue;
-          }
-
-          if (asset.type === 'image') {
-            const imageHash = metaResult.images?.[asset.name]?.hash;
-            if (!imageHash) {
-                 console.error('[Launch API]     Could not find image hash in Meta response for:', asset.name, metaResult);
-                 updatedAssets.push({ ...asset, metaUploadError: 'Image hash not found in Meta response' });
-                 continue;
-            }
-            console.log(`[Launch API]     Image ${asset.name} uploaded. Hash: ${imageHash}`);
-            updatedAssets.push({ ...asset, metaHash: imageHash });
-          } else if (asset.type === 'video') {
-            const videoId = metaResult.id;
-            if (!videoId) {
-                console.error('[Launch API]     Could not find video ID in Meta response for:', asset.name, metaResult);
-                updatedAssets.push({ ...asset, metaUploadError: 'Video ID not found in Meta response' });
-                continue;
-            }
-            console.log(`[Launch API]     Video ${asset.name} uploaded. ID: ${videoId}`);
-            updatedAssets.push({ ...asset, metaVideoId: videoId });
           }
         } catch (uploadError) {
           console.error(`[Launch API]     Failed to upload asset ${asset.name}:`, uploadError);
@@ -692,16 +816,14 @@ export async function POST(req: NextRequest) {
             image_hash: selectedAsset.metaHash
           };
         } else if (selectedAsset.type === 'video' && selectedAsset.metaVideoId) {
-          creativeSpec.object_story_spec.link_data = {
+          creativeSpec.object_story_spec.video_data = {
+            video_id: selectedAsset.metaVideoId,
             message: draft.primaryText,
-            link: draft.destinationUrl,
             call_to_action: {
               type: draft.callToAction?.toUpperCase().replace(/\s+/g, '_'),
               value: { link: draft.destinationUrl },
             },
-            name: draft.headline,
-            ...(draft.description && { description: draft.description }),
-            video_id: selectedAsset.metaVideoId
+            title: draft.headline
           };
         }
         

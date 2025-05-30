@@ -14,9 +14,9 @@ import {
   X,
   ExternalLink,
   Sparkles,
-  Settings,
   RefreshCw,
-  Zap
+  Zap,
+  Brain
 } from 'lucide-react';
 import AssetImportModal from './AssetImportModal';
 import MetaCampaignSelector from './MetaCampaignSelector';
@@ -75,6 +75,20 @@ interface AdBatch {
   updated_at: string;
 }
 
+interface CopyGenerationResult {
+  assetId: string;
+  assetName: string;
+  adDraftId: string;
+  adDraftName: string;
+  generatedCopy?: {
+    Headline: string;
+    "Body Copy": string;
+    Description: string;
+  };
+  error?: string;
+  success: boolean;
+}
+
 const initialColumns: ColumnDef<AdDraft>[] = [
     { id: 'select', label: 'Select', visible: true, type: 'custom' as const },
     { id: 'adName', label: 'Ad Name', visible: true, type: 'text' as const },
@@ -109,6 +123,13 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, activeBatch, select
   const [hidePublished, setHidePublished] = useState(true); // Simple toggle for hiding published ads
   const [isCompressing, setIsCompressing] = useState(false); // State for video compression
   const [compressionProgress, setCompressionProgress] = useState<{[key: string]: number}>({}); // Progress per asset
+  
+  // Add new state for copy generation
+  const [isGeneratingCopy, setIsGeneratingCopy] = useState(false);
+  const [showCopyResultsModal, setShowCopyResultsModal] = useState(false);
+  const [copyResults, setCopyResults] = useState<CopyGenerationResult[]>([]);
+  const [showCustomPromptModal, setShowCustomPromptModal] = useState(false);
+  const [customPrompt, setCustomPrompt] = useState('');
   
   // Asset preview modal state
   const [assetPreviewModal, setAssetPreviewModal] = useState<{
@@ -875,6 +896,25 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, activeBatch, select
         );
       default:
         const displayValue = String(value || '-');
+        
+        // Special handling for primary text to allow proper text wrapping and line breaks
+        if (column.id === 'primaryText') {
+          return (
+            <div 
+              className={`text-sm p-3 min-h-[4rem] whitespace-pre-wrap break-words leading-relaxed ${column.type !== 'custom' && column.type !== 'status' ? 'cursor-pointer hover:bg-gray-100 rounded' : ''}`}
+              onClick={() => {
+                if (column.type !== 'custom' && column.type !== 'status') { 
+                  setEditingCell({rowIndex, columnId: column.id as Extract<keyof AdDraft, string>});
+                }
+              }}
+              title="Click to edit"
+              style={{ minWidth: '300px', maxWidth: '500px' }}
+            >
+              {displayValue}
+            </div>
+          );
+        }
+        
         return (
             <span 
                 className={`truncate text-sm p-1 ${column.type !== 'custom' && column.type !== 'status' ? 'cursor-pointer hover:bg-gray-100' : ''}`}
@@ -1293,6 +1333,129 @@ ${compressedCount > 0 ? 'Compressed videos have been updated in your ads.' : ''}
     }
   };
 
+  const handleGenerateCopy = async () => {
+    if (checkedDraftIds.size === 0) {
+      alert("Please select at least one ad draft to generate copy.");
+      return;
+    }
+
+    if (!defaults.brandId) {
+      alert("Brand ID is missing. Please ensure your brand is properly configured.");
+      return;
+    }
+
+    const selectedDrafts = filteredAdDrafts.filter(draft => checkedDraftIds.has(draft.id));
+    
+    // Get all assets from selected drafts
+    const allAssets: { assetId: string; assetName: string; draftId: string; draftName: string }[] = [];
+    
+    selectedDrafts.forEach(draft => {
+      draft.assets.forEach(asset => {
+        allAssets.push({
+          assetId: `${draft.id}-${asset.name}`,
+          assetName: asset.name,
+          draftId: draft.id,
+          draftName: draft.adName
+        });
+      });
+    });
+
+    if (allAssets.length === 0) {
+      alert("No assets found in selected ad drafts. Please ensure your ads have assets before generating copy.");
+      return;
+    }
+
+    // Show custom prompt modal first
+    setShowCustomPromptModal(true);
+  };
+
+  const handleGenerateCopyWithPrompt = async (promptText: string) => {
+    const selectedDrafts = filteredAdDrafts.filter(draft => checkedDraftIds.has(draft.id));
+    
+    setIsGeneratingCopy(true);
+    setCopyResults([]);
+    setShowCustomPromptModal(false);
+
+    try {
+      // Get asset IDs from the database first
+      const response = await fetch('/api/ad-drafts/assets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          brandId: defaults.brandId,
+          draftIds: selectedDrafts.map(d => d.id)
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch asset information');
+      }
+
+      const assetsData = await response.json();
+      const assetIds = assetsData.map((asset: { id: string }) => asset.id);
+
+      if (assetIds.length === 0) {
+        throw new Error('No assets found in the database for selected drafts');
+      }
+
+      // Call the copy generation API with custom prompt
+      const copyResponse = await fetch('/api/ai/generate-copy-from-assets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          brandId: defaults.brandId,
+          assetIds: assetIds,
+          customPrompt: promptText
+        }),
+      });
+
+      if (!copyResponse.ok) {
+        const errorData = await copyResponse.json().catch(() => null);
+        throw new Error(errorData?.error || 'Failed to generate copy');
+      }
+
+      const results = await copyResponse.json();
+      setCopyResults(results.results || []);
+
+      // Apply successful results to ad drafts
+      let appliedCount = 0;
+      for (const result of results.results) {
+        if (result.success && result.generatedCopy) {
+          // Update the corresponding ad draft
+          setAdDrafts(prevDrafts => 
+            prevDrafts.map(draft => {
+              if (draft.id === result.adDraftId) {
+                appliedCount++;
+                return {
+                  ...draft,
+                  headline: result.generatedCopy.Headline || draft.headline,
+                  primaryText: result.generatedCopy["Body Copy"] || draft.primaryText,
+                  description: result.generatedCopy.Description || draft.description
+                };
+              }
+              return draft;
+            })
+          );
+        }
+      }
+
+      // Show results modal
+      setShowCopyResultsModal(true);
+
+      // Show completion message
+      const successCount = results.results.filter((r: { success: boolean }) => r.success).length;
+      const failureCount = results.results.length - successCount;
+      
+      alert(`Copy generation complete!\n\n✅ Generated: ${successCount} assets\n❌ Failed: ${failureCount} assets\n📝 Applied to ads: ${appliedCount} drafts`);
+
+    } catch (error) {
+      console.error('Copy generation failed:', error);
+      alert(`Copy generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsGeneratingCopy(false);
+    }
+  };
+
   return (
     <div className="mt-6 pb-16">
         <div className="bg-white p-4 sm:p-6 rounded-lg shadow mb-6">
@@ -1384,6 +1547,27 @@ ${compressedCount > 0 ? 'Compressed videos have been updated in your ads.' : ''}
                     <RefreshCw className="mr-2 h-4 w-4" /> 
                     Apply Selected Config ({checkedDraftIds.size})
                 </button>
+                
+                {/* Generate Copy Button */}
+                <button
+                    onClick={handleGenerateCopy}
+                    disabled={checkedDraftIds.size === 0 || isGeneratingCopy}
+                    className="px-4 py-2 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 rounded-md shadow-sm flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Generate AI copy for assets in selected ad drafts"
+                 >
+                    {isGeneratingCopy ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Generating Copy...
+                      </>
+                    ) : (
+                      <>
+                        <Brain className="mr-2 h-4 w-4" /> 
+                        Generate Copy ({checkedDraftIds.size})
+                      </>
+                    )}
+                </button>
+                
                 {/* Temporarily hidden - Manual Compress button
                 <button
                     onClick={handleCompressVideos}
@@ -1596,6 +1780,174 @@ ${compressedCount > 0 ? 'Compressed videos have been updated in your ads.' : ''}
         brandId={defaults.brandId || ''}
       />
       <AssetPreviewModal />
+      
+      {/* Custom Prompt Modal */}
+      {showCustomPromptModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-semibold text-gray-800">Customize AI Copy Generation</h2>
+                <button
+                  onClick={() => setShowCustomPromptModal(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                  aria-label="Close modal"
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+
+              <div className="mb-6">
+                <p className="text-gray-600 mb-4">
+                  Add custom instructions to guide the AI in generating copy for your selected assets. 
+                  Leave blank to use the default Meta ad optimization prompts.
+                </p>
+                
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Custom Prompt (Optional)
+                </label>
+                <textarea
+                  value={customPrompt}
+                  onChange={(e) => setCustomPrompt(e.target.value)}
+                  rows={6}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                  placeholder="Example: Focus on eco-friendly benefits, use emotional language, emphasize family values..."
+                />
+                
+                <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <h4 className="text-sm font-medium text-blue-800 mb-2">What will be analyzed:</h4>
+                  <div className="text-sm text-blue-700">
+                    <p>• {filteredAdDrafts.filter(draft => checkedDraftIds.has(draft.id)).length} selected ad drafts</p>
+                    <p>• {filteredAdDrafts.filter(draft => checkedDraftIds.has(draft.id)).reduce((total, draft) => total + draft.assets.length, 0)} total assets</p>
+                    <p>• Your brand information and target audience data</p>
+                    <p>• Asset content using AI vision analysis</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={() => setShowCustomPromptModal(false)}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleGenerateCopyWithPrompt(customPrompt)}
+                  disabled={isGeneratingCopy}
+                  className="px-4 py-2 text-sm font-medium text-white bg-purple-600 border border-transparent rounded-md hover:bg-purple-700 disabled:opacity-50"
+                >
+                  {isGeneratingCopy ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Brain className="mr-2 h-4 w-4" />
+                      Generate Copy
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Copy Results Modal */}
+      {showCopyResultsModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-semibold text-gray-800">Copy Generation Results</h2>
+                <button
+                  onClick={() => setShowCopyResultsModal(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                  aria-label="Close results modal"
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+
+              <div className="mb-6">
+                <div className="grid grid-cols-3 gap-4 text-sm">
+                  <div className="text-center p-3 bg-green-50 rounded-lg">
+                    <div className="text-green-600 font-semibold text-lg">
+                      {copyResults.filter(r => r.success).length}
+                    </div>
+                    <div className="text-green-700">Successful</div>
+                  </div>
+                  <div className="text-center p-3 bg-red-50 rounded-lg">
+                    <div className="text-red-600 font-semibold text-lg">
+                      {copyResults.filter(r => !r.success).length}
+                    </div>
+                    <div className="text-red-700">Failed</div>
+                  </div>
+                  <div className="text-center p-3 bg-blue-50 rounded-lg">
+                    <div className="text-blue-600 font-semibold text-lg">
+                      {copyResults.length}
+                    </div>
+                    <div className="text-blue-700">Total</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4 max-h-96 overflow-y-auto">
+                {copyResults.map((result, index) => (
+                  <div key={index} className={`p-4 rounded-lg border ${
+                    result.success ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'
+                  }`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="font-medium text-gray-900">
+                        {result.assetName} ({result.adDraftName})
+                      </h3>
+                      <span className={`px-2 py-1 text-xs rounded-full ${
+                        result.success 
+                          ? 'bg-green-100 text-green-800' 
+                          : 'bg-red-100 text-red-800'
+                      }`}>
+                        {result.success ? 'Success' : 'Failed'}
+                      </span>
+                    </div>
+                    
+                    {result.success && result.generatedCopy ? (
+                      <div className="space-y-2 text-sm">
+                        <div>
+                          <span className="font-medium text-gray-700">Headline:</span>
+                          <div className="text-gray-600 ml-2">{result.generatedCopy.Headline}</div>
+                        </div>
+                        <div>
+                          <span className="font-medium text-gray-700">Body Copy:</span>
+                          <div className="text-gray-600 ml-2 whitespace-pre-wrap">{result.generatedCopy["Body Copy"]}</div>
+                        </div>
+                        <div>
+                          <span className="font-medium text-gray-700">Description:</span>
+                          <div className="text-gray-600 ml-2">{result.generatedCopy.Description}</div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-red-600 text-sm">
+                        Error: {result.error || 'Unknown error occurred'}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex justify-end space-x-3 pt-4 border-t mt-6">
+                <button
+                  onClick={() => setShowCopyResultsModal(false)}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
