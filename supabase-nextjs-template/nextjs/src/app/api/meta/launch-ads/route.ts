@@ -75,8 +75,37 @@ const checkVideoStatus = async (videoId: string, accessToken: string): Promise<{
     const response = await fetch(videoApiUrl);
     
     if (!response.ok) {
-      console.warn(`[Launch API] Could not check video status for ${videoId}: ${response.status}`);
-      return { ready: false };
+      // Handle different HTTP error codes appropriately
+      if (response.status === 400) {
+        // 400 Bad Request usually means invalid video ID or video not found
+        // This is a permanent failure, not a temporary issue
+        console.error(`[Launch API] Video ${videoId} returned 400 Bad Request - likely invalid or deleted video`);
+        return { 
+          ready: false, 
+          status: 'error',
+          error: `Video not found or invalid (HTTP 400)` 
+        };
+      } else if (response.status === 403) {
+        // 403 Forbidden - permissions issue or video access denied
+        console.error(`[Launch API] Video ${videoId} returned 403 Forbidden - access denied`);
+        return { 
+          ready: false, 
+          status: 'error',
+          error: `Video access denied (HTTP 403)` 
+        };
+      } else if (response.status >= 500) {
+        // 5xx errors are typically temporary server issues - can retry
+        console.warn(`[Launch API] Video ${videoId} returned server error ${response.status} - will retry`);
+        return { ready: false };
+      } else {
+        // Other 4xx errors are usually permanent client-side issues
+        console.error(`[Launch API] Video ${videoId} returned ${response.status} - treating as permanent failure`);
+        return { 
+          ready: false, 
+          status: 'error',
+          error: `Video check failed (HTTP ${response.status})` 
+        };
+      }
     }
     
     const data = await response.json();
@@ -109,6 +138,7 @@ const checkVideoStatus = async (videoId: string, accessToken: string): Promise<{
     };
   } catch (error) {
     console.warn(`[Launch API] Error checking video status for ${videoId}:`, error);
+    // Network errors or parsing errors - treat as temporary issues (can retry)
     return { ready: false };
   }
 };
@@ -845,8 +875,6 @@ export async function POST(req: NextRequest) {
             });
           });
         }
-
-              }
 
       } else if (feedAssets.length > 0 || storyAssets.length > 0) {
         // Use the first available asset (fallback to simple approach)
