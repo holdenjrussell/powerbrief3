@@ -44,6 +44,8 @@ import {
 import { UgcCreator, UgcCreatorScript, UGC_CREATOR_SCRIPT_CONCEPT_STATUSES, UGC_CREATOR_ONBOARDING_STATUSES } from '@/lib/types/ugcCreator';
 import { CreatorCard, ScriptCard, CreatorForm } from '@/components/ugc-creator';
 import { Brand } from '@/lib/types/powerbrief';
+import { createClient } from '@/utils/supabase/client';
+import { v4 as uuidv4 } from 'uuid';
 
 // Helper to unwrap params safely
 type ParamsType = { brandId: string };
@@ -282,43 +284,47 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
       setUploadingVideo(true);
       setError(null);
       
-      // Create a form data object
-      const formData = new FormData();
-      formData.append('file', file);
+      // Create Supabase client for direct upload
+      const supabase = createClient();
       
-      // Upload the file - use the temp-video endpoint
-      const response = await fetch('/api/uploads/temp-video', {
-        method: 'POST',
-        body: formData,
-      });
+      // Generate a unique filename to avoid collisions
+      const fileExtension = file.name.split('.').pop();
+      const fileName = `temp-videos/${uuidv4()}.${fileExtension}`;
       
-      if (!response.ok) {
-        let errorMessage = `Server error: ${response.status}`;
-        try {
-          const errorData = await response.json();
-          errorMessage = errorData.error || errorMessage;
-        } catch {
-          // If we can't parse the error response as JSON, try to get it as text
-          try {
-            const errorText = await response.text();
-            errorMessage = errorText || errorMessage;
-          } catch {
-            // If all else fails, use the status-based message
-          }
-        }
-        throw new Error(errorMessage);
+      console.log(`Direct uploading video: ${file.name} (${file.size} bytes) to ${fileName}`);
+      
+      // Direct upload to Supabase Storage (bypasses Next.js API entirely)
+      const { data, error } = await supabase.storage
+        .from('powerbrief-media')
+        .upload(fileName, file, {
+          contentType: file.type,
+          cacheControl: '3600',
+          upsert: false
+        });
+      
+      if (error) {
+        console.error('Direct Supabase upload error:', error);
+        throw new Error(`Upload failed: ${error.message}`);
       }
       
-      const data = await response.json();
-      console.log('Video upload successful:', data);
-      
-      if (!data.url) {
-        throw new Error('No URL returned from upload service');
+      if (!data) {
+        throw new Error('No data returned from upload');
       }
       
-      return data.url;
+      // Get the public URL for the uploaded file
+      const { data: { publicUrl } } = supabase.storage
+        .from('powerbrief-media')
+        .getPublicUrl(fileName);
+      
+      if (!publicUrl) {
+        throw new Error('No public URL generated for uploaded file');
+      }
+      
+      console.log('Direct video upload successful:', publicUrl);
+      return publicUrl;
+      
     } catch (error) {
-      console.error('Error uploading reference video:', error);
+      console.error('Error in direct video upload:', error);
       setError(`Failed to upload reference video: ${error instanceof Error ? error.message : 'Unknown error'}`);
       throw error;
     } finally {

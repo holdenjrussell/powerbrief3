@@ -1,5 +1,13 @@
 {
   "buildCommand": "NEXT_SKIP_TYPE_CHECK=1 SKIP_TSC=true next build --no-lint",
   "ignoreCommand": "node -e \"process.exit(0)\"",
-  "installCommand": "npm install"
+  "installCommand": "npm install",
+  "functions": {
+    "supabase-nextjs-template/nextjs/src/app/api/uploads/**/*.ts": {
+      "maxDuration": 60
+    },
+    "supabase-nextjs-template/nextjs/src/app/api/ai/**/*.ts": {
+      "maxDuration": 60
+    }
+  }
 } 
