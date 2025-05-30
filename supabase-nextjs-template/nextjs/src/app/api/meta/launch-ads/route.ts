@@ -69,9 +69,9 @@ const detectAspectRatioFromFilename = (filename: string): string | null => {
 };
 
 // Helper function to check if a video is ready for use in ads
-const checkVideoStatus = async (videoId: string, accessToken: string): Promise<{ ready: boolean; status?: string }> => {
+const checkVideoStatus = async (videoId: string, accessToken: string): Promise<{ ready: boolean; status?: string; error?: string }> => {
   try {
-    const videoApiUrl = `https://graph.facebook.com/${META_API_VERSION}/${videoId}?fields=status&access_token=${encodeURIComponent(accessToken)}`;
+    const videoApiUrl = `https://graph.facebook.com/${META_API_VERSION}/${videoId}?fields=status,upload_errors&access_token=${encodeURIComponent(accessToken)}`;
     const response = await fetch(videoApiUrl);
     
     if (!response.ok) {
@@ -81,10 +81,28 @@ const checkVideoStatus = async (videoId: string, accessToken: string): Promise<{
     
     const data = await response.json();
     const status = data.status?.video_status || data.status;
+    const uploadErrors = data.upload_errors;
     
-    console.log(`[Launch API] Video ${videoId} status: ${status}`);
+    // Log detailed status information
+    if (uploadErrors && uploadErrors.length > 0) {
+      console.error(`[Launch API] Video ${videoId} has upload errors:`, uploadErrors);
+    }
+    
+    console.log(`[Launch API] Video ${videoId} status: ${status}${uploadErrors ? `, errors: ${JSON.stringify(uploadErrors)}` : ''}`);
     
     // Video is ready when status is 'ready' or 'published'
+    // If status is 'error', include the error information
+    if (status === 'error') {
+      const errorMessage = uploadErrors && uploadErrors.length > 0 
+        ? uploadErrors.map((err: { message?: string; error_message?: string }) => err.message || err.error_message || 'Unknown error').join(', ')
+        : 'Video processing failed';
+      return { 
+        ready: false, 
+        status: status,
+        error: errorMessage 
+      };
+    }
+    
     return { 
       ready: status === 'ready' || status === 'published',
       status: status
@@ -96,29 +114,37 @@ const checkVideoStatus = async (videoId: string, accessToken: string): Promise<{
 };
 
 // Helper function to wait for videos to be ready with timeout
-const waitForVideosToBeReady = async (videoIds: string[], accessToken: string, maxWaitTimeMs: number = 300000): Promise<{ allReady: boolean; notReadyVideos: string[] }> => {
+const waitForVideosToBeReady = async (videoIds: string[], accessToken: string, maxWaitTimeMs: number = 300000): Promise<{ allReady: boolean; notReadyVideos: string[]; erroredVideos: string[] }> => {
   const startTime = Date.now();
   const notReadyVideos: string[] = [];
+  const erroredVideos: string[] = [];
   
   while (Date.now() - startTime < maxWaitTimeMs) {
     notReadyVideos.length = 0; // Clear the array
+    erroredVideos.length = 0; // Clear the array
     
     for (const videoId of videoIds) {
-      const { ready } = await checkVideoStatus(videoId, accessToken);
+      const { ready, status, error } = await checkVideoStatus(videoId, accessToken);
       if (!ready) {
-        notReadyVideos.push(videoId);
+        if (status === 'error') {
+          console.error(`[Launch API] Video ${videoId} failed processing: ${error}`);
+          erroredVideos.push(videoId);
+        } else {
+          notReadyVideos.push(videoId);
+        }
       }
     }
     
+    // If all videos are either ready or errored, break out
     if (notReadyVideos.length === 0) {
-      return { allReady: true, notReadyVideos: [] };
+      return { allReady: erroredVideos.length === 0, notReadyVideos: [], erroredVideos };
     }
     
     // Wait 10 seconds before checking again
     await new Promise(resolve => setTimeout(resolve, 10000));
   }
   
-  return { allReady: false, notReadyVideos };
+  return { allReady: false, notReadyVideos, erroredVideos };
 };
 
 // Function to create or get Page-Backed Instagram Account
@@ -729,71 +755,96 @@ export async function POST(req: NextRequest) {
 
       // If we have assets for different placements, use placement asset customization
       if (feedAssets.length > 0 && storyAssets.length > 0) {
-        console.log(`[Launch API]     Using placement asset customization for multiple aspect ratios`);
+        console.log(`[Launch API]     Multiple aspect ratios detected with videos - using simplified approach`);
         
-        // Add feed assets
-        feedAssets.forEach((asset: ProcessedAdDraftAsset, index: number) => {
-          const assetLabel = `feed_asset_${index}`;
-          if (asset.type === 'image' && asset.metaHash) {
-            creativeSpec.asset_feed_spec.images.push({
-              hash: asset.metaHash,
-              adlabels: [{ name: assetLabel }]
-            });
-            creativeSpec.asset_feed_spec.ad_formats.push('SINGLE_IMAGE');
-          } else if (asset.type === 'video' && asset.metaVideoId) {
-            creativeSpec.asset_feed_spec.videos.push({
-              video_id: asset.metaVideoId,
-              adlabels: [{ name: assetLabel }]
-            });
-            creativeSpec.asset_feed_spec.ad_formats.push('SINGLE_VIDEO');
+        // For videos uploaded via video_ads endpoint, use simpler object_story_spec approach
+        // instead of asset_feed_spec to avoid compatibility issues
+        const hasVideos = [...feedAssets, ...storyAssets].some(asset => asset.type === 'video');
+        
+        if (hasVideos) {
+          console.log(`[Launch API]     Videos detected - using object_story_spec instead of asset_feed_spec`);
+          
+          // Use the first available asset (prefer feed assets, then story assets)
+          const primaryAsset = feedAssets.length > 0 ? feedAssets[0] : storyAssets[0];
+          
+          if (primaryAsset.type === 'image' && primaryAsset.metaHash) {
+            creativeSpec.object_story_spec.link_data = {
+              message: draft.primaryText,
+              link: draft.destinationUrl,
+              call_to_action: {
+                type: draft.callToAction?.toUpperCase().replace(/\s+/g, '_'),
+                value: { link: draft.destinationUrl },
+              },
+              name: draft.headline,
+              ...(draft.description && { description: draft.description }),
+              image_hash: primaryAsset.metaHash
+            };
+          } else if (primaryAsset.type === 'video' && primaryAsset.metaVideoId) {
+            creativeSpec.object_story_spec.video_data = {
+              video_id: primaryAsset.metaVideoId,
+              message: draft.primaryText,
+              call_to_action: {
+                type: draft.callToAction?.toUpperCase().replace(/\s+/g, '_'),
+                value: { link: draft.destinationUrl },
+              },
+              title: draft.headline
+            };
           }
-
-          // Add customization rule for feed placements
-          creativeSpec.asset_feed_spec.asset_customization_rules.push({
-            customization_spec: {
-              publisher_platforms: ['facebook', 'instagram'],
-              facebook_positions: ['feed', 'video_feeds'],
-              instagram_positions: ['stream', 'explore']
-            },
-            [asset.type === 'image' ? 'image_label' : 'video_label']: { name: assetLabel }
-          });
-        });
-
-        // Add story assets
-        storyAssets.forEach((asset: ProcessedAdDraftAsset, index: number) => {
-          const assetLabel = `story_asset_${index}`;
-          if (asset.type === 'image' && asset.metaHash) {
-            creativeSpec.asset_feed_spec.images.push({
-              hash: asset.metaHash,
-              adlabels: [{ name: assetLabel }]
-            });
-            if (!creativeSpec.asset_feed_spec.ad_formats.includes('SINGLE_IMAGE')) {
+          
+          // Remove asset_feed_spec for video compatibility
+          delete creativeSpec.asset_feed_spec;
+          console.log(`[Launch API]     Using primary asset: ${primaryAsset.name} (${primaryAsset.type})`);
+          
+        } else {
+          // No videos - use original asset_feed_spec approach for images
+          console.log(`[Launch API]     No videos - using asset_feed_spec for placement customization`);
+          
+          // Add feed assets
+          feedAssets.forEach((asset: ProcessedAdDraftAsset, index: number) => {
+            const assetLabel = `feed_asset_${index}`;
+            if (asset.type === 'image' && asset.metaHash) {
+              creativeSpec.asset_feed_spec.images.push({
+                hash: asset.metaHash,
+                adlabels: [{ name: assetLabel }]
+              });
               creativeSpec.asset_feed_spec.ad_formats.push('SINGLE_IMAGE');
             }
-          } else if (asset.type === 'video' && asset.metaVideoId) {
-            creativeSpec.asset_feed_spec.videos.push({
-              video_id: asset.metaVideoId,
-              adlabels: [{ name: assetLabel }]
+
+            // Add customization rule for feed placements
+            creativeSpec.asset_feed_spec.asset_customization_rules.push({
+              customization_spec: {
+                publisher_platforms: ['facebook', 'instagram'],
+                facebook_positions: ['feed', 'video_feeds'],
+                instagram_positions: ['stream', 'explore']
+              },
+              image_label: { name: assetLabel }
             });
-            if (!creativeSpec.asset_feed_spec.ad_formats.includes('SINGLE_VIDEO')) {
-              creativeSpec.asset_feed_spec.ad_formats.push('SINGLE_VIDEO');
-            }
-          }
-
-          // Add customization rule for story placements
-          creativeSpec.asset_feed_spec.asset_customization_rules.push({
-            customization_spec: {
-              publisher_platforms: ['facebook', 'instagram'],
-              facebook_positions: ['story'],
-              instagram_positions: ['story']
-            },
-            [asset.type === 'image' ? 'image_label' : 'video_label']: { name: assetLabel }
           });
-        });
 
-        // When using asset_feed_spec, we should NOT use object_story_spec.link_data
-        // The link information is already in asset_feed_spec.link_urls
-        console.log(`[Launch API]     Using asset_feed_spec approach - link data is in asset_feed_spec.link_urls`);
+          // Add story assets
+          storyAssets.forEach((asset: ProcessedAdDraftAsset, index: number) => {
+            const assetLabel = `story_asset_${index}`;
+            if (asset.type === 'image' && asset.metaHash) {
+              creativeSpec.asset_feed_spec.images.push({
+                hash: asset.metaHash,
+                adlabels: [{ name: assetLabel }]
+              });
+              if (!creativeSpec.asset_feed_spec.ad_formats.includes('SINGLE_IMAGE')) {
+                creativeSpec.asset_feed_spec.ad_formats.push('SINGLE_IMAGE');
+              }
+            }
+
+            // Add customization rule for story placements
+            creativeSpec.asset_feed_spec.asset_customization_rules.push({
+              customization_spec: {
+                publisher_platforms: ['facebook', 'instagram'],
+                facebook_positions: ['story'],
+                instagram_positions: ['story']
+              },
+              image_label: { name: assetLabel }
+            });
+          });
+        }
 
       } else if (feedAssets.length > 0 || storyAssets.length > 0) {
         // Use the first available asset (fallback to simple approach)
@@ -853,10 +904,18 @@ export async function POST(req: NextRequest) {
         }
         
         // Wait for videos to be ready (max 5 minutes)
-        const { allReady, notReadyVideos } = await waitForVideosToBeReady(videoIds, accessToken, 300000);
+        const { allReady, notReadyVideos, erroredVideos } = await waitForVideosToBeReady(videoIds, accessToken, 300000);
         
         if (!allReady) {
-          const errorMessage = `Videos are still processing and not ready for ad use: ${notReadyVideos.join(', ')}. Please try again in a few minutes.`;
+          let errorMessage = '';
+          if (erroredVideos.length > 0 && notReadyVideos.length > 0) {
+            errorMessage = `Videos failed processing: ${erroredVideos.join(', ')} and videos still processing: ${notReadyVideos.join(', ')}. Please check video format and try again.`;
+          } else if (erroredVideos.length > 0) {
+            errorMessage = `Videos failed processing: ${erroredVideos.join(', ')}. Please check video format/encoding and try again.`;
+          } else {
+            errorMessage = `Videos are still processing and not ready for ad use: ${notReadyVideos.join(', ')}. Please try again in a few minutes.`;
+          }
+          
           console.error(`[Launch API]     ${errorMessage}`);
           finalStatus = 'AD_CREATION_FAILED';
           adError = errorMessage;
