@@ -144,7 +144,7 @@ export async function POST(request: NextRequest) {
 - Hook type: ${type}
 - For text hooks: Use emojis and catchy phrases suitable for social media captions
 - For verbal hooks: Create spoken phrases that would work well when read aloud in videos
-- If hook type is 'caption', only populate the text_hook_options field
+- If hook type is 'text', only populate the text_hook_options field
 - If hook type is 'verbal', only populate the spoken_hook_options field 
 - If hook type is 'both', populate both fields with ${count} options each
 `;
@@ -303,7 +303,7 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
           let spokenHooks = jsonResponse.spoken_hook_options || "";
           
           // If we requested a specific hook type but got empty result, try to extract from the other field
-          if (hookType === 'caption' && !textHooks && spokenHooks) {
+          if (hookType === 'text' && !textHooks && spokenHooks) {
             console.log('Text hooks missing but verbal hooks present - trying to use verbal hooks');
             textHooks = spokenHooks;
           } else if (hookType === 'verbal' && !spokenHooks && textHooks) {

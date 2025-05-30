@@ -256,6 +256,13 @@ export default function CreatorCard({ creator, brandId, onUpdate }: CreatorCardP
             </div>
           )}
           
+          {creator.phone_number && (
+            <div className="flex items-center text-sm">
+              <AtSign className="h-4 w-4 mr-2 text-gray-500" />
+              <span className="truncate">{creator.phone_number}</span>
+            </div>
+          )}
+          
           {creator.instagram_handle && (
             <div className="flex items-center text-sm">
               <Instagram className="h-4 w-4 mr-2 text-gray-500" />

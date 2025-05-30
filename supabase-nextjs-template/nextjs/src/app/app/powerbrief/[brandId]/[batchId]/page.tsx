@@ -71,7 +71,7 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
     const [sharingInProgress, setSharingInProgress] = useState<boolean>(false);
     const [shareSuccess, setShareSuccess] = useState<boolean>(false);
     const [localMediaTypes, setLocalMediaTypes] = useState<Record<string, 'video' | 'image'>>({});
-    const [localHookTypes, setLocalHookTypes] = useState<Record<string, 'caption' | 'verbal' | 'both'>>({});
+    const [localHookTypes, setLocalHookTypes] = useState<Record<string, 'text' | 'verbal' | 'both'>>({});
     const [localHookCounts, setLocalHookCounts] = useState<Record<string, number>>({});
     
     // Individual hooks state
@@ -123,7 +123,7 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                 const initialLocalVideoEditors: Record<string, string> = {};
                 const initialLocalBriefRevisionComments: Record<string, string> = {};
                 const initialLocalMediaTypes: Record<string, 'video' | 'image'> = {};
-                const initialLocalHookTypes: Record<string, 'caption' | 'verbal' | 'both'> = {};
+                const initialLocalHookTypes: Record<string, 'text' | 'verbal' | 'both'> = {};
                 const initialLocalHookCounts: Record<string, number> = {};
                 const initialLocalTextHooksList: Record<string, Hook[]> = {};
                 const initialLocalSpokenHooksList: Record<string, Hook[]> = {};
@@ -1372,7 +1372,7 @@ allowing it to properly analyze images and videos. This is just a text represent
 - Hook type: ${type}
 - For text hooks: Use emojis and catchy phrases suitable for social media captions
 - For verbal hooks: Create spoken phrases that would work well when read aloud in videos
-- If hook type is 'caption', only populate the text_hook_options field
+- If hook type is 'text', only populate the text_hook_options field
 - If hook type is 'verbal', only populate the spoken_hook_options field 
 - If hook type is 'both', populate both fields with ${count} options each
 `;
@@ -2375,26 +2375,22 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                                     <label className="text-xs font-medium">Hook Type:</label>
                                                     <div className="flex space-x-1">
                                                         <Button
-                                                            variant={localHookTypes[concept.id] === 'caption' ? 'default' : 'outline'}
+                                                            variant={localHookTypes[concept.id] === 'text' ? 'default' : 'outline'}
                                                             size="sm"
-                                                            className={`flex items-center ${localHookTypes[concept.id] === 'caption' ? 'bg-primary-600 text-white' : ''}`}
                                                             onClick={() => {
-                                                                // Update local state first
                                                                 setLocalHookTypes(prev => ({
                                                                     ...prev,
-                                                                    [concept.id]: 'caption'
+                                                                    [concept.id]: 'text'
                                                                 }));
-                                                                
                                                                 // Update concept in database
-                                                                const hookTypeCaption = 'caption' as const;
                                                                 const updatedConcept = {
                                                                     ...concept,
-                                                                    hook_type: hookTypeCaption
+                                                                    hook_type: 'text'
                                                                 };
                                                                 handleUpdateConcept(updatedConcept);
                                                             }}
                                                         >
-                                                            Caption
+                                                            Text
                                                         </Button>
                                                         <Button
                                                             variant={localHookTypes[concept.id] === 'verbal' ? 'default' : 'outline'}
@@ -2556,7 +2552,7 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                     {localMediaTypes[concept.id] === 'video' && (
                                         <div className="mt-2">
                                             <div className="flex justify-between items-center mb-2">
-                                                <h3 className="font-medium text-sm">Spoken Hook options</h3>
+                                                <h3 className="font-medium text-sm">Spoken Hook options (verbal)</h3>
                                                 <Button
                                                     variant="outline"
                                                     size="sm"
@@ -2621,7 +2617,7 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                                                         handleUpdateConcept(updatedConcept);
                                                                     }
                                                                 }}
-                                                                placeholder="Enter spoken hook"
+                                                                placeholder="Enter spoken hook (verbal)"
                                                                 className="text-sm w-full min-h-fit"
                                                                 style={{ height: 'auto', overflow: 'hidden' }}
                                                             />

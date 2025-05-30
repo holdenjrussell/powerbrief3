@@ -698,7 +698,7 @@ export default function SharedConceptPage({ params }: { params: ParamsType | Pro
             </Card>
           )}
 
-          {/* Caption hooks */}
+          {/* Text hooks */}
           {concept.text_hook_options && (
             <Card>
               <CardHeader>

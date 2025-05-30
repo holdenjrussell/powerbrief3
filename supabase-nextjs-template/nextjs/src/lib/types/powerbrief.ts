@@ -174,7 +174,7 @@ export interface BriefConcept {
   review_link: string | null;
   review_comments: string | null;
   brief_revision_comments: string | null;
-  hook_type: 'caption' | 'verbal' | 'both' | null;
+  hook_type: 'text' | 'verbal' | 'both' | null;
   hook_count: number | null;
 }
 
@@ -201,7 +201,7 @@ export interface AiBriefingRequest {
   };
   desiredOutputFields: string[];
   hookOptions?: {
-    type: 'caption' | 'verbal' | 'both';
+    type: 'text' | 'verbal' | 'both';
     count: number;
   };
 }
@@ -264,7 +264,7 @@ export type DbBriefConcept = {
   media_url: string | null;
   media_type: string | null;
   ai_custom_prompt: string | null;
-  caption_hook_options: string | null;
+  text_hook_options: string | null;
   spoken_hook_options: string | null;
   body_content_structured: Json;
   cta_script: string | null;
