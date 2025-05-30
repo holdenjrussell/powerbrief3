@@ -230,7 +230,8 @@ export const UGC_CREATOR_ONBOARDING_STATUSES = [
   'Schedule Call',
   'Call Schedule Attempted',
   'Call Scheduled',
-  'READY FOR SCRIPTS'
+  'READY FOR SCRIPTS',
+  'REJECTED'
 ];
 
 export const UGC_CREATOR_SCRIPT_CONCEPT_STATUSES = [

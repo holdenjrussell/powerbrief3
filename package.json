@@ -9,6 +9,7 @@
     "dotenv": "^16.5.0",
     "node-fetch": "^3.3.2",
     "tailwind-merge": "^3.3.0",
+    "twilio": "^5.7.0",
     "uuid": "^11.1.0"
   },
   "scripts": {
