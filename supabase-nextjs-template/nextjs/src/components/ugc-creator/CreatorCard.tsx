@@ -163,8 +163,8 @@ export default function CreatorCard({ creator, brandId, onUpdate }: CreatorCardP
             onValueChange={handleStatusChange}
             disabled={isUpdating}
           >
-            <SelectTrigger className="h-6 w-auto">
-              <Badge variant={getStatusVariant(creator.status)}>
+            <SelectTrigger className="h-auto w-auto p-0 border-none bg-transparent hover:bg-transparent focus:ring-0 focus:ring-offset-0">
+              <Badge variant={getStatusVariant(creator.status)} className="cursor-pointer">
                 {creator.status || 'New Creator Submission'}
               </Badge>
             </SelectTrigger>
@@ -185,8 +185,8 @@ export default function CreatorCard({ creator, brandId, onUpdate }: CreatorCardP
             onValueChange={handleContractStatusChange}
             disabled={isUpdating}
           >
-            <SelectTrigger className="h-6 w-auto">
-              <Badge variant={getContractStatusVariant(creator.contract_status)}>
+            <SelectTrigger className="h-auto w-auto p-0 border-none bg-transparent hover:bg-transparent focus:ring-0 focus:ring-offset-0">
+              <Badge variant={getContractStatusVariant(creator.contract_status)} className="cursor-pointer">
                 {creator.contract_status || 'not signed'}
               </Badge>
             </SelectTrigger>
@@ -207,8 +207,8 @@ export default function CreatorCard({ creator, brandId, onUpdate }: CreatorCardP
             onValueChange={handleProductShipmentStatusChange}
             disabled={isUpdating}
           >
-            <SelectTrigger className="h-6 w-auto">
-              <Badge variant={getProductShipmentStatusVariant(creator.product_shipment_status, creator.product_shipped)}>
+            <SelectTrigger className="h-auto w-auto p-0 border-none bg-transparent hover:bg-transparent focus:ring-0 focus:ring-offset-0">
+              <Badge variant={getProductShipmentStatusVariant(creator.product_shipment_status, creator.product_shipped)} className="cursor-pointer">
                 <Package className="h-3 w-3 mr-1" />
                 {creator.product_shipped ? 'Product Shipped' : (creator.product_shipment_status || 'Not Shipped')}
               </Badge>
@@ -260,13 +260,13 @@ export default function CreatorCard({ creator, brandId, onUpdate }: CreatorCardP
             <div className="flex items-center text-sm">
               <Instagram className="h-4 w-4 mr-2 text-gray-500" />
               <a 
-                href={`https://instagram.com/${creator.instagram_handle}`}
+                href={`https://instagram.com/${creator.instagram_handle.replace(/^@/, '')}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-primary-600 hover:underline truncate"
                 onClick={(e) => e.stopPropagation()}
               >
-                @{creator.instagram_handle}
+                @{creator.instagram_handle.replace(/^@/, '')}
               </a>
             </div>
           )}

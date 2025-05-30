@@ -416,7 +416,17 @@ export function CreatorForm({ creator, onSubmit, isSubmitting }: CreatorFormProp
                   <FormItem>
                     <FormLabel>Instagram Handle</FormLabel>
                     <FormControl>
-                      <Input placeholder="@username" {...field} />
+                      <Input 
+                        placeholder="@username" 
+                        {...field}
+                        onChange={(e) => {
+                          let value = e.target.value;
+                          if (value.startsWith('@')) {
+                            value = value.substring(1);
+                          }
+                          field.onChange(value);
+                        }}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
