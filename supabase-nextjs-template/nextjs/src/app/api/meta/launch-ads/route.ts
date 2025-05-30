@@ -450,6 +450,7 @@ export async function POST(req: NextRequest) {
             const updatedPBIAMapping = { ...pageBackedAccounts, [fbPageId]: pbiaId };
             await supabase
               .from('brands')
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               .update({ meta_page_backed_instagram_accounts: updatedPBIAMapping } as any)
               .eq('id', brandId);
             console.log(`[Launch API] Updated brand PBIA mapping with new account ${pbiaId}`);
@@ -595,6 +596,8 @@ export async function POST(req: NextRequest) {
             }
 
             console.log(`[Launch API]     Video ${asset.name} uploaded using Resumable API. ID: ${videoId}`);
+            // Videos uploaded via video_ads endpoint are ready immediately for ad use
+            // No status checking needed unlike regular video uploads
             updatedAssets.push({ ...asset, metaVideoId: videoId });
 
           } else {
@@ -920,70 +923,12 @@ export async function POST(req: NextRequest) {
         .map(asset => asset.metaVideoId!);
 
       if (videoIds.length > 0) {
-        console.log(`[Launch API]     Checking readiness of ${videoIds.length} videos before creating ad...`);
+        console.log(`[Launch API]     Found ${videoIds.length} videos uploaded via video_ads endpoint`);
+        console.log(`[Launch API]     Videos uploaded via video_ads are ready immediately for ad use - skipping status check`);
         
-        // Update status to show we're waiting for video processing
-        try {
-          await supabase
-            .from('ad_drafts')
-            .update({ app_status: 'PROCESSING_VIDEOS' })
-            .eq('id', draft.id);
-          console.log(`[Launch API] Updated draft ${draft.adName} status to PROCESSING_VIDEOS`);
-        } catch (error) {
-          console.error(`[Launch API] Failed to update draft status to PROCESSING_VIDEOS:`, error);
-        }
-        
-        // Wait for videos to be ready (max 5 minutes)
-        const { allReady, notReadyVideos, erroredVideos } = await waitForVideosToBeReady(videoIds, accessToken, 300000);
-        
-        if (!allReady) {
-          let errorMessage = '';
-          if (erroredVideos.length > 0 && notReadyVideos.length > 0) {
-            errorMessage = `Videos failed processing: ${erroredVideos.join(', ')} and videos still processing: ${notReadyVideos.join(', ')}. Please check video format and try again.`;
-          } else if (erroredVideos.length > 0) {
-            errorMessage = `Videos failed processing: ${erroredVideos.join(', ')}. Please check video format/encoding and try again.`;
-          } else {
-            errorMessage = `Videos are still processing and not ready for ad use: ${notReadyVideos.join(', ')}. Please try again in a few minutes.`;
-          }
-          
-          console.error(`[Launch API]     ${errorMessage}`);
-          finalStatus = 'AD_CREATION_FAILED';
-          adError = errorMessage;
-          
-          // Skip ad creation for this draft
-          processingResults.push({
-            adName: draft.adName,
-            status: finalStatus,
-            assets: draft.assets.map((a: ProcessedAdDraftAsset) => ({
-              name: a.name,
-              type: a.type,
-              supabaseUrl: a.supabaseUrl,
-              metaHash: a.metaHash,
-              metaVideoId: a.metaVideoId,
-              uploadError: a.metaUploadError
-            })),
-            campaignId: draft.campaignId,
-            adSetId: draft.adSetId,
-            adId: undefined,
-            adError: adError,
-          });
-
-          // Update the draft's app_status in the database
-          try {
-            await supabase
-              .from('ad_drafts')
-              .update({ app_status: 'ERROR' })
-              .eq('id', draft.id);
-            
-            console.log(`[Launch API] Updated draft ${draft.adName} status to ERROR`);
-          } catch (error) {
-            console.error(`[Launch API] Failed to update draft ${draft.adName} status:`, error);
-          }
-          
-          continue; // Skip to next draft
-        }
-        
-        console.log(`[Launch API]     All videos are ready! Proceeding with ad creation...`);
+        // Videos uploaded via video_ads endpoint are ready immediately for ad use
+        // No need to poll for status like regular video uploads
+        // Proceeding directly to ad creation...
       }
 
       // Validate ad set exists and get its campaign info for logging
