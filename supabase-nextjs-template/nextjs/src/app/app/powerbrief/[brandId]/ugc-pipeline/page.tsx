@@ -874,6 +874,11 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
     return creatorsExcludingTBD.filter(creator => creator.status === status).length;
   };
 
+  // Get script count by concept status for filter badges
+  const getScriptCountByConceptStatus = (status: string) => {
+    return scripts.filter(script => script.concept_status === status).length;
+  };
+
   // Handle creator update from CreatorCard
   const handleCreatorUpdate = (updatedCreator: UgcCreator) => {
     setCreators(prev => 
@@ -1151,6 +1156,7 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
               <div className="space-y-6">
                 <div className="flex space-x-2 overflow-x-auto pb-2">
                   {UGC_CREATOR_SCRIPT_CONCEPT_STATUSES.map((status) => {
+                    const count = getScriptCountByConceptStatus(status);
                     return (
                       <Button
                         key={status}
@@ -1160,9 +1166,9 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
                         className="whitespace-nowrap"
                       >
                         {status}
-                        {status === activeStatus && scripts.length > 0 && (
+                        {count > 0 && (
                           <span className="ml-1.5 px-1.5 py-0.5 bg-primary-100 text-primary-800 rounded-full text-xs">
-                            {scripts.length}
+                            {count}
                           </span>
                         )}
                       </Button>
@@ -1781,7 +1787,7 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
                     className="whitespace-nowrap"
                   >
                     All Creators
-                    {activeCreatorStatus === 'All' && creators.length > 0 && (
+                    {getCreatorCountByStatus('All') > 0 && (
                       <span className="ml-1.5 px-1.5 py-0.5 bg-primary-100 text-primary-800 rounded-full text-xs">
                         {getCreatorCountByStatus('All')}
                       </span>
@@ -1798,7 +1804,7 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
                         className="whitespace-nowrap"
                       >
                         {status}
-                        {activeCreatorStatus === status && count > 0 && (
+                        {count > 0 && (
                           <span className="ml-1.5 px-1.5 py-0.5 bg-primary-100 text-primary-800 rounded-full text-xs">
                             {count}
                           </span>
