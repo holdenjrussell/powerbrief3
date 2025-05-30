@@ -5,6 +5,7 @@ export interface AdDraftAsset {
   supabaseUrl: string;
   type: 'image' | 'video';
   aspectRatios?: string[];
+  thumbnailUrl?: string;
 }
 
 export interface AdDraft {

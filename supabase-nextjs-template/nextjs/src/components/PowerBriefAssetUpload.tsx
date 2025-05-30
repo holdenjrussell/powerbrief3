@@ -38,6 +38,9 @@ interface AssetFile {
   compressionProgress?: number;
   needsCompression?: boolean;
   originalSize?: number;
+  thumbnailBlob?: Blob;
+  thumbnailUrl?: string;
+  thumbnailExtracted?: boolean;
 }
 
 interface AssetGroup {
@@ -206,6 +209,91 @@ const Toast: React.FC<{ toast: ToastMessage; onRemove: (id: string) => void }> =
   );
 };
 
+// Function to extract first frame from video as thumbnail (client-side)
+const extractVideoThumbnail = async (videoFile: File): Promise<{ thumbnailBlob: Blob; error?: string }> => {
+  return new Promise((resolve) => {
+    try {
+      logger.debug('Extracting thumbnail from video', { fileName: videoFile.name });
+      
+      const video = document.createElement('video');
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      
+      if (!ctx) {
+        resolve({ thumbnailBlob: new Blob(), error: 'Could not create canvas context' });
+        return;
+      }
+      
+      video.crossOrigin = 'anonymous';
+      video.muted = true;
+      video.preload = 'metadata';
+      
+      const videoUrl = URL.createObjectURL(videoFile);
+      
+      video.addEventListener('loadedmetadata', () => {
+        // Set canvas dimensions to match video
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        
+        // Seek to first frame
+        video.currentTime = 0;
+      });
+      
+      video.addEventListener('seeked', () => {
+        try {
+          // Draw video frame to canvas
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          
+          // Convert canvas to blob
+          canvas.toBlob((blob) => {
+            if (blob) {
+              logger.debug('Thumbnail extracted successfully', { 
+                fileName: videoFile.name,
+                thumbnailSize: blob.size,
+                dimensions: `${canvas.width}x${canvas.height}`
+              });
+              resolve({ thumbnailBlob: blob });
+            } else {
+              resolve({ thumbnailBlob: new Blob(), error: 'Could not extract frame from video' });
+            }
+            
+            // Clean up
+            URL.revokeObjectURL(videoUrl);
+            video.remove();
+            canvas.remove();
+          }, 'image/jpeg', 0.8);
+          
+        } catch (error) {
+          logger.error('Error drawing video frame', { fileName: videoFile.name, error });
+          resolve({ thumbnailBlob: new Blob(), error: `Frame extraction failed: ${error instanceof Error ? error.message : 'Unknown error'}` });
+          
+          // Clean up
+          URL.revokeObjectURL(videoUrl);
+          video.remove();
+          canvas.remove();
+        }
+      });
+      
+      video.addEventListener('error', (e) => {
+        logger.error('Video load error during thumbnail extraction', { fileName: videoFile.name, error: e });
+        resolve({ thumbnailBlob: new Blob(), error: 'Could not load video for thumbnail extraction' });
+        
+        // Clean up
+        URL.revokeObjectURL(videoUrl);
+        video.remove();
+        canvas.remove();
+      });
+      
+      video.src = videoUrl;
+      video.load();
+      
+    } catch (error) {
+      logger.error('Thumbnail extraction setup failed', { fileName: videoFile.name, error });
+      resolve({ thumbnailBlob: new Blob(), error: `Thumbnail extraction failed: ${error instanceof Error ? error.message : 'Unknown error'}` });
+    }
+  });
+};
+
 const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({ 
   isOpen, 
   onClose, 
@@ -348,7 +436,10 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
         needsCompression: needsCompression(file),
         originalSize: file.size,
         compressing: false,
-        compressionProgress: 0
+        compressionProgress: 0,
+        thumbnailBlob: undefined,
+        thumbnailUrl: undefined,
+        thumbnailExtracted: false
       };
       
       newFiles.push(assetFile);
@@ -493,7 +584,36 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
 
     addToast('info', 'Upload Started', `Starting upload of ${selectedFiles.length} file(s)...`);
 
-    // Step 1: Compress videos that need compression
+    // Step 1: Extract thumbnails for videos
+    logger.info('Step 1: Extracting video thumbnails...');
+    for (const assetFile of selectedFiles) {
+      if (assetFile.file.type.startsWith('video/')) {
+        try {
+          logger.info(`Extracting thumbnail for video: ${assetFile.file.name}`);
+          
+          const { thumbnailBlob, error } = await extractVideoThumbnail(assetFile.file);
+          
+          if (error) {
+            logger.warn(`Could not extract thumbnail for ${assetFile.file.name}: ${error}`);
+            // Continue without thumbnail - the server will handle fallback
+          } else {
+            // Update the asset file with thumbnail data
+            setSelectedFiles(prev => prev.map(sf => 
+              sf.id === assetFile.id 
+                ? { ...sf, thumbnailBlob, thumbnailExtracted: true }
+                : sf
+            ));
+            logger.info(`Thumbnail extracted for ${assetFile.file.name}`);
+          }
+        } catch (thumbnailError) {
+          logger.warn(`Thumbnail extraction failed for ${assetFile.file.name}:`, thumbnailError);
+          // Continue without thumbnail
+        }
+      }
+    }
+
+    // Step 2: Compress videos that need compression
+    logger.info('Step 2: Compressing videos...');
     const filesToProcess: AssetFile[] = [];
     for (const assetFile of selectedFiles) {
       if (assetFile.needsCompression) {
@@ -538,63 +658,50 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
           logger.info(`Compression complete: ${getFileSizeMB(assetFile.file).toFixed(2)}MB → ${getFileSizeMB(compressedFile).toFixed(2)}MB`);
 
         } catch (compressionError) {
-          logger.error(`Failed to compress ${assetFile.file.name}:`, compressionError);
+          logger.error(`Video compression failed for ${assetFile.file.name}:`, compressionError);
+          addToast('error', 'Compression Failed', `Failed to compress ${assetFile.file.name}. ${compressionError instanceof Error ? compressionError.message : 'Unknown error'}`);
           
-          // Update UI to show compression error
-          setSelectedFiles(prev => prev.map(sf => 
-            sf.id === assetFile.id 
-              ? { 
-                  ...sf, 
-                  compressing: false, 
-                  uploadError: `Compression failed: ${compressionError instanceof Error ? compressionError.message : 'Unknown error'}` 
-                }
-              : sf
-          ));
-          
-          // Skip this file for upload
-          continue;
+          // Add original file to processing queue anyway
+          filesToProcess.push(assetFile);
         }
       } else {
-        // File doesn't need compression, use as-is
+        // No compression needed, add to processing queue
         filesToProcess.push(assetFile);
       }
     }
 
-    // Step 2: Upload the processed files
+    // Step 3: Upload all files (videos and their thumbnails)
+    logger.info('Step 3: Uploading files...');
     for (const assetFile of filesToProcess) {
-      const file = assetFile.file;
-      const filePath = `powerbrief/${userId}/${conceptId}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '')}`;
       const fileUploadStartTime = Date.now();
-
-      logger.info('Starting file upload', { 
-        fileName: file.name,
-        filePath,
-        fileSize: file.size,
-        fileType: file.type,
-        wasCompressed: assetFile.originalSize && assetFile.originalSize !== file.size
-      });
-
+      
       try {
-        // Direct upload to Supabase Storage
-        const uploadResult = await supabase.storage
+        // Upload the main file (video or image)
+        const timestamp = Date.now();
+        const filePath = `${conceptId}/${timestamp}_${assetFile.file.name.replace(/[^a-zA-Z0-9._-]/g, '')}`;
+        
+        logger.debug('Uploading main file', { 
+          fileName: assetFile.file.name,
+          filePath,
+          fileSize: assetFile.file.size,
+          fileType: assetFile.file.type
+        });
+
+        const { data, error } = await supabase.storage
           .from('ad-creatives')
-          .upload(filePath, file, {
+          .upload(filePath, assetFile.file, {
             cacheControl: '3600',
             upsert: false,
           });
 
-        const { data, error } = uploadResult;
-
         if (error) {
-          logger.error('Supabase storage upload error', { 
-            fileName: file.name,
-            fileSize: file.size,
-            filePath,
-            error: error,
-            errorMessage: error.message
-          });
-          
-          throw error;
+          const errorMessage = `Upload failed: ${error.message}`;
+          logger.error('Main file upload failed', { fileName: assetFile.file.name, error });
+          setSelectedFiles(prev => prev.map(sf => 
+            sf.id === assetFile.id ? { ...sf, uploading: false, uploadError: errorMessage } : sf
+          ));
+          errorCount++;
+          continue;
         }
 
         if (data) {
@@ -602,19 +709,66 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
           
           if (!publicUrl) {
             const error = 'Could not get public URL for uploaded file.';
-            logger.error('Failed to get public URL', { fileName: file.name, filePath });
+            logger.error('Failed to get public URL', { fileName: assetFile.file.name, filePath });
             throw new Error(error);
           }
 
-          const uploadedAsset: UploadedAsset = {
+          const uploadedAsset: UploadedAsset & { thumbnailUrl?: string } = {
             id: assetFile.id,
-            name: file.name,
+            name: assetFile.file.name,
             supabaseUrl: publicUrl,
-            type: file.type.startsWith('image/') ? 'image' : 'video',
+            type: assetFile.file.type.startsWith('image/') ? 'image' : 'video',
             aspectRatio: assetFile.detectedRatio || 'unknown',
-            baseName: assetFile.baseName || file.name,
+            baseName: assetFile.baseName || assetFile.file.name,
             uploadedAt: new Date().toISOString()
           };
+
+          // Upload thumbnail if it exists (for videos)
+          if (assetFile.thumbnailBlob && assetFile.thumbnailBlob.size > 0) {
+            try {
+              const thumbnailFileName = `${assetFile.file.name.split('.')[0]}_thumbnail.jpg`;
+              const thumbnailPath = `${conceptId}/${timestamp}_${thumbnailFileName}`;
+              
+              logger.debug('Uploading video thumbnail', { 
+                videoFileName: assetFile.file.name,
+                thumbnailPath,
+                thumbnailSize: assetFile.thumbnailBlob.size
+              });
+
+              const { data: thumbnailData, error: thumbnailError } = await supabase.storage
+                .from('ad-creatives')
+                .upload(thumbnailPath, assetFile.thumbnailBlob, {
+                  cacheControl: '3600',
+                  upsert: false,
+                });
+
+              if (thumbnailError) {
+                logger.warn('Thumbnail upload failed', { 
+                  videoFileName: assetFile.file.name, 
+                  error: thumbnailError 
+                });
+              } else if (thumbnailData) {
+                const { data: { publicUrl: thumbnailPublicUrl } } = supabase.storage
+                  .from('ad-creatives')
+                  .getPublicUrl(thumbnailPath);
+                
+                if (thumbnailPublicUrl) {
+                  // Add thumbnail info to the uploaded asset
+                  uploadedAsset.thumbnailUrl = thumbnailPublicUrl;
+                  logger.info('Video thumbnail uploaded successfully', { 
+                    videoFileName: assetFile.file.name,
+                    thumbnailUrl: thumbnailPublicUrl
+                  });
+                }
+              }
+            } catch (thumbnailUploadError) {
+              logger.warn('Thumbnail upload error', { 
+                videoFileName: assetFile.file.name, 
+                error: thumbnailUploadError 
+              });
+              // Continue without thumbnail
+            }
+          }
 
           uploadedAssets.push(uploadedAsset);
 
@@ -626,21 +780,24 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
           successCount++;
 
           logger.info('File upload successful', { 
-            fileName: file.name,
+            fileName: assetFile.file.name,
             publicUrl,
             uploadDuration,
-            fileSize: file.size,
-            uploadSpeed: (file.size / 1024 / 1024) / (uploadDuration / 1000), // MB/s
-            wasCompressed: assetFile.originalSize && assetFile.originalSize !== file.size
+            fileSize: assetFile.file.size,
+            uploadSpeed: (assetFile.file.size / 1024 / 1024) / (uploadDuration / 1000), // MB/s
+            wasCompressed: assetFile.originalSize && assetFile.originalSize !== assetFile.file.size,
+            hasThumbnail: !!(assetFile.thumbnailBlob && assetFile.thumbnailBlob.size > 0)
           });
         }
+
       } catch (e: unknown) {
         const uploadError = e as Error | { message: string } | string;
         const errorMessage = typeof uploadError === 'string' ? uploadError : (uploadError as Error)?.message || 'Upload failed';
+        const filePath = `${conceptId}/${Date.now()}_${assetFile.file.name.replace(/[^a-zA-Z0-9._-]/g, '')}`;
         
         logger.error('File upload failed', { 
-          fileName: file.name,
-          fileSize: file.size,
+          fileName: assetFile.file.name,
+          fileSize: assetFile.file.size,
           filePath,
           error: uploadError,
           errorMessage
@@ -650,14 +807,14 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
           sf.id === assetFile.id ? { ...sf, uploading: false, uploadError: errorMessage } : sf
         ));
         
-        const uploadDuration = Date.now() - fileUploadStartTime;
         errorCount++;
+        const uploadDuration = Date.now() - fileUploadStartTime;
 
         logger.error('File upload error', { 
-          fileName: file.name,
+          fileName: assetFile.file.name,
           errorMessage,
           uploadDuration,
-          fileSize: file.size
+          fileSize: assetFile.file.size
         });
       }
     }

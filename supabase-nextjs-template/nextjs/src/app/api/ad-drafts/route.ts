@@ -39,6 +39,7 @@ interface AdDraftAssetRowFromDB {
   meta_hash: string | null;
   meta_video_id: string | null;
   meta_upload_error: string | null;
+  thumbnail_url?: string | null; // Make optional for backwards compatibility
 }
 
 
@@ -74,6 +75,7 @@ interface AdDraftAssetInsertRow {
   name: string;
   supabase_url: string;
   type: 'image' | 'video';
+  thumbnail_url?: string | null; // Add thumbnail URL field
   // meta_hash, meta_video_id, etc., are not set during initial save, but by launch API
 }
 
@@ -124,7 +126,8 @@ export async function GET(req: NextRequest) {
           type,
           meta_hash,
           meta_video_id,
-          meta_upload_error
+          meta_upload_error,
+          thumbnail_url
         ),
         site_links,
         advantage_plus_creative
@@ -181,6 +184,7 @@ export async function GET(req: NextRequest) {
         name: assetRow.name,
         supabaseUrl: assetRow.supabase_url,
         type: assetRow.type,
+        thumbnailUrl: assetRow.thumbnail_url || undefined, // Include thumbnail URL if available
         // aspectRatios is not stored/retrieved here
       })),
       // Include new Meta features
@@ -200,7 +204,6 @@ export async function GET(req: NextRequest) {
         description_automation: false,
         add_text_overlay: false,
         site_extensions: false,
-        music: false,
         '3d_animation': false,
         translate_text: false
       }
@@ -272,7 +275,6 @@ export async function POST(req: NextRequest) {
           description_automation: false,
           add_text_overlay: false,
           site_extensions: false,
-          music: false,
           '3d_animation': false,
           translate_text: false
         },
@@ -318,6 +320,7 @@ export async function POST(req: NextRequest) {
           name: asset.name,
           supabase_url: asset.supabaseUrl,
           type: asset.type,
+          thumbnail_url: (asset as any).thumbnailUrl || null, // Include thumbnail URL if available
         }));
         const { error: insertAssetsError } = await (supabase as any)
           .from('ad_draft_assets')

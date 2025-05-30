@@ -16,7 +16,8 @@ import {
   Sparkles,
   RefreshCw,
   Zap,
-  Brain
+  Brain,
+  FileVideo
 } from 'lucide-react';
 import AssetImportModal from './AssetImportModal';
 import MetaCampaignSelector from './MetaCampaignSelector';
@@ -130,6 +131,10 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, activeBatch, select
   const [copyResults, setCopyResults] = useState<CopyGenerationResult[]>([]);
   const [showCustomPromptModal, setShowCustomPromptModal] = useState(false);
   const [customPrompt, setCustomPrompt] = useState('');
+  
+  // Add thumbnail generation state
+  const [isGeneratingThumbnails, setIsGeneratingThumbnails] = useState(false);
+  const [thumbnailProgress, setThumbnailProgress] = useState<{[key: string]: number}>({});
   
   // Asset preview modal state
   const [assetPreviewModal, setAssetPreviewModal] = useState<{
@@ -1178,161 +1183,6 @@ Are you sure you want to continue?`;
     alert(`Successfully applied "${configName}" to ${selectedCount} ad draft(s).`);
   };
 
-  const handleCompressVideos = async () => {
-    if (checkedDraftIds.size === 0) {
-      alert("Please select at least one ad draft to compress videos.");
-      return;
-    }
-
-    // Find all video assets in selected drafts that need compression
-    const selectedDrafts = filteredAdDrafts.filter(draft => checkedDraftIds.has(draft.id));
-    const videosToCompress: { draft: AdDraft; asset: AdDraftAsset; assetIndex: number }[] = [];
-
-    for (const draft of selectedDrafts) {
-      draft.assets.forEach((asset, index) => {
-        if (asset.type === 'video') {
-          // We'll check if it needs compression after fetching the file
-          videosToCompress.push({ draft, asset, assetIndex: index });
-        }
-      });
-    }
-
-    if (videosToCompress.length === 0) {
-      alert("No video assets found in selected ads.");
-      return;
-    }
-
-    const confirmMessage = `Found ${videosToCompress.length} video asset(s) in ${selectedDrafts.length} selected ad(s).
-
-This will manually compress existing videos:
-• Download each video from Supabase
-• Check if compression is needed (>150MB)
-• Compress large videos automatically
-• Upload compressed versions back to Supabase
-• Update the ad drafts with new URLs
-
-Note: New asset uploads are automatically compressed if over 150MB during import.
-This manual compression is for existing assets that may need optimization.
-
-This process may take several minutes. Continue?`;
-
-    if (!confirm(confirmMessage)) {
-      return;
-    }
-
-    setIsCompressing(true);
-    setCompressionProgress({});
-
-    const supabase = createSPAClient();
-    let compressedCount = 0;
-    let skippedCount = 0;
-    let errorCount = 0;
-
-    try {
-      for (const { draft, asset, assetIndex } of videosToCompress) {
-        const progressKey = `${draft.id}-${assetIndex}`;
-        
-        try {
-          console.log(`Processing video: ${asset.name}`);
-          
-          // Fetch the video file from Supabase
-          const response = await fetch(asset.supabaseUrl);
-          if (!response.ok) {
-            throw new Error(`Failed to fetch video: ${response.statusText}`);
-          }
-          
-          const blob = await response.blob();
-          const file = new File([blob], asset.name, { type: blob.type });
-          
-          // Check if compression is needed
-          if (!needsCompression(file)) {
-            console.log(`Video ${asset.name} (${getFileSizeMB(file).toFixed(2)}MB) doesn't need compression`);
-            skippedCount++;
-            continue;
-          }
-
-          console.log(`Compressing video ${asset.name} (${getFileSizeMB(file).toFixed(2)}MB)...`);
-          
-          // Update progress
-          setCompressionProgress(prev => ({ ...prev, [progressKey]: 0 }));
-
-          // Compress the video
-          const compressedFile = await compressVideoWithQuality(
-            file, 
-            'balanced', // Use balanced quality for 2x speed improvement
-            (progress) => {
-              setCompressionProgress(prev => ({ ...prev, [progressKey]: progress }));
-            }
-          );
-
-          console.log(`Compression complete: ${getFileSizeMB(file).toFixed(2)}MB → ${getFileSizeMB(compressedFile).toFixed(2)}MB`);
-
-          // Upload compressed video to Supabase
-          const filePath = `${defaults.brandId}/${Date.now()}_${compressedFile.name.replace(/[^a-zA-Z0-9._-]/g, '')}`;
-          
-          const { error: uploadError } = await supabase.storage
-            .from('ad-creatives')
-            .upload(filePath, compressedFile, {
-              cacheControl: '3600',
-              upsert: false,
-            });
-
-          if (uploadError) {
-            throw new Error(`Upload failed: ${uploadError.message}`);
-          }
-
-          // Get public URL
-          const { data: { publicUrl } } = supabase.storage.from('ad-creatives').getPublicUrl(filePath);
-          
-          if (!publicUrl) {
-            throw new Error('Could not get public URL for compressed video');
-          }
-
-          // Update the ad draft with the new compressed video URL
-          setAdDrafts(prevDrafts => 
-            prevDrafts.map(d => {
-              if (d.id === draft.id) {
-                const updatedAssets = [...d.assets];
-                updatedAssets[assetIndex] = {
-                  ...asset,
-                  supabaseUrl: publicUrl,
-                  name: compressedFile.name
-                };
-                return { ...d, assets: updatedAssets };
-              }
-              return d;
-            })
-          );
-
-          compressedCount++;
-          console.log(`Successfully compressed and updated ${asset.name}`);
-
-        } catch (error) {
-          console.error(`Failed to compress ${asset.name}:`, error);
-          errorCount++;
-        }
-      }
-
-      // Show completion message
-      const message = `Video compression complete!
-
-✅ Compressed: ${compressedCount} videos
-⏭️ Skipped: ${skippedCount} videos (already under 150MB)
-❌ Errors: ${errorCount} videos
-
-${compressedCount > 0 ? 'Compressed videos have been updated in your ads.' : ''}`;
-
-      alert(message);
-
-    } catch (error) {
-      console.error('Compression process failed:', error);
-      alert(`Compression failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      setIsCompressing(false);
-      setCompressionProgress({});
-    }
-  };
-
   const handleGenerateCopy = async () => {
     if (checkedDraftIds.size === 0) {
       alert("Please select at least one ad draft to generate copy.");
@@ -1456,6 +1306,219 @@ ${compressedCount > 0 ? 'Compressed videos have been updated in your ads.' : ''}
     }
   };
 
+  // Generate thumbnails for video assets that don't have them
+  const handleGenerateThumbnails = async () => {
+    setIsGeneratingThumbnails(true);
+    setThumbnailProgress({});
+    
+    try {
+      // Get all video assets from checked drafts that might need thumbnails
+      const checkedDrafts = filteredAdDrafts.filter(draft => checkedDraftIds.has(draft.id));
+      const videoAssets: { assetId: string; assetName: string; supabaseUrl: string; draftId: string }[] = [];
+      
+      checkedDrafts.forEach(draft => {
+        draft.assets.forEach(asset => {
+          if (asset.type === 'video') {
+            videoAssets.push({
+              assetId: crypto.randomUUID(), // This would be the actual asset ID from database
+              assetName: asset.name,
+              supabaseUrl: asset.supabaseUrl,
+              draftId: draft.id
+            });
+          }
+        });
+      });
+      
+      if (videoAssets.length === 0) {
+        alert('No video assets found in selected drafts.');
+        return;
+      }
+      
+      console.log(`Generating thumbnails for ${videoAssets.length} video assets`);
+      const supabase = createSPAClient();
+      let processed = 0;
+      
+      for (const videoAsset of videoAssets) {
+        try {
+          setThumbnailProgress(prev => ({ ...prev, [videoAsset.assetId]: 0 }));
+          
+          // Extract thumbnail from video
+          const { thumbnailBlob, error } = await extractVideoThumbnailFromUrl(videoAsset.supabaseUrl);
+          
+          setThumbnailProgress(prev => ({ ...prev, [videoAsset.assetId]: 50 }));
+          
+          if (error || !thumbnailBlob || thumbnailBlob.size === 0) {
+            console.warn(`Could not extract thumbnail for ${videoAsset.assetName}: ${error}`);
+            setThumbnailProgress(prev => ({ ...prev, [videoAsset.assetId]: -1 })); // Error state
+            continue;
+          }
+          
+          // Upload thumbnail to Supabase
+          const timestamp = Date.now();
+          const thumbnailFileName = `${videoAsset.assetName.split('.')[0]}_thumbnail.jpg`;
+          const thumbnailPath = `${videoAsset.draftId}/${timestamp}_${thumbnailFileName}`;
+          
+          const { data, error: uploadError } = await supabase.storage
+            .from('ad-creatives')
+            .upload(thumbnailPath, thumbnailBlob, {
+              cacheControl: '3600',
+              upsert: false,
+            });
+          
+          if (uploadError || !data) {
+            console.error(`Failed to upload thumbnail for ${videoAsset.assetName}:`, uploadError);
+            setThumbnailProgress(prev => ({ ...prev, [videoAsset.assetId]: -1 })); // Error state
+            continue;
+          }
+          
+          // Get public URL
+          const { data: { publicUrl } } = supabase.storage
+            .from('ad-creatives')
+            .getPublicUrl(thumbnailPath);
+          
+          if (publicUrl) {
+            console.log(`Thumbnail generated and uploaded for ${videoAsset.assetName}: ${publicUrl}`);
+            setThumbnailProgress(prev => ({ ...prev, [videoAsset.assetId]: 100 }));
+            processed++;
+          }
+          
+        } catch (error) {
+          console.error(`Error processing ${videoAsset.assetName}:`, error);
+          setThumbnailProgress(prev => ({ ...prev, [videoAsset.assetId]: -1 })); // Error state
+        }
+      }
+      
+      alert(`Thumbnail generation complete. Processed ${processed} of ${videoAssets.length} videos.`);
+      
+    } catch (error) {
+      console.error('Error in thumbnail generation:', error);
+      alert('Failed to generate thumbnails. Please try again.');
+    } finally {
+      setIsGeneratingThumbnails(false);
+      setTimeout(() => setThumbnailProgress({}), 3000); // Clear progress after 3 seconds
+    }
+  };
+  
+  // Function to extract first frame from video URL as thumbnail
+  const extractVideoThumbnailFromUrl = async (videoUrl: string): Promise<{ thumbnailBlob: Blob; error?: string }> => {
+    return new Promise(async (resolve) => {
+      try {
+        // Fetch the video first
+        const videoResponse = await fetch(videoUrl);
+        if (!videoResponse.ok) {
+          resolve({ thumbnailBlob: new Blob(), error: `Failed to fetch video: ${videoResponse.statusText}` });
+          return;
+        }
+        
+        const videoBlob = await videoResponse.blob();
+        const videoObjectUrl = URL.createObjectURL(videoBlob);
+        
+        // Create video element to extract frame
+        const video = document.createElement('video');
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        if (!ctx) {
+          resolve({ thumbnailBlob: new Blob(), error: 'Could not create canvas context' });
+          return;
+        }
+        
+        video.crossOrigin = 'anonymous';
+        video.muted = true;
+        video.preload = 'metadata';
+        
+        video.addEventListener('loadedmetadata', () => {
+          // Set canvas dimensions to match video
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+          
+          // Seek to first frame
+          video.currentTime = 0;
+        });
+        
+        video.addEventListener('seeked', () => {
+          try {
+            // Draw video frame to canvas
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            
+            // Convert canvas to blob
+            canvas.toBlob((blob) => {
+              if (blob) {
+                resolve({ thumbnailBlob: blob });
+              } else {
+                resolve({ thumbnailBlob: new Blob(), error: 'Could not extract frame from video' });
+              }
+              
+              // Clean up
+              URL.revokeObjectURL(videoObjectUrl);
+              video.remove();
+              canvas.remove();
+            }, 'image/jpeg', 0.8);
+            
+          } catch (error) {
+            resolve({ thumbnailBlob: new Blob(), error: `Frame extraction failed: ${error instanceof Error ? error.message : 'Unknown error'}` });
+            
+            // Clean up
+            URL.revokeObjectURL(videoObjectUrl);
+            video.remove();
+            canvas.remove();
+          }
+        });
+        
+        video.addEventListener('error', () => {
+          resolve({ thumbnailBlob: new Blob(), error: 'Could not load video for thumbnail extraction' });
+          
+          // Clean up
+          URL.revokeObjectURL(videoObjectUrl);
+          video.remove();
+          canvas.remove();
+        });
+        
+        video.src = videoObjectUrl;
+        video.load();
+        
+      } catch (error) {
+        resolve({ thumbnailBlob: new Blob(), error: `Thumbnail extraction failed: ${error instanceof Error ? error.message : 'Unknown error'}` });
+      }
+    });
+  };
+
+  const handleCopyGeneration = async () => {
+    if (checkedDraftIds.size === 0) {
+      alert("Please select at least one ad draft to generate copy.");
+      return;
+    }
+
+    if (!defaults.brandId) {
+      alert("Brand ID is missing. Please ensure your brand is properly configured.");
+      return;
+    }
+
+    const selectedDrafts = filteredAdDrafts.filter(draft => checkedDraftIds.has(draft.id));
+    
+    // Get all assets from selected drafts
+    const allAssets: { assetId: string; assetName: string; draftId: string; draftName: string }[] = [];
+    
+    selectedDrafts.forEach(draft => {
+      draft.assets.forEach(asset => {
+        allAssets.push({
+          assetId: `${draft.id}-${asset.name}`,
+          assetName: asset.name,
+          draftId: draft.id,
+          draftName: draft.adName
+        });
+      });
+    });
+
+    if (allAssets.length === 0) {
+      alert("No assets found in selected ad drafts. Please ensure your ads have assets before generating copy.");
+      return;
+    }
+
+    // Show custom prompt modal first
+    setShowCustomPromptModal(true);
+  };
+
   return (
     <div className="mt-6 pb-16">
         <div className="bg-white p-4 sm:p-6 rounded-lg shadow mb-6">
@@ -1564,6 +1627,26 @@ ${compressedCount > 0 ? 'Compressed videos have been updated in your ads.' : ''}
                       <>
                         <Brain className="mr-2 h-4 w-4" /> 
                         Generate Copy ({checkedDraftIds.size})
+                      </>
+                    )}
+                </button>
+                
+                {/* Generate Thumbnails Button */}
+                <button
+                    onClick={handleGenerateThumbnails}
+                    disabled={checkedDraftIds.size === 0 || isGeneratingThumbnails}
+                    className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md shadow-sm flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Generate thumbnails for video assets in selected ad drafts"
+                 >
+                    {isGeneratingThumbnails ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Generating Thumbnails...
+                      </>
+                    ) : (
+                      <>
+                        <FileVideo className="mr-2 h-4 w-4" /> 
+                        Generate Thumbnails ({checkedDraftIds.size})
                       </>
                     )}
                 </button>

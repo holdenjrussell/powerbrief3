@@ -108,6 +108,7 @@ export type Database = {
           meta_video_id: string | null
           name: string
           supabase_url: string
+          thumbnail_url: string | null
           type: string
         }
         Insert: {
@@ -119,6 +120,7 @@ export type Database = {
           meta_video_id?: string | null
           name: string
           supabase_url: string
+          thumbnail_url?: string | null
           type: string
         }
         Update: {
@@ -130,6 +132,7 @@ export type Database = {
           meta_video_id?: string | null
           name?: string
           supabase_url?: string
+          thumbnail_url?: string | null
           type?: string
         }
         Relationships: [

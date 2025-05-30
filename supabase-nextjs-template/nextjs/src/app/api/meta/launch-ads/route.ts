@@ -3,6 +3,7 @@ import { AdDraft, AdDraftAsset } from '@/components/ad-upload-tool/adUploadTypes
 import { createSSRClient } from '@/lib/supabase/server';
 import { decryptToken } from '@/lib/utils/tokenEncryption';
 import { sendSlackNotification } from '@/lib/utils/slackNotifications';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 interface LaunchAdsRequestBody {
   drafts: AdDraft[];
@@ -28,6 +29,7 @@ interface ProcessedAdDraftAsset extends AdDraftAsset {
   metaHash?: string;
   metaVideoId?: string;
   metaUploadError?: string;
+  thumbnailUrl?: string; // Add thumbnail URL for videos
 }
 
 // Add new interface for Ad response
@@ -339,6 +341,105 @@ async function uploadVideoUsingResumableAPI(
     return { error: `Resumable upload failed: ${(error as Error).message}` };
   }
 }
+
+// Function to find video thumbnail (client-side uploaded)
+const findVideoThumbnail = async (videoName: string, conceptId: string, supabase: SupabaseClient): Promise<{ thumbnailUrl?: string; error?: string }> => {
+  try {
+    console.log(`[Launch API]       Looking for thumbnail for video: ${videoName}`);
+    
+    // Extract base name from video (remove extension and common suffixes)
+    const baseName = videoName.split('.')[0].replace(/_compressed|_comp|-compressed|-comp/g, '');
+    const thumbnailName = `${baseName}_thumbnail.jpg`;
+    
+    // List files in the concept folder to find the thumbnail
+    const { data: files, error } = await supabase.storage
+      .from('ad-creatives')
+      .list(conceptId, {
+        limit: 100,
+        search: thumbnailName
+      });
+    
+    if (error) {
+      console.warn(`[Launch API]       Error listing files to find thumbnail: ${error.message}`);
+      return { error: `Could not search for thumbnail: ${error.message}` };
+    }
+    
+    // Look for the thumbnail file
+    const thumbnailFile = files?.find(file => file.name.includes('_thumbnail.jpg'));
+    
+    if (thumbnailFile) {
+      const { data: { publicUrl } } = supabase.storage
+        .from('ad-creatives')
+        .getPublicUrl(`${conceptId}/${thumbnailFile.name}`);
+      
+      if (publicUrl) {
+        console.log(`[Launch API]       Found thumbnail for ${videoName}: ${publicUrl}`);
+        return { thumbnailUrl: publicUrl };
+      }
+    }
+    
+    console.log(`[Launch API]       No thumbnail found for video: ${videoName}`);
+    return { error: 'No thumbnail found for video' };
+    
+  } catch (error) {
+    console.warn(`[Launch API]       Error finding thumbnail for ${videoName}:`, error);
+    return { error: `Thumbnail search failed: ${error instanceof Error ? error.message : 'Unknown error'}` };
+  }
+};
+
+// Function to upload image URL as Meta ad image
+const uploadImageUrlToMeta = async (imageUrl: string, imageName: string, adAccountId: string, accessToken: string): Promise<{ imageHash?: string; error?: string }> => {
+  try {
+    console.log(`[Launch API]       Uploading image from URL to Meta: ${imageName}`);
+    
+    // Fetch the image
+    const imageResponse = await fetch(imageUrl);
+    if (!imageResponse.ok) {
+      return { error: `Failed to fetch image: ${imageResponse.statusText}` };
+    }
+    
+    const imageBlob = await imageResponse.blob();
+    
+    // Upload to Meta
+    const formattedAdAccountId = adAccountId.startsWith('act_') ? adAccountId.substring(4) : adAccountId;
+    
+    const formData = new FormData();
+    formData.append('access_token', accessToken);
+    formData.append('source', imageBlob, `${imageName}_thumbnail.jpg`);
+
+    const metaUploadUrl = `https://graph.facebook.com/${META_API_VERSION}/act_${formattedAdAccountId}/adimages`;
+    
+    console.log(`[Launch API]       Uploading thumbnail to Meta for ${imageName}...`);
+    const metaResponse = await fetch(metaUploadUrl, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!metaResponse.ok) {
+      const errorText = await metaResponse.text();
+      return { error: `Thumbnail upload failed: ${metaResponse.status} ${metaResponse.statusText} - ${errorText}` };
+    }
+
+    const result = await metaResponse.json();
+    
+    if (result.error) {
+      return { error: `Thumbnail upload error: ${result.error.message}` };
+    }
+
+    // Extract image hash from response
+    const imageHash = result.images?.[Object.keys(result.images)[0]]?.hash;
+    
+    if (!imageHash) {
+      return { error: 'No image hash returned from Meta thumbnail upload' };
+    }
+
+    console.log(`[Launch API]       Thumbnail uploaded successfully to Meta. Hash: ${imageHash}`);
+    return { imageHash };
+    
+  } catch (error) {
+    return { error: `Thumbnail upload failed: ${error instanceof Error ? error.message : 'Unknown error'}` };
+  }
+};
 
 export async function POST(req: NextRequest) {
   try {
@@ -813,6 +914,41 @@ export async function POST(req: NextRequest) {
               image_hash: primaryAsset.metaHash
             };
           } else if (primaryAsset.type === 'video' && primaryAsset.metaVideoId) {
+            // Get video thumbnail
+            let thumbnailHash: string | undefined;
+            try {
+              // Find the original asset in the draft to get concept ID for thumbnail search
+              const originalAsset = (draft.assets as ProcessedAdDraftAsset[]).find(
+                a => a.metaVideoId === primaryAsset.metaVideoId
+              );
+              
+              if (originalAsset) {
+                // First try to find a pre-uploaded thumbnail
+                const thumbnailResult = await findVideoThumbnail(originalAsset.name, draft.id, supabase);
+                
+                if (thumbnailResult.thumbnailUrl) {
+                  // Upload the found thumbnail to Meta
+                  const uploadResult = await uploadImageUrlToMeta(
+                    thumbnailResult.thumbnailUrl,
+                    originalAsset.name,
+                    adAccountId,
+                    accessToken
+                  );
+                  
+                  if (uploadResult.error) {
+                    console.warn(`[Launch API]     Could not upload thumbnail for ${originalAsset.name}: ${uploadResult.error}`);
+                  } else {
+                    thumbnailHash = uploadResult.imageHash;
+                    console.log(`[Launch API]     Using uploaded thumbnail for video: ${originalAsset.name}`);
+                  }
+                } else {
+                  console.warn(`[Launch API]     No thumbnail found for ${originalAsset.name}: ${thumbnailResult.error}`);
+                }
+              }
+            } catch (thumbnailError) {
+              console.warn(`[Launch API]     Could not process thumbnail for ${primaryAsset.name}:`, thumbnailError);
+            }
+            
             creativeSpec.object_story_spec.video_data = {
               video_id: primaryAsset.metaVideoId,
               message: draft.primaryText,
@@ -820,7 +956,8 @@ export async function POST(req: NextRequest) {
                 type: draft.callToAction?.toUpperCase().replace(/\s+/g, '_'),
                 value: { link: draft.destinationUrl },
               },
-              title: draft.headline
+              title: draft.headline,
+              ...(thumbnailHash && { image_hash: thumbnailHash })
             };
           }
           
@@ -900,6 +1037,41 @@ export async function POST(req: NextRequest) {
             image_hash: selectedAsset.metaHash
           };
         } else if (selectedAsset.type === 'video' && selectedAsset.metaVideoId) {
+          // Get video thumbnail  
+          let thumbnailHash: string | undefined;
+          try {
+            // Find the original asset in the draft to get concept ID for thumbnail search
+            const originalAsset = (draft.assets as ProcessedAdDraftAsset[]).find(
+              a => a.metaVideoId === selectedAsset.metaVideoId
+            );
+            
+            if (originalAsset) {
+              // First try to find a pre-uploaded thumbnail
+              const thumbnailResult = await findVideoThumbnail(originalAsset.name, draft.id, supabase);
+              
+              if (thumbnailResult.thumbnailUrl) {
+                // Upload the found thumbnail to Meta
+                const uploadResult = await uploadImageUrlToMeta(
+                  thumbnailResult.thumbnailUrl,
+                  originalAsset.name,
+                  adAccountId,
+                  accessToken
+                );
+                
+                if (uploadResult.error) {
+                  console.warn(`[Launch API]     Could not upload thumbnail for ${originalAsset.name}: ${uploadResult.error}`);
+                } else {
+                  thumbnailHash = uploadResult.imageHash;
+                  console.log(`[Launch API]     Using uploaded thumbnail for video: ${originalAsset.name}`);
+                }
+              } else {
+                console.warn(`[Launch API]     No thumbnail found for ${originalAsset.name}: ${thumbnailResult.error}`);
+              }
+            }
+          } catch (thumbnailError) {
+            console.warn(`[Launch API]     Could not process thumbnail for ${selectedAsset.name}:`, thumbnailError);
+          }
+          
           creativeSpec.object_story_spec.video_data = {
             video_id: selectedAsset.metaVideoId,
             message: draft.primaryText,
@@ -907,7 +1079,8 @@ export async function POST(req: NextRequest) {
               type: draft.callToAction?.toUpperCase().replace(/\s+/g, '_'),
               value: { link: draft.destinationUrl },
             },
-            title: draft.headline
+            title: draft.headline,
+            ...(thumbnailHash && { image_hash: thumbnailHash })
           };
         }
         
