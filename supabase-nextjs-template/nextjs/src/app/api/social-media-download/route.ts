@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { scrapeFacebook, scrapeInstagram, scrapeTikTok } from '@/lib/social-media-scrapers';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -104,8 +105,7 @@ function getMimeType(extension: string): string {
 
 async function downloadFromFacebook(url: string): Promise<DownloadResult> {
   try {
-    const { facebook } = await import('@/lib/scraper-wrapper.mjs');
-    const result = await facebook(url);
+    const result = await scrapeFacebook(url);
     
     console.log('Facebook scraper result:', result);
     
@@ -137,8 +137,7 @@ async function downloadFromFacebook(url: string): Promise<DownloadResult> {
 
 async function downloadFromInstagram(url: string): Promise<DownloadResult> {
   try {
-    const { instagram } = await import('@/lib/scraper-wrapper.mjs');
-    const result = await instagram(url);
+    const result = await scrapeInstagram(url);
     
     console.log('Instagram scraper result:', result);
     
@@ -170,8 +169,7 @@ async function downloadFromInstagram(url: string): Promise<DownloadResult> {
 
 async function downloadFromTikTok(url: string): Promise<DownloadResult> {
   try {
-    const { tiktok } = await import('@/lib/scraper-wrapper.mjs');
-    const result = await tiktok(url);
+    const result = await scrapeTikTok(url);
     
     console.log('TikTok scraper result:', result);
     
@@ -388,7 +386,7 @@ export async function POST(request: NextRequest) {
       const newCount = results.filter(r => r.status === 'success' && !r.alreadyExists).length;
       const existingCount = results.filter(r => r.status === 'success' && r.alreadyExists).length;
       
-      let message = `Processed ${urls.length} URLs using fongsi scraper.`;
+      let message = `Processed ${urls.length} URLs using custom scraper.`;
       if (newCount > 0) {
         message += ` ${newCount} new items saved to brand board.`;
       }
@@ -423,7 +421,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: true,
         results,
-        message: `Processed ${urls.length} URLs using fongsi scraper. ${successCount} successful.`
+        message: `Processed ${urls.length} URLs using custom scraper. ${successCount} successful.`
       });
     }
     
