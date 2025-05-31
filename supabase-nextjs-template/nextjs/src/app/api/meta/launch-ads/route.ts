@@ -336,8 +336,9 @@ async function uploadVideoUsingResumableAPI(
     }
 
     // For videos uploaded via act_{AD_ACCOUNT_ID}/video_ads, the success of the 'finish' phase
-    // is the primary indicator of readiness. Explicit status polling is generally not required
-    // and can be misleading due to the endpoint's design for immediate ad use.
+    // is the primary indicator of readiness. Explicit status polling via `/{VIDEO_ID}?fields=status`
+    // is optional according to Meta's documentation for this specific workflow and can be misleading.
+    // We will rely on the successful completion of the 'finish' phase.
     console.log(`[Launch API]       Video upload completed and finish phase successful. ID: ${videoId}. Assuming ready for ad use.`);
     return { videoId };
 
