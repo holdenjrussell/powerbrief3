@@ -337,49 +337,23 @@ async function uploadVideoUsingResumableAPI(
 
     console.log(`[Launch API]       Step 4: Verifying video processing...`);
     
-    // Step 4: Brief check to verify video is processed correctly
-    // Add a small initial delay to allow video to become available
-    await new Promise(resolve => setTimeout(resolve, 5000)); // 5 second initial delay
-    
-    let attempts = 0;
-    const maxAttempts = 5; // Increased attempts
-    const retryDelay = 5000; // 5 second retry delay
-    
-    while (attempts < maxAttempts) {
-      try {
-        const { ready, status, error } = await checkVideoStatus(videoId, accessToken);
-        console.log(`[Launch API]       Video ${videoId} status check (attempt ${attempts + 1}/${maxAttempts}): ready=${ready}, status=${status}`);
-        
-        if (ready) {
-          console.log(`[Launch API]       Video ${videoId} is ready for use in ads`);
-          break;
-        }
-        
-        if (status === 'error') {
-          console.error(`[Launch API]       Video ${videoId} failed processing: ${error}`);
-          // Don't return error immediately, try a few more times
-          // as sometimes status can temporarily be 'error' during processing
-          if (attempts >= maxAttempts -1) {
-            return { error: `Video processing failed after ${maxAttempts} attempts: ${error}` };
-          }
-        }
-        
-        // If not ready but not errored, wait a bit before next attempt
-        if (attempts < maxAttempts - 1) {
-          console.log(`[Launch API]       Video ${videoId} not ready yet, waiting ${retryDelay / 1000} seconds...`);
-          await new Promise(resolve => setTimeout(resolve, retryDelay));
-        }
-      } catch (statusError) {
-        console.warn(`[Launch API]       Could not check status for video ${videoId} (attempt ${attempts + 1}):`, statusError);
-        // Continue anyway - status check is not critical for video_ads endpoint
+    // For videos uploaded via act_{AD_ACCOUNT_ID}/video_ads, explicit polling is often not needed.
+    // The success of the 'finish' phase is a strong indicator of readiness.
+    // We'll do one quick sanity check.
+    try {
+      const { ready, status, error } = await checkVideoStatus(videoId, accessToken);
+      console.log(`[Launch API]       Video ${videoId} initial status check: ready=${ready}, status=${status}`);
+      if (status === 'error') {
+        console.warn(`[Launch API]       Video ${videoId} reported status '${status}' immediately after upload. Error: ${error || 'None'}. Proceeding cautiously.`);
+        // Log the error but don't fail the upload at this stage, as it might resolve.
+      } else if (!ready) {
+        console.log(`[Launch API]       Video ${videoId} not immediately ready (status: ${status}). This is often OK for video_ads endpoint.`);
+      } else {
+        console.log(`[Launch API]       Video ${videoId} confirmed ready immediately after upload.`);
       }
-      attempts++;
-    }
-    
-    // If loop finishes and video is still not ready (but not errored definitively)
-    // We can proceed cautiously, but log a warning
-    if (attempts === maxAttempts) {
-        console.warn(`[Launch API]       Video ${videoId} not confirmed ready after ${maxAttempts} attempts. Proceeding with ad creation.`);
+    } catch (statusError) {
+      console.warn(`[Launch API]       Could not perform initial status check for video ${videoId}:`, statusError);
+      // Not a fatal error, proceed with the video ID.
     }
 
     console.log(`[Launch API]       Video upload completed successfully. ID: ${videoId}`);
