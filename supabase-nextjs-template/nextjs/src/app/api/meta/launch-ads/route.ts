@@ -335,28 +335,10 @@ async function uploadVideoUsingResumableAPI(
       return { error: 'Failed to finish upload session' };
     }
 
-    console.log(`[Launch API]       Step 4: Verifying video processing...`);
-    
-    // For videos uploaded via act_{AD_ACCOUNT_ID}/video_ads, explicit polling is often not needed.
-    // The success of the 'finish' phase is a strong indicator of readiness.
-    // We'll do one quick sanity check.
-    try {
-      const { ready, status, error } = await checkVideoStatus(videoId, accessToken);
-      console.log(`[Launch API]       Video ${videoId} initial status check: ready=${ready}, status=${status}`);
-      if (status === 'error') {
-        console.warn(`[Launch API]       Video ${videoId} reported status '${status}' immediately after upload. Error: ${error || 'None'}. Proceeding cautiously.`);
-        // Log the error but don't fail the upload at this stage, as it might resolve.
-      } else if (!ready) {
-        console.log(`[Launch API]       Video ${videoId} not immediately ready (status: ${status}). This is often OK for video_ads endpoint.`);
-      } else {
-        console.log(`[Launch API]       Video ${videoId} confirmed ready immediately after upload.`);
-      }
-    } catch (statusError) {
-      console.warn(`[Launch API]       Could not perform initial status check for video ${videoId}:`, statusError);
-      // Not a fatal error, proceed with the video ID.
-    }
-
-    console.log(`[Launch API]       Video upload completed successfully. ID: ${videoId}`);
+    // For videos uploaded via act_{AD_ACCOUNT_ID}/video_ads, the success of the 'finish' phase
+    // is the primary indicator of readiness. Explicit status polling is generally not required
+    // and can be misleading due to the endpoint's design for immediate ad use.
+    console.log(`[Launch API]       Video upload completed and finish phase successful. ID: ${videoId}. Assuming ready for ad use.`);
     return { videoId };
 
   } catch (error) {
