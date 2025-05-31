@@ -40,6 +40,7 @@ interface AdDraftAssetRowFromDB {
   meta_video_id: string | null;
   meta_upload_error: string | null;
   thumbnail_url?: string | null; // Make optional for backwards compatibility
+  thumbnail_timestamp?: number | null; // Timestamp in seconds where thumbnail was captured
 }
 
 
@@ -76,6 +77,7 @@ interface AdDraftAssetInsertRow {
   supabase_url: string;
   type: 'image' | 'video';
   thumbnail_url?: string | null; // Add thumbnail URL field
+  thumbnail_timestamp?: number | null; // Add timestamp field
   // meta_hash, meta_video_id, etc., are not set during initial save, but by launch API
 }
 
@@ -127,7 +129,8 @@ export async function GET(req: NextRequest) {
           meta_hash,
           meta_video_id,
           meta_upload_error,
-          thumbnail_url
+          thumbnail_url,
+          thumbnail_timestamp
         ),
         site_links,
         advantage_plus_creative
@@ -185,6 +188,7 @@ export async function GET(req: NextRequest) {
         supabaseUrl: assetRow.supabase_url,
         type: assetRow.type,
         thumbnailUrl: assetRow.thumbnail_url || undefined, // Include thumbnail URL if available
+        thumbnailTimestamp: assetRow.thumbnail_timestamp || undefined, // Include thumbnail timestamp if available
         // aspectRatios is not stored/retrieved here
       })),
       // Include new Meta features
@@ -321,6 +325,7 @@ export async function POST(req: NextRequest) {
           supabase_url: asset.supabaseUrl,
           type: asset.type,
           thumbnail_url: (asset as any).thumbnailUrl || null, // Include thumbnail URL if available
+          thumbnail_timestamp: (asset as any).thumbnailTimestamp || null, // Include thumbnail timestamp if available
         }));
         const { error: insertAssetsError } = await (supabase as any)
           .from('ad_draft_assets')

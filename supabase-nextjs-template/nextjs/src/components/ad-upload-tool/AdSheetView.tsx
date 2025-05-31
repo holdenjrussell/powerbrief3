@@ -39,6 +39,9 @@ import {
 import BulkEditModal from './BulkEditModal'; // Import BulkEditModal
 import BulkRenameModal from './BulkRenameModal'; // Import BulkRenameModal
 import { createSPAClient } from '@/lib/supabase/client';
+import VideoThumbnailScrubberModal from './VideoThumbnailScrubberModal';
+import CopyGenerationResultsModal from './CopyGenerationResultsModal';
+import CustomPromptModal from './CustomPromptModal';
 
 // DefaultValues interface is now imported and aliased
 // ColumnDef interface is now imported
@@ -100,6 +103,7 @@ const initialColumns: ColumnDef<AdDraft>[] = [
     { id: 'destinationUrl', label: 'Destination URL', visible: true, type: 'url' as const },
     { id: 'callToAction', label: 'Call To Action', visible: true, type: 'select' as const, options: callToActionOptions.map(cta => cta.replace(/_/g, ' ')) },
     { id: 'assets', label: 'Assets', visible: true, type: 'custom' as const }, 
+    { id: 'thumbnails', label: 'Thumbnails', visible: true, type: 'custom' as const }, 
     { id: 'status', label: 'Ad Status', visible: true, type: 'status' as const }, 
     { id: 'appStatus', label: 'Meta Upload Status', visible: true, type: 'appStatus' as const }, 
 ];
@@ -121,8 +125,6 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, activeBatch, select
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [hidePublished, setHidePublished] = useState(true); // Simple toggle for hiding published ads
-  const [isCompressing, setIsCompressing] = useState(false); // State for video compression
-  const [compressionProgress, setCompressionProgress] = useState<{[key: string]: number}>({}); // Progress per asset
   
   // Add new state for copy generation
   const [isGeneratingCopy, setIsGeneratingCopy] = useState(false);
@@ -144,6 +146,19 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, activeBatch, select
     isOpen: false,
     assets: [],
     currentIndex: 0
+  });
+
+  // Video thumbnail scrubber modal state
+  const [thumbnailScrubberModal, setThumbnailScrubberModal] = useState<{
+    isOpen: boolean;
+    videoAsset: AdDraftAsset | null;
+    allVideoAssets: AdDraftAsset[];
+    draftId: string;
+  }>({
+    isOpen: false,
+    videoAsset: null,
+    allVideoAssets: [],
+    draftId: ''
   });
 
   // Log active batch for debugging
@@ -874,6 +889,97 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, activeBatch, select
             )}
           </div>
         );
+      case 'thumbnails':
+        const videoAssets = draft.assets.filter(asset => asset.type === 'video');
+        return (
+          <div className="flex flex-wrap gap-2">
+            {videoAssets.length > 0 ? (
+              <>
+                {/* Show thumbnails for video assets */}
+                {videoAssets.slice(0, 3).map((asset, i) => (
+                  <div
+                    key={i}
+                    className="relative cursor-pointer group"
+                    title={asset.thumbnailUrl ? "Click to change thumbnail" : "Click to generate thumbnail"}
+                    onClick={() => {
+                      // Open the thumbnail scrubber modal
+                      setThumbnailScrubberModal({
+                        isOpen: true,
+                        videoAsset: asset,
+                        allVideoAssets: draft.assets.filter(a => a.type === 'video'),
+                        draftId: draft.id
+                      });
+                    }}
+                  >
+                    {asset.thumbnailUrl ? (
+                      <img
+                        src={asset.thumbnailUrl}
+                        alt={`Thumbnail for ${asset.name}`}
+                        className="w-12 h-12 object-cover rounded border-2 border-gray-200 hover:border-blue-400 transition-colors"
+                      />
+                    ) : (
+                      <div className="w-12 h-12 border-2 border-dashed border-gray-300 rounded flex items-center justify-center bg-gray-50 hover:border-orange-400 transition-colors">
+                        <FileVideo className="h-6 w-6 text-gray-400" />
+                      </div>
+                    )}
+                    
+                    {/* Missing thumbnail indicator */}
+                    {!asset.thumbnailUrl && (
+                      <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-orange-500 flex items-center justify-center" title="Thumbnail missing">
+                        <span className="text-white text-xs font-bold">!</span>
+                      </div>
+                    )}
+                    
+                    {/* Thumbnail progress indicator */}
+                    {thumbnailProgress[`${draft.id}_${asset.name}`] !== undefined && (
+                      <div className="absolute inset-0 bg-black bg-opacity-50 rounded flex items-center justify-center">
+                        <div className="text-white text-xs">
+                          {thumbnailProgress[`${draft.id}_${asset.name}`] === -1 ? (
+                            <X className="h-4 w-4 text-red-500" />
+                          ) : (
+                            `${thumbnailProgress[`${draft.id}_${asset.name}`]}%`
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+                
+                {/* Show count if more than 3 video assets */}
+                {videoAssets.length > 3 && (
+                  <div
+                    className="w-12 h-12 border-2 border-dashed border-gray-300 rounded flex items-center justify-center cursor-pointer hover:border-blue-400"
+                    title={`Click to see ${videoAssets.length - 3} more video(s)`}
+                    onClick={() => {
+                      // Open scrubber for the 4th video asset
+                      const fourthAsset = videoAssets[3];
+                      if (fourthAsset) {
+                        setThumbnailScrubberModal({
+                          isOpen: true,
+                          videoAsset: fourthAsset,
+                          allVideoAssets: draft.assets.filter(a => a.type === 'video'),
+                          draftId: draft.id
+                        });
+                      }
+                    }}
+                  >
+                    <span className="text-xs text-gray-600 font-medium">+{videoAssets.length - 3}</span>
+                  </div>
+                )}
+                
+                {/* If no thumbnails exist, show generate button */}
+                {videoAssets.some(asset => !asset.thumbnailUrl) && (
+                  <div className="text-xs text-orange-600 flex items-center">
+                    <AlertCircle className="h-3 w-3 mr-1" />
+                    Missing
+                  </div>
+                )}
+              </>
+            ) : (
+              <span className="text-xs text-gray-400">No videos</span>
+            )}
+          </div>
+        );
       case 'status':
         const statusColor = 
             draft.status === 'DRAFT' ? 'bg-yellow-100 text-yellow-800' : 
@@ -1102,6 +1208,8 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, activeBatch, select
     return () => document.removeEventListener('keydown', handleEscape);
   }, [assetPreviewModal.isOpen]);
 
+  // Commented out - Populate Names feature temporarily disabled
+  /*
   const handlePopulateNames = async () => {
     if (!defaults.brandId) return;
     
@@ -1126,6 +1234,7 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, activeBatch, select
       alert('Failed to populate names. Please try again.');
     }
   };
+  */
 
   const handleApplySelectedConfig = () => {
     if (checkedDraftIds.size === 0) {
@@ -1505,42 +1614,6 @@ Are you sure you want to continue?`;
     });
   };
 
-  const handleCopyGeneration = async () => {
-    if (checkedDraftIds.size === 0) {
-      alert("Please select at least one ad draft to generate copy.");
-      return;
-    }
-
-    if (!defaults.brandId) {
-      alert("Brand ID is missing. Please ensure your brand is properly configured.");
-      return;
-    }
-
-    const selectedDrafts = filteredAdDrafts.filter(draft => checkedDraftIds.has(draft.id));
-    
-    // Get all assets from selected drafts
-    const allAssets: { assetId: string; assetName: string; draftId: string; draftName: string }[] = [];
-    
-    selectedDrafts.forEach(draft => {
-      draft.assets.forEach(asset => {
-        allAssets.push({
-          assetId: `${draft.id}-${asset.name}`,
-          assetName: asset.name,
-          draftId: draft.id,
-          draftName: draft.adName
-        });
-      });
-    });
-
-    if (allAssets.length === 0) {
-      alert("No assets found in selected ad drafts. Please ensure your ads have assets before generating copy.");
-      return;
-    }
-
-    // Show custom prompt modal first
-    setShowCustomPromptModal(true);
-  };
-
   return (
     <div className="mt-6 pb-16">
         <div className="bg-white p-4 sm:p-6 rounded-lg shadow mb-6">
@@ -1678,7 +1751,7 @@ Are you sure you want to continue?`;
                     onClick={handleCompressVideos}
                     disabled={checkedDraftIds.size === 0 || isCompressing}
                     className="px-4 py-2 text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 rounded-md shadow-sm flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
-                    title="Manually compress videos in selected ads (Note: New uploads are automatically compressed if over 150MB)"
+                    title="Manually compress videos in selected ads (Note: New uploads are automatically compressed if over 500MB)"
                  >
                     {isCompressing ? (
                       <>
@@ -1861,31 +1934,147 @@ Are you sure you want to continue?`;
           </table>
         </div>
       </div>
-      <AssetImportModal 
-        isOpen={isAssetModalOpen} 
-        onClose={() => setIsAssetModalOpen(false)} 
-        onAssetsImported={handleAssetsImported} 
-        brandId={defaults.brandId}
+
+      {/* Video Thumbnail Scrubber Modal */}
+      <VideoThumbnailScrubberModal
+        isOpen={thumbnailScrubberModal.isOpen}
+        onClose={() => setThumbnailScrubberModal({
+          isOpen: false,
+          videoAsset: null,
+          allVideoAssets: [],
+          draftId: ''
+        })}
+        videoAsset={thumbnailScrubberModal.videoAsset!}
+        allVideoAssets={thumbnailScrubberModal.allVideoAssets}
+        draftId={thumbnailScrubberModal.draftId}
+        onThumbnailUpdated={async () => {
+          // Refresh ad drafts to show updated thumbnails
+          await refreshAdDrafts();
+        }}
       />
-      {isBulkEditModalOpen && draftsForBulkEdit.length > 0 && (
-        <BulkEditModal
-            isOpen={isBulkEditModalOpen}
-            onClose={() => setIsBulkEditModalOpen(false)}
-            draftsToEdit={draftsForBulkEdit}
-            onApplyBulkEdit={handleApplyBulkEdit}
-            brandId={defaults.brandId}
-            adAccountId={defaults.adAccountId}
-        />
-      )}
-      <BulkRenameModal
-        isOpen={isBulkRenameModalOpen}
-        onClose={() => setIsBulkRenameModalOpen(false)}
-        onRename={handleBulkRename}
-        selectedAdIds={Array.from(checkedDraftIds)}
-        brandId={defaults.brandId || ''}
-      />
+
+      {/* Asset Preview Modal */}
       <AssetPreviewModal />
-      
+
+      {/* Copy Results Modal */}
+      {showCopyResultsModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-semibold text-gray-800">Copy Generation Results</h2>
+                <button
+                  onClick={() => setShowCopyResultsModal(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                  aria-label="Close results modal"
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+
+              <div className="mb-6">
+                <div className="grid grid-cols-3 gap-4 text-sm">
+                  <div className="text-center p-3 bg-green-50 rounded-lg">
+                    <div className="text-green-600 font-semibold text-lg">
+                      {copyResults.filter(r => r.success).length}
+                    </div>
+                    <div className="text-green-700">Successful</div>
+                  </div>
+                  <div className="text-center p-3 bg-red-50 rounded-lg">
+                    <div className="text-red-600 font-semibold text-lg">
+                      {copyResults.filter(r => !r.success).length}
+                    </div>
+                    <div className="text-red-700">Failed</div>
+                  </div>
+                  <div className="text-center p-3 bg-blue-50 rounded-lg">
+                    <div className="text-blue-600 font-semibold text-lg">
+                      {copyResults.length}
+                    </div>
+                    <div className="text-blue-700">Total</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4 max-h-96 overflow-y-auto">
+                {copyResults.map((result, index) => (
+                  <div key={index} className={`p-4 rounded-lg border ${
+                    result.success ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'
+                  }`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="font-medium text-gray-900">
+                        {result.assetName} ({result.adDraftName})
+                      </h3>
+                      <span className={`px-2 py-1 text-xs rounded-full ${
+                        result.success 
+                          ? 'bg-green-100 text-green-800' 
+                          : 'bg-red-100 text-red-800'
+                      }`}>
+                        {result.success ? 'Success' : 'Failed'}
+                      </span>
+                    </div>
+                    
+                    {result.success && result.generatedCopy ? (
+                      <div className="space-y-2 text-sm">
+                        <div>
+                          <span className="font-medium text-gray-700">Headline:</span>
+                          <div className="text-gray-600 ml-2">{result.generatedCopy.Headline}</div>
+                        </div>
+                        <div>
+                          <span className="font-medium text-gray-700">Body Copy:</span>
+                          <div className="text-gray-600 ml-2 whitespace-pre-wrap">{result.generatedCopy["Body Copy"]}</div>
+                        </div>
+                        <div>
+                          <span className="font-medium text-gray-700">Description:</span>
+                          <div className="text-gray-600 ml-2">{result.generatedCopy.Description}</div>
+                        </div>
+                        <div className="mt-3">
+                          <button
+                            onClick={() => {
+                              if (result.generatedCopy) {
+                                setAdDrafts(prevDrafts => 
+                                  prevDrafts.map(draft => {
+                                    if (draft.id === result.adDraftId) {
+                                      return {
+                                        ...draft,
+                                        headline: result.generatedCopy!.Headline || draft.headline,
+                                        primaryText: result.generatedCopy!["Body Copy"] || draft.primaryText,
+                                        description: result.generatedCopy!.Description || draft.description
+                                      };
+                                    }
+                                    return draft;
+                                  })
+                                );
+                                alert(`Applied copy to ad: ${result.adDraftName}`);
+                              }
+                            }}
+                            className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+                          >
+                            Apply to Ad
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-red-600 text-sm">
+                        Error: {result.error || 'Unknown error occurred'}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex justify-end space-x-3 pt-4 border-t mt-6">
+                <button
+                  onClick={() => setShowCopyResultsModal(false)}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Custom Prompt Modal */}
       {showCustomPromptModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -1959,99 +2148,38 @@ Are you sure you want to continue?`;
           </div>
         </div>
       )}
-      
-      {/* Copy Results Modal */}
-      {showCopyResultsModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-semibold text-gray-800">Copy Generation Results</h2>
-                <button
-                  onClick={() => setShowCopyResultsModal(false)}
-                  className="text-gray-400 hover:text-gray-600"
-                  aria-label="Close results modal"
-                >
-                  <X className="h-6 w-6" />
-                </button>
-              </div>
 
-              <div className="mb-6">
-                <div className="grid grid-cols-3 gap-4 text-sm">
-                  <div className="text-center p-3 bg-green-50 rounded-lg">
-                    <div className="text-green-600 font-semibold text-lg">
-                      {copyResults.filter(r => r.success).length}
-                    </div>
-                    <div className="text-green-700">Successful</div>
-                  </div>
-                  <div className="text-center p-3 bg-red-50 rounded-lg">
-                    <div className="text-red-600 font-semibold text-lg">
-                      {copyResults.filter(r => !r.success).length}
-                    </div>
-                    <div className="text-red-700">Failed</div>
-                  </div>
-                  <div className="text-center p-3 bg-blue-50 rounded-lg">
-                    <div className="text-blue-600 font-semibold text-lg">
-                      {copyResults.length}
-                    </div>
-                    <div className="text-blue-700">Total</div>
-                  </div>
-                </div>
-              </div>
+      {/* Asset Import Modal */}
+      {isAssetModalOpen && (
+        <AssetImportModal
+          isOpen={isAssetModalOpen}
+          onClose={() => setIsAssetModalOpen(false)}
+          onAssetsImported={handleAssetsImported}
+          brandId={defaults.brandId}
+        />
+      )}
 
-              <div className="space-y-4 max-h-96 overflow-y-auto">
-                {copyResults.map((result, index) => (
-                  <div key={index} className={`p-4 rounded-lg border ${
-                    result.success ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'
-                  }`}>
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="font-medium text-gray-900">
-                        {result.assetName} ({result.adDraftName})
-                      </h3>
-                      <span className={`px-2 py-1 text-xs rounded-full ${
-                        result.success 
-                          ? 'bg-green-100 text-green-800' 
-                          : 'bg-red-100 text-red-800'
-                      }`}>
-                        {result.success ? 'Success' : 'Failed'}
-                      </span>
-                    </div>
-                    
-                    {result.success && result.generatedCopy ? (
-                      <div className="space-y-2 text-sm">
-                        <div>
-                          <span className="font-medium text-gray-700">Headline:</span>
-                          <div className="text-gray-600 ml-2">{result.generatedCopy.Headline}</div>
-                        </div>
-                        <div>
-                          <span className="font-medium text-gray-700">Body Copy:</span>
-                          <div className="text-gray-600 ml-2 whitespace-pre-wrap">{result.generatedCopy["Body Copy"]}</div>
-                        </div>
-                        <div>
-                          <span className="font-medium text-gray-700">Description:</span>
-                          <div className="text-gray-600 ml-2">{result.generatedCopy.Description}</div>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="text-red-600 text-sm">
-                        Error: {result.error || 'Unknown error occurred'}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
+      {/* Bulk Edit Modal */}
+      {isBulkEditModalOpen && (
+        <BulkEditModal
+          isOpen={isBulkEditModalOpen}
+          onClose={() => setIsBulkEditModalOpen(false)}
+          onApply={handleApplyBulkEdit}
+          drafts={draftsForBulkEdit}
+          brandId={defaults.brandId}
+          adAccountId={defaults.adAccountId}
+        />
+      )}
 
-              <div className="flex justify-end space-x-3 pt-4 border-t mt-6">
-                <button
-                  onClick={() => setShowCopyResultsModal(false)}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+      {/* Bulk Rename Modal */}
+      {isBulkRenameModalOpen && (
+        <BulkRenameModal
+          isOpen={isBulkRenameModalOpen}
+          onClose={() => setIsBulkRenameModalOpen(false)}
+          onRename={handleBulkRename}
+          selectedAdIds={Array.from(checkedDraftIds)}
+          brandId={defaults.brandId || ''}
+        />
       )}
     </div>
   );

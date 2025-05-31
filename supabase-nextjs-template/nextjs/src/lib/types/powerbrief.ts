@@ -307,6 +307,7 @@ export interface UploadedAsset {
   aspectRatio: string;
   baseName: string;
   uploadedAt: string;
+  thumbnailUrl?: string;
 }
 
 export interface UploadedAssetGroup {

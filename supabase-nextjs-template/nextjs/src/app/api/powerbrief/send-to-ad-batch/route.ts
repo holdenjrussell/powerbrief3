@@ -234,6 +234,7 @@ export async function POST(req: NextRequest) {
         name: asset.name,
         supabase_url: asset.supabaseUrl,
         type: asset.type,
+        thumbnail_url: asset.thumbnailUrl || null,
         created_at: new Date().toISOString()
       }));
 

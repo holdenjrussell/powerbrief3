@@ -13,6 +13,7 @@ import {
     Key, Presentation, Film,
     UploadCloud,
     DownloadCloud,
+    BarChart3,
 } from 'lucide-react';
 import { useGlobal } from "@/lib/context/GlobalContext";
 import { createSPASassClient } from "@/lib/supabase/client";
@@ -91,6 +92,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     const navigation = [
         { name: 'Homepage', href: '/app', icon: Home },
         { name: 'PowerBrief', href: '/app/powerbrief', icon: Presentation },
+        { name: 'Scorecard', href: '/app/scorecard', icon: BarChart3 },
         { 
             name: 'Ad Reviews', 
             href: '/app/reviews', 

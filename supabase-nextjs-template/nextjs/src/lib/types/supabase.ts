@@ -109,6 +109,7 @@ export type Database = {
           name: string
           supabase_url: string
           thumbnail_url: string | null
+          thumbnail_timestamp: number | null
           type: string
         }
         Insert: {
@@ -121,6 +122,7 @@ export type Database = {
           name: string
           supabase_url: string
           thumbnail_url?: string | null
+          thumbnail_timestamp?: number | null
           type: string
         }
         Update: {
@@ -133,6 +135,7 @@ export type Database = {
           name?: string
           supabase_url?: string
           thumbnail_url?: string | null
+          thumbnail_timestamp?: number | null
           type?: string
         }
         Relationships: [

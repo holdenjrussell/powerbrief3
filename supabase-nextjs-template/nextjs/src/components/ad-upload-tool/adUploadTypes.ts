@@ -6,6 +6,7 @@ export interface AdDraftAsset {
   type: 'image' | 'video';
   aspectRatios?: string[];
   thumbnailUrl?: string;
+  thumbnailTimestamp?: number; // Timestamp in seconds where custom thumbnail was captured
 }
 
 export interface AdDraft {
@@ -68,7 +69,7 @@ export type BulkEditableAdDraftFields = {
 
 // Used in AdSheetView for column definitions
 export interface ColumnDef<TData> {
-  id: Extract<keyof TData, string> | 'actions' | 'select';
+  id: Extract<keyof TData, string> | 'actions' | 'select' | 'thumbnails';
   label: string;
   visible: boolean;
   type: 'text' | 'textarea' | 'select' | 'url' | 'custom' | 'status' | 'appStatus';

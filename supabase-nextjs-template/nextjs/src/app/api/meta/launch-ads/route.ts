@@ -45,6 +45,7 @@ interface AdResponse {
 }
 
 const META_API_VERSION = process.env.META_API_VERSION || 'v22.0';
+console.log(`[Launch API] Using Meta API version: ${META_API_VERSION}`);
 
 // Helper function to extract aspect ratio from filename as fallback
 const detectAspectRatioFromFilename = (filename: string): string | null => {
@@ -73,10 +74,20 @@ const detectAspectRatioFromFilename = (filename: string): string | null => {
 // Helper function to check if a video is ready for use in ads
 const checkVideoStatus = async (videoId: string, accessToken: string): Promise<{ ready: boolean; status?: string; error?: string }> => {
   try {
-    const videoApiUrl = `https://graph.facebook.com/${META_API_VERSION}/${videoId}?fields=status,upload_errors&access_token=${encodeURIComponent(accessToken)}`;
+    const videoApiUrl = `https://graph.facebook.com/${META_API_VERSION}/${videoId}?fields=status&access_token=${encodeURIComponent(accessToken)}`;
+    console.log(`[Launch API] Checking video status: ${videoApiUrl.split('?')[0]}`);
+    
     const response = await fetch(videoApiUrl);
     
     if (!response.ok) {
+      const errorBody = await response.text();
+      console.error(`[Launch API] Video status check failed:`, {
+        videoId,
+        status: response.status,
+        statusText: response.statusText,
+        body: errorBody.substring(0, 500)
+      });
+      
       // Handle different HTTP error codes appropriately
       if (response.status === 400) {
         // 400 Bad Request usually means invalid video ID or video not found
@@ -111,32 +122,68 @@ const checkVideoStatus = async (videoId: string, accessToken: string): Promise<{
     }
     
     const data = await response.json();
-    const status = data.status?.video_status || data.status;
-    const uploadErrors = data.upload_errors;
+    console.log(`[Launch API] Video ${videoId} raw status response:`, JSON.stringify(data, null, 2));
+    
+    // Parse the nested status structure according to Meta's documentation
+    const videoStatus = data.status?.video_status || 'unknown';
+    const uploadingPhase = data.status?.uploading_phase;
+    const processingPhase = data.status?.processing_phase;
+    const publishingPhase = data.status?.publishing_phase;
     
     // Log detailed status information
-    if (uploadErrors && uploadErrors.length > 0) {
-      console.error(`[Launch API] Video ${videoId} has upload errors:`, uploadErrors);
-    }
+    console.log(`[Launch API] Video ${videoId} status:`, {
+      video_status: videoStatus,
+      uploading: uploadingPhase?.status || 'unknown',
+      processing: processingPhase?.status || 'unknown',
+      publishing: publishingPhase?.status || 'unknown'
+    });
     
-    console.log(`[Launch API] Video ${videoId} status: ${status}${uploadErrors ? `, errors: ${JSON.stringify(uploadErrors)}` : ''}`);
-    
-    // Video is ready when status is 'ready' or 'published'
-    // If status is 'error', include the error information
-    if (status === 'error') {
-      const errorMessage = uploadErrors && uploadErrors.length > 0 
-        ? uploadErrors.map((err: { message?: string; error_message?: string }) => err.message || err.error_message || 'Unknown error').join(', ')
+    // Video is ready when video_status is 'ready' or publishing phase is 'complete'
+    // According to Meta docs, video_status can be: ready, processing, expired, error
+    if (videoStatus === 'error' || uploadingPhase?.status === 'error' || processingPhase?.status === 'error') {
+      const errorDetails = [];
+      
+      // Check for specific processing errors
+      if (processingPhase?.errors && Array.isArray(processingPhase.errors)) {
+        processingPhase.errors.forEach((err: { code?: number; message?: string }) => {
+          if (err.message) {
+            errorDetails.push(err.message);
+          }
+        });
+      }
+      
+      // If no specific errors found, use generic messages
+      if (errorDetails.length === 0) {
+        if (uploadingPhase?.status === 'error') errorDetails.push('upload failed');
+        if (processingPhase?.status === 'error') errorDetails.push('processing failed');
+        if (publishingPhase?.status === 'error') errorDetails.push('publishing failed');
+      }
+      
+      const errorMessage = errorDetails.length > 0 
+        ? `Video processing failed: ${errorDetails.join('; ')}`
         : 'Video processing failed';
+      
+      console.error(`[Launch API] Video ${videoId} processing errors:`, errorDetails);
+      
       return { 
         ready: false, 
-        status: status,
-        error: errorMessage 
+        status: 'error',
+        error: errorMessage
+      };
+    }
+    
+    // Check for expired videos
+    if (videoStatus === 'expired') {
+      return { 
+        ready: false, 
+        status: 'error',
+        error: 'Video has expired and is no longer available' 
       };
     }
     
     return { 
-      ready: status === 'ready' || status === 'published',
-      status: status
+      ready: videoStatus === 'ready',
+      status: videoStatus
     };
   } catch (error) {
     console.warn(`[Launch API] Error checking video status for ${videoId}:`, error);
@@ -150,16 +197,24 @@ const waitForVideosToBeReady = async (videoIds: string[], accessToken: string, m
   const startTime = Date.now();
   const notReadyVideos: string[] = [];
   const erroredVideos: string[] = [];
+  let checkCount = 0;
+  
+  console.log(`[Launch API] Starting video readiness check for ${videoIds.length} videos with ${maxWaitTimeMs}ms timeout`);
   
   while (Date.now() - startTime < maxWaitTimeMs) {
+    checkCount++;
     notReadyVideos.length = 0; // Clear the array
     erroredVideos.length = 0; // Clear the array
     
+    console.log(`[Launch API] Video status check #${checkCount} (elapsed: ${Math.round((Date.now() - startTime) / 1000)}s)`);
+    
     for (const videoId of videoIds) {
       const { ready, status, error } = await checkVideoStatus(videoId, accessToken);
+      console.log(`[Launch API]   Video ${videoId}: ready=${ready}, status=${status}, error=${error || 'none'}`);
+      
       if (!ready) {
         if (status === 'error') {
-          console.error(`[Launch API] Video ${videoId} failed processing: ${error}`);
+          console.error(`[Launch API]   Video ${videoId} failed processing: ${error}`);
           erroredVideos.push(videoId);
         } else {
           notReadyVideos.push(videoId);
@@ -167,15 +222,20 @@ const waitForVideosToBeReady = async (videoIds: string[], accessToken: string, m
       }
     }
     
+    console.log(`[Launch API] Check #${checkCount} summary: ${videoIds.length - notReadyVideos.length - erroredVideos.length} ready, ${notReadyVideos.length} processing, ${erroredVideos.length} errored`);
+    
     // If all videos are either ready or errored, break out
     if (notReadyVideos.length === 0) {
+      console.log(`[Launch API] All videos have finished processing (${erroredVideos.length} errors)`);
       return { allReady: erroredVideos.length === 0, notReadyVideos: [], erroredVideos };
     }
     
     // Wait 10 seconds before checking again
+    console.log(`[Launch API] Waiting 10 seconds before next check...`);
     await new Promise(resolve => setTimeout(resolve, 10000));
   }
   
+  console.log(`[Launch API] Timeout reached after ${checkCount} checks and ${Math.round((Date.now() - startTime) / 1000)}s`);
   return { allReady: false, notReadyVideos, erroredVideos };
 };
 
@@ -226,25 +286,59 @@ const createPageBackedInstagramAccount = async (pageId: string, accessToken: str
   }
 };
 
-// Helper function to upload large videos using Meta's Resumable Upload API
-async function uploadVideoUsingResumableAPI(
-  assetBlob: Blob, 
-  assetName: string, 
-  adAccountId: string, 
+// Helper function to check upload status and get bytes transferred
+async function checkUploadStatus(videoId: string, accessToken: string): Promise<{ bytesTransferred: number; status: string; error?: string }> {
+  try {
+    const statusUrl = `https://graph.facebook.com/${META_API_VERSION}/${videoId}?fields=status&access_token=${encodeURIComponent(accessToken)}`;
+    const response = await fetch(statusUrl);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[Launch API] Failed to check upload status:`, {
+        videoId,
+        status: response.status,
+        error: errorText.substring(0, 200)
+      });
+      return { bytesTransferred: 0, status: 'error', error: `Status check failed: ${response.status}` };
+    }
+    
+    const data = await response.json();
+    const uploadingPhase = data.status?.uploading_phase || {};
+    const bytesTransferred = uploadingPhase.bytes_transferred || uploadingPhase.bytes_transfered || 0; // Handle typo in API
+    const status = uploadingPhase.status || 'unknown';
+    
+    console.log(`[Launch API] Upload status for ${videoId}:`, {
+      status,
+      bytesTransferred,
+      fullUploadingPhase: uploadingPhase
+    });
+    
+    return { bytesTransferred, status };
+  } catch (error) {
+    console.error(`[Launch API] Error checking upload status:`, error);
+    return { bytesTransferred: 0, status: 'error', error: (error as Error).message };
+  }
+}
+
+// Helper function to upload video using file URL (alternative method)
+async function uploadVideoUsingFileUrl(
+  videoUrl: string,
+  assetName: string,
+  adAccountId: string,
   accessToken: string
 ): Promise<{ videoId?: string; error?: string }> {
   try {
-    console.log(`[Launch API]     Using Resumable Upload API for video: ${assetName} (${(assetBlob.size / 1024 / 1024).toFixed(2)}MB)`);
+    console.log(`[Launch API]     Using File URL Upload method for video: ${assetName}`);
+    console.log(`[Launch API]       Video URL: ${videoUrl}`);
     
-    // Ensure adAccountId has the proper format (remove extra 'act_' if it exists)
+    // Ensure adAccountId has the proper format
     const formattedAdAccountId = adAccountId.startsWith('act_') ? adAccountId.substring(4) : adAccountId;
     
-    // Step 1: Initialize upload session with enhanced parameters
-    console.log(`[Launch API]       Step 1: Initializing upload session...`);
+    // Step 1: Initialize upload session
+    console.log(`[Launch API]       Step 1: Initializing upload session for URL upload...`);
     const initUrl = `https://graph.facebook.com/${META_API_VERSION}/act_${formattedAdAccountId}/video_ads`;
     const initParams = new URLSearchParams({
       upload_phase: 'start',
-      file_size: assetBlob.size.toString(),
       access_token: accessToken
     });
 
@@ -255,59 +349,47 @@ async function uploadVideoUsingResumableAPI(
 
     if (!initResponse.ok) {
       const errorText = await initResponse.text();
-      console.error(`[Launch API]       Failed to initialize upload session:`, {
-        status: initResponse.status,
-        statusText: initResponse.statusText,
-        error: errorText
-      });
-      return { error: `Failed to initialize upload: ${initResponse.status} ${initResponse.statusText}` };
+      console.error(`[Launch API]       Failed to initialize URL upload session:`, errorText);
+      return { error: `Failed to initialize URL upload: ${initResponse.status}` };
     }
 
     const initResult = await initResponse.json();
     if (initResult.error) {
-      console.error(`[Launch API]       Upload initialization error:`, initResult.error);
-      return { error: initResult.error.message || 'Failed to initialize upload session' };
+      return { error: initResult.error.message || 'Failed to initialize URL upload session' };
     }
 
     const { video_id: videoId, upload_url: uploadUrl } = initResult;
     if (!videoId || !uploadUrl) {
-      console.error(`[Launch API]       Missing video_id or upload_url in response:`, initResult);
-      return { error: 'Invalid response from upload initialization' };
+      return { error: 'Invalid response from URL upload initialization' };
     }
 
-    console.log(`[Launch API]       Step 2: Uploading video to ${uploadUrl}...`);
+    console.log(`[Launch API]       Init successful - Video ID: ${videoId}`);
+    console.log(`[Launch API]       Step 2: Uploading video from URL...`);
     
-    // Step 2: Upload the video file with better headers
+    // Step 2: Upload using file_url
     const uploadResponse = await fetch(uploadUrl, {
       method: 'POST',
       headers: {
         'Authorization': `OAuth ${accessToken}`,
-        'offset': '0',
-        'file_size': assetBlob.size.toString(),
-        'Content-Type': assetBlob.type || 'video/mp4'
-      },
-      body: assetBlob
+        'file_url': videoUrl
+      }
     });
 
     if (!uploadResponse.ok) {
       const errorText = await uploadResponse.text();
-      console.error(`[Launch API]       Failed to upload video:`, {
-        status: uploadResponse.status,
-        statusText: uploadResponse.statusText,
-        error: errorText
-      });
-      return { error: `Failed to upload video: ${uploadResponse.status} ${uploadResponse.statusText}` };
+      console.error(`[Launch API]       Failed to upload video from URL:`, errorText);
+      return { error: `Failed to upload from URL: ${uploadResponse.status}` };
     }
 
     const uploadResult = await uploadResponse.json();
     if (!uploadResult.success) {
-      console.error(`[Launch API]       Video upload was not successful:`, uploadResult);
-      return { error: 'Video upload was not successful' };
+      return { error: 'Video URL upload was not successful' };
     }
 
+    console.log(`[Launch API]       URL upload successful`);
     console.log(`[Launch API]       Step 3: Finishing upload session...`);
     
-    // Step 3: Finish the upload session to publish the video
+    // Step 3: Finish the upload session
     const finishParams = new URLSearchParams({
       upload_phase: 'finish',
       video_id: videoId,
@@ -321,25 +403,276 @@ async function uploadVideoUsingResumableAPI(
 
     if (!finishResponse.ok) {
       const errorText = await finishResponse.text();
+      console.error(`[Launch API]       Failed to finish URL upload session:`, errorText);
+      return { error: `Failed to finish URL upload: ${finishResponse.status}` };
+    }
+
+    const finishResult = await finishResponse.json();
+    if (!finishResult.success) {
+      return { error: 'Failed to finish URL upload session' };
+    }
+
+    console.log(`[Launch API]       Video URL upload completed successfully. ID: ${videoId}`);
+    return { videoId };
+
+  } catch (error) {
+    console.error(`[Launch API]       Error in URL Upload:`, error);
+    return { error: `URL upload failed: ${(error as Error).message}` };
+  }
+}
+
+// Helper function to upload large videos using Meta's Resumable Upload API
+async function uploadVideoUsingResumableAPI(
+  assetBlob: Blob, 
+  assetName: string, 
+  adAccountId: string, 
+  accessToken: string
+): Promise<{ videoId?: string; error?: string }> {
+  try {
+    console.log(`[Launch API]     Using Resumable Upload API for video: ${assetName} (${(assetBlob.size / 1024 / 1024).toFixed(2)}MB)`);
+    
+    // Log blob details
+    console.log(`[Launch API]       Video blob details:`, {
+      size: assetBlob.size,
+      type: assetBlob.type,
+      name: assetName
+    });
+    
+    // Ensure adAccountId has the proper format (remove extra 'act_' if it exists)
+    const formattedAdAccountId = adAccountId.startsWith('act_') ? adAccountId.substring(4) : adAccountId;
+    
+    // Step 1: Initialize upload session with enhanced parameters
+    console.log(`[Launch API]       Step 1: Initializing upload session...`);
+    const initUrl = `https://graph.facebook.com/${META_API_VERSION}/act_${formattedAdAccountId}/video_ads`;
+    const initParams = new URLSearchParams({
+      upload_phase: 'start',
+      file_size: assetBlob.size.toString(),
+      access_token: accessToken
+    });
+
+    console.log(`[Launch API]       Init URL: ${initUrl}`);
+    console.log(`[Launch API]       Init params: file_size=${assetBlob.size}`);
+
+    const initResponse = await fetch(initUrl, {
+      method: 'POST',
+      body: initParams
+    });
+
+    const initResponseText = await initResponse.text();
+    console.log(`[Launch API]       Init response status: ${initResponse.status}`);
+    console.log(`[Launch API]       Init response: ${initResponseText.substring(0, 200)}...`);
+
+    if (!initResponse.ok) {
+      console.error(`[Launch API]       Failed to initialize upload session:`, {
+        status: initResponse.status,
+        statusText: initResponse.statusText,
+        error: initResponseText
+      });
+      return { error: `Failed to initialize upload: ${initResponse.status} ${initResponse.statusText}` };
+    }
+
+    let initResult;
+    try {
+      initResult = JSON.parse(initResponseText);
+    } catch (e) {
+      console.error(`[Launch API]       Failed to parse init response:`, e);
+      return { error: 'Invalid JSON response from init' };
+    }
+
+    if (initResult.error) {
+      console.error(`[Launch API]       Upload initialization error:`, initResult.error);
+      return { error: initResult.error.message || 'Failed to initialize upload session' };
+    }
+
+    const { video_id: videoId, upload_url: uploadUrl } = initResult;
+    if (!videoId || !uploadUrl) {
+      console.error(`[Launch API]       Missing video_id or upload_url in response:`, initResult);
+      return { error: 'Invalid response from upload initialization' };
+    }
+
+    console.log(`[Launch API]       Init successful - Video ID: ${videoId}`);
+    console.log(`[Launch API]       Step 2: Uploading video to ${uploadUrl}...`);
+    
+    // Step 2: Upload the video file with retry and resume support
+    const MAX_UPLOAD_ATTEMPTS = 3;
+    let uploadSuccess = false;
+    
+    for (let attempt = 1; attempt <= MAX_UPLOAD_ATTEMPTS; attempt++) {
+      console.log(`[Launch API]       Upload attempt ${attempt}/${MAX_UPLOAD_ATTEMPTS}`);
+      
+      // Check if we need to resume from a previous attempt
+      let offset = 0;
+      if (attempt > 1) {
+        console.log(`[Launch API]       Checking upload status for resume...`);
+        const { bytesTransferred, status, error: statusError } = await checkUploadStatus(videoId, accessToken);
+        
+        if (status === 'complete') {
+          console.log(`[Launch API]       Upload already complete!`);
+          uploadSuccess = true;
+          break;
+        } else if (status === 'error' || statusError) {
+          console.error(`[Launch API]       Upload status check failed:`, statusError || 'Unknown error');
+          // Start from beginning on error
+          offset = 0;
+        } else {
+          offset = bytesTransferred;
+          console.log(`[Launch API]       Resuming upload from byte ${offset} (${(offset / assetBlob.size * 100).toFixed(1)}% complete)`);
+        }
+      }
+      
+      try {
+        // Create a slice of the blob if resuming
+        const uploadBlob = offset > 0 ? assetBlob.slice(offset) : assetBlob;
+        console.log(`[Launch API]       Uploading ${uploadBlob.size} bytes (offset: ${offset}, total: ${assetBlob.size})`);
+        
+        // Log the exact headers being sent
+        const uploadHeaders = {
+          'Authorization': `OAuth ${accessToken}`,
+          'offset': offset.toString(),
+          'file_size': assetBlob.size.toString()
+        };
+        console.log(`[Launch API]       Upload headers:`, uploadHeaders);
+        
+        const uploadResponse = await fetch(uploadUrl, {
+          method: 'POST',
+          headers: uploadHeaders,
+          body: uploadBlob
+        });
+
+        const uploadResponseText = await uploadResponse.text();
+        console.log(`[Launch API]       Upload response status: ${uploadResponse.status}`);
+        console.log(`[Launch API]       Upload response: ${uploadResponseText.substring(0, 200)}...`);
+
+        if (!uploadResponse.ok) {
+          console.error(`[Launch API]       Failed to upload video (attempt ${attempt}):`, {
+            status: uploadResponse.status,
+            statusText: uploadResponse.statusText,
+            error: uploadResponseText
+          });
+          
+          // If we get a 4xx error (client error), don't retry
+          if (uploadResponse.status >= 400 && uploadResponse.status < 500) {
+            return { error: `Upload failed with client error: ${uploadResponse.status} ${uploadResponse.statusText}` };
+          }
+          
+          // For server errors, retry
+          if (attempt < MAX_UPLOAD_ATTEMPTS) {
+            console.log(`[Launch API]       Will retry after 5 seconds...`);
+            await new Promise(resolve => setTimeout(resolve, 5000));
+            continue;
+          }
+          
+          return { error: `Failed to upload video after ${MAX_UPLOAD_ATTEMPTS} attempts: ${uploadResponse.status} ${uploadResponse.statusText}` };
+        }
+
+        let uploadResult;
+        try {
+          uploadResult = JSON.parse(uploadResponseText);
+        } catch (e) {
+          console.error(`[Launch API]       Failed to parse upload response:`, e);
+          if (attempt < MAX_UPLOAD_ATTEMPTS) {
+            await new Promise(resolve => setTimeout(resolve, 5000));
+            continue;
+          }
+          return { error: 'Invalid JSON response from upload' };
+        }
+
+        if (!uploadResult.success) {
+          console.error(`[Launch API]       Video upload was not successful:`, uploadResult);
+          if (attempt < MAX_UPLOAD_ATTEMPTS) {
+            console.log(`[Launch API]       Will check status and retry...`);
+            await new Promise(resolve => setTimeout(resolve, 5000));
+            continue;
+          }
+          return { error: 'Video upload was not successful' };
+        }
+
+        console.log(`[Launch API]       Upload successful on attempt ${attempt}`);
+        uploadSuccess = true;
+        break;
+        
+      } catch (error) {
+        console.error(`[Launch API]       Upload attempt ${attempt} failed with error:`, error);
+        if (attempt < MAX_UPLOAD_ATTEMPTS) {
+          console.log(`[Launch API]       Will retry after 5 seconds...`);
+          await new Promise(resolve => setTimeout(resolve, 5000));
+          continue;
+        }
+        throw error;
+      }
+    }
+    
+    if (!uploadSuccess) {
+      return { error: 'Failed to upload video after all retry attempts' };
+    }
+
+    // Verify upload is actually complete before finishing
+    console.log(`[Launch API]       Verifying upload completion before finishing...`);
+    const { bytesTransferred: finalBytes, status: finalStatus } = await checkUploadStatus(videoId, accessToken);
+    
+    if (finalStatus !== 'complete' && finalBytes < assetBlob.size) {
+      console.error(`[Launch API]       Upload not complete! Status: ${finalStatus}, Bytes: ${finalBytes}/${assetBlob.size}`);
+      return { error: `Upload incomplete: only ${finalBytes}/${assetBlob.size} bytes transferred` };
+    }
+    
+    console.log(`[Launch API]       Upload verified complete: ${finalBytes}/${assetBlob.size} bytes`);
+    console.log(`[Launch API]       Step 3: Finishing upload session...`);
+    
+    // Step 3: Finish the upload session to publish the video
+    const finishParams = new URLSearchParams({
+      upload_phase: 'finish',
+      video_id: videoId,
+      access_token: accessToken
+    });
+
+    console.log(`[Launch API]       Finish params: video_id=${videoId}`);
+
+    const finishResponse = await fetch(initUrl, {
+      method: 'POST',
+      body: finishParams
+    });
+
+    const finishResponseText = await finishResponse.text();
+    console.log(`[Launch API]       Finish response status: ${finishResponse.status}`);
+    console.log(`[Launch API]       Finish response: ${finishResponseText.substring(0, 200)}...`);
+
+    if (!finishResponse.ok) {
       console.error(`[Launch API]       Failed to finish upload session:`, {
         status: finishResponse.status,
         statusText: finishResponse.statusText,
-        error: errorText
+        error: finishResponseText
       });
       return { error: `Failed to finish upload: ${finishResponse.status} ${finishResponse.statusText}` };
     }
 
-    const finishResult = await finishResponse.json();
+    let finishResult;
+    try {
+      finishResult = JSON.parse(finishResponseText);
+    } catch (e) {
+      console.error(`[Launch API]       Failed to parse finish response:`, e);
+      return { error: 'Invalid JSON response from finish' };
+    }
+
     if (!finishResult.success) {
       console.error(`[Launch API]       Upload session finish was not successful:`, finishResult);
       return { error: 'Failed to finish upload session' };
     }
 
-    // For videos uploaded via act_{AD_ACCOUNT_ID}/video_ads, the success of the 'finish' phase
-    // is the primary indicator of readiness. Explicit status polling via `/{VIDEO_ID}?fields=status`
-    // is optional according to Meta's documentation for this specific workflow and can be misleading.
-    // We will rely on the successful completion of the 'finish' phase.
-    console.log(`[Launch API]       Video upload completed and finish phase successful. ID: ${videoId}. Assuming ready for ad use.`);
+    // The 'finish' phase success indicates the upload is complete, but the video
+    // still needs to go through processing before it's ready for use in ads.
+    // The caller should check the video status using the /{VIDEO_ID}?fields=status endpoint
+    // to ensure it's in 'ready' or 'published' state before creating ads.
+    console.log(`[Launch API]       Video upload completed successfully. ID: ${videoId}. Processing status check required before use.`);
+    
+    // Add immediate status check to see initial state
+    console.log(`[Launch API]       Performing immediate status check...`);
+    try {
+      const { ready, status, error } = await checkVideoStatus(videoId, accessToken);
+      console.log(`[Launch API]       Immediate status check result:`, { ready, status, error });
+    } catch (e) {
+      console.warn(`[Launch API]       Immediate status check failed:`, e);
+    }
+    
     return { videoId };
 
   } catch (error) {
@@ -663,10 +996,18 @@ export async function POST(req: NextRequest) {
         console.log(`[Launch API]   - Asset to upload: ${asset.name} (Type: ${asset.type}, URL: ${asset.supabaseUrl})`);
         try {
           const assetResponse = await fetch(asset.supabaseUrl);
+          console.log(`[Launch API]     Fetched asset from Supabase: status=${assetResponse.status}, contentType=${assetResponse.headers.get('content-type')}, contentLength=${assetResponse.headers.get('content-length')}`);
+          
           if (!assetResponse.ok) {
             throw new Error(`Failed to fetch asset ${asset.name} from Supabase: ${assetResponse.statusText}`);
           }
           const assetBlob = await assetResponse.blob();
+          console.log(`[Launch API]     Created blob: size=${assetBlob.size}, type=${assetBlob.type}`);
+          
+          // Validate the blob
+          if (assetBlob.size === 0) {
+            throw new Error(`Asset ${asset.name} is empty (0 bytes)`);
+          }
 
           // Ensure adAccountId has the proper format (remove extra 'act_' if it exists)
           const formattedAdAccountId = adAccountId.startsWith('act_') ? adAccountId.substring(4) : adAccountId;
@@ -740,9 +1081,72 @@ export async function POST(req: NextRequest) {
             updatedAssets.push({ ...asset, metaHash: imageHash });
 
           } else if (asset.type === 'video') {
+            // Validate video before upload
+            console.log(`[Launch API]     Validating video before upload...`);
+            
+            // Check file size (Meta recommends up to 10GB)
+            const videoSizeMB = assetBlob.size / (1024 * 1024);
+            if (videoSizeMB > 10240) { // 10GB in MB
+              console.error(`[Launch API]     Video ${asset.name} exceeds 10GB limit: ${videoSizeMB.toFixed(2)}MB`);
+              updatedAssets.push({ ...asset, metaUploadError: `Video too large: ${videoSizeMB.toFixed(2)}MB (limit: 10GB)` });
+              continue;
+            }
+            
+            // Check MIME type
+            const expectedVideoTypes = ['video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/x-ms-wmv', 'video/mpeg'];
+            if (assetBlob.type && !expectedVideoTypes.includes(assetBlob.type)) {
+              console.warn(`[Launch API]     Unexpected video MIME type: ${assetBlob.type}. Expected one of: ${expectedVideoTypes.join(', ')}`);
+            }
+            
+            // Try to detect video dimensions from filename or metadata
+            // Common patterns: 1080x1920, 1200x1500, etc.
+            const dimensionMatch = asset.name.match(/(\d{3,4})x(\d{3,4})/);
+            if (dimensionMatch) {
+              const width = parseInt(dimensionMatch[1]);
+              const height = parseInt(dimensionMatch[2]);
+              console.log(`[Launch API]     Detected video dimensions from filename: ${width}x${height}`);
+              
+              // Meta requires minimum width of 1200px for video ads
+              if (width < 1200 && height < 1200) {
+                console.error(`[Launch API]     Video ${asset.name} resolution too low: ${width}x${height}. Meta requires minimum width of 1200px.`);
+                updatedAssets.push({ 
+                  ...asset, 
+                  metaUploadError: `Video resolution too low: ${width}x${height}. Minimum width required: 1200px. Please re-export at higher resolution.` 
+                });
+                continue;
+              }
+            } else {
+              console.warn(`[Launch API]     Could not detect video dimensions from filename. Meta requires minimum width of 1200px.`);
+            }
+            
             // Always use Resumable Upload API for videos - it supports larger files (up to 10GB)
             // and is more reliable than direct upload which has size limitations that cause 413 errors
             const { videoId, error } = await uploadVideoUsingResumableAPI(assetBlob, asset.name, adAccountId, accessToken);
+            
+            // If resumable upload fails, try URL upload as fallback
+            if (error && asset.supabaseUrl) {
+              console.warn(`[Launch API]     Resumable upload failed: ${error}`);
+              console.log(`[Launch API]     Attempting URL upload as fallback...`);
+              
+              const urlUploadResult = await uploadVideoUsingFileUrl(
+                asset.supabaseUrl, 
+                asset.name, 
+                adAccountId, 
+                accessToken
+              );
+              
+              if (urlUploadResult.error) {
+                console.error(`[Launch API]     Both upload methods failed for ${asset.name}`);
+                console.error(`[Launch API]     - Resumable error: ${error}`);
+                console.error(`[Launch API]     - URL upload error: ${urlUploadResult.error}`);
+                updatedAssets.push({ ...asset, metaUploadError: `All upload methods failed: ${error}` });
+                continue;
+              }
+              
+              console.log(`[Launch API]     URL upload succeeded for ${asset.name}. ID: ${urlUploadResult.videoId}`);
+              updatedAssets.push({ ...asset, metaVideoId: urlUploadResult.videoId });
+              continue;
+            }
             
             if (error) {
               console.error(`[Launch API]     Failed to upload video ${asset.name}:`, error);
@@ -1151,11 +1555,24 @@ export async function POST(req: NextRequest) {
 
       if (videoIds.length > 0) {
         console.log(`[Launch API]     Found ${videoIds.length} videos uploaded via video_ads endpoint`);
-        console.log(`[Launch API]     Videos uploaded via video_ads are ready immediately for ad use - skipping status check`);
+        console.log(`[Launch API]     Checking video processing status...`);
         
-        // Videos uploaded via video_ads endpoint are ready immediately for ad use
-        // No need to poll for status like regular video uploads
-        // Proceeding directly to ad creation...
+        // Wait for videos to be ready with a 5-minute timeout
+        const { allReady, notReadyVideos, erroredVideos } = await waitForVideosToBeReady(
+          videoIds, 
+          accessToken, 
+          300000 // 5 minutes
+        );
+        
+        if (!allReady) {
+          if (erroredVideos.length > 0) {
+            throw new Error(`${erroredVideos.length} video(s) failed processing: ${erroredVideos.join(', ')}`);
+          } else if (notReadyVideos.length > 0) {
+            throw new Error(`${notReadyVideos.length} video(s) still processing after timeout: ${notReadyVideos.join(', ')}`);
+          }
+        }
+        
+        console.log(`[Launch API]     All videos are ready for ad use`);
       }
 
       // Validate ad set exists and get its campaign info for logging

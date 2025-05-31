@@ -20,6 +20,7 @@ interface AssetFile {
   needsCompression?: boolean; // Whether this file needs compression
   originalSize?: number; // Original file size for comparison
   detectedRatio?: string | null; // Detected aspect ratio
+  videoDimensions?: { width: number; height: number }; // Video dimensions
 }
 
 const DEFAULT_ASPECT_RATIO_IDENTIFIERS = ['4x5', '9x16'];
@@ -66,6 +67,47 @@ const getBaseNameAndRatio = (filename: string, identifiers: string[], suffixesTo
   return { baseName: nameWorkInProgress.trim(), detectedRatio: null };
 };
 
+// Helper function to check video dimensions
+const getVideoDimensions = (file: File): Promise<{ width: number; height: number } | null> => {
+  return new Promise((resolve) => {
+    if (!file.type.startsWith('video/')) {
+      resolve(null);
+      return;
+    }
+
+    const video = document.createElement('video');
+    const videoUrl = URL.createObjectURL(file);
+    
+    video.addEventListener('loadedmetadata', () => {
+      clearTimeout(timeout);
+      const dimensions = {
+        width: video.videoWidth,
+        height: video.videoHeight
+      };
+      URL.revokeObjectURL(videoUrl);
+      video.remove();
+      resolve(dimensions);
+    });
+    
+    video.addEventListener('error', () => {
+      clearTimeout(timeout);
+      URL.revokeObjectURL(videoUrl);
+      video.remove();
+      resolve(null);
+    });
+    
+    // Add timeout to prevent hanging
+    const timeout = setTimeout(() => {
+      URL.revokeObjectURL(videoUrl);
+      video.remove();
+      resolve(null);
+    }, 10000); // 10 second timeout
+    
+    video.src = videoUrl;
+    video.load();
+  });
+};
+
 interface AssetImportModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -84,30 +126,70 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
   const [showGroupingPreview, setShowGroupingPreview] = useState(false);
   const [previewAssetGroups, setPreviewAssetGroups] = useState<UploadedAssetGroup[]>([]);
 
-  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
-      const newFiles: AssetFile[] = Array.from(event.target.files).map(file => ({
-        file,
-        id: `${file.name}-${file.lastModified}-${file.size}`,
-        needsCompression: needsCompression(file),
-        originalSize: file.size,
-        // previewUrl: URL.createObjectURL(file) // Create for images, remember to revoke
-      }));
+      const newFiles: AssetFile[] = [];
+      
+      for (let i = 0; i < event.target.files.length; i++) {
+        const file = event.target.files[i];
+        let videoDimensions = null;
+        
+        // Check video dimensions if it's a video file
+        if (file.type.startsWith('video/')) {
+          videoDimensions = await getVideoDimensions(file);
+          if (videoDimensions && videoDimensions.width < 1200) {
+            alert(`Video "${file.name}" has width ${videoDimensions.width}px which is below the minimum 1200px required for Meta ads. Please use a higher resolution video.`);
+            continue; // Skip this file
+          }
+        }
+        
+        const assetFile: AssetFile = {
+          file,
+          id: `${file.name}-${file.lastModified}-${file.size}`,
+          needsCompression: needsCompression(file),
+          originalSize: file.size,
+          videoDimensions
+        };
+        
+        newFiles.push(assetFile);
+      }
+      
       setSelectedFiles(prev => [...prev, ...newFiles]);
     }
   };
 
-  const handleDrop = useCallback((event: React.DragEvent<HTMLDivElement>) => {
+  const handleDrop = useCallback(async (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     event.stopPropagation();
     setIsDragging(false);
+    
     if (event.dataTransfer.files && event.dataTransfer.files.length > 0) {
-      const newFiles: AssetFile[] = Array.from(event.dataTransfer.files).map(file => ({
-        file,
-        id: `${file.name}-${file.lastModified}-${file.size}`,
-        needsCompression: needsCompression(file),
-        originalSize: file.size,
-      }));
+      const newFiles: AssetFile[] = [];
+      
+      for (let i = 0; i < event.dataTransfer.files.length; i++) {
+        const file = event.dataTransfer.files[i];
+        let videoDimensions = null;
+        
+        // Check video dimensions if it's a video file
+        if (file.type.startsWith('video/')) {
+          videoDimensions = await getVideoDimensions(file);
+          if (videoDimensions && videoDimensions.width < 1200) {
+            alert(`Video "${file.name}" has width ${videoDimensions.width}px which is below the minimum 1200px required for Meta ads. Please use a higher resolution video.`);
+            continue; // Skip this file
+          }
+        }
+        
+        const assetFile: AssetFile = {
+          file,
+          id: `${file.name}-${file.lastModified}-${file.size}`,
+          needsCompression: needsCompression(file),
+          originalSize: file.size,
+          videoDimensions
+        };
+        
+        newFiles.push(assetFile);
+      }
+      
       setSelectedFiles(prev => [...prev, ...newFiles]);
       event.dataTransfer.clearData();
     }
@@ -408,8 +490,8 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
                   Smart Auto-Compression
                 </h4>
                 <p className="text-sm text-blue-700 mb-2">
-                  Videos over 150MB are automatically compressed during import to ensure successful Meta uploads. 
-                  <span className="text-blue-600"> Files under 150MB bypass compression.</span>
+                  Videos over 500MB are automatically compressed during import to ensure successful Meta uploads. 
+                  <span className="text-blue-600"> Files under 500MB bypass compression.</span>
                   <span className="block text-xs mt-1 text-blue-600">⚡ Balanced compression - optimized for quality while maintaining reasonable file sizes</span>
                 </p>
                 <p className="text-xs text-blue-600">
@@ -458,6 +540,22 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
               <span>Click to upload</span> or drag and drop
             </label>
             <p className="mt-1 text-xs text-gray-500">Images or Videos (bulk select supported)</p>
+            <div className="mt-2 bg-amber-50 border border-amber-200 rounded-md p-3">
+              <div className="flex">
+                <div className="flex-shrink-0">
+                  <svg className="h-5 w-5 text-amber-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-amber-800">Meta Video Requirements</h3>
+                  <p className="mt-1 text-xs text-amber-700">
+                    Videos must have a minimum width of <strong>1200px</strong> for Meta ads. 
+                    Recommended sizes: 1200x1500 (4:5) or 1200x2133 (9:16).
+                  </p>
+                </div>
+              </div>
+            </div>
             {selectedFiles.some(f => f.needsCompression) && (
               <div className="mt-3 p-4 bg-amber-50 border border-amber-200 rounded-md">
                 <div className="flex items-start">
@@ -467,11 +565,11 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
                       Large Assets Detected - Auto-Compression Enabled
                     </h4>
                     <p className="text-sm text-amber-700 mb-2">
-                      {selectedFiles.filter(f => f.needsCompression).length} video(s) over 150MB will be automatically compressed to ensure successful upload to Meta.
+                      {selectedFiles.filter(f => f.needsCompression).length} video(s) over 500MB will be automatically compressed to ensure successful upload to Meta.
                       <span className="block text-xs mt-1 text-amber-600">⚡ Balanced compression - optimized for quality while maintaining reasonable file sizes</span>
                     </p>
                     <p className="text-xs text-amber-600">
-                      💡 <strong>Tip:</strong> You can bypass compression by ensuring your video files are under 150MB before uploading.
+                      💡 <strong>Tip:</strong> You can bypass compression by ensuring your video files are under 500MB before uploading.
                     </p>
                   </div>
                 </div>
@@ -530,6 +628,15 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
                         <span className="text-xs text-gray-500">
                           ({getFileSizeMB(assetFile.file).toFixed(1)}MB)
                         </span>
+                        {assetFile.videoDimensions && (
+                          <span className={`text-xs px-2 py-1 rounded ${
+                            assetFile.videoDimensions.width < 1200 
+                              ? 'bg-red-100 text-red-700' 
+                              : 'bg-gray-100 text-gray-600'
+                          }`}>
+                            {assetFile.videoDimensions.width}x{assetFile.videoDimensions.height}
+                          </span>
+                        )}
                       </div>
                       
                       {/* Status indicators */}
@@ -537,7 +644,7 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
                         {assetFile.needsCompression && !assetFile.compressing && !assetFile.uploadError && (
                           <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
                             <Zap size={12} className="mr-1" />
-                            Will auto-compress (over 150MB)
+                            Will auto-compress (over 500MB)
                           </span>
                         )}
                         
@@ -557,7 +664,7 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
                         
                         {!assetFile.needsCompression && !assetFile.originalSize && assetFile.file.type.startsWith('video/') && (
                           <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                            ✓ Under 150MB - No compression needed
+                            ✓ Under 500MB - No compression needed
                           </span>
                         )}
                         

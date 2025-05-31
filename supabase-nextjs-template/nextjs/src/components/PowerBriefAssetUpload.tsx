@@ -41,6 +41,7 @@ interface AssetFile {
   thumbnailBlob?: Blob;
   thumbnailUrl?: string;
   thumbnailExtracted?: boolean;
+  videoDimensions?: { width: number; height: number }; // Video dimensions
 }
 
 interface AssetGroup {
@@ -344,6 +345,47 @@ const extractVideoThumbnail = async (videoFile: File): Promise<{ thumbnailBlob: 
   });
 };
 
+// Function to check video dimensions
+const getVideoDimensions = (file: File): Promise<{ width: number; height: number } | null> => {
+  return new Promise((resolve) => {
+    if (!file.type.startsWith('video/')) {
+      resolve(null);
+      return;
+    }
+
+    const video = document.createElement('video');
+    const videoUrl = URL.createObjectURL(file);
+    
+    video.addEventListener('loadedmetadata', () => {
+      clearTimeout(timeout);
+      const dimensions = {
+        width: video.videoWidth,
+        height: video.videoHeight
+      };
+      URL.revokeObjectURL(videoUrl);
+      video.remove();
+      resolve(dimensions);
+    });
+    
+    video.addEventListener('error', () => {
+      clearTimeout(timeout);
+      URL.revokeObjectURL(videoUrl);
+      video.remove();
+      resolve(null);
+    });
+    
+    // Add timeout to prevent hanging
+    const timeout = setTimeout(() => {
+      URL.revokeObjectURL(videoUrl);
+      video.remove();
+      resolve(null);
+    }, 10000); // 10 second timeout
+    
+    video.src = videoUrl;
+    video.load();
+  });
+};
+
 const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({ 
   isOpen, 
   onClose, 
@@ -449,7 +491,7 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
     }
   };
 
-  const handleFiles = (files: FileList) => {
+  const handleFiles = async (files: FileList) => {
     logger.info('Processing files', { 
       fileCount: files.length,
       fileNames: Array.from(files).map(f => f.name)
@@ -471,6 +513,32 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
         continue;
       }
       
+      // Check video dimensions if it's a video file
+      let videoDimensions = null;
+      if (file.type.startsWith('video/')) {
+        videoDimensions = await getVideoDimensions(file);
+        if (videoDimensions) {
+          logger.debug('Video dimensions checked', { 
+            fileName: file.name, 
+            width: videoDimensions.width, 
+            height: videoDimensions.height 
+          });
+          
+          if (videoDimensions.width < 1200) {
+            const error = `Video width ${videoDimensions.width}px is below the minimum 1200px required for Meta ads`;
+            errors.push(`${file.name}: ${error}`);
+            logger.warn('Video rejected - width too small', { 
+              fileName: file.name, 
+              width: videoDimensions.width,
+              minWidth: 1200
+            });
+            continue;
+          }
+        } else {
+          logger.warn('Could not determine video dimensions', { fileName: file.name });
+        }
+      }
+      
       const { baseName, detectedRatio, groupKey } = getBaseNameRatioAndVersion(file.name);
       
       const assetFile: AssetFile = {
@@ -489,7 +557,8 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
         compressionProgress: 0,
         thumbnailBlob: undefined,
         thumbnailUrl: undefined,
-        thumbnailExtracted: false
+        thumbnailExtracted: false,
+        videoDimensions
       };
       
       newFiles.push(assetFile);
@@ -499,7 +568,8 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
         detectedRatio,
         fileId: assetFile.id,
         needsCompression: assetFile.needsCompression,
-        fileSize: getFileSizeMB(file).toFixed(2) + 'MB'
+        fileSize: getFileSizeMB(file).toFixed(2) + 'MB',
+        videoDimensions
       });
     }
     
@@ -514,7 +584,7 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
       const compressionCount = newFiles.filter(f => f.needsCompression).length;
       let message = `${newFiles.length} file(s) added successfully.`;
       if (compressionCount > 0) {
-        message += ` ${compressionCount} video(s) over 150MB will be automatically compressed.`;
+        message += ` ${compressionCount} video(s) over 500MB will be automatically compressed.`;
       }
       
       addToast('success', 'Files Added', message);
@@ -1001,8 +1071,8 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
                 Smart Auto-Compression
               </h4>
               <p className="text-sm text-blue-700 mb-2">
-                Videos over 150MB are automatically compressed during upload to ensure successful processing and Meta compatibility.
-                Files under 150MB will maintain original quality.
+                Videos over 500MB are automatically compressed during upload to ensure successful processing and Meta compatibility.
+                Files under 500MB will maintain original quality.
                 <span className="block text-xs mt-1 text-blue-600">⚡ Balanced compression - optimized for quality while maintaining reasonable file sizes</span>
               </p>
               <p className="text-xs text-amber-600">
@@ -1022,7 +1092,7 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
                   Large Assets Detected - Auto-Compression Enabled
                 </h4>
                 <p className="text-sm text-orange-700 mb-2">
-                  {selectedFiles.filter(f => f.needsCompression).length} video(s) over 150MB will be automatically compressed during upload.
+                  {selectedFiles.filter(f => f.needsCompression).length} video(s) over 500MB will be automatically compressed during upload.
                   <span className="block text-xs mt-1 text-orange-600">⚡ Balanced compression - optimized for quality while maintaining reasonable file sizes</span>
                 </p>
                 <p className="text-xs text-orange-600">
@@ -1053,6 +1123,20 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
           <p className="text-xs text-gray-400 mb-4">
             Maximum 1GB per file • JPG, PNG, GIF, MP4, MOV, AVI
           </p>
+          <div className="mb-4 mx-auto max-w-lg bg-amber-50 border border-amber-200 rounded-md p-3">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <AlertCircle className="h-5 w-5 text-amber-400" />
+              </div>
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-amber-800">Meta Video Requirements</h3>
+                <p className="mt-1 text-xs text-amber-700">
+                  Videos must have a minimum width of <strong>1200px</strong> for Meta ads. 
+                  Recommended sizes: 1200x1500 (4:5) or 1200x2133 (9:16).
+                </p>
+              </div>
+            </div>
+          </div>
           <input
             type="file"
             multiple
@@ -1102,6 +1186,16 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
                           </span>
                         )}
                         <span>{getFileSizeMB(file.file).toFixed(2)} MB</span>
+                        {file.videoDimensions && (
+                          <span className={`px-2 py-1 rounded ${
+                            file.videoDimensions.width < 1200 
+                              ? 'bg-red-100 text-red-700 font-semibold' 
+                              : 'bg-gray-100 text-gray-600'
+                          }`}>
+                            {file.videoDimensions.width}x{file.videoDimensions.height}
+                            {file.videoDimensions.width < 1200 && ' ⚠️'}
+                          </span>
+                        )}
                       </div>
                       
                       {/* Status indicators */}
@@ -1109,7 +1203,7 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
                         {file.needsCompression && !file.compressing && !file.uploadError && (
                           <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
                             <Zap size={12} className="mr-1" />
-                            Will auto-compress (over 150MB)
+                            Will auto-compress (over 500MB)
                           </span>
                         )}
                         
@@ -1129,7 +1223,7 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
                         
                         {!file.needsCompression && !file.originalSize && file.file.type.startsWith('video/') && (
                           <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                            ✓ Under 150MB - No compression needed
+                            ✓ Under 500MB - No compression needed
                           </span>
                         )}
                         

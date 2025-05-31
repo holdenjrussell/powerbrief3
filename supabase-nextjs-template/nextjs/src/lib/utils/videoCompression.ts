@@ -35,9 +35,9 @@ const initFFmpeg = async (): Promise<FFmpeg> => {
   return ffmpeg;
 };
 
-// Check if a file needs compression (over 150MB)
+// Check if a file needs compression (over 500MB)
 export const needsCompression = (file: File): boolean => {
-  const maxSizeBytes = 150 * 1024 * 1024; // 150MB in bytes
+  const maxSizeBytes = 500 * 1024 * 1024; // 500MB in bytes
   return file.size > maxSizeBytes && file.type.startsWith('video/');
 };
 

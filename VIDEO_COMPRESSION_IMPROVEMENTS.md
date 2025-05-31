@@ -31,7 +31,7 @@ We've optimized video compression for faster processing while maintaining good q
 
 **Default Quality**: `BALANCED` - Provides excellent quality with **2x faster processing** time, optimized for efficient uploads.
 
-**Compression Threshold**: `150MB` - Only files larger than 150MB will be compressed (was 50MB).
+**Compression Threshold**: `500MB` - Only files larger than 500MB will be compressed (was 150MB).
 
 ## How to Adjust Quality Settings
 
@@ -75,7 +75,7 @@ For fine-tuned control, modify the `getCompressionSettings()` function parameter
 
 With the new `BALANCED` quality setting:
 - ✅ **2x faster processing** - Processing time reduced from ~4s/MB to ~2.5s/MB
-- ✅ **Higher threshold** - Only files >150MB are compressed (was 50MB)
+- ✅ **Higher threshold** - Only files >500MB are compressed (was 150MB)
 - ✅ **Maintained quality** - Still excellent visual quality for uploads
 - ✅ **Better user experience** - Faster uploads with less waiting time
 - ✅ **Meta compatibility** - Maintains all platform requirements
@@ -94,7 +94,7 @@ With the new `BALANCED` quality setting:
 
 ### If file sizes are too large:
 1. The system auto-adjusts for files >200MB
-2. Most files under 150MB won't be compressed
+2. Most files under 500MB won't be compressed
 3. Check Meta's upload limits (typically handled automatically)
 
 ## Support
