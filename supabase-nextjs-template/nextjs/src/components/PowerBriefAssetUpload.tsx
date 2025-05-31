@@ -231,37 +231,76 @@ const extractVideoThumbnail = async (videoFile: File): Promise<{ thumbnailBlob: 
       const videoUrl = URL.createObjectURL(videoFile);
       
       video.addEventListener('loadedmetadata', () => {
-        // Set canvas dimensions to match video
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
+        clearTimeout(timeout);
         
-        // Seek to first frame
-        video.currentTime = 0;
+        // Calculate thumbnail dimensions - use a standard size that Meta can handle well
+        // Aim for 1280x720 (16:9) or similar standard dimensions
+        const maxWidth = 1280;
+        const maxHeight = 720;
+        let thumbWidth = video.videoWidth;
+        let thumbHeight = video.videoHeight;
+        
+        // Scale down if video is too large
+        if (thumbWidth > maxWidth || thumbHeight > maxHeight) {
+          const ratio = Math.min(maxWidth / thumbWidth, maxHeight / thumbHeight);
+          thumbWidth = Math.round(thumbWidth * ratio);
+          thumbHeight = Math.round(thumbHeight * ratio);
+        }
+        
+        // Ensure even dimensions (some encoders prefer this)
+        thumbWidth = thumbWidth % 2 === 0 ? thumbWidth : thumbWidth - 1;
+        thumbHeight = thumbHeight % 2 === 0 ? thumbHeight : thumbHeight - 1;
+        
+        // Set minimum size to avoid too small images
+        if (thumbWidth < 320 || thumbHeight < 180) {
+          thumbWidth = 320;
+          thumbHeight = 180;
+        }
+        
+        canvas.width = thumbWidth;
+        canvas.height = thumbHeight;
+        
+        logger.debug('Thumbnail dimensions calculated', {
+          fileName: videoFile.name,
+          originalDimensions: `${video.videoWidth}x${video.videoHeight}`,
+          thumbnailDimensions: `${thumbWidth}x${thumbHeight}`
+        });
+        
+        // Seek to 1 second instead of 0 to avoid black frames
+        video.currentTime = Math.min(1.0, video.duration * 0.1); // 10% into video or 1 second, whichever is smaller
       });
       
       video.addEventListener('seeked', () => {
         try {
-          // Draw video frame to canvas
+          // Clear canvas first
+          ctx.fillStyle = '#000000';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          
+          // Draw video frame to canvas with high quality
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
           ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
           
-          // Convert canvas to blob
+          // Convert canvas to blob with high quality JPEG
           canvas.toBlob((blob) => {
-            if (blob) {
+            if (blob && blob.size > 0) {
               logger.debug('Thumbnail extracted successfully', { 
                 fileName: videoFile.name,
                 thumbnailSize: blob.size,
+                thumbnailSizeKB: (blob.size / 1024).toFixed(2),
                 dimensions: `${canvas.width}x${canvas.height}`
               });
               resolve({ thumbnailBlob: blob });
             } else {
-              resolve({ thumbnailBlob: new Blob(), error: 'Could not extract frame from video' });
+              logger.error('Empty thumbnail blob generated', { fileName: videoFile.name });
+              resolve({ thumbnailBlob: new Blob(), error: 'Generated thumbnail is empty' });
             }
             
             // Clean up
             URL.revokeObjectURL(videoUrl);
             video.remove();
             canvas.remove();
-          }, 'image/jpeg', 0.8);
+          }, 'image/jpeg', 0.95); // Higher quality JPEG
           
         } catch (error) {
           logger.error('Error drawing video frame', { fileName: videoFile.name, error });
@@ -283,6 +322,17 @@ const extractVideoThumbnail = async (videoFile: File): Promise<{ thumbnailBlob: 
         video.remove();
         canvas.remove();
       });
+      
+      // Add timeout to prevent hanging
+      const timeout = setTimeout(() => {
+        logger.error('Thumbnail extraction timeout', { fileName: videoFile.name });
+        resolve({ thumbnailBlob: new Blob(), error: 'Thumbnail extraction timed out' });
+        
+        // Clean up
+        URL.revokeObjectURL(videoUrl);
+        video.remove();
+        canvas.remove();
+      }, 30000); // 30 second timeout
       
       video.src = videoUrl;
       video.load();

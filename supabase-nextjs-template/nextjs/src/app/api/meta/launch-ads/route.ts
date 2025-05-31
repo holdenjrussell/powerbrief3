@@ -239,11 +239,12 @@ async function uploadVideoUsingResumableAPI(
     // Ensure adAccountId has the proper format (remove extra 'act_' if it exists)
     const formattedAdAccountId = adAccountId.startsWith('act_') ? adAccountId.substring(4) : adAccountId;
     
-    // Step 1: Initialize upload session
+    // Step 1: Initialize upload session with enhanced parameters
     console.log(`[Launch API]       Step 1: Initializing upload session...`);
     const initUrl = `https://graph.facebook.com/${META_API_VERSION}/act_${formattedAdAccountId}/video_ads`;
     const initParams = new URLSearchParams({
       upload_phase: 'start',
+      file_size: assetBlob.size.toString(),
       access_token: accessToken
     });
 
@@ -276,13 +277,14 @@ async function uploadVideoUsingResumableAPI(
 
     console.log(`[Launch API]       Step 2: Uploading video to ${uploadUrl}...`);
     
-    // Step 2: Upload the video file
+    // Step 2: Upload the video file with better headers
     const uploadResponse = await fetch(uploadUrl, {
       method: 'POST',
       headers: {
         'Authorization': `OAuth ${accessToken}`,
         'offset': '0',
-        'file_size': assetBlob.size.toString()
+        'file_size': assetBlob.size.toString(),
+        'Content-Type': assetBlob.type || 'video/mp4'
       },
       body: assetBlob
     });
@@ -331,6 +333,38 @@ async function uploadVideoUsingResumableAPI(
     if (!finishResult.success) {
       console.error(`[Launch API]       Upload session finish was not successful:`, finishResult);
       return { error: 'Failed to finish upload session' };
+    }
+
+    console.log(`[Launch API]       Step 4: Verifying video processing...`);
+    
+    // Step 4: Brief check to verify video is processed correctly
+    let attempts = 0;
+    const maxAttempts = 3;
+    while (attempts < maxAttempts) {
+      try {
+        const { ready, status, error } = await checkVideoStatus(videoId, accessToken);
+        console.log(`[Launch API]       Video ${videoId} status check (attempt ${attempts + 1}): ready=${ready}, status=${status}`);
+        
+        if (ready) {
+          console.log(`[Launch API]       Video ${videoId} is ready for use in ads`);
+          break;
+        }
+        
+        if (status === 'error') {
+          console.error(`[Launch API]       Video ${videoId} failed processing: ${error}`);
+          return { error: `Video processing failed: ${error}` };
+        }
+        
+        // If not ready but not errored, wait a bit before next attempt
+        if (attempts < maxAttempts - 1) {
+          console.log(`[Launch API]       Video ${videoId} not ready yet, waiting 3 seconds...`);
+          await new Promise(resolve => setTimeout(resolve, 3000));
+        }
+      } catch (statusError) {
+        console.warn(`[Launch API]       Could not check status for video ${videoId} (attempt ${attempts + 1}):`, statusError);
+        // Continue anyway - status check is not critical for video_ads endpoint
+      }
+      attempts++;
     }
 
     console.log(`[Launch API]       Video upload completed successfully. ID: ${videoId}`);
@@ -423,16 +457,38 @@ const uploadImageUrlToMeta = async (imageUrl: string, imageName: string, adAccou
     
     const imageBlob = await imageResponse.blob();
     
+    // Validate image size and type
+    if (imageBlob.size === 0) {
+      return { error: 'Image file is empty' };
+    }
+    
+    if (imageBlob.size > 30 * 1024 * 1024) { // 30MB limit for images
+      return { error: 'Image file too large (>30MB)' };
+    }
+    
+    // Ensure it's a valid image type
+    const contentType = imageBlob.type;
+    if (!contentType || !['image/jpeg', 'image/jpg', 'image/png'].includes(contentType)) {
+      console.warn(`[Launch API]       Unexpected image type: ${contentType}, using image/jpeg`);
+    }
+    
+    console.log(`[Launch API]       Image details: size=${(imageBlob.size / 1024).toFixed(2)}KB, type=${contentType}`);
+    
     // Upload to Meta
     const formattedAdAccountId = adAccountId.startsWith('act_') ? adAccountId.substring(4) : adAccountId;
     
     const formData = new FormData();
     formData.append('access_token', accessToken);
-    formData.append('source', imageBlob, `${imageName}_thumbnail.jpg`);
+    
+    // Use a clean filename for Meta
+    const cleanImageName = imageName.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const filename = `${cleanImageName}_thumbnail.jpg`;
+    
+    formData.append('source', imageBlob, filename);
 
     const metaUploadUrl = `https://graph.facebook.com/${META_API_VERSION}/act_${formattedAdAccountId}/adimages`;
     
-    console.log(`[Launch API]       Uploading thumbnail to Meta for ${imageName}...`);
+    console.log(`[Launch API]       Uploading thumbnail to Meta for ${imageName} (${filename})...`);
     const metaResponse = await fetch(metaUploadUrl, {
       method: 'POST',
       body: formData,
@@ -440,26 +496,35 @@ const uploadImageUrlToMeta = async (imageUrl: string, imageName: string, adAccou
 
     if (!metaResponse.ok) {
       const errorText = await metaResponse.text();
+      console.error(`[Launch API]       Meta thumbnail upload failed:`, {
+        status: metaResponse.status,
+        statusText: metaResponse.statusText,
+        error: errorText,
+        filename
+      });
       return { error: `Thumbnail upload failed: ${metaResponse.status} ${metaResponse.statusText} - ${errorText}` };
     }
 
     const result = await metaResponse.json();
     
     if (result.error) {
+      console.error(`[Launch API]       Meta thumbnail upload error:`, result.error);
       return { error: `Thumbnail upload error: ${result.error.message}` };
     }
 
     // Extract image hash from response
-    const imageHash = result.images?.[Object.keys(result.images)[0]]?.hash;
+    const imageHash = result.images?.[filename]?.hash || result.images?.[Object.keys(result.images)[0]]?.hash;
     
     if (!imageHash) {
+      console.error(`[Launch API]       No image hash in Meta response:`, result);
       return { error: 'No image hash returned from Meta thumbnail upload' };
     }
 
-    console.log(`[Launch API]       Thumbnail uploaded successfully to Meta. Hash: ${imageHash}`);
+    console.log(`[Launch API]       Thumbnail uploaded successfully to Meta. Hash: ${imageHash}, Filename: ${filename}`);
     return { imageHash };
     
   } catch (error) {
+    console.error(`[Launch API]       Thumbnail upload exception:`, error);
     return { error: `Thumbnail upload failed: ${error instanceof Error ? error.message : 'Unknown error'}` };
   }
 };
