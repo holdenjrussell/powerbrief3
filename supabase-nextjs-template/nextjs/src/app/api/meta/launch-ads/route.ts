@@ -1213,7 +1213,10 @@ export async function POST(req: NextRequest) {
         
         console.log(`[Launch API]         - ${asset.name}: Using ratios ${JSON.stringify(ratiosToCheck)} (detected: ${detectedRatio})`);
         
-        return ratiosToCheck.length === 0 || ratiosToCheck.some(ratio => ['1:1', '4:5', '16:9', '1x1', '4x5', '16x9'].includes(ratio));
+        // Only include 4x5 aspect ratio assets for specific feed placements:
+        // Facebook feed, Facebook video feeds, Instagram explore, Facebook marketplace,
+        // Instagram profile feed, Facebook profile feed, Facebook in stream videos
+        return ratiosToCheck.some(ratio => ['4:5', '4x5'].includes(ratio));
       });
       
       const storyAssets = (draft.assets as ProcessedAdDraftAsset[]).filter((asset: ProcessedAdDraftAsset) => {
@@ -1224,6 +1227,7 @@ export async function POST(req: NextRequest) {
         const detectedRatio = aspectRatios.length === 0 ? detectAspectRatioFromFilename(asset.name) : null;
         const ratiosToCheck = aspectRatios.length > 0 ? aspectRatios : (detectedRatio ? [detectedRatio] : []);
         
+        // Only include 9x16 aspect ratio assets for story/reels placements
         return ratiosToCheck.some(ratio => ['9:16', '9x16'].includes(ratio));
       });
 
@@ -1468,7 +1472,7 @@ export async function POST(req: NextRequest) {
             creativeSpec.asset_feed_spec.asset_customization_rules.push({
               customization_spec: {
                 publisher_platforms: ['facebook', 'instagram'],
-                facebook_positions: ['feed', 'video_feeds'],
+                facebook_positions: ['feed', 'video_feeds', 'marketplace', 'profile_feed', 'instream_video'],
                 instagram_positions: ['stream', 'explore']
               },
               image_label: { name: assetLabel }

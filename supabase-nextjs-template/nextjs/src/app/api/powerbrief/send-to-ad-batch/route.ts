@@ -277,37 +277,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: 'Failed to update concept.' }, { status: 500 });
     }
 
-    // Trigger automatic thumbnail generation for drafts with video assets
-    let thumbnailGenerationResults = null;
-    if (draftIdsForThumbnailGeneration.length > 0) {
-      console.log(`[SEND-TO-AD-BATCH] Triggering thumbnail generation for ${draftIdsForThumbnailGeneration.length} drafts with video assets`);
-      
-      try {
-        // Create a request to trigger thumbnail generation asynchronously
-        // We'll call our existing thumbnail generation API
-        const thumbnailResponse = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/thumbnails/generate-for-drafts`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            draftIds: draftIdsForThumbnailGeneration,
-            brandId: brandId
-          })
-        });
-
-        if (thumbnailResponse.ok) {
-          thumbnailGenerationResults = await thumbnailResponse.json();
-          console.log(`[SEND-TO-AD-BATCH] Thumbnail generation initiated successfully:`, thumbnailGenerationResults);
-        } else {
-          console.warn(`[SEND-TO-AD-BATCH] Thumbnail generation request failed: ${thumbnailResponse.status}`);
-        }
-      } catch (thumbnailError) {
-        console.error(`[SEND-TO-AD-BATCH] Error triggering thumbnail generation:`, thumbnailError);
-        // Don't fail the main request if thumbnail generation fails
-      }
-    }
-
     return NextResponse.json({ 
       message: 'Assets sent to ad upload tool successfully',
       createdDrafts: createdDrafts,
@@ -316,7 +285,7 @@ export async function POST(req: NextRequest) {
       thumbnailGeneration: {
         needed: draftIdsForThumbnailGeneration.length > 0,
         draftsWithVideos: draftIdsForThumbnailGeneration.length,
-        results: thumbnailGenerationResults
+        note: 'Thumbnails will be generated automatically when user opens the ad uploader'
       }
     }, { status: 200 });
 

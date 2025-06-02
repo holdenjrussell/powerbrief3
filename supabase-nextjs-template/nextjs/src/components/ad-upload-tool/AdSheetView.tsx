@@ -529,88 +529,10 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, activeBatch, select
         console.log('✅ Final drafts to display:', draftsWithBrandId.length, draftsWithBrandId);
         setAdDrafts(draftsWithBrandId);
         
-        // Check for video assets without thumbnails and generate them automatically
-        const draftsNeedingThumbnails = draftsWithBrandId.filter(draft => 
-          draft.assets && draft.assets.some(asset => 
-            asset.type === 'video' && !asset.thumbnailUrl
-          )
-        );
-        
-        if (draftsNeedingThumbnails.length > 0) {
-          console.log(`[AdSheetView] Found ${draftsNeedingThumbnails.length} drafts with video assets needing thumbnails. Auto-generating...`);
-          
-          // Show a toast notification to the user
-          const totalVideoAssets = draftsNeedingThumbnails.reduce((total, draft) => 
-            total + draft.assets.filter(asset => asset.type === 'video' && !asset.thumbnailUrl).length, 0
-          );
-          
-          console.log(`[AdSheetView] Starting automatic thumbnail generation for ${totalVideoAssets} video assets across ${draftsNeedingThumbnails.length} drafts`);
-          
-          // Auto-generate thumbnails for drafts with missing video thumbnails
-          const generateThumbnailsAsync = async () => {
-            try {
-              let totalGenerated = 0;
-              const errors: string[] = [];
-              
-              // Show progress feedback
-              console.log(`[AdSheetView] Generating thumbnails for ${draftsNeedingThumbnails.length} drafts...`);
-              
-              for (const draft of draftsNeedingThumbnails) {
-                try {
-                  console.log(`[AdSheetView] Generating thumbnails for draft: ${draft.adName}`);
-                  const result = await generateThumbnailsForDraft(draft.id);
-                  
-                  if (result.processed > 0) {
-                    totalGenerated += result.processed;
-                    console.log(`[AdSheetView] Successfully generated ${result.processed} thumbnails for ${draft.adName}`);
-                  }
-                  
-                  if (result.errors.length > 0) {
-                    console.warn(`[AdSheetView] Some thumbnail errors for ${draft.adName}:`, result.errors);
-                    result.errors.forEach(error => errors.push(`${draft.adName}: ${error.error}`));
-                  }
-                } catch (error) {
-                  console.error(`[AdSheetView] Thumbnail generation failed for ${draft.adName}:`, error);
-                  errors.push(`${draft.adName}: Thumbnail generation failed - ${error instanceof Error ? error.message : 'Unknown error'}`);
-                }
-              }
-              
-              // Provide user feedback
-              if (totalGenerated > 0) {
-                console.log(`[AdSheetView] Automatic thumbnail generation complete: ${totalGenerated} thumbnails generated successfully`);
-                
-                // Refresh drafts to show updated thumbnails
-                await refreshAdDrafts();
-                
-                // Optional: You could add a toast notification here if you have a toast system
-                // For now, we'll just log the success
-                console.log(`[AdSheetView] Thumbnails refreshed in UI. ${totalGenerated} video thumbnails now available.`);
-              }
-              
-              if (errors.length > 0) {
-                console.warn(`[AdSheetView] Thumbnail generation completed with ${errors.length} errors:`, errors);
-                // In a production app, you might want to show these errors to the user
-                // For now, they're logged for debugging
-              }
-              
-              if (totalGenerated === 0 && errors.length === 0) {
-                console.log(`[AdSheetView] No thumbnails were generated. This may be normal if assets were already processed.`);
-              }
-              
-            } catch (error) {
-              console.error('[AdSheetView] Critical error during automatic thumbnail generation:', error);
-            }
-          };
-          
-          // Use setTimeout with a shorter delay to ensure UI is ready, but make it more robust
-          setTimeout(() => {
-            generateThumbnailsAsync().catch(error => {
-              console.error('[AdSheetView] Unhandled error in automatic thumbnail generation:', error);
-            });
-          }, 500); // Reduced delay from 1000ms to 500ms for faster response
-        } else {
-          console.log(`[AdSheetView] No drafts found needing thumbnail generation. All video assets have thumbnails.`);
-        }
+        // Check for thumbnail generation on initial load
+        setTimeout(() => {
+          checkAndGenerateThumbnails(draftsWithBrandId);
+        }, 100);
         
       } catch (error) {
         console.error('Error loading ad drafts:', error);
@@ -675,10 +597,89 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, activeBatch, select
         draftsWithBrandId.filter(draft => !hidePublished || draft.appStatus !== 'PUBLISHED').length
       );
       
+      // Check for thumbnail generation after refresh
+      checkAndGenerateThumbnails(draftsWithBrandId);
+      
     } catch (error) {
       console.error('Error refreshing ad drafts:', error);
     }
   };
+
+  // Function to check and generate thumbnails for drafts
+  const checkAndGenerateThumbnails = async (drafts: AdDraft[]) => {
+    const draftsNeedingThumbnails = drafts.filter(draft => 
+      draft.assets && draft.assets.some(asset => 
+        asset.type === 'video' && (!asset.thumbnailUrl || asset.thumbnailUrl === null || asset.thumbnailUrl === '')
+      )
+    );
+    
+    if (draftsNeedingThumbnails.length > 0) {
+      console.log(`[checkAndGenerateThumbnails] Found ${draftsNeedingThumbnails.length} drafts needing thumbnails`);
+      
+      // Debug: Log which specific assets need thumbnails
+      draftsNeedingThumbnails.forEach(draft => {
+        const videoAssetsNeedingThumbnails = draft.assets.filter(asset => 
+          asset.type === 'video' && (!asset.thumbnailUrl || asset.thumbnailUrl === null || asset.thumbnailUrl === '')
+        );
+        console.log(`[checkAndGenerateThumbnails] Draft "${draft.adName}" needs thumbnails:`, 
+          videoAssetsNeedingThumbnails.map(a => ({ name: a.name, thumbnailUrl: a.thumbnailUrl }))
+        );
+      });
+      
+      // Generate thumbnails for all drafts that need them
+      let totalGenerated = 0;
+      const errors: string[] = [];
+      
+      for (const draft of draftsNeedingThumbnails) {
+        try {
+          console.log(`[checkAndGenerateThumbnails] Processing: ${draft.adName}`);
+          const result = await generateThumbnailsForDraft(draft.id);
+          
+          if (result.processed > 0) {
+            totalGenerated += result.processed;
+            console.log(`[checkAndGenerateThumbnails] ✅ Generated ${result.processed} thumbnails for ${draft.adName}`);
+          }
+          
+          if (result.errors.length > 0) {
+            console.warn(`[checkAndGenerateThumbnails] ⚠️ Errors for ${draft.adName}:`, result.errors);
+            result.errors.forEach(error => errors.push(`${draft.adName}: ${error.error}`));
+          }
+          
+          // Small delay between drafts
+          await new Promise(resolve => setTimeout(resolve, 100));
+          
+        } catch (error) {
+          console.error(`[checkAndGenerateThumbnails] ❌ Failed for ${draft.adName}:`, error);
+          errors.push(`${draft.adName}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+      
+      if (totalGenerated > 0) {
+        console.log(`[checkAndGenerateThumbnails] 🎉 Generated ${totalGenerated} thumbnails total`);
+        // Refresh again to show the new thumbnails
+        setTimeout(() => refreshAdDrafts(), 1000);
+      }
+      
+      if (errors.length > 0) {
+        console.warn(`[checkAndGenerateThumbnails] ⚠️ ${errors.length} errors occurred:`, errors);
+      }
+    } else {
+      console.log(`[checkAndGenerateThumbnails] ✅ All video assets have thumbnails`);
+    }
+  };
+
+  // Force thumbnail generation function
+  const forceGenerateThumbnails = async () => {
+    console.log('[forceGenerateThumbnails] Manual thumbnail generation triggered');
+    await checkAndGenerateThumbnails(adDrafts);
+  };
+
+  // Expose function for debugging (development only)
+  useEffect(() => {
+    if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+      (window as unknown as { forceGenerateThumbnails?: () => Promise<void> }).forceGenerateThumbnails = forceGenerateThumbnails;
+    }
+  }, [adDrafts]);
 
   const handleLaunch = async () => {
     if (checkedDraftIds.size === 0) {
