@@ -151,6 +151,12 @@ export interface CustomLink {
   url: string;
 }
 
+export interface Prerequisite {
+  id: string;
+  type: 'AI Voiceover' | 'UGC Script' | 'UGC B Roll' | 'AI UGC' | 'AI B Roll' | 'Stock Footage' | 'Custom Animation';
+  completed: boolean;
+}
+
 export interface BriefConcept {
   id: string;
   brief_batch_id: string;
@@ -163,6 +169,7 @@ export interface BriefConcept {
   clickup_id: string | null;
   clickup_link: string | null;
   custom_links: CustomLink[];
+  prerequisites: Prerequisite[];
   strategist: string | null;
   creative_coordinator: string | null;
   video_editor: string | null;
@@ -276,6 +283,7 @@ export type DbBriefConcept = {
   clickup_id: string | null;
   clickup_link: string | null;
   custom_links: Json | null;
+  prerequisites: Json | null;
   strategist: string | null;
   creative_coordinator: string | null;
   video_editor: string | null;
@@ -387,6 +395,7 @@ export interface CreateBriefConceptInput {
   clickup_id: string | null;
   clickup_link: string | null;
   custom_links: CustomLink[];
+  prerequisites: Prerequisite[];
   strategist: string | null;
   creative_coordinator: string | null;
   video_editor: string | null;

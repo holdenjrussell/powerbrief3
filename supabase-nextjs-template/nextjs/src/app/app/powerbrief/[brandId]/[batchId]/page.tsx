@@ -5,11 +5,11 @@ import { useGlobal } from '@/lib/context/GlobalContext';
 import { useRouter } from 'next/navigation';
 import { getBriefBatchById, getBrandById, getBriefConcepts, createBriefConcept, updateBriefConcept, deleteBriefConcept, deleteBriefBatch, updateBriefBatch, uploadMedia, shareBriefBatch, shareBriefConcept } from '@/lib/services/powerbriefService';
 import { getProductsByBrand } from '@/lib/services/productService';
-import { Brand, BriefBatch, BriefConcept, Scene, Hook, AiBriefingRequest, ShareSettings, Product, CustomLink } from '@/lib/types/powerbrief';
+import { Brand, BriefBatch, BriefConcept, Scene, Hook, AiBriefingRequest, ShareSettings, Product, CustomLink, Prerequisite } from '@/lib/types/powerbrief';
 import { 
     Sparkles, Plus, X, FileUp, Trash2, Share2, MoveUp, MoveDown, 
     Loader2, Check, Pencil, Bug, Film, FileImage, ArrowLeft, Copy, LinkIcon, Mail,
-    Filter, SortAsc, RotateCcw, ExternalLink
+    Filter, SortAsc, RotateCcw, ExternalLink, CheckCircle, XCircle
 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -83,6 +83,9 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
 
     // Custom links state
     const [localCustomLinks, setLocalCustomLinks] = useState<Record<string, CustomLink[]>>({});
+
+    // Prerequisites state
+    const [localPrerequisites, setLocalPrerequisites] = useState<Record<string, Prerequisite[]>>({});
 
     // Filtering and sorting state
     const [filterStatus, setFilterStatus] = useState<string>('all');
@@ -265,6 +268,7 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                 const initialLocalTextHooksList: Record<string, Hook[]> = {};
                 const initialLocalSpokenHooksList: Record<string, Hook[]> = {};
                 const initialLocalCustomLinks: Record<string, CustomLink[]> = {};
+                const initialLocalPrerequisites: Record<string, Prerequisite[]> = {};
 
                 conceptsData.forEach(concept => {
                     initialLocalPrompts[concept.id] = concept.ai_custom_prompt || '';
@@ -287,6 +291,9 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                     
                     // Initialize custom links
                     initialLocalCustomLinks[concept.id] = concept.custom_links || [];
+                    
+                    // Initialize prerequisites
+                    initialLocalPrerequisites[concept.id] = concept.prerequisites || [];
                     
                     // Initialize Hook lists
                     if (Array.isArray(concept.text_hook_options)) { // New JSONB format (Hook[])
@@ -332,6 +339,7 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                 setLocalTextHooksList(initialLocalTextHooksList); // This is the Hook[] list
                 setLocalSpokenHooksList(initialLocalSpokenHooksList); // This is the Hook[] list
                 setLocalCustomLinks(initialLocalCustomLinks); // This is the CustomLink[] list
+                setLocalPrerequisites(initialLocalPrerequisites); // This is the Prerequisite[] list
                 
                 if (conceptsData.length > 0 && !activeConceptId) {
                     setActiveConceptId(conceptsData[0].id);
@@ -437,7 +445,8 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                 review_comments: null,
                 brief_revision_comments: null,
                 hook_type: null,
-                hook_count: null
+                hook_count: null,
+                prerequisites: [] // Initialize as empty Prerequisite[] for JSONB
             });
             
             setConcepts(prev => [...prev, newConcept]);
@@ -748,7 +757,8 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                         brief_revision_comments: null,
                         hook_type: null,
                         hook_count: null,
-                        product_id: null
+                        product_id: null,
+                        prerequisites: [] // Initialize as empty Prerequisite[] for JSONB
                     });
                     
                     console.log(`EZ UPLOAD: Created new concept for file ${i+1} with ID: ${newConcept.id}`);
@@ -1455,7 +1465,7 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                             : { id: hook.id || uuidv4(), title: hook.title || `Hook ${index + 1}`, content: hook.content || '' }
                     ));
                 } else if (typeof concept.text_hook_options === 'string' && concept.text_hook_options) { // Old TEXT format
-                    newLocalTextHooksList[concept.id] = parseHooksFromString(concept.text_hook_options);
+                    newLocalTextHooksList[concept.id] = parseHooksFromString(concept.text_hook_options); 
                 } else {
                     newLocalTextHooksList[concept.id] = localTextHooksList[concept.id] || []; // Fallback to existing or empty
                 }
@@ -2018,6 +2028,94 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
         }
     };
 
+    // Prerequisites Handlers
+    const prerequisiteTypes = [
+        'AI Voiceover',
+        'UGC Script', 
+        'UGC B Roll',
+        'AI UGC',
+        'AI B Roll',
+        'Stock Footage',
+        'Custom Animation'
+    ] as const;
+
+    const handleTogglePrerequisite = (conceptId: string, prerequisiteType: typeof prerequisiteTypes[number]) => {
+        const concept = concepts.find(c => c.id === conceptId);
+        if (!concept) return;
+
+        const currentPrerequisites = localPrerequisites[conceptId] || concept.prerequisites || [];
+        const existingIndex = currentPrerequisites.findIndex(p => p.type === prerequisiteType);
+        
+        let updatedPrerequisites: Prerequisite[];
+        
+        if (existingIndex >= 0) {
+            // Remove the prerequisite if it exists
+            updatedPrerequisites = currentPrerequisites.filter(p => p.type !== prerequisiteType);
+        } else {
+            // Add the prerequisite if it doesn't exist
+            const newPrerequisite: Prerequisite = {
+                id: uuidv4(),
+                type: prerequisiteType,
+                completed: false
+            };
+            updatedPrerequisites = [...currentPrerequisites, newPrerequisite];
+        }
+
+        // Update local state
+        setLocalPrerequisites(prev => ({
+            ...prev,
+            [conceptId]: updatedPrerequisites
+        }));
+
+        // Update concept in database
+        const updatedConcept = {
+            ...concept,
+            prerequisites: updatedPrerequisites
+        };
+        handleUpdateConcept(updatedConcept);
+    };
+
+    const handleTogglePrerequisiteCompletion = (conceptId: string, prerequisiteId: string) => {
+        const concept = concepts.find(c => c.id === conceptId);
+        if (!concept) return;
+
+        const currentPrerequisites = localPrerequisites[conceptId] || concept.prerequisites || [];
+        const updatedPrerequisites = currentPrerequisites.map(prereq =>
+            prereq.id === prerequisiteId ? { ...prereq, completed: !prereq.completed } : prereq
+        );
+
+        // Update local state
+        setLocalPrerequisites(prev => ({
+            ...prev,
+            [conceptId]: updatedPrerequisites
+        }));
+
+        // Update concept in database
+        const updatedConcept = {
+            ...concept,
+            prerequisites: updatedPrerequisites
+        };
+        handleUpdateConcept(updatedConcept);
+    };
+
+    const getIncompletePrerequisites = (conceptId: string): string[] => {
+        const prerequisites = localPrerequisites[conceptId] || [];
+        return prerequisites
+            .filter(prereq => !prereq.completed)
+            .map(prereq => {
+                switch (prereq.type) {
+                    case 'AI Voiceover': return 'NEEDS AI VO';
+                    case 'UGC Script': return 'NEEDS UGC SCRIPT';
+                    case 'UGC B Roll': return 'NEEDS UGC B ROLL';
+                    case 'AI UGC': return 'NEEDS AI UGC';
+                    case 'AI B Roll': return 'NEEDS AI B ROLL';
+                    case 'Stock Footage': return 'NEEDS STOCK FOOTAGE';
+                    case 'Custom Animation': return 'NEEDS ANIMATION';
+                    default: return 'NEEDS CONTENT';
+                }
+            });
+    };
+
     if (loading) {
         return (
             <div className="flex justify-center items-center min-h-[200px]">
@@ -2459,6 +2557,51 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                         )}
                                     </div>
                                     
+                                    {/* Prerequisites Section */}
+                                    <div className="mt-2">
+                                        <div className="flex justify-between items-center mb-1">
+                                            <label className="block text-xs font-medium">Prerequisites:</label>
+                                        </div>
+                                        
+                                        {/* Prerequisites Multi-Select */}
+                                        <div className="space-y-1">
+                                            {prerequisiteTypes.map((prerequisiteType) => {
+                                                const currentPrerequisites = localPrerequisites[concept.id] || [];
+                                                const isSelected = currentPrerequisites.some(p => p.type === prerequisiteType);
+                                                const prerequisite = currentPrerequisites.find(p => p.type === prerequisiteType);
+                                                const isCompleted = prerequisite?.completed || false;
+                                                
+                                                return (
+                                                    <div key={prerequisiteType} className="flex items-center justify-between p-2 border rounded">
+                                                        <div className="flex items-center space-x-2">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={isSelected}
+                                                                onChange={() => handleTogglePrerequisite(concept.id, prerequisiteType)}
+                                                                className="h-4 w-4 rounded border-gray-300"
+                                                            />
+                                                            <span className="text-xs">{prerequisiteType}</span>
+                                                        </div>
+                                                        {isSelected && (
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                className={`h-6 w-6 p-0 ${isCompleted ? 'text-green-600' : 'text-red-600'}`}
+                                                                onClick={() => handleTogglePrerequisiteCompletion(concept.id, prerequisite!.id)}
+                                                            >
+                                                                {isCompleted ? (
+                                                                    <CheckCircle className="h-4 w-4" />
+                                                                ) : (
+                                                                    <XCircle className="h-4 w-4" />
+                                                                )}
+                                                            </Button>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                    
                                     {/* Frame.io Review Link - Display when concept is ready for review or approved */}
                                     {(concept.status === 'READY FOR REVIEW' || concept.status === 'APPROVED' || concept.review_status === 'ready_for_review' || concept.review_status === 'approved') && 
                                         concept.review_link && (
@@ -2687,6 +2830,12 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                                 Frame.io Available
                                             </div>
                                         )}
+                                        {/* Prerequisite tags for incomplete items */}
+                                        {getIncompletePrerequisites(concept.id).map((prerequisiteTag, index) => (
+                                            <div key={index} className="text-xs px-3 py-1.5 bg-red-100 text-red-800 rounded-full font-medium border border-red-300">
+                                                {prerequisiteTag}
+                                            </div>
+                                        ))}
                                     </div>
                                     
                                     {/* Share button for individual concept */}
