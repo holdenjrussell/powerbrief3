@@ -678,7 +678,7 @@ export default function SharedConceptPage({ params }: { params: ParamsType | Pro
               </CardHeader>
               {showVideoInstructions && (
                 <CardContent>
-                  <div className="whitespace-pre-wrap bg-gray-50 p-4 rounded">{concept.videoInstructions}</div>
+                  <div className="whitespace-pre-wrap bg-gray-50 p-4 rounded break-words">{concept.videoInstructions}</div>
                 </CardContent>
               )}
             </Card>
@@ -699,7 +699,7 @@ export default function SharedConceptPage({ params }: { params: ParamsType | Pro
               </CardHeader>
               {showDesignerInstructions && (
                 <CardContent>
-                  <div className="whitespace-pre-wrap bg-gray-50 p-4 rounded">{concept.designerInstructions}</div>
+                  <div className="whitespace-pre-wrap bg-gray-50 p-4 rounded break-words">{concept.designerInstructions}</div>
                 </CardContent>
               )}
             </Card>
@@ -710,13 +710,13 @@ export default function SharedConceptPage({ params }: { params: ParamsType | Pro
             <div className="mb-4">
               <h4 className="font-semibold mb-1">Text Hook Options</h4>
               {Array.isArray(concept.text_hook_options) ? (
-                <div className="space-y-1 whitespace-pre-wrap bg-gray-50 p-3 rounded">
+                <div className="space-y-1 whitespace-pre-wrap bg-gray-50 p-3 rounded break-words">
                   {concept.text_hook_options.map((hook: Hook, index: number) => (
                     <p key={hook.id || index}>{hook.content}</p>
                   ))}
                 </div>
               ) : (
-                <p className="whitespace-pre-wrap bg-gray-50 p-3 rounded">{String(concept.text_hook_options)}</p>
+                <p className="whitespace-pre-wrap bg-gray-50 p-3 rounded break-words">{String(concept.text_hook_options)}</p>
               )}
             </div>
           )}
@@ -726,13 +726,13 @@ export default function SharedConceptPage({ params }: { params: ParamsType | Pro
             <div className="mb-4">
               <h4 className="font-semibold mb-1">Spoken Hook Options</h4>
               {Array.isArray(concept.spoken_hook_options) ? (
-                 <div className="space-y-1 whitespace-pre-wrap bg-gray-50 p-3 rounded">
+                 <div className="space-y-1 whitespace-pre-wrap bg-gray-50 p-3 rounded break-words">
                   {concept.spoken_hook_options.map((hook: Hook, index: number) => (
                     <p key={hook.id || index}>{hook.content}</p>
                   ))}
                 </div>
               ) : (
-                <div className="space-y-3 bg-gray-50 p-3 rounded">
+                <div className="space-y-3 bg-gray-50 p-3 rounded break-words">
                   {(String(concept.spoken_hook_options))
                     .split(/\n\s*\n/)
                     .flatMap(section => section.split('\n'))
@@ -765,12 +765,12 @@ export default function SharedConceptPage({ params }: { params: ParamsType | Pro
                       
                       <div>
                         <h4 className="text-sm font-medium text-gray-500 mb-1">Script:</h4>
-                        <p className="whitespace-pre-wrap text-sm bg-gray-50 p-3 rounded">{scene.script}</p>
+                        <p className="whitespace-pre-wrap text-sm bg-gray-50 p-3 rounded break-all">{scene.script}</p>
                       </div>
                       
                       <div>
                         <h4 className="text-sm font-medium text-gray-500 mb-1">Visuals:</h4>
-                        <p className="whitespace-pre-wrap text-sm bg-gray-50 p-3 rounded">{scene.visuals}</p>
+                        <p className="whitespace-pre-wrap text-sm bg-gray-50 p-3 rounded break-all">{scene.visuals}</p>
                       </div>
                     </div>
                   ))}
@@ -790,14 +790,14 @@ export default function SharedConceptPage({ params }: { params: ParamsType | Pro
                   {concept.cta_script && (
                     <div>
                       <h4 className="text-sm font-medium mb-1">CTA Script:</h4>
-                      <p className="whitespace-pre-wrap bg-gray-50 p-3 rounded">{concept.cta_script}</p>
+                      <p className="whitespace-pre-wrap bg-gray-50 p-3 rounded break-words">{concept.cta_script}</p>
                     </div>
                   )}
                   
                   {concept.cta_text_overlay && (
                     <div>
                       <h4 className="text-sm font-medium mb-1">CTA Text Overlay:</h4>
-                      <p className="whitespace-pre-wrap bg-gray-50 p-3 rounded">{concept.cta_text_overlay}</p>
+                      <p className="whitespace-pre-wrap bg-gray-50 p-3 rounded break-words">{concept.cta_text_overlay}</p>
                     </div>
                   )}
                 </div>

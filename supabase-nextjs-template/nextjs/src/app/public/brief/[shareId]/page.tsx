@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { createSPAClient } from '@/lib/supabase/client';
-import { Brand, BriefBatch, BriefConcept, Scene } from '@/lib/types/powerbrief';
+import { Brand, BriefBatch, BriefConcept, Scene, Hook } from '@/lib/types/powerbrief';
 import { Loader2, Eye, EyeOff, X } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
@@ -502,7 +502,7 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
                       {concept.videoInstructions && concept.media_type === 'video' && (
                         <div>
                           <h3 className="font-medium text-sm mb-1">Video Instructions</h3>
-                          <p className="text-sm bg-gray-50 p-3 rounded line-clamp-3">
+                          <p className="text-sm bg-gray-50 p-3 rounded line-clamp-3 break-words">
                             {concept.videoInstructions}
                           </p>
                         </div>
@@ -512,7 +512,7 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
                       {concept.designerInstructions && concept.media_type === 'image' && (
                         <div>
                           <h3 className="font-medium text-sm mb-1">Designer Instructions</h3>
-                          <p className="text-sm bg-gray-50 p-3 rounded line-clamp-3">
+                          <p className="text-sm bg-gray-50 p-3 rounded line-clamp-3 break-words">
                             {concept.designerInstructions}
                           </p>
                         </div>
@@ -522,7 +522,7 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
                       {concept.text_hook_options && Array.isArray(concept.text_hook_options) && concept.text_hook_options.length > 0 && (
                         <div className="mt-4">
                           <h3 className="font-medium text-sm mb-1">Text Hook options</h3>
-                          <div className="space-y-1 text-sm bg-gray-50 p-2 rounded">
+                          <div className="space-y-1 text-sm bg-gray-50 p-2 rounded break-words">
                             {concept.text_hook_options.map((hook: Hook, index: number) => (
                               <p key={hook.id || index} className="whitespace-pre-wrap">{hook.content}</p>
                             ))}
@@ -572,10 +572,10 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
                               .map(([key, value]) => (
                                 <div key={key} className="bg-gray-50 p-3 rounded">
                                   <span className="font-semibold capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}: </span>
-                                  <span>{String(value)}</span>
+                                  <span className="break-words">{String(value)}</span>
                                 </div>
                               )) : 
-                            <p className="whitespace-pre-wrap">{String(brand.brand_info_data)}</p>
+                            <p className="whitespace-pre-wrap break-words">{String(brand.brand_info_data)}</p>
                           }
                         </div>
                       </div>
@@ -586,7 +586,7 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
                       <div>
                         <h3 className="font-medium">Video Instructions</h3>
                         <div className="bg-gray-50 p-3 rounded mt-2">
-                          <p className="whitespace-pre-wrap">{brand.brand_info_data.videoInstructions}</p>
+                          <p className="whitespace-pre-wrap break-words">{brand.brand_info_data.videoInstructions}</p>
                         </div>
                       </div>
                     )}
@@ -596,7 +596,7 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
                       <div>
                         <h3 className="font-medium">Designer Instructions</h3>
                         <div className="bg-gray-50 p-3 rounded mt-2">
-                          <p className="whitespace-pre-wrap">{brand.brand_info_data.designerInstructions}</p>
+                          <p className="whitespace-pre-wrap break-words">{brand.brand_info_data.designerInstructions}</p>
                         </div>
                       </div>
                     )}
@@ -609,10 +609,10 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
                             Object.entries(brand.target_audience_data).map(([key, value]) => (
                               <div key={key} className="bg-gray-50 p-3 rounded">
                                 <span className="font-semibold capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}: </span>
-                                <span>{String(value)}</span>
+                                <span className="break-words">{String(value)}</span>
                               </div>
                             )) : 
-                            <p className="whitespace-pre-wrap">{String(brand.target_audience_data)}</p>
+                            <p className="whitespace-pre-wrap break-words">{String(brand.target_audience_data)}</p>
                           }
                         </div>
                       </div>
@@ -626,10 +626,10 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
                             Object.entries(brand.competition_data).map(([key, value]) => (
                               <div key={key} className="bg-gray-50 p-3 rounded">
                                 <span className="font-semibold capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}: </span>
-                                <span>{String(value)}</span>
+                                <span className="break-words">{String(value)}</span>
                               </div>
                             )) : 
-                            <p className="whitespace-pre-wrap">{String(brand.competition_data)}</p>
+                            <p className="whitespace-pre-wrap break-words">{String(brand.competition_data)}</p>
                           }
                         </div>
                       </div>
@@ -697,7 +697,7 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
                                   <h5 className="text-sm font-medium text-green-600 mb-1">Do's</h5>
                                   <div className="space-y-1">
                                     {brand.dos_and_donts.imagesDos.map((item: string, index: number) => (
-                                      <div key={index} className="bg-green-50 border border-green-200 p-2 rounded text-sm">
+                                      <div key={index} className="bg-green-50 border border-green-200 p-2 rounded text-sm break-words">
                                         {item}
                                       </div>
                                     ))}
@@ -711,7 +711,7 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
                                   <h5 className="text-sm font-medium text-red-600 mb-1">Don'ts</h5>
                                   <div className="space-y-1">
                                     {brand.dos_and_donts.imagesDonts.map((item: string, index: number) => (
-                                      <div key={index} className="bg-red-50 border border-red-200 p-2 rounded text-sm">
+                                      <div key={index} className="bg-red-50 border border-red-200 p-2 rounded text-sm break-words">
                                         {item}
                                       </div>
                                     ))}
@@ -732,7 +732,7 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
                                   <h5 className="text-sm font-medium text-green-600 mb-1">Do's</h5>
                                   <div className="space-y-1">
                                     {brand.dos_and_donts.videosDos.map((item: string, index: number) => (
-                                      <div key={index} className="bg-green-50 border border-green-200 p-2 rounded text-sm">
+                                      <div key={index} className="bg-green-50 border border-green-200 p-2 rounded text-sm break-words">
                                         {item}
                                       </div>
                                     ))}
@@ -746,7 +746,7 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
                                   <h5 className="text-sm font-medium text-red-600 mb-1">Don'ts</h5>
                                   <div className="space-y-1">
                                     {brand.dos_and_donts.videosDonts.map((item: string, index: number) => (
-                                      <div key={index} className="bg-red-50 border border-red-200 p-2 rounded text-sm">
+                                      <div key={index} className="bg-red-50 border border-red-200 p-2 rounded text-sm break-words">
                                         {item}
                                       </div>
                                     ))}
