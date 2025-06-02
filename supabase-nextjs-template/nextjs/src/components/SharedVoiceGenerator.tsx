@@ -288,9 +288,12 @@ export default function SharedVoiceGenerator({
     // Start with hooks if available
     let fullScript = '';
     
-    if (spokenHooks && spokenHooks.trim()) {
+    // Ensure spokenHooks is a string before attempting to trim or split
+    const currentSpokenHooks = typeof spokenHooks === 'string' ? spokenHooks : '';
+
+    if (currentSpokenHooks && currentSpokenHooks.trim()) {
       // Use the first hook only (assuming hooks are separated by newlines)
-      const firstHook = spokenHooks.split('\n')[0]?.trim();
+      const firstHook = currentSpokenHooks.split('\n')[0]?.trim();
       if (firstHook) {
         fullScript += `${firstHook}\n\n`;
       }
