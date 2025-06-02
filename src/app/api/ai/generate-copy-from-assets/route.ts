@@ -1,47 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  GoogleGenAI,
-  HarmCategory,
-  HarmBlockThreshold,
-  createUserContent,
-  createPartFromUri,
-} from "@google/genai";
+import { GoogleGenAI, HarmCategory, HarmBlockThreshold } from "@google/genai";
 import { Ratelimit } from "@upstash/ratelimit";
 import { kv } from "@vercel/kv";
 import { ImageAsset } from "../../../../lib/validators/imageAssetValidator";
-// import { GEMINI_SAFETY_SETTINGS, generationConfig } from "@/lib/config"; // Defined inline
 
 // Added these imports for file handling
 import { promises as fs } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-
-// Define generationConfig and safetySettings inline as they might be from a commented out import
-const generationConfig = {
-  temperature: 0.7,
-  topK: 1,
-  topP: 1,
-  maxOutputTokens: 8192,
-};
-
-const safetySettings = [
-  {
-    category: HarmCategory.HARM_CATEGORY_HARASSMENT,
-    threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-  },
-  {
-    category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-    threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-  },
-  {
-    category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-    threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-  },
-  {
-    category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-    threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-  },
-];
 
 export async function POST(req: NextRequest) {
   const {
@@ -73,7 +39,7 @@ export async function POST(req: NextRequest) {
     });
 
     const { success, limit, reset, remaining } = await ratelimit.limit(
-      `ratelimit_${req.ip ?? "127.0.0.1"}`
+      `ratelimit_${req.headers.get('x-forwarded-for') ?? req.headers.get('x-real-ip') ?? "127.0.0.1"}`
     );
 
     if (!success) {
@@ -133,7 +99,12 @@ export async function POST(req: NextRequest) {
             }
 
             console.log(`Using URI for video ${asset.name}: ${uploadedFile.uri}`);
-            return createPartFromUri(uploadedFile.uri, uploadedFile.mimeType);
+            return {
+              fileData: {
+                fileUri: uploadedFile.uri,
+                mimeType: uploadedFile.mimeType,
+              },
+            };
 
           } catch (uploadError: any) {
             console.error(`Error uploading video ${asset.name} to File API:`, uploadError);
@@ -171,19 +142,47 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No processable assets found or all asset processing failed." }, { status: 400 });
     }
 
+    // Prepare content array with system instruction and user message
+    const contents = [
+      {
+        role: "user",
+        parts: [
+          { text: systemPrompt },
+          ...validAssetParts,
+          { text: `\nAd Platform: ${adPlatform}` },
+          { text: `\nLocale: ${locale}` },
+          { text: `\nCampaign Objective: ${campaignObjective}` },
+          { text: `\nTarget Audience: ${targetAudience}` },
+          { text: `\nNumber of Ad Copies to Generate: ${numberOfCopies}` },
+          { text: `\nCall To Action: ${callToAction}` },
+          { text: `\nAdditional Instructions: ${additionalInstructions}` },
+        ],
+      },
+    ];
+
     const response = await ai.models.generateContent({
       model: "gemini-2.0-flash",
-      contents: createUserContent([
-        systemPrompt,
-        ...validAssetParts,
-        `\nAd Platform: ${adPlatform}`,
-        `\nLocale: ${locale}`,
-        `\nCampaign Objective: ${campaignObjective}`,
-        `\nTarget Audience: ${targetAudience}`,
-        `\nNumber of Ad Copies to Generate: ${numberOfCopies}`,
-        `\nCall To Action: ${callToAction}`,
-        `\nAdditional Instructions: ${additionalInstructions}`,
-      ]),
+      contents: contents,
+      config: {
+        safetySettings: [
+          {
+            category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+            threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+          },
+          {
+            category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+            threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+          },
+          {
+            category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+            threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+          },
+          {
+            category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+            threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+          },
+        ],
+      },
     });
 
     return NextResponse.json({ generatedCopy: response.text });
