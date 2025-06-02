@@ -128,6 +128,19 @@ export async function POST(request: NextRequest) {
     const currentDataStr = body.conceptCurrentData ? JSON.stringify(body.conceptCurrentData, null, 2) : 'No current data provided';
     const fieldsStr = body.desiredOutputFields.join(', ');
     
+    // Handle product information if provided
+    let productContext = '';
+    if (body.brandContext.product_info) {
+      const product = body.brandContext.product_info;
+      productContext = `\n\nPRODUCT SPECIFIC CONTEXT:
+This concept is specifically for the product: ${product.name} (${product.identifier})
+${product.description ? `Product Description: ${product.description}` : ''}
+${product.category ? `Category: ${product.category}` : ''}
+${product.price && product.currency ? `Price: ${product.currency} ${product.price}` : ''}
+
+IMPORTANT: Make sure all creative content specifically relates to and promotes this product. Reference the product name and its unique features in your generated content.`;
+    }
+    
     // Enhance custom prompt importance
     let enhancedCustomPrompt = body.conceptSpecificPrompt || "";
     if (enhancedCustomPrompt) {
@@ -185,7 +198,7 @@ IMPORTANT: Your response MUST be valid JSON and nothing else. Format:
 BRAND CONTEXT:
 \`\`\`json
 ${brandContextStr}
-\`\`\`
+\`\`\`${productContext}
 
 CURRENT CONTENT (for refinement):
 \`\`\`json

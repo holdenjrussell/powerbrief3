@@ -6,10 +6,12 @@ export interface Product {
   brand_id: string;
   user_id: string;
   name: string;
-  identifier: string; // Product identifier/SKU
+  identifier?: string; // Product identifier/SKU - now optional
   description?: string;
   category?: string;
-  price?: number;
+  price?: number; // Regular price
+  msrp?: number; // Manufacturer's Suggested Retail Price
+  sale_price?: number; // Sale/discounted price
   currency?: string;
   image_url?: string;
   product_url?: string;
@@ -176,6 +178,7 @@ export interface BriefConcept {
   brief_revision_comments: string | null;
   hook_type: 'text' | 'verbal' | 'both' | null;
   hook_count: number | null;
+  product_id: string | null;
 }
 
 // AI Generation models
@@ -186,6 +189,14 @@ export interface AiBriefingRequest {
     competition_data: string | null;
     system_instructions_image: string | null;
     system_instructions_video: string | null;
+    product_info?: {
+      name: string;
+      identifier: string;
+      description?: string;
+      category?: string;
+      price?: number;
+      currency?: string;
+    } | null;
   };
   conceptSpecificPrompt: string;
   conceptCurrentData: {
@@ -212,7 +223,7 @@ export interface AiBriefingResponse {
   body_content_structured_scenes: Scene[];
   cta_script: string;
   cta_text_overlay: string;
-  description: string;
+  description?: string;
 }
 
 // Type helpers for database interactions
@@ -380,4 +391,5 @@ export interface CreateBriefConceptInput {
   description: string | null;
   videoInstructions: string | null;
   designerInstructions: string | null;
+  product_id: string | null;
 } 

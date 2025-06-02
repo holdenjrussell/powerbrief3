@@ -4,7 +4,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useGlobal } from '@/lib/context/GlobalContext';
 import { useRouter } from 'next/navigation';
 import { getBriefBatchById, getBrandById, getBriefConcepts, createBriefConcept, updateBriefConcept, deleteBriefConcept, deleteBriefBatch, updateBriefBatch, uploadMedia, shareBriefBatch, shareBriefConcept } from '@/lib/services/powerbriefService';
-import { Brand, BriefBatch, BriefConcept, Scene, Hook, AiBriefingRequest, ShareSettings } from '@/lib/types/powerbrief';
+import { getProductsByBrand } from '@/lib/services/productService';
+import { Brand, BriefBatch, BriefConcept, Scene, Hook, AiBriefingRequest, ShareSettings, Product } from '@/lib/types/powerbrief';
 import { 
     Sparkles, Plus, X, FileUp, Trash2, Share2, MoveUp, MoveDown, 
     Loader2, Check, Pencil, Bug, Film, FileImage, ArrowLeft, Copy, LinkIcon, Mail
@@ -29,6 +30,7 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
     const [brand, setBrand] = useState<Brand | null>(null);
     const [batch, setBatch] = useState<BriefBatch | null>(null);
     const [concepts, setConcepts] = useState<BriefConcept[]>([]);
+    const [products, setProducts] = useState<Product[]>([]);
     const [error, setError] = useState<string | null>(null);
     const [showDeleteBatchDialog, setShowDeleteBatchDialog] = useState<boolean>(false);
     const [deletingBatch, setDeletingBatch] = useState<boolean>(false);
@@ -89,10 +91,11 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
             
             try {
                 setLoading(true);
-                const [brandData, batchData, conceptsData] = await Promise.all([
+                const [brandData, batchData, conceptsData, productsData] = await Promise.all([
                     getBrandById(brandId),
                     getBriefBatchById(batchId),
-                    getBriefConcepts(batchId)
+                    getBriefConcepts(batchId),
+                    getProductsByBrand(brandId)
                 ]);
                 
                 if (!brandData || !batchData) {
@@ -103,6 +106,7 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                 setBrand(brandData);
                 setBatch(batchData);
                 setConcepts(conceptsData);
+                setProducts(productsData);
 
                 // Set the starting concept number from the batch data, defaulting to 1 if not set
                 setStartingConceptNumber(batchData.starting_concept_number || 1);
@@ -273,7 +277,8 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                 review_comments: null,
                 brief_revision_comments: null,
                 hook_type: null,
-                hook_count: null
+                hook_count: null,
+                product_id: null
             });
             
             setConcepts(prev => [...prev, newConcept]);
@@ -575,7 +580,8 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                         review_comments: null,
                         brief_revision_comments: null,
                         hook_type: null,
-                        hook_count: null
+                        hook_count: null,
+                        product_id: null
                     });
                     
                     console.log(`EZ UPLOAD: Created new concept for file ${i+1} with ID: ${newConcept.id}`);
@@ -690,6 +696,22 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
             const hookType = localHookTypes[conceptId] || conceptWithSavedPrompt.hook_type || 'both';
             const hookCount = localHookCounts[conceptId] || conceptWithSavedPrompt.hook_count || 5;
             
+            // Get product information if a product is selected for this concept
+            let productInfo = null;
+            if (conceptWithSavedPrompt.product_id) {
+                const selectedProduct = products.find(p => p.id === conceptWithSavedPrompt.product_id);
+                if (selectedProduct) {
+                    productInfo = {
+                        name: selectedProduct.name,
+                        identifier: selectedProduct.identifier,
+                        description: selectedProduct.description,
+                        category: selectedProduct.category,
+                        price: selectedProduct.price,
+                        currency: selectedProduct.currency
+                    };
+                }
+            }
+            
             // First, save the hook type and count to the database to ensure consistency
             const updatedConceptWithHooks = {
                 ...conceptWithSavedPrompt,
@@ -711,7 +733,8 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                     target_audience_data: JSON.stringify(brand.target_audience_data),
                     competition_data: JSON.stringify(brand.competition_data),
                     system_instructions_image: brand.system_instructions_image,
-                    system_instructions_video: brand.system_instructions_video
+                    system_instructions_video: brand.system_instructions_video,
+                    product_info: productInfo
                 },
                 conceptSpecificPrompt: currentPromptValue, // Use the current prompt value directly
                 conceptCurrentData: {
@@ -909,6 +932,22 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                     const hookType = localHookTypes[concept.id] || concept.hook_type || 'both';
                     const hookCount = localHookCounts[concept.id] || concept.hook_count || 5;
                     
+                    // Get product information if a product is selected for this concept
+                    let productInfo = null;
+                    if (concept.product_id) {
+                        const selectedProduct = products.find(p => p.id === concept.product_id);
+                        if (selectedProduct) {
+                            productInfo = {
+                                name: selectedProduct.name,
+                                identifier: selectedProduct.identifier,
+                                description: selectedProduct.description,
+                                category: selectedProduct.category,
+                                price: selectedProduct.price,
+                                currency: selectedProduct.currency
+                            };
+                        }
+                    }
+                    
                     console.log(`Using hook type: ${hookType}, hook count: ${hookCount} for concept ${concept.id}`);
                     
                     const request: AiBriefingRequest = {
@@ -917,7 +956,8 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                             target_audience_data: JSON.stringify(brand.target_audience_data),
                             competition_data: JSON.stringify(brand.competition_data),
                             system_instructions_image: brand.system_instructions_image,
-                            system_instructions_video: brand.system_instructions_video
+                            system_instructions_video: brand.system_instructions_video,
+                            product_info: productInfo
                         },
                         conceptSpecificPrompt: currentPromptValue,
                         conceptCurrentData: {
@@ -1228,16 +1268,23 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                     const existingHooks = prev[concept.id] || [];
                     const dbHookString = concept.text_hook_options || '';
                     
-                    // Only parse and update hooks in very specific scenarios:
-                    // 1. First load when we have no existing hooks but database has content
-                    // 2. Database content is significantly longer (likely from AI generation)
-                    // 3. Database content has common AI-generated patterns (OR, numbered lists)
+                    // Only parse hooks if there are clear AI-generated patterns
+                    // Avoid parsing manually entered content that just has line breaks
+                    const hasAIPatterns = (
+                        dbHookString.includes(' OR ') || // Contains "OR" separator
+                        dbHookString.match(/^\s*\d+\./m) || // Contains numbered lists like "1."
+                        dbHookString.match(/^\s*[-*•]/m) || // Contains bullet points
+                        (dbHookString.split('\n').filter(line => line.trim()).length > 3 && dbHookString.length > 100) // Many lines AND long content
+                    );
+                    
                     const shouldParseHooks = (
-                        existingHooks.length === 0 && dbHookString.length > 0
+                        // Only parse if we have no existing hooks AND there are clear AI patterns
+                        existingHooks.length === 0 && dbHookString.length > 0 && hasAIPatterns
                     ) || (
-                        dbHookString.length > 100 && // Only for significant content
-                        dbHookString.length > (existingHooks[0]?.content?.length || 0) * 2 && // Database content is much longer
-                        (dbHookString.includes(' OR ') || dbHookString.match(/^\s*\d+\./m)) // Has AI-generated patterns
+                        // Or if database content is significantly longer and has AI patterns (likely from AI generation)
+                        dbHookString.length > 200 && // Increased threshold for longer content
+                        dbHookString.length > (existingHooks[0]?.content?.length || 0) * 3 && // Database content is much longer
+                        hasAIPatterns // Must have AI-generated patterns
                     );
                     
                     if (shouldParseHooks) {
@@ -1257,16 +1304,23 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                     const existingHooks = prev[concept.id] || [];
                     const dbHookString = concept.spoken_hook_options || '';
                     
-                    // Only parse and update hooks in very specific scenarios:
-                    // 1. First load when we have no existing hooks but database has content
-                    // 2. Database content is significantly longer (likely from AI generation)
-                    // 3. Database content has common AI-generated patterns (OR, numbered lists)
+                    // Only parse hooks if there are clear AI-generated patterns
+                    // Avoid parsing manually entered content that just has line breaks
+                    const hasAIPatterns = (
+                        dbHookString.includes(' OR ') || // Contains "OR" separator
+                        dbHookString.match(/^\s*\d+\./m) || // Contains numbered lists like "1."
+                        dbHookString.match(/^\s*[-*•]/m) || // Contains bullet points
+                        (dbHookString.split('\n').filter(line => line.trim()).length > 3 && dbHookString.length > 100) // Many lines AND long content
+                    );
+                    
                     const shouldParseHooks = (
-                        existingHooks.length === 0 && dbHookString.length > 0
+                        // Only parse if we have no existing hooks AND there are clear AI patterns
+                        existingHooks.length === 0 && dbHookString.length > 0 && hasAIPatterns
                     ) || (
-                        dbHookString.length > 100 && // Only for significant content
-                        dbHookString.length > (existingHooks[0]?.content?.length || 0) * 2 && // Database content is much longer
-                        (dbHookString.includes(' OR ') || dbHookString.match(/^\s*\d+\./m)) // Has AI-generated patterns
+                        // Or if database content is significantly longer and has AI patterns (likely from AI generation)
+                        dbHookString.length > 200 && // Increased threshold for longer content
+                        dbHookString.length > (existingHooks[0]?.content?.length || 0) * 3 && // Database content is much longer
+                        hasAIPatterns // Must have AI-generated patterns
                     );
                     
                     if (shouldParseHooks) {
@@ -1292,6 +1346,22 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
         // Determine media type
         const mediaType = concept.media_type || 'video';
         
+        // Get product information if a product is selected for this concept
+        let productInfo = null;
+        if (concept.product_id) {
+            const selectedProduct = products.find(p => p.id === concept.product_id);
+            if (selectedProduct) {
+                productInfo = {
+                    name: selectedProduct.name,
+                    identifier: selectedProduct.identifier,
+                    description: selectedProduct.description,
+                    category: selectedProduct.category,
+                    price: selectedProduct.price,
+                    currency: selectedProduct.currency
+                };
+            }
+        }
+        
         // Construct the request object that would be sent to the API
         const request: AiBriefingRequest = {
             brandContext: {
@@ -1299,7 +1369,8 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                 target_audience_data: JSON.stringify(brand.target_audience_data),
                 competition_data: JSON.stringify(brand.competition_data),
                 system_instructions_image: brand.system_instructions_image,
-                system_instructions_video: brand.system_instructions_video
+                system_instructions_video: brand.system_instructions_video,
+                product_info: productInfo
             },
             conceptSpecificPrompt: customPrompt, // Use the local value
             conceptCurrentData: {
@@ -1586,7 +1657,25 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
     const parseHooksFromString = (hooksString: string): Hook[] => {
         if (!hooksString || typeof hooksString !== 'string') return [];
         
-        // First, try to split by common separators
+        // First, check if this looks like manually entered content that should stay as one hook
+        // Manual content typically doesn't have AI-generated patterns
+        const hasAIPatterns = (
+            hooksString.match(/\bOR\b/i) || // Contains "OR" separator
+            hooksString.match(/^\s*\d+\./m) || // Contains numbered lists like "1."
+            hooksString.match(/^\s*[-*•]/m) || // Contains bullet points
+            hooksString.split('\n').filter(line => line.trim()).length > 3 // Has more than 3 non-empty lines
+        );
+        
+        // If it doesn't look like AI-generated content, keep it as a single hook
+        if (!hasAIPatterns) {
+            return [{
+                id: `hook-${Date.now()}-0`,
+                title: 'Hook 1',
+                content: hooksString
+            }];
+        }
+        
+        // Otherwise, parse as multiple hooks (for AI-generated content)
         let hooks: string[] = [];
         
         // Try splitting by "OR" first (case insensitive)
@@ -2081,6 +2170,30 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                             <option value="REVISIONS REQUESTED">REVISIONS REQUESTED</option>
                                         </select>
                                     </div>
+
+                                    {/* Product Dropdown */}
+                                    <div className="mt-2">
+                                        <label className="block text-xs font-medium mb-1" id={`product-label-${concept.id}`}>Product:</label>
+                                        <select
+                                            value={concept.product_id || ''}
+                                            onChange={(e) => {
+                                                const updatedConcept = {
+                                                    ...concept,
+                                                    product_id: e.target.value || null
+                                                };
+                                                handleUpdateConcept(updatedConcept);
+                                            }}
+                                            className="w-full p-2 text-sm border rounded"
+                                            aria-labelledby={`product-label-${concept.id}`}
+                                        >
+                                            <option value="">Select Product</option>
+                                            {products.map((product) => (
+                                                <option key={product.id} value={product.id}>
+                                                    {product.name} {product.identifier && `(${product.identifier})`}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
                                     
                                     {/* Strategist Field */}
                                     <div className="mt-2">
@@ -2201,6 +2314,14 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                                 Status: {concept.status}
                                             </div>
                                         )}
+                                        {concept.product_id && (() => {
+                                            const selectedProduct = products.find(p => p.id === concept.product_id);
+                                            return selectedProduct ? (
+                                                <div className="text-xs px-3 py-1.5 bg-orange-100 text-orange-800 rounded-full font-medium border border-orange-200">
+                                                    Product: {selectedProduct.name}
+                                                </div>
+                                            ) : null;
+                                        })()}
                                         {concept.strategist && (
                                             <div className="text-xs px-3 py-1.5 bg-indigo-100 text-indigo-800 rounded-full font-medium border border-indigo-200">
                                                 Strategist: {concept.strategist}
@@ -2385,7 +2506,7 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                                                 // Update concept in database
                                                                 const updatedConcept = {
                                                                     ...concept,
-                                                                    hook_type: 'text'
+                                                                    hook_type: 'text' as const
                                                                 };
                                                                 handleUpdateConcept(updatedConcept);
                                                             }}

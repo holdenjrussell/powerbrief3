@@ -27,6 +27,7 @@ interface BrandWithResources {
   competition_data: Record<string, unknown>;
   editing_resources?: Array<{ name: string; url: string }>;
   resource_logins?: Array<{ resourceName: string; username: string; password: string }>;
+  stock_resources?: Array<{ name: string; url: string }>;
   dos_and_donts?: {
     imagesDos: string[];
     imagesDonts: string[];
@@ -64,6 +65,7 @@ interface ConceptWithShareSettings {
   uploaded_assets?: UploadedAssetGroup[];
   asset_upload_status?: string;
   description?: string;
+  product_id?: string;
   [key: string]: unknown;
 }
 
@@ -410,6 +412,11 @@ export default function SharedConceptPage({ params }: { params: ParamsType | Pro
         {concept.video_editor && (
           <div className="inline-block px-4 py-1.5 bg-purple-100 text-purple-800 rounded-full text-sm font-medium border border-purple-300">
             {concept.media_type === 'video' ? 'Video Editor' : 'Designer'}: {concept.video_editor}
+          </div>
+        )}
+        {concept.product_id && (
+          <div className="inline-block px-4 py-1.5 bg-orange-100 text-orange-800 rounded-full text-sm font-medium border border-orange-300">
+            Product ID: {String(concept.product_id)}
           </div>
         )}
       </div>

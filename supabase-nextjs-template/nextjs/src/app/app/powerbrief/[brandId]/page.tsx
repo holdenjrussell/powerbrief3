@@ -4,8 +4,9 @@ import React, { useState, useEffect } from 'react';
 import { useGlobal } from '@/lib/context/GlobalContext';
 import { useRouter } from 'next/navigation';
 import { getBrandById, updateBrand, deleteBrand } from '@/lib/services/powerbriefService';
-import { Brand, EditingResource, ResourceLogin, DosAndDonts } from '@/lib/types/powerbrief';
-import { Loader2, ArrowLeft, Save, Trash2, Plus, Facebook } from 'lucide-react';
+import { getProductsByBrand } from '@/lib/services/productService';
+import { Brand, EditingResource, ResourceLogin, DosAndDonts, Product } from '@/lib/types/powerbrief';
+import { Loader2, ArrowLeft, Save, Trash2, Plus, Facebook, Pencil, X } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
@@ -76,6 +77,22 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
     const [newImageDont, setNewImageDont] = useState<string>('');
     const [newVideoDo, setNewVideoDo] = useState<string>('');
     const [newVideoDont, setNewVideoDont] = useState<string>('');
+
+    // Product Management State
+    const [products, setProducts] = useState<Product[]>([]);
+    const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+    const [newProduct, setNewProduct] = useState<Partial<Product>>({
+        name: '',
+        identifier: '',
+        description: '',
+        category: '',
+        price: undefined,
+        msrp: undefined,
+        sale_price: undefined,
+        currency: 'USD',
+        image_url: '',
+        product_url: ''
+    });
 
     // Meta Integration State
     const [metaConnectionStatus, setMetaConnectionStatus] = useState<string>('Not Connected'); // Example states: 'Connected', 'Error'
@@ -169,7 +186,10 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
             
             try {
                 setLoading(true);
-                const brandData = await getBrandById(brandId);
+                const [brandData, productsData] = await Promise.all([
+                    getBrandById(brandId),
+                    getProductsByBrand(brandId)
+                ]);
                 
                 if (!brandData) {
                     router.push('/app/powerbrief');
@@ -177,6 +197,7 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
                 }
                 
                 setBrand(brandData);
+                setProducts(productsData);
                 
                 // Check Meta connection status
                 checkMetaConnectionStatus(brandData);
@@ -319,6 +340,88 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
         console.log('Redirecting to Meta OAuth:', oauthUrl);
         console.log('Using redirect URI:', `${baseUrl}/api/auth/meta/callback`);
         window.location.href = oauthUrl;
+    };
+
+    // Product management functions
+    const handleAddProduct = async () => {
+        if (!brand || !newProduct.name) return;
+        
+        try {
+            const response = await fetch('/api/products', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    ...newProduct,
+                    brand_id: brand.id,
+                    user_id: user?.id,
+                    is_active: true
+                }),
+            });
+            
+            if (!response.ok) {
+                throw new Error('Failed to create product');
+            }
+            
+            const createdProduct = await response.json();
+            setProducts(prev => [...prev, createdProduct]);
+            setNewProduct({
+                name: '',
+                identifier: '',
+                description: '',
+                category: '',
+                price: undefined,
+                msrp: undefined,
+                sale_price: undefined,
+                currency: 'USD',
+                image_url: '',
+                product_url: ''
+            });
+        } catch (err) {
+            console.error('Error creating product:', err);
+            setError('Failed to create product. Please try again.');
+        }
+    };
+
+    const handleUpdateProduct = async (updatedProduct: Product) => {
+        try {
+            const response = await fetch(`/api/products/${updatedProduct.id}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(updatedProduct),
+            });
+            
+            if (!response.ok) {
+                throw new Error('Failed to update product');
+            }
+            
+            const updated = await response.json();
+            setProducts(prev => prev.map(p => p.id === updated.id ? updated : p));
+            setEditingProduct(null);
+        } catch (err) {
+            console.error('Error updating product:', err);
+            setError('Failed to update product. Please try again.');
+        }
+    };
+
+    const handleDeleteProduct = async (productId: string) => {
+        try {
+            const response = await fetch(`/api/products/${productId}`, {
+                method: 'DELETE',
+            });
+            
+            if (!response.ok) {
+                throw new Error('Failed to delete product');
+            }
+            
+            setProducts(prev => prev.filter(p => p.id !== productId));
+        } catch (err) {
+            console.error('Error deleting product:', err);
+            setError('Failed to delete product. Please try again.');
+        }
     };
 
     if (loading) {
@@ -480,6 +583,250 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
                                 onChange={(value) => setBrandInfo({...brandInfo, competitiveAdvantage: value})}
                                 placeholder="Competitive Advantage"
                             />
+                        </div>
+                    </CardContent>
+                </Card>
+                
+                {/* Products Column */}
+                <Card className="min-w-[420px] max-w-[420px] flex-shrink-0">
+                    <CardHeader>
+                        <CardTitle>Products</CardTitle>
+                        <CardDescription>Manage your product catalog for AI context</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="space-y-2">
+                            {products.map((product) => (
+                                <div key={product.id} className="p-3 rounded-md border">
+                                    {editingProduct?.id === product.id ? (
+                                        <div className="space-y-2">
+                                            <Input
+                                                value={editingProduct.name}
+                                                onChange={(e) => setEditingProduct({...editingProduct, name: e.target.value})}
+                                                placeholder="Product Name"
+                                            />
+                                            <Input
+                                                value={editingProduct.identifier || ''}
+                                                onChange={(e) => setEditingProduct({...editingProduct, identifier: e.target.value})}
+                                                placeholder="SKU/Identifier (optional)"
+                                            />
+                                            <MarkdownTextarea
+                                                value={editingProduct.description || ''}
+                                                onChange={(value) => setEditingProduct({...editingProduct, description: value})}
+                                                placeholder="Product Description"
+                                            />
+                                            <Input
+                                                value={editingProduct.category || ''}
+                                                onChange={(e) => setEditingProduct({...editingProduct, category: e.target.value})}
+                                                placeholder="Category"
+                                            />
+                                            <div className="space-y-2">
+                                                <div className="grid grid-cols-3 gap-2">
+                                                    <div>
+                                                        <label className="block text-xs font-medium mb-1">Regular Price</label>
+                                                        <Input
+                                                            type="number"
+                                                            value={editingProduct.price || ''}
+                                                            onChange={(e) => setEditingProduct({...editingProduct, price: parseFloat(e.target.value) || undefined})}
+                                                            placeholder="Price"
+                                                            step="0.01"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-xs font-medium mb-1">MSRP</label>
+                                                        <Input
+                                                            type="number"
+                                                            value={editingProduct.msrp || ''}
+                                                            onChange={(e) => setEditingProduct({...editingProduct, msrp: parseFloat(e.target.value) || undefined})}
+                                                            placeholder="MSRP"
+                                                            step="0.01"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-xs font-medium mb-1">Sale Price</label>
+                                                        <Input
+                                                            type="number"
+                                                            value={editingProduct.sale_price || ''}
+                                                            onChange={(e) => setEditingProduct({...editingProduct, sale_price: parseFloat(e.target.value) || undefined})}
+                                                            placeholder="Sale Price"
+                                                            step="0.01"
+                                                        />
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-medium mb-1">Currency</label>
+                                                    <select
+                                                        value={editingProduct.currency || 'USD'}
+                                                        onChange={(e) => setEditingProduct({...editingProduct, currency: e.target.value})}
+                                                        className="w-full px-3 py-2 border rounded"
+                                                        aria-label="Currency selection"
+                                                    >
+                                                        <option value="USD">USD</option>
+                                                        <option value="EUR">EUR</option>
+                                                        <option value="GBP">GBP</option>
+                                                        <option value="CAD">CAD</option>
+                                                        <option value="AUD">AUD</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <Input
+                                                value={editingProduct.image_url || ''}
+                                                onChange={(e) => setEditingProduct({...editingProduct, image_url: e.target.value})}
+                                                placeholder="Image URL"
+                                            />
+                                            <Input
+                                                value={editingProduct.product_url || ''}
+                                                onChange={(e) => setEditingProduct({...editingProduct, product_url: e.target.value})}
+                                                placeholder="Product URL"
+                                            />
+                                            <div className="flex space-x-2">
+                                                <Button 
+                                                    onClick={() => handleUpdateProduct(editingProduct)}
+                                                    className="bg-green-600 text-white hover:bg-green-700"
+                                                >
+                                                    Save
+                                                </Button>
+                                                <Button 
+                                                    variant="outline"
+                                                    onClick={() => setEditingProduct(null)}
+                                                >
+                                                    Cancel
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div>
+                                            <div className="flex items-center justify-between mb-2">
+                                                <div>
+                                                    <span className="font-medium">{product.name}</span>
+                                                    {product.identifier && (
+                                                        <span className="text-sm text-gray-500 ml-2">({product.identifier})</span>
+                                                    )}
+                                                </div>
+                                                <div className="flex space-x-1">
+                                                    <Button 
+                                                        variant="ghost" 
+                                                        size="sm" 
+                                                        onClick={() => setEditingProduct(product)}
+                                                        className="h-8 w-8 p-0"
+                                                    >
+                                                        <Pencil className="h-4 w-4" />
+                                                    </Button>
+                                                    <Button 
+                                                        variant="ghost" 
+                                                        size="sm" 
+                                                        onClick={() => handleDeleteProduct(product.id)}
+                                                        className="text-red-500 hover:text-red-700 hover:bg-red-50 h-8 w-8 p-0"
+                                                    >
+                                                        <X className="h-4 w-4" />
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                            {product.description && (
+                                                <p className="text-sm text-gray-600 mb-2">{product.description}</p>
+                                            )}
+                                            <div className="text-xs text-gray-500">
+                                                {product.category && <span>Category: {product.category}</span>}
+                                                {(product.price || product.msrp || product.sale_price) && (
+                                                    <div className="mt-1 space-y-1">
+                                                        {product.price && (
+                                                            <div>Price: {product.currency || 'USD'} {product.price}</div>
+                                                        )}
+                                                        {product.msrp && (
+                                                            <div>MSRP: {product.currency || 'USD'} {product.msrp}</div>
+                                                        )}
+                                                        {product.sale_price && (
+                                                            <div>Sale Price: {product.currency || 'USD'} {product.sale_price}</div>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                        
+                        <div className="space-y-2">
+                            <h3 className="text-sm font-medium">Add New Product</h3>
+                            <div className="space-y-2">
+                                <Input
+                                    value={newProduct.name || ''}
+                                    onChange={(e) => setNewProduct({...newProduct, name: e.target.value})}
+                                    placeholder="Product Name"
+                                />
+                                <Input
+                                    value={newProduct.identifier || ''}
+                                    onChange={(e) => setNewProduct({...newProduct, identifier: e.target.value})}
+                                    placeholder="SKU/Identifier (optional)"
+                                />
+                                <MarkdownTextarea
+                                    value={newProduct.description || ''}
+                                    onChange={(value) => setNewProduct({...newProduct, description: value})}
+                                    placeholder="Product Description"
+                                />
+                                <Input
+                                    value={newProduct.category || ''}
+                                    onChange={(e) => setNewProduct({...newProduct, category: e.target.value})}
+                                    placeholder="Category"
+                                />
+                                <div className="space-y-2">
+                                    <div className="grid grid-cols-3 gap-2">
+                                        <div>
+                                            <label className="block text-xs font-medium mb-1">Regular Price</label>
+                                            <Input
+                                                type="number"
+                                                value={newProduct.price || ''}
+                                                onChange={(e) => setNewProduct({...newProduct, price: parseFloat(e.target.value) || undefined})}
+                                                placeholder="Price"
+                                                step="0.01"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-medium mb-1">MSRP</label>
+                                            <Input
+                                                type="number"
+                                                value={newProduct.msrp || ''}
+                                                onChange={(e) => setNewProduct({...newProduct, msrp: parseFloat(e.target.value) || undefined})}
+                                                placeholder="MSRP"
+                                                step="0.01"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-medium mb-1">Sale Price</label>
+                                            <Input
+                                                type="number"
+                                                value={newProduct.sale_price || ''}
+                                                onChange={(e) => setNewProduct({...newProduct, sale_price: parseFloat(e.target.value) || undefined})}
+                                                placeholder="Sale Price"
+                                                step="0.01"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium mb-1">Currency</label>
+                                        <select
+                                            value={newProduct.currency || 'USD'}
+                                            onChange={(e) => setNewProduct({...newProduct, currency: e.target.value})}
+                                            className="w-full px-3 py-2 border rounded"
+                                            aria-label="Currency selection for new product"
+                                        >
+                                            <option value="USD">USD</option>
+                                            <option value="EUR">EUR</option>
+                                            <option value="GBP">GBP</option>
+                                            <option value="CAD">CAD</option>
+                                            <option value="AUD">AUD</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <Button 
+                                    onClick={handleAddProduct}
+                                    disabled={!newProduct.name}
+                                    className="w-full bg-primary-600 text-white hover:bg-primary-700"
+                                >
+                                    <Plus className="h-4 w-4 mr-2" />
+                                    Add Product
+                                </Button>
+                            </div>
                         </div>
                     </CardContent>
                 </Card>
