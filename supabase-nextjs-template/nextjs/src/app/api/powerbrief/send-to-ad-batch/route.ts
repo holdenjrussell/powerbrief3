@@ -190,6 +190,7 @@ export async function POST(req: NextRequest) {
 
     // Convert PowerBrief assets to ad drafts (without batch association)
     const createdDrafts = [];
+    const draftIdsForThumbnailGeneration = [];
 
     for (const group of uploadedAssets) {
       // Create an ad draft for each asset group using user's settings
@@ -246,12 +247,19 @@ export async function POST(req: NextRequest) {
         console.error('Error creating ad draft assets:', assetsError);
         // Consider whether to delete the draft if assets fail
       } else {
+        const hasVideoAssets = group.assets.some(asset => asset.type === 'video');
+        
         createdDrafts.push({
           id: createdDraft.id,
           name: adDraftData.ad_name,
           assetCount: group.assets.length,
-          hasVideoAssets: group.assets.some(asset => asset.type === 'video')
+          hasVideoAssets: hasVideoAssets
         });
+
+        // Track drafts that need thumbnail generation
+        if (hasVideoAssets) {
+          draftIdsForThumbnailGeneration.push(createdDraft.id);
+        }
       }
     }
 
@@ -269,12 +277,47 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: 'Failed to update concept.' }, { status: 500 });
     }
 
+    // Trigger automatic thumbnail generation for drafts with video assets
+    let thumbnailGenerationResults = null;
+    if (draftIdsForThumbnailGeneration.length > 0) {
+      console.log(`[SEND-TO-AD-BATCH] Triggering thumbnail generation for ${draftIdsForThumbnailGeneration.length} drafts with video assets`);
+      
+      try {
+        // Create a request to trigger thumbnail generation asynchronously
+        // We'll call our existing thumbnail generation API
+        const thumbnailResponse = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/thumbnails/generate-for-drafts`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            draftIds: draftIdsForThumbnailGeneration,
+            brandId: brandId
+          })
+        });
+
+        if (thumbnailResponse.ok) {
+          thumbnailGenerationResults = await thumbnailResponse.json();
+          console.log(`[SEND-TO-AD-BATCH] Thumbnail generation initiated successfully:`, thumbnailGenerationResults);
+        } else {
+          console.warn(`[SEND-TO-AD-BATCH] Thumbnail generation request failed: ${thumbnailResponse.status}`);
+        }
+      } catch (thumbnailError) {
+        console.error(`[SEND-TO-AD-BATCH] Error triggering thumbnail generation:`, thumbnailError);
+        // Don't fail the main request if thumbnail generation fails
+      }
+    }
+
     return NextResponse.json({ 
       message: 'Assets sent to ad upload tool successfully',
       createdDrafts: createdDrafts,
       totalDrafts: createdDrafts.length,
       appliedSettings: userSettings ? 'User settings applied' : 'Default settings applied',
-      needsThumbnailGeneration: createdDrafts.some(d => d.hasVideoAssets)
+      thumbnailGeneration: {
+        needed: draftIdsForThumbnailGeneration.length > 0,
+        draftsWithVideos: draftIdsForThumbnailGeneration.length,
+        results: thumbnailGenerationResults
+      }
     }, { status: 200 });
 
   } catch (error) {
