@@ -81,6 +81,17 @@ interface BriefRevisionsNeededData {
   batchShareUrl: string;
 }
 
+interface AdditionalSizesRequestData {
+  brandId: string;
+  conceptId: string;
+  conceptTitle: string;
+  batchName: string;
+  videoEditor?: string;
+  additionalSizesNotes: string;
+  publicShareUrl: string;
+  reviewDashboardUrl: string;
+}
+
 interface BrandSlackSettings {
   name: string;
   slack_webhook_url: string;
@@ -576,6 +587,70 @@ export async function sendBriefRevisionsNeededNotification(data: BriefRevisionsN
 
   } catch (error) {
     console.error('Error sending brief revisions needed notification:', error);
+  }
+}
+
+// New function for additional sizes request notifications
+export async function sendAdditionalSizesRequestNotification(data: AdditionalSizesRequestData): Promise<void> {
+  try {
+    const supabase = await createSSRClient();
+    
+    // Get brand Slack settings
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: brand, error: brandError } = await supabase
+      .from('brands' as any)
+      .select('name, slack_webhook_url, slack_channel_name, slack_notifications_enabled, slack_channel_config')
+      .eq('id', data.brandId)
+      .single();
+
+    if (brandError || !brand) {
+      console.error('Error fetching brand for additional sizes request notification:', brandError);
+      return;
+    }
+
+    const typedBrand = brand as unknown as BrandSlackSettings;
+
+    // Check if Slack notifications are enabled
+    if (!typedBrand.slack_notifications_enabled || !typedBrand.slack_webhook_url) {
+      console.log('Slack notifications not enabled for brand:', data.brandId);
+      return;
+    }
+
+    // Create Slack message for additional sizes request
+    const message = createAdditionalSizesRequestMessage({
+      brandName: typedBrand.name,
+      conceptTitle: data.conceptTitle,
+      batchName: data.batchName,
+      videoEditor: data.videoEditor,
+      additionalSizesNotes: data.additionalSizesNotes,
+      publicShareUrl: data.publicShareUrl,
+      reviewDashboardUrl: data.reviewDashboardUrl
+    });
+
+    // Add channel override for concept revision notifications (similar category)
+    const channelOverride = getChannelForNotificationType(typedBrand, 'concept_revision');
+    if (channelOverride) {
+      (message as { channel?: string }).channel = channelOverride;
+    }
+
+    // Send to Slack
+    const response = await fetch(typedBrand.slack_webhook_url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(message),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Failed to send additional sizes request notification:', response.status, errorText);
+    } else {
+      console.log('Additional sizes request notification sent successfully for brand:', data.brandId);
+    }
+
+  } catch (error) {
+    console.error('Error sending additional sizes request notification:', error);
   }
 }
 
@@ -1332,6 +1407,114 @@ function createBriefRevisionsNeededMessage(data: BriefRevisionsNeededMessageData
 
   return {
     text: `🔄 Brief Revisions Needed - ${conceptTitle} (${brandName})`,
+    attachments: [
+      {
+        color: "warning",
+        blocks: blocks
+      }
+    ]
+  };
+}
+
+// New function for additional sizes request notifications
+interface AdditionalSizesRequestMessageData {
+  brandName: string;
+  conceptTitle: string;
+  batchName: string;
+  videoEditor?: string;
+  additionalSizesNotes: string;
+  publicShareUrl: string;
+  reviewDashboardUrl: string;
+}
+
+function createAdditionalSizesRequestMessage(data: AdditionalSizesRequestMessageData) {
+  const {
+    brandName,
+    conceptTitle,
+    batchName,
+    videoEditor,
+    additionalSizesNotes,
+    publicShareUrl,
+    reviewDashboardUrl
+  } = data;
+
+  const blocks = [
+    {
+      type: "header",
+      text: {
+        type: "plain_text",
+        text: "📐 Additional Sizes Request",
+        emoji: true
+      }
+    },
+    {
+      type: "section",
+      fields: [
+        {
+          type: "mrkdwn",
+          text: `*Brand:*\n${brandName}`
+        },
+        {
+          type: "mrkdwn",
+          text: `*Batch:*\n${batchName}`
+        },
+        {
+          type: "mrkdwn",
+          text: `*Concept:*\n${conceptTitle}`
+        },
+        {
+          type: "mrkdwn",
+          text: `*Creator:*\n${videoEditor || 'Not assigned'}`
+        }
+      ]
+    },
+    {
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: `*Additional Sizes Notes:*\n${additionalSizesNotes}`
+      }
+    }
+  ];
+
+  // Add action buttons
+  blocks.push({
+    type: "actions",
+    elements: [
+      {
+        type: "button",
+        text: {
+          type: "plain_text",
+          text: "View Public Share",
+          emoji: true
+        },
+        url: publicShareUrl
+      },
+      {
+        type: "button",
+        text: {
+          type: "plain_text",
+          text: "Review & Approve",
+          emoji: true
+        },
+        url: reviewDashboardUrl
+      }
+    ]
+  });
+
+  // Add timestamp
+  blocks.push({
+    type: "context",
+    elements: [
+      {
+        type: "mrkdwn",
+        text: `Requested at ${new Date().toLocaleString()}`
+      }
+    ]
+  });
+
+  return {
+    text: `📐 Additional Sizes Request - ${conceptTitle} (${brandName})`,
     attachments: [
       {
         color: "warning",

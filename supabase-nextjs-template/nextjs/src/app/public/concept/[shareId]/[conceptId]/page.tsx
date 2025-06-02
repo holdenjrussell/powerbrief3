@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { createSPAClient } from '@/lib/supabase/client';
 import { BriefConcept, Scene, UploadedAssetGroup, Hook } from '@/lib/types/powerbrief';
-import { Loader2, ArrowLeft, Link as LinkIcon, CheckCircle, AlertTriangle, UploadCloud, X, ExternalLink, MessageCircle } from 'lucide-react';
+import { Loader2, ArrowLeft, Link as LinkIcon, CheckCircle, AlertTriangle, UploadCloud, X, ExternalLink, MessageCircle, Plus } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -924,7 +924,11 @@ export default function SharedSingleConceptPage({ params }: { params: ParamsType
     if (!concept) return;
 
     try {
-      const response = await fetch('/api/powerbrief/upload-assets', {
+      // Determine which endpoint to use based on concept status
+      const isAppendingAssets = concept.review_status === 'needs_additional_sizes';
+      const endpoint = isAppendingAssets ? '/api/powerbrief/append-assets' : '/api/powerbrief/upload-assets';
+      
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -942,7 +946,7 @@ export default function SharedSingleConceptPage({ params }: { params: ParamsType
 
       const result = await response.json();
       
-      // Update the concept with the new asset data
+      // Update the concept with the asset data
       setConcept(prev => prev ? {
         ...prev,
         uploaded_assets: result.assetGroups,
@@ -951,9 +955,13 @@ export default function SharedSingleConceptPage({ params }: { params: ParamsType
         status: 'READY FOR REVIEW'
       } : null);
 
+      const successMessage = isAppendingAssets 
+        ? `Additional assets appended successfully! Added ${result.newAssetsCount || assetGroups.length} new asset groups.`
+        : 'Assets uploaded successfully and marked ready for review.';
+
       toast({
         title: 'Success',
-        description: 'Assets uploaded successfully and marked ready for review.',
+        description: successMessage,
         duration: 3000,
       });
     } catch (error) {
@@ -1330,6 +1338,21 @@ export default function SharedSingleConceptPage({ params }: { params: ParamsType
         </div>
       )}
 
+      {concept?.review_status === 'needs_additional_sizes' && (
+        <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg flex items-center space-x-3">
+          <Plus className="h-5 w-5 text-blue-500" />
+          <div>
+            <h3 className="font-medium text-blue-800">Additional Sizes Requested</h3>
+            <p className="text-sm text-blue-700">Please upload additional sizes while keeping existing assets.</p>
+            {concept.reviewer_notes && (
+              <div className="mt-2 p-2 bg-blue-100 rounded text-sm text-blue-800">
+                <strong>Size Requirements:</strong> {concept.reviewer_notes}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Asset Upload Section */}
       {isEditable && !concept?.uploaded_assets && !concept?.review_status && (
         <Card className="border-2 border-blue-300">
@@ -1347,6 +1370,28 @@ export default function SharedSingleConceptPage({ params }: { params: ParamsType
             >
               <UploadCloud className="h-4 w-4 mr-2" />
               Upload Assets
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Additional Sizes Upload Section */}
+      {isEditable && concept?.review_status === 'needs_additional_sizes' && (
+        <Card className="border-2 border-blue-300">
+          <CardHeader>
+            <CardTitle className="text-lg">Upload Additional Sizes</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-gray-600">
+              Upload additional sizes or variations for this concept. Your existing assets will be preserved,
+              and the new uploads will be added to them.
+            </p>
+            <Button 
+              onClick={() => setShowAssetUpload(true)}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add More Assets
             </Button>
           </CardContent>
         </Card>

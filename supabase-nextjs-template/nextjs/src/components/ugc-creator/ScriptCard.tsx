@@ -796,143 +796,149 @@ export default function ScriptCard({
               // Find the assigned creator for this script
               const assignedCreator = creators.find(c => c.id === script.creator_id);
               
-              if (assignedCreator && !assignedCreator.product_shipped) {
-                return (
-                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-md mb-3">
-                    <h4 className="font-medium text-amber-800 flex items-center mb-2">
-                      <AlertCircle className="h-4 w-4 mr-2" />
-                      Action Required
-                    </h4>
-                    <p className="text-sm text-amber-700 mb-2">
-                      Ship product to creator before proceeding with approval/rejection.
-                    </p>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      className="w-full border-amber-200 text-amber-700 hover:bg-amber-100"
-                      onClick={() => {
-                        if (brandId) {
-                          router.push(`/app/powerbrief/${brandId}/ugc-pipeline/creators/${assignedCreator.id}`);
-                        }
-                      }}
-                    >
-                      <Package className="h-4 w-4 mr-1" />
-                      Update Product Shipment
-                    </Button>
-                  </div>
-                );
-              }
+              // Check if requirements are met for approval
+              const productShipped = assignedCreator?.product_shipped;
+              const contractSigned = assignedCreator?.contract_status === 'contract signed';
+              const contractPending = assignedCreator?.contract_status === 'contract sent';
+              const contractMissing = !assignedCreator?.contract_status || assignedCreator?.contract_status === 'not signed';
               
-              // Check for contract not signed or not sent
-              if (assignedCreator && (!assignedCreator.contract_status || assignedCreator.contract_status === 'not signed')) {
-                return (
-                  <div className="p-3 bg-red-50 border border-red-200 rounded-md mb-3">
-                    <h4 className="font-medium text-red-800 flex items-center mb-2">
-                      <AlertCircle className="h-4 w-4 mr-2" />
-                      Contract Required
-                    </h4>
-                    <p className="text-sm text-red-700 mb-2">
-                      Contract must be signed before proceeding with approval/rejection.
-                    </p>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      className="w-full border-red-200 text-red-700 hover:bg-red-100"
-                      onClick={() => {
-                        if (brandId) {
-                          router.push(`/app/powerbrief/${brandId}/ugc-pipeline/creators/${assignedCreator.id}`);
-                        }
-                      }}
-                    >
-                      <FileText className="h-4 w-4 mr-1" />
-                      Update Contract Status
-                    </Button>
-                  </div>
-                );
-              }
-              
-              // Check for contract sent but not signed
-              if (assignedCreator && assignedCreator.contract_status === 'contract sent') {
-                return (
-                  <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md mb-3">
-                    <h4 className="font-medium text-yellow-800 flex items-center mb-2">
-                      <AlertCircle className="h-4 w-4 mr-2" />
-                      Contract Pending
-                    </h4>
-                    <p className="text-sm text-yellow-700 mb-2">
-                      Contract has been sent but not yet signed. Approval/rejection should wait until contract is signed.
-                    </p>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      className="w-full border-yellow-200 text-yellow-700 hover:bg-yellow-100"
-                      onClick={() => {
-                        if (brandId) {
-                          router.push(`/app/powerbrief/${brandId}/ugc-pipeline/creators/${assignedCreator.id}`);
-                        }
-                      }}
-                    >
-                      <FileText className="h-4 w-4 mr-1" />
-                      Check Contract Status
-                    </Button>
-                  </div>
-                );
-              }
-              
+              // Always show the action buttons, but conditionally disable/modify approval button
               return (
-                <div className="flex gap-2 w-full">
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    className="flex-1 text-green-600 border-green-600 hover:bg-green-50"
-                    onClick={handleCreatorApproveClick}
-                  >
-                    <CheckCircle className="h-4 w-4 mr-1" />
-                    Creator Approved
-                  </Button>
-                  
-                  <Dialog open={showCreatorRejectDialog} onOpenChange={setShowCreatorRejectDialog}>
-                    <DialogTrigger asChild>
+                <div className="w-full">
+                  {/* Show warnings for approval requirements, but don't block rejection */}
+                  {assignedCreator && !productShipped && (
+                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-md mb-3">
+                      <h4 className="font-medium text-amber-800 flex items-center mb-2">
+                        <AlertCircle className="h-4 w-4 mr-2" />
+                        Product Shipment Required for Approval
+                      </h4>
+                      <p className="text-sm text-amber-700 mb-2">
+                        Ship product to creator before approval. Rejection can proceed without shipment.
+                      </p>
                       <Button 
                         variant="outline" 
                         size="sm"
-                        className="flex-1 text-red-600 border-red-600 hover:bg-red-50"
+                        className="w-full border-amber-200 text-amber-700 hover:bg-amber-100"
+                        onClick={() => {
+                          if (brandId) {
+                            router.push(`/app/powerbrief/${brandId}/ugc-pipeline/creators/${assignedCreator.id}`);
+                          }
+                        }}
                       >
-                        <AlertCircle className="h-4 w-4 mr-1" />
-                        Creator Rejected
+                        <Package className="h-4 w-4 mr-1" />
+                        Update Product Shipment
                       </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Creator Rejected Script</DialogTitle>
-                        <DialogDescription>
-                          Provide notes on why the creator rejected the script.
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="py-4">
-                        <Textarea
-                          value={creatorRejectionNotes}
-                          onChange={(e) => setCreatorRejectionNotes(e.target.value)}
-                          placeholder="Enter rejection notes..."
-                          rows={5}
-                        />
-                      </div>
-                      <DialogFooter>
+                    </div>
+                  )}
+                  
+                  {assignedCreator && contractMissing && (
+                    <div className="p-3 bg-red-50 border border-red-200 rounded-md mb-3">
+                      <h4 className="font-medium text-red-800 flex items-center mb-2">
+                        <AlertCircle className="h-4 w-4 mr-2" />
+                        Contract Required for Approval
+                      </h4>
+                      <p className="text-sm text-red-700 mb-2">
+                        Contract must be signed before approval. Rejection can proceed without contract.
+                      </p>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        className="w-full border-red-200 text-red-700 hover:bg-red-100"
+                        onClick={() => {
+                          if (brandId) {
+                            router.push(`/app/powerbrief/${brandId}/ugc-pipeline/creators/${assignedCreator.id}`);
+                          }
+                        }}
+                      >
+                        <FileText className="h-4 w-4 mr-1" />
+                        Update Contract Status
+                      </Button>
+                    </div>
+                  )}
+                  
+                  {assignedCreator && contractPending && (
+                    <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md mb-3">
+                      <h4 className="font-medium text-yellow-800 flex items-center mb-2">
+                        <AlertCircle className="h-4 w-4 mr-2" />
+                        Contract Pending for Approval
+                      </h4>
+                      <p className="text-sm text-yellow-700 mb-2">
+                        Contract has been sent but not yet signed. Approval requires signed contract. Rejection can proceed without waiting.
+                      </p>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        className="w-full border-yellow-200 text-yellow-700 hover:bg-yellow-100"
+                        onClick={() => {
+                          if (brandId) {
+                            router.push(`/app/powerbrief/${brandId}/ugc-pipeline/creators/${assignedCreator.id}`);
+                          }
+                        }}
+                      >
+                        <FileText className="h-4 w-4 mr-1" />
+                        Check Contract Status
+                      </Button>
+                    </div>
+                  )}
+                  
+                  <div className="flex gap-2 w-full">
+                    {/* Approval button - disabled if requirements not met */}
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      className="flex-1 text-green-600 border-green-600 hover:bg-green-50 disabled:text-gray-400 disabled:border-gray-300"
+                      onClick={handleCreatorApproveClick}
+                      disabled={!productShipped || !contractSigned}
+                      title={!productShipped || !contractSigned ? "Product must be shipped and contract signed for approval" : undefined}
+                    >
+                      <CheckCircle className="h-4 w-4 mr-1" />
+                      Creator Approved
+                    </Button>
+                    
+                    {/* Rejection button - always enabled for reassignment flow */}
+                    <Dialog open={showCreatorRejectDialog} onOpenChange={setShowCreatorRejectDialog}>
+                      <DialogTrigger asChild>
                         <Button 
                           variant="outline" 
-                          onClick={() => setShowCreatorRejectDialog(false)}
+                          size="sm"
+                          className="flex-1 text-red-600 border-red-600 hover:bg-red-50"
                         >
-                          Cancel
+                          <AlertCircle className="h-4 w-4 mr-1" />
+                          Creator Rejected
                         </Button>
-                        <Button 
-                          onClick={handleCreatorRejectSubmit}
-                          disabled={!creatorRejectionNotes.trim()}
-                        >
-                          Submit Rejection
-                        </Button>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Creator Rejected Script</DialogTitle>
+                          <DialogDescription>
+                            Provide notes on why the creator rejected the script. The script will be marked for reassignment.
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="py-4">
+                          <Textarea
+                            value={creatorRejectionNotes}
+                            onChange={(e) => setCreatorRejectionNotes(e.target.value)}
+                            placeholder="Enter rejection notes..."
+                            rows={5}
+                          />
+                        </div>
+                        <DialogFooter>
+                          <Button 
+                            variant="outline" 
+                            onClick={() => setShowCreatorRejectDialog(false)}
+                          >
+                            Cancel
+                          </Button>
+                          <Button 
+                            onClick={handleCreatorRejectSubmit}
+                            disabled={!creatorRejectionNotes.trim()}
+                          >
+                            Submit Rejection
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
                 </div>
               );
             })()}

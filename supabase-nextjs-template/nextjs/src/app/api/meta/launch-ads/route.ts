@@ -1408,8 +1408,8 @@ export async function POST(req: NextRequest) {
         if (hasVideos) {
           console.log(`[Launch API]     Videos detected - using object_story_spec instead of asset_feed_spec`);
           
-          // Use the first available asset (prefer feed assets, then story assets)
-          const primaryAsset = feedAssets.length > 0 ? feedAssets[0] : storyAssets[0];
+          // Use the first available asset (prefer story assets for vertical content, then feed assets)
+          const primaryAsset = storyAssets.length > 0 ? storyAssets[0] : feedAssets[0];
           
           if (primaryAsset.type === 'image' && primaryAsset.metaHash) {
             creativeSpec.object_story_spec.link_data = {
@@ -1501,8 +1501,8 @@ export async function POST(req: NextRequest) {
         }
 
       } else if (feedAssets.length > 0 || storyAssets.length > 0) {
-        // Use the first available asset (fallback to simple approach)
-        const availableAssets = feedAssets.length > 0 ? feedAssets : storyAssets;
+        // Use the first available asset (prefer story assets for vertical content, then feed assets)
+        const availableAssets = storyAssets.length > 0 ? storyAssets : feedAssets;
         const selectedAsset = availableAssets[0];
         
         console.log(`[Launch API]     Using single asset approach with: ${selectedAsset.name}`);

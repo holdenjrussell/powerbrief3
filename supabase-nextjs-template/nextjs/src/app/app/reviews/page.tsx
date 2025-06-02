@@ -5,7 +5,7 @@ import { useGlobal } from '@/lib/context/GlobalContext';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, ExternalLink, CheckCircle, Upload, AlertTriangle, ChevronDown, ChevronUp, Filter, SortAsc, X, MessageCircle } from 'lucide-react';
+import { Loader2, ExternalLink, CheckCircle, Upload, AlertTriangle, ChevronDown, ChevronUp, Filter, SortAsc, X, MessageCircle, Plus } from 'lucide-react';
 import { createSPAClient } from '@/lib/supabase/client';
 import { UploadedAssetGroup } from '@/lib/types/powerbrief';
 import Link from 'next/link';
@@ -1259,6 +1259,84 @@ export default function ReviewsPage() {
         }
     };
 
+    const handleRequestAdditionalSizes = async (conceptId: string) => {
+        const additionalSizesNotes = prompt('Please specify what additional sizes or variations are needed:');
+        
+        if (!additionalSizesNotes?.trim()) {
+            toast({
+                title: "Notes Required",
+                description: "Please specify what additional sizes are needed.",
+                variant: "destructive",
+                duration: 3000,
+            });
+            return;
+        }
+        
+        try {
+            setSendingToAds(prev => ({ ...prev, [conceptId]: true }));
+            
+            // Update concept to needs_additional_sizes status
+            const { error } = await supabase
+                .from('brief_concepts' as any)
+                .update({
+                    review_status: 'needs_additional_sizes',
+                    status: 'ADDITIONAL SIZES REQUESTED',
+                    reviewer_notes: additionalSizesNotes,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', conceptId);
+            
+            if (error) throw error;
+            
+            // Find the concept to get additional data for Slack notification
+            const concept = [...approvedConcepts, ...uploadedAssetsConcepts].find(c => c.id === conceptId);
+            
+            // Send Slack notification for additional sizes request
+            if (concept) {
+                try {
+                    await fetch('/api/slack/additional-sizes-request', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            conceptId: conceptId,
+                            conceptTitle: concept.concept_title,
+                            batchName: concept.brief_batches?.name,
+                            brandId: concept.brief_batches?.brand_id,
+                            videoEditor: concept.video_editor,
+                            additionalSizesNotes: additionalSizesNotes
+                        }),
+                    });
+                } catch (slackError) {
+                    console.error('Failed to send Slack notification for additional sizes request:', slackError);
+                    // Don't fail the request if Slack notification fails
+                }
+            }
+            
+            // Remove from approved concepts and uploaded assets lists
+            setApprovedConcepts(prev => prev.filter(item => item.id !== conceptId));
+            setUploadedAssetsConcepts(prev => prev.filter(item => item.id !== conceptId));
+            
+            toast({
+                title: "Additional Sizes Requested",
+                description: "The editor has been notified to upload additional sizes while keeping existing assets.",
+                duration: 3000,
+            });
+            
+        } catch (err) {
+            console.error('Error requesting additional sizes:', err);
+            toast({
+                title: "Error",
+                description: "Failed to request additional sizes. Please try again.",
+                variant: "destructive",
+                duration: 3000,
+            });
+        } finally {
+            setSendingToAds(prev => ({ ...prev, [conceptId]: false }));
+        }
+    };
+
     // Filter and sort uploaded assets
     const getFilteredAndSortedAssets = () => {
         let filtered = [...uploadedAssetsConcepts];
@@ -1611,6 +1689,21 @@ export default function ReviewsPage() {
                                             )}
                                             Request More Revisions
                                         </Button>
+                                        
+                                        <Button
+                                            onClick={() => handleRequestAdditionalSizes(concept.id)}
+                                            variant="outline"
+                                            className="border-blue-300 text-blue-700 hover:bg-blue-50"
+                                            title="Request additional sizes while keeping existing assets"
+                                            disabled={sendingToAds[concept.id]}
+                                        >
+                                            {sendingToAds[concept.id] ? (
+                                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                            ) : (
+                                                <Plus className="h-4 w-4 mr-2" />
+                                            )}
+                                            Request Additional Sizes
+                                        </Button>
                                     </div>
                                 </CardContent>
                             </Card>
@@ -1851,6 +1944,24 @@ export default function ReviewsPage() {
                                                                         <AlertTriangle className="h-3 w-3 mr-1" />
                                                                     )}
                                                                     Request More Revisions
+                                                                </Button>
+                                                            )}
+
+                                                            {(concept.review_status === 'approved' || concept.asset_upload_status === 'sent_to_ad_upload') && (
+                                                                <Button
+                                                                    size="sm"
+                                                                    onClick={() => handleRequestAdditionalSizes(concept.id)}
+                                                                    variant="outline"
+                                                                    className="border-blue-300 text-blue-700 hover:bg-blue-50"
+                                                                    title="Request additional sizes while keeping existing assets"
+                                                                    disabled={sendingToAds[concept.id]}
+                                                                >
+                                                                    {sendingToAds[concept.id] ? (
+                                                                        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                                                    ) : (
+                                                                        <Plus className="h-3 w-3 mr-1" />
+                                                                    )}
+                                                                    Request Additional Sizes
                                                                 </Button>
                                                             )}
                                                         </div>
