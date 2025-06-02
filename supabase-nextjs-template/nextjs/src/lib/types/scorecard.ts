@@ -13,6 +13,18 @@ export interface CampaignFilter {
   case_sensitive?: boolean;
 }
 
+export interface AdSetFilter {
+  operator: FilterOperator;
+  value: string;
+  case_sensitive?: boolean;
+}
+
+export interface AdFilter {
+  operator: FilterOperator;
+  value: string;
+  case_sensitive?: boolean;
+}
+
 export interface ScorecardMetric {
   id: string;
   user_id: string;
@@ -85,79 +97,28 @@ export interface ScorecardViewOptions {
 
 // Updated Meta API metrics with user's requested fields
 export const META_API_METRICS = [
+  // Meta Platform Metrics (organized by category)
+  
+  // Spend & Revenue Metrics
   {
-    name: 'Channel Spend',
+    name: 'Spend',
     meta_metric_name: 'spend',
     meta_level: 'account' as const,
     display_format: 'currency' as const,
     decimal_places: 2,
     description: 'Total advertising spend across all campaigns',
-    requires_configuration: true
+    requires_configuration: true,
+    platform: 'meta'
   },
   {
-    name: 'Website Purchase Revenue',
-    meta_metric_name: 'website_purchase_revenue',
+    name: 'Revenue',
+    meta_metric_name: 'purchase_roas_return_value', // Meta API field for revenue
     meta_level: 'account' as const,
     display_format: 'currency' as const,
     decimal_places: 2,
-    description: 'Total revenue from website purchases',
-    requires_configuration: true
-  },
-  {
-    name: 'Website Purchase ROAS',
-    meta_metric_name: 'website_purchase_roas',
-    meta_level: 'account' as const,
-    display_format: 'number' as const,
-    decimal_places: 2,
-    description: 'Return on ad spend for website purchases',
-    requires_configuration: true
-  },
-  {
-    name: 'Prospecting ROAS',
-    meta_metric_name: 'website_purchase_roas',
-    meta_level: 'campaign' as const,
-    display_format: 'number' as const,
-    decimal_places: 2,
-    description: 'ROAS for prospecting campaigns',
+    description: 'Total revenue from purchases',
     requires_configuration: true,
-    default_campaign_filter: { operator: 'contains' as FilterOperator, value: 'prospecting', case_sensitive: false }
-  },
-  {
-    name: 'Retargeting ROAS',
-    meta_metric_name: 'website_purchase_roas',
-    meta_level: 'campaign' as const,
-    display_format: 'number' as const,
-    decimal_places: 2,
-    description: 'ROAS for retargeting campaigns',
-    requires_configuration: true,
-    default_campaign_filter: { operator: 'contains' as FilterOperator, value: 'retargeting', case_sensitive: false }
-  },
-  {
-    name: 'Link Clicks',
-    meta_metric_name: 'link_click',
-    meta_level: 'account' as const,
-    display_format: 'number' as const,
-    decimal_places: 0,
-    description: 'Total link clicks',
-    requires_configuration: true
-  },
-  {
-    name: 'Impressions',
-    meta_metric_name: 'impressions',
-    meta_level: 'account' as const,
-    display_format: 'number' as const,
-    decimal_places: 0,
-    description: 'Total ad impressions',
-    requires_configuration: true
-  },
-  {
-    name: 'CTR (Link Clicks)',
-    meta_metric_name: 'ctr',
-    meta_level: 'account' as const,
-    display_format: 'percentage' as const,
-    decimal_places: 2,
-    description: 'Click-through rate for link clicks',
-    requires_configuration: true
+    platform: 'meta'
   },
   {
     name: 'Purchases',
@@ -166,34 +127,150 @@ export const META_API_METRICS = [
     display_format: 'number' as const,
     decimal_places: 0,
     description: 'Total number of purchases',
-    requires_configuration: true
+    requires_configuration: true,
+    platform: 'meta'
+  },
+  
+  // ROAS Metrics
+  {
+    name: 'Purchase ROAS',
+    meta_metric_name: 'purchase_roas',
+    meta_level: 'account' as const,
+    display_format: 'number' as const,
+    decimal_places: 2,
+    description: 'Return on ad spend for purchases',
+    requires_configuration: true,
+    platform: 'meta'
   },
   {
-    name: '3 Second Video Views',
-    meta_metric_name: 'video_3_sec_watched_actions',
+    name: 'Prospecting ROAS',
+    meta_metric_name: 'purchase_roas',
+    meta_level: 'campaign' as const,
+    display_format: 'number' as const,
+    decimal_places: 2,
+    description: 'ROAS for prospecting campaigns',
+    requires_configuration: true,
+    default_campaign_filter: { operator: 'contains' as FilterOperator, value: 'prospecting', case_sensitive: false },
+    platform: 'meta'
+  },
+  {
+    name: 'Retargeting ROAS',
+    meta_metric_name: 'purchase_roas',
+    meta_level: 'campaign' as const,
+    display_format: 'number' as const,
+    decimal_places: 2,
+    description: 'ROAS for retargeting campaigns',
+    requires_configuration: true,
+    default_campaign_filter: { operator: 'contains' as FilterOperator, value: 'retargeting', case_sensitive: false },
+    platform: 'meta'
+  },
+  
+  // Click Metrics
+  {
+    name: 'Link Clicks',
+    meta_metric_name: 'link_clicks', // Updated from 'link_click'
     meta_level: 'account' as const,
     display_format: 'number' as const,
     decimal_places: 0,
-    description: 'Number of 3-second video views',
-    requires_configuration: true
+    description: 'Total link clicks',
+    requires_configuration: true,
+    platform: 'meta'
   },
   {
-    name: 'ThruPlays',
-    meta_metric_name: 'video_thruplay_watched_actions',
-    meta_level: 'account' as const,
-    display_format: 'number' as const,
-    decimal_places: 0,
-    description: 'Number of video ThruPlays (watched to completion or 15+ seconds)',
-    requires_configuration: true
-  },
-  {
-    name: 'CPC (Link Clicks)',
+    name: 'Cost Per Link Click',
     meta_metric_name: 'cpc',
     meta_level: 'account' as const,
     display_format: 'currency' as const,
     decimal_places: 2,
     description: 'Cost per link click',
-    requires_configuration: true
+    requires_configuration: true,
+    platform: 'meta'
+  },
+  {
+    name: 'Link Click Through Rate',
+    meta_metric_name: 'ctr',
+    meta_level: 'account' as const,
+    display_format: 'percentage' as const,
+    decimal_places: 2,
+    description: 'Click-through rate for link clicks',
+    requires_configuration: true,
+    platform: 'meta'
+  },
+  
+  // Impression & Reach Metrics
+  {
+    name: 'Impressions',
+    meta_metric_name: 'impressions',
+    meta_level: 'account' as const,
+    display_format: 'number' as const,
+    decimal_places: 0,
+    description: 'Total ad impressions',
+    requires_configuration: true,
+    platform: 'meta'
+  },
+  {
+    name: 'Reach',
+    meta_metric_name: 'reach',
+    meta_level: 'account' as const,
+    display_format: 'number' as const,
+    decimal_places: 0,
+    description: 'Total unique people reached',
+    requires_configuration: true,
+    platform: 'meta'
+  },
+  {
+    name: 'Frequency',
+    meta_metric_name: 'frequency',
+    meta_level: 'account' as const,
+    display_format: 'number' as const,
+    decimal_places: 2,
+    description: 'Average number of times each person saw your ads',
+    requires_configuration: true,
+    platform: 'meta'
+  },
+  
+  // Video Metrics
+  {
+    name: '3 Second Video Views',
+    meta_metric_name: 'video_3s_watched_actions_value', // Correct Meta API field
+    meta_level: 'account' as const,
+    display_format: 'number' as const,
+    decimal_places: 0,
+    description: 'Number of 3-second video views',
+    requires_configuration: true,
+    platform: 'meta'
+  },
+  {
+    name: 'ThruPlays',
+    meta_metric_name: 'video_thruplay_watched_actions_value', // Correct Meta API field
+    meta_level: 'account' as const,
+    display_format: 'number' as const,
+    decimal_places: 0,
+    description: 'Number of video ThruPlays (watched to completion or 15+ seconds)',
+    requires_configuration: true,
+    platform: 'meta'
+  },
+  
+  // Cost Metrics
+  {
+    name: 'Cost Per Purchase',
+    meta_metric_name: 'cost_per_purchase',
+    meta_level: 'account' as const,
+    display_format: 'currency' as const,
+    decimal_places: 2,
+    description: 'Average cost per purchase',
+    requires_configuration: true,
+    platform: 'meta'
+  },
+  {
+    name: 'CPM',
+    meta_metric_name: 'cpm',
+    meta_level: 'account' as const,
+    display_format: 'currency' as const,
+    decimal_places: 2,
+    description: 'Cost per thousand impressions',
+    requires_configuration: true,
+    platform: 'meta'
   }
 ];
 

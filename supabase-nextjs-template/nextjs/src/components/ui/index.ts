@@ -30,3 +30,17 @@ export {
   FormField,
 } from './form'; 
 export { Textarea } from './textarea'; 
+export {
+  Sheet,
+  SheetPortal,
+  SheetOverlay,
+  SheetTrigger,
+  SheetClose,
+  SheetContent,
+  SheetHeader,
+  SheetFooter,
+  SheetTitle,
+  SheetDescription,
+} from './sheet';
+export { Switch } from './switch';
+export { Checkbox } from './checkbox'; 

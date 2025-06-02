@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSSRClient } from '@/lib/supabase/server';
+import { decryptToken } from '@/lib/utils/tokenEncryption';
 import { 
   CampaignFilter,
   TimePeriod
@@ -72,19 +73,36 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Decrypt Meta access token (you'll need to implement this based on your encryption method)
-    const accessToken = await decryptMetaToken(brand.meta_access_token);
+    // Check that we have all required decryption components
+    if (!brand.meta_access_token_iv || !brand.meta_access_token_auth_tag) {
+      return NextResponse.json({ 
+        error: 'Meta token decryption components missing' 
+      }, { status: 400 });
+    }
+
+    // Decrypt Meta access token using the proper encryption utilities
+    const accessToken = decryptToken({
+      encryptedToken: brand.meta_access_token,
+      iv: brand.meta_access_token_iv,
+      authTag: brand.meta_access_token_auth_tag
+    });
 
     // For now, mock the metric data since scorecard_metrics table doesn't exist yet
     const mockMetric = {
       id: metricId,
-      meta_metric_name: 'spend', // Default to spend for now
+      meta_metric_name: metricId, // Use the requested metric ID instead of hardcoding 'spend'
       meta_level: 'campaign'
     };
 
     // Build Meta API URL
     const adAccountId = brand.meta_ad_account_id;
-    const metaApiUrl = `https://graph.facebook.com/v18.0/${adAccountId}/insights`;
+    if (!adAccountId) {
+      return NextResponse.json({ 
+        error: 'No ad account ID configured for this brand' 
+      }, { status: 400 });
+    }
+
+    const metaApiUrl = `https://graph.facebook.com/v23.0/${adAccountId}/insights`; // Updated to v23.0
 
     // Prepare fields for Meta API
     const metaField = AVAILABLE_META_FIELDS[mockMetric.meta_metric_name as keyof typeof AVAILABLE_META_FIELDS];
@@ -233,14 +251,4 @@ export async function POST(request: NextRequest) {
       details: error instanceof Error ? error.message : 'Unknown error'
     }, { status: 500 });
   }
-}
-
-// Helper function to decrypt Meta token (implement based on your encryption method)
-async function decryptMetaToken(
-  encryptedToken: string
-): Promise<string> {
-  // TODO: Implement your decryption logic here
-  // This should match the encryption used when storing the token
-  // For now, returning a placeholder
-  return encryptedToken;
 } 

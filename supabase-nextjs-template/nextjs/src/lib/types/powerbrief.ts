@@ -145,6 +145,12 @@ export interface Hook {
   content: string;
 }
 
+export interface CustomLink {
+  id: string;
+  name: string;
+  url: string;
+}
+
 export interface BriefConcept {
   id: string;
   brief_batch_id: string;
@@ -156,12 +162,14 @@ export interface BriefConcept {
   updated_at: string;
   clickup_id: string | null;
   clickup_link: string | null;
+  custom_links: CustomLink[];
   strategist: string | null;
   creative_coordinator: string | null;
   video_editor: string | null;
   editor_id: string | null;
   custom_editor_name: string | null;
   status: string | null;
+  date_assigned: string | null;
   media_url: string | null;
   media_type: string | null;
   ai_custom_prompt: string | null;
@@ -267,12 +275,14 @@ export type DbBriefConcept = {
   concept_title: string;
   clickup_id: string | null;
   clickup_link: string | null;
+  custom_links: Json | null;
   strategist: string | null;
   creative_coordinator: string | null;
   video_editor: string | null;
   editor_id: string | null;
   custom_editor_name: string | null;
   status: string | null;
+  date_assigned: string | null;
   media_url: string | null;
   media_type: string | null;
   ai_custom_prompt: string | null;
@@ -376,12 +386,14 @@ export interface CreateBriefConceptInput {
   order_in_batch: number;
   clickup_id: string | null;
   clickup_link: string | null;
+  custom_links: CustomLink[];
   strategist: string | null;
   creative_coordinator: string | null;
   video_editor: string | null;
   editor_id: string | null;
   custom_editor_name: string | null;
   status: string | null;
+  date_assigned: string | null;
   media_url: string | null;
   media_type: string | null;
   ai_custom_prompt: string | null;
@@ -392,5 +404,11 @@ export interface CreateBriefConceptInput {
   description: string | null;
   videoInstructions: string | null;
   designerInstructions: string | null;
+  review_status: 'pending' | 'ready_for_review' | 'approved' | 'needs_revisions' | null;
+  review_link: string | null;
+  review_comments: string | null;
+  brief_revision_comments: string | null;
+  hook_type: 'text' | 'verbal' | 'both' | null;
+  hook_count: number | null;
   product_id: string | null;
 } 

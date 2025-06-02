@@ -1,166 +1,110 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { CreateMetricRequest, MetricWithData } from '@/lib/types/scorecard';
+export const dynamic = 'force-dynamic'; // Ensures dynamic handling for cookies
 
-// Mock data for development - replace with real database calls after migration
-const MOCK_METRICS: MetricWithData[] = [
-  {
-    id: '1',
-    user_id: 'user1',
-    name: 'Channel Spend',
-    type: 'meta_api',
-    meta_metric_name: 'spend',
-    weekly_goal: 10000,
-    monthly_goal: 40000,
-    quarterly_goal: 120000,
-    annual_goal: 480000,
-    status_calculation_method: 'average_based',
-    display_format: 'currency',
-    decimal_places: 2,
-    created_at: '2025-01-01',
-    updated_at: '2025-01-01',
-    current_value: 8500,
-    average_value: 9200,
-    status: 'at_risk',
-    goal_for_period: 10000,
-    data_points: []
-  },
-  {
-    id: '2',
-    user_id: 'user1',
-    name: 'Channel ROAS',
-    type: 'meta_api',
-    meta_metric_name: 'purchase_roas',
-    weekly_goal: 2,
-    monthly_goal: 2,
-    quarterly_goal: 2,
-    annual_goal: 2,
-    status_calculation_method: 'average_based',
-    display_format: 'number',
-    decimal_places: 2,
-    created_at: '2025-01-01',
-    updated_at: '2025-01-01',
-    current_value: 1.63,
-    average_value: 1.59,
-    status: 'off_track',
-    goal_for_period: 2,
-    data_points: []
-  },
-  {
-    id: '3',
-    user_id: 'user1',
-    name: 'Prospecting ROAS',
-    type: 'meta_api',
-    meta_metric_name: 'purchase_roas',
-    weekly_goal: 1.80,
-    monthly_goal: 1.80,
-    quarterly_goal: 1.80,
-    annual_goal: 1.80,
-    status_calculation_method: 'average_based',
-    display_format: 'number',
-    decimal_places: 2,
-    created_at: '2025-01-01',
-    updated_at: '2025-01-01',
-    current_value: 1.59,
-    average_value: 1.56,
-    status: 'off_track',
-    goal_for_period: 1.80,
-    data_points: []
-  },
-  {
-    id: '4',
-    user_id: 'user1',
-    name: 'Retargeting ROAS',
-    type: 'meta_api',
-    meta_metric_name: 'purchase_roas',
-    weekly_goal: 2.5,
-    monthly_goal: 2.5,
-    quarterly_goal: 2.5,
-    annual_goal: 2.5,
-    status_calculation_method: 'average_based',
-    display_format: 'number',
-    decimal_places: 2,
-    created_at: '2025-01-01',
-    updated_at: '2025-01-01',
-    current_value: 2.76,
-    average_value: 2.73,
-    status: 'on_track',
-    goal_for_period: 2.5,
-    data_points: []
-  },
-  {
-    id: '5',
-    user_id: 'user1',
-    name: 'CTR (Link Clicks)',
-    type: 'meta_api',
-    meta_metric_name: 'ctr',
-    weekly_goal: 1.25,
-    monthly_goal: 1.25,
-    quarterly_goal: 1.25,
-    annual_goal: 1.25,
-    status_calculation_method: 'average_based',
-    display_format: 'percentage',
-    decimal_places: 2,
-    created_at: '2025-01-01',
-    updated_at: '2025-01-01',
-    current_value: 1.36,
-    average_value: 1.42,
-    status: 'on_track',
-    goal_for_period: 1.25,
-    data_points: []
+import { createServerClient, type CookieOptions } from '@supabase/ssr';
+import { cookies } from 'next/headers';
+import { NextResponse } from 'next/server';
+import { NewMetric } from '@/app/app/scorecard/page'; // Assuming NewMetric is exported from the page
+
+const getSupabaseClient = async () => {
+  const cookieStore = await cookies();
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return cookieStore.get(name)?.value;
+        },
+        set(name: string, value: string, options: CookieOptions) {
+          cookieStore.set({ name, value, ...options });
+        },
+        remove(name: string, options: CookieOptions) {
+          cookieStore.set({ name, value: '', ...options });
+        },
+      },
+    }
+  );
+};
+
+export async function POST(request: Request) {
+  const supabase = await getSupabaseClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-];
 
-export async function GET() {
   try {
-    // Return mock data for now
-    return NextResponse.json({ metrics: MOCK_METRICS });
-  } catch (error) {
-    console.error('Error in scorecard metrics GET:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    const metricData: NewMetric = await request.json();
+
+    // Basic validation (can be expanded)
+    if (!metricData || !metricData.title) {
+        return NextResponse.json({ error: 'Metric title is required' }, { status: 400 });
+    }
+    if (!metricData.id) { // Assign a new ID if it's a new metric
+        metricData.id = crypto.randomUUID();
+    }
+
+    const { data, error } = await supabase
+      .from('scorecard_metrics') // Ensure this table exists in your Supabase
+      .upsert({
+        id: metricData.id,
+        user_id: user.id,
+        metric_config: metricData, // Storing the whole NewMetric object
+        // brand_id: metricData.brandId, // Optional: if you link metrics to brands
+        updated_at: new Date().toISOString(), // Keep track of updates
+      })
+      .select();
+
+    if (error) {
+      console.error('Supabase error saving metric:', error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json(data?.[0]?.metric_config || {}, { status: 201 }); // Return the saved metric_config
+  } catch (err) {
+    console.error('Error processing POST request for metrics:', err);
+    const errorMessage = err instanceof Error ? err.message : 'Internal server error';
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }
 
-export async function POST(request: NextRequest) {
+export async function GET() { // Removed unused _request parameter
+  const supabase = await getSupabaseClient();
+  // Removed @ts-expect-error as it was marked unused
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // const { searchParams } = new URL(request.url);
+  // const brandId = searchParams.get('brandId'); // Example: if filtering by brand
+
   try {
-    const body: CreateMetricRequest = await request.json();
+    const { data, error } = await supabase
+      .from('scorecard_metrics')
+      .select('id, metric_config') // Select id and the metric_config object
+      .eq('user_id', user.id);
+      // .eq('brand_id', brandId); // if using brandId
 
-    // Validate required fields
-    if (!body.name || !body.type) {
-      return NextResponse.json({ error: 'Name and type are required' }, { status: 400 });
+    if (error) {
+      console.error('Supabase error fetching metrics:', error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    if (body.type === 'meta_api' && !body.meta_metric_name) {
-      return NextResponse.json({ error: 'Meta metric name is required for Meta API metrics' }, { status: 400 });
-    }
+    // Return the array of metric_config objects, including their IDs
+    const metrics = data?.map(item => ({ ...(item.metric_config as NewMetric), id: item.id })) || [];
+    return NextResponse.json(metrics, { status: 200 });
 
-    if (body.type === 'custom' && !body.custom_formula) {
-      return NextResponse.json({ error: 'Custom formula is required for custom metrics' }, { status: 400 });
-    }
-
-    // Create mock metric
-    const newMetric: MetricWithData = {
-      id: Math.random().toString(36).substr(2, 9),
-      user_id: 'current-user',
-      ...body,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      status_calculation_method: body.status_calculation_method || 'average_based',
-      display_format: body.display_format || 'number',
-      decimal_places: body.decimal_places || 2,
-      current_value: 0,
-      average_value: 0,
-      status: 'off_track',
-      data_points: []
-    };
-
-    return NextResponse.json({ metric: newMetric }, { status: 201 });
-
-  } catch (error) {
-    console.error('Error in scorecard metrics POST:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  } catch (err) {
+    console.error('Error processing GET request for metrics:', err);
+    const errorMessage = err instanceof Error ? err.message : 'Internal server error';
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }
 
+/* // Mock PUT and DELETE, can be implemented with Supabase later if needed
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
@@ -200,4 +144,5 @@ export async function DELETE(request: NextRequest) {
     console.error('Error in scorecard metrics DELETE:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
-} 
+}
+*/

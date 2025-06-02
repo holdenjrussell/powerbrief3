@@ -14,6 +14,7 @@ import {
     UploadCloud,
     DownloadCloud,
     BarChart3,
+    Users,
 } from 'lucide-react';
 import { useGlobal } from "@/lib/context/GlobalContext";
 import { createSPASassClient } from "@/lib/supabase/client";
@@ -23,6 +24,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     const [isSidebarOpen, setSidebarOpen] = useState(false);
     const [isUserDropdownOpen, setUserDropdownOpen] = useState(false);
     const [pendingReviewsCount, setPendingReviewsCount] = useState(0);
+    const [openSubMenu, setOpenSubMenu] = useState<string | null>(null);
     const pathname = usePathname();
     const router = useRouter();
 
@@ -92,7 +94,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     const navigation = [
         { name: 'Homepage', href: '/app', icon: Home },
         { name: 'PowerBrief', href: '/app/powerbrief', icon: Presentation },
-        { name: 'Scorecard', href: '/app/scorecard', icon: BarChart3 },
+        {
+            name: 'Team Sync',
+            icon: Users,
+            subItems: [
+                { name: 'Scorecard', href: '/app/scorecard', icon: BarChart3 },
+            ],
+        },
         { 
             name: 'Ad Reviews', 
             href: '/app/reviews', 
@@ -108,6 +116,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
     // Check if the current path is a brand-specific path
     const isBrandPage = pathname.includes('/powerbrief/') && pathname.split('/').length > 3;
+
+    const toggleSubMenu = (itemName: string) => {
+        setOpenSubMenu(openSubMenu === itemName ? null : itemName);
+    };
 
     return (
         <div className="min-h-screen bg-gray-100">
@@ -148,31 +160,86 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 <nav className="mt-4 px-2 space-y-1">
                     {navigation.map((item) => {
                         const isActive = pathname === item.href || 
-                          (item.href === '/app/powerbrief' && pathname.startsWith('/app/powerbrief') && !isBrandPage);
+                          (item.href === '/app/powerbrief' && pathname.startsWith('/app/powerbrief') && !isBrandPage) ||
+                          (item.subItems && item.subItems.some(subItem => pathname === subItem.href));
                           
                         return (
-                            <Link
-                                key={item.name}
-                                href={item.href}
-                                className={`group flex items-center px-2 py-2 text-sm font-medium rounded-md ${
-                                    isActive
-                                        ? 'bg-primary-50 text-primary-600'
-                                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                                }`}
-                            >
-                                <item.icon
-                                    className={`mr-3 h-5 w-5 ${
-                                        isActive ? 'text-primary-500' : 'text-gray-400 group-hover:text-gray-500'
-                                    }`}
-                                    aria-hidden="true"
-                                />
-                                <span className="flex-1">{item.name}</span>
-                                {item.badge && (
-                                    <span className="ml-auto inline-flex items-center justify-center w-5 h-5 text-xs font-medium text-white bg-red-500 rounded-full">
-                                        {item.badge > 99 ? '99+' : item.badge}
-                                    </span>
+                            <div key={item.name}>
+                                {item.subItems ? (
+                                    <>
+                                        <button
+                                            onClick={() => toggleSubMenu(item.name)}
+                                            className={`group flex items-center w-full px-2 py-2 text-sm font-medium rounded-md ${
+                                                isActive
+                                                    ? 'bg-primary-50 text-primary-600'
+                                                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                                            }`}
+                                        >
+                                            <item.icon
+                                                className={`mr-3 h-5 w-5 ${
+                                                    isActive ? 'text-primary-500' : 'text-gray-400 group-hover:text-gray-500'
+                                                }`}
+                                                aria-hidden="true"
+                                            />
+                                            <span className="flex-1 text-left">{item.name}</span>
+                                            <ChevronDown
+                                                className={`ml-auto h-5 w-5 transform transition-colors transition-transform duration-150 ${
+                                                    openSubMenu === item.name ? 'rotate-180 text-primary-500' : 'text-gray-400 group-hover:text-gray-500'
+                                                }`}
+                                            />
+                                        </button>
+                                        {openSubMenu === item.name && (
+                                            <div className="pl-4 mt-1 space-y-1">
+                                                {item.subItems.map((subItem) => {
+                                                    const isSubActive = pathname === subItem.href;
+                                                    return (
+                                                        <Link
+                                                            key={subItem.name}
+                                                            href={subItem.href}
+                                                            className={`group flex items-center px-2 py-2 text-sm font-medium rounded-md ${
+                                                                isSubActive
+                                                                    ? 'bg-primary-50 text-primary-600'
+                                                                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                                                            }`}
+                                                        >
+                                                            <subItem.icon
+                                                                className={`mr-3 h-5 w-5 ${
+                                                                    isSubActive ? 'text-primary-500' : 'text-gray-400 group-hover:text-gray-500'
+                                                                }`}
+                                                                aria-hidden="true"
+                                                            />
+                                                            <span className="flex-1">{subItem.name}</span>
+                                                        </Link>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </>
+                                ) : (
+                                    <Link
+                                        key={item.name}
+                                        href={item.href!}
+                                        className={`group flex items-center px-2 py-2 text-sm font-medium rounded-md ${
+                                            isActive
+                                                ? 'bg-primary-50 text-primary-600'
+                                                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                                        }`}
+                                    >
+                                        <item.icon
+                                            className={`mr-3 h-5 w-5 ${
+                                                isActive ? 'text-primary-500' : 'text-gray-400 group-hover:text-gray-500'
+                                            }`}
+                                            aria-hidden="true"
+                                        />
+                                        <span className="flex-1">{item.name}</span>
+                                        {item.badge && (
+                                            <span className="ml-auto inline-flex items-center justify-center w-5 h-5 text-xs font-medium text-white bg-red-500 rounded-full">
+                                                {item.badge > 99 ? '99+' : item.badge}
+                                            </span>
+                                        )}
+                                    </Link>
                                 )}
-                            </Link>
+                            </div>
                         );
                     })}
                 </nav>
@@ -193,7 +260,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                         <button
                             onClick={() => setUserDropdownOpen(!isUserDropdownOpen)}
                             className="flex items-center space-x-2 text-sm text-gray-700 hover:text-gray-900"
-                            aria-expanded={isUserDropdownOpen ? "true" : "false"}
+                            aria-expanded={isUserDropdownOpen}
                             aria-haspopup="true"
                         >
                             <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center">

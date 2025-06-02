@@ -5,16 +5,18 @@ import { useGlobal } from '@/lib/context/GlobalContext';
 import { useRouter } from 'next/navigation';
 import { getBriefBatchById, getBrandById, getBriefConcepts, createBriefConcept, updateBriefConcept, deleteBriefConcept, deleteBriefBatch, updateBriefBatch, uploadMedia, shareBriefBatch, shareBriefConcept } from '@/lib/services/powerbriefService';
 import { getProductsByBrand } from '@/lib/services/productService';
-import { Brand, BriefBatch, BriefConcept, Scene, Hook, AiBriefingRequest, ShareSettings, Product } from '@/lib/types/powerbrief';
+import { Brand, BriefBatch, BriefConcept, Scene, Hook, AiBriefingRequest, ShareSettings, Product, CustomLink } from '@/lib/types/powerbrief';
 import { 
     Sparkles, Plus, X, FileUp, Trash2, Share2, MoveUp, MoveDown, 
     Loader2, Check, Pencil, Bug, Film, FileImage, ArrowLeft, Copy, LinkIcon, Mail,
+    Filter, SortAsc, RotateCcw, ExternalLink
 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import Link from 'next/link';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import MarkdownTextarea from '@/components/ui/markdown-textarea';
@@ -79,9 +81,140 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
     const [localTextHooksList, setLocalTextHooksList] = useState<Record<string, Hook[]>>({});
     const [localSpokenHooksList, setLocalSpokenHooksList] = useState<Record<string, Hook[]>>({});
 
+    // Custom links state
+    const [localCustomLinks, setLocalCustomLinks] = useState<Record<string, CustomLink[]>>({});
+
+    // Filtering and sorting state
+    const [filterStatus, setFilterStatus] = useState<string>('all');
+    const [filterEditor, setFilterEditor] = useState<string>('all');
+    const [filterProduct, setFilterProduct] = useState<string>('all');
+    const [filterStrategist, setFilterStrategist] = useState<string>('all');
+    const [filterMediaType, setFilterMediaType] = useState<string>('all');
+    const [sortBy, setSortBy] = useState<string>('default');
+
     // Extract params using React.use()
     const unwrappedParams = params instanceof Promise ? React.use(params) : params;
     const { brandId, batchId } = unwrappedParams;
+
+    // Helper function to parse hooks from string format
+    const parseHooksFromString = (hooksString: string): Hook[] => {
+        if (!hooksString || typeof hooksString !== 'string') {
+            return [];
+        }
+        return hooksString.split('\\n').filter(line => line.trim() !== '').map((line, index) => ({
+            id: uuidv4(), 
+            title: `Hook ${index + 1}`, 
+            content: line.trim(),
+            is_active: true 
+        }));
+    };
+
+    const convertHooksToString = (hooks: Hook[]): string => {
+        if (!hooks || !Array.isArray(hooks)) return '';
+        return hooks.map(hook => hook.content).join('\\n');
+    };
+
+    // Filtering and sorting functions
+    const getUniqueValues = (field: keyof BriefConcept): string[] => {
+        const values = concepts
+            .map(concept => concept[field] as string)
+            .filter(value => value && value.trim() !== '')
+            .filter((value, index, array) => array.indexOf(value) === index);
+        return values.sort();
+    };
+
+    const getUniqueProducts = (): Product[] => {
+        const usedProductIds = concepts
+            .map(concept => concept.product_id)
+            .filter(id => id !== null);
+        return products.filter(product => usedProductIds.includes(product.id));
+    };
+
+    const filterConcepts = (conceptsToFilter: BriefConcept[]): BriefConcept[] => {
+        return conceptsToFilter.filter(concept => {
+            // Status filter
+            if (filterStatus !== 'all' && concept.status !== filterStatus) {
+                return false;
+            }
+            
+            // Editor filter
+            if (filterEditor !== 'all' && concept.video_editor !== filterEditor) {
+                return false;
+            }
+            
+            // Product filter
+            if (filterProduct !== 'all' && concept.product_id !== filterProduct) {
+                return false;
+            }
+            
+            // Strategist filter
+            if (filterStrategist !== 'all' && concept.strategist !== filterStrategist) {
+                return false;
+            }
+            
+            // Media type filter
+            if (filterMediaType !== 'all' && concept.media_type !== filterMediaType) {
+                return false;
+            }
+            
+            return true;
+        });
+    };
+
+    const sortConcepts = (conceptsToSort: BriefConcept[]): BriefConcept[] => {
+        const sorted = [...conceptsToSort];
+        
+        switch (sortBy) {
+            case 'date_assigned_newest':
+                return sorted.sort((a, b) => {
+                    if (!a.date_assigned && !b.date_assigned) return 0;
+                    if (!a.date_assigned) return 1;
+                    if (!b.date_assigned) return -1;
+                    return new Date(b.date_assigned).getTime() - new Date(a.date_assigned).getTime();
+                });
+            case 'date_assigned_oldest':
+                return sorted.sort((a, b) => {
+                    if (!a.date_assigned && !b.date_assigned) return 0;
+                    if (!a.date_assigned) return 1;
+                    if (!b.date_assigned) return -1;
+                    return new Date(a.date_assigned).getTime() - new Date(b.date_assigned).getTime();
+                });
+            case 'status':
+                return sorted.sort((a, b) => {
+                    const statusA = a.status || '';
+                    const statusB = b.status || '';
+                    return statusA.localeCompare(statusB);
+                });
+            case 'editor':
+                return sorted.sort((a, b) => {
+                    const editorA = a.video_editor || '';
+                    const editorB = b.video_editor || '';
+                    return editorA.localeCompare(editorB);
+                });
+            case 'strategist':
+                return sorted.sort((a, b) => {
+                    const strategistA = a.strategist || '';
+                    const strategistB = b.strategist || '';
+                    return strategistA.localeCompare(strategistB);
+                });
+            default:
+                return sorted.sort((a, b) => a.order_in_batch - b.order_in_batch);
+        }
+    };
+
+    // Get filtered and sorted concepts
+    const sortedAndFilteredConcepts = sortConcepts(filterConcepts(concepts));
+
+    const resetFilters = () => {
+        setFilterStatus('all');
+        setFilterEditor('all');
+        setFilterProduct('all');
+        setFilterStrategist('all');
+        setFilterMediaType('all');
+        setSortBy('default');
+    };
+
+    const hasActiveFilters = filterStatus !== 'all' || filterEditor !== 'all' || filterProduct !== 'all' || filterStrategist !== 'all' || filterMediaType !== 'all' || sortBy !== 'default';
 
     // Fetch data
     useEffect(() => {
@@ -131,6 +264,7 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                 const initialLocalHookCounts: Record<string, number> = {};
                 const initialLocalTextHooksList: Record<string, Hook[]> = {};
                 const initialLocalSpokenHooksList: Record<string, Hook[]> = {};
+                const initialLocalCustomLinks: Record<string, CustomLink[]> = {};
 
                 conceptsData.forEach(concept => {
                     initialLocalPrompts[concept.id] = concept.ai_custom_prompt || '';
@@ -150,6 +284,9 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                     initialLocalMediaTypes[concept.id] = concept.media_type === 'image' ? 'image' : 'video'; // Corrected line
                     initialLocalHookTypes[concept.id] = concept.hook_type || 'both';
                     initialLocalHookCounts[concept.id] = concept.hook_count || 5;
+                    
+                    // Initialize custom links
+                    initialLocalCustomLinks[concept.id] = concept.custom_links || [];
                     
                     // Initialize Hook lists
                     if (Array.isArray(concept.text_hook_options)) { // New JSONB format (Hook[])
@@ -194,6 +331,7 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                 setLocalHookCounts(initialLocalHookCounts);
                 setLocalTextHooksList(initialLocalTextHooksList); // This is the Hook[] list
                 setLocalSpokenHooksList(initialLocalSpokenHooksList); // This is the Hook[] list
+                setLocalCustomLinks(initialLocalCustomLinks); // This is the CustomLink[] list
                 
                 if (conceptsData.length > 0 && !activeConceptId) {
                     setActiveConceptId(conceptsData[0].id);
@@ -275,12 +413,14 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                 order_in_batch: concepts.length,
                 clickup_id: null,
                 clickup_link: null,
+                custom_links: [],
                 strategist: null,
                 creative_coordinator: null,
                 video_editor: null,
                 editor_id: null,
                 custom_editor_name: null,
                 status: null,
+                date_assigned: null,
                 media_url: null,
                 media_type: null,
                 ai_custom_prompt: null,
@@ -291,13 +431,13 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                 description: null,
                 videoInstructions: brand.default_video_instructions || '',
                 designerInstructions: brand.default_designer_instructions || '',
+                product_id: null,
                 review_status: null,
                 review_link: null,
                 review_comments: null,
                 brief_revision_comments: null,
                 hook_type: null,
-                hook_count: null,
-                product_id: null
+                hook_count: null
             });
             
             setConcepts(prev => [...prev, newConcept]);
@@ -350,6 +490,12 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
         try {
             // Store the previous status to check if it changed
             const previousStatus = concepts.find(c => c.id === concept.id)?.status;
+            
+            // Set date_assigned when status changes to READY FOR EDITOR or READY FOR DESIGNER
+            if (previousStatus !== concept.status && 
+                (concept.status === 'READY FOR EDITOR' || concept.status === 'READY FOR DESIGNER')) {
+                concept.date_assigned = new Date().toISOString();
+            }
             
             // Synchronize review_status based on status
             if (concept.status === 'APPROVED' && concept.review_status !== 'approved') {
@@ -580,12 +726,14 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                         order_in_batch: concepts.length + newConcepts.length,
                         clickup_id: null,
                         clickup_link: null,
+                        custom_links: [],
                         strategist: null,
                         creative_coordinator: null,
                         video_editor: null,
                         editor_id: null,
                         custom_editor_name: null,
                         status: null,
+                        date_assigned: null,
                         ai_custom_prompt: null,
                         text_hook_options: [], // Initialize as empty Hook[] for JSONB
                         spoken_hook_options: [], // Initialize as empty Hook[] for JSONB
@@ -1638,40 +1786,20 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
 
     // Handle media type change
     const handleMediaTypeChange = (conceptId: string, mediaType: 'video' | 'image') => {
-        const concept = concepts.find(c => c.id === conceptId);
-        if (!concept) return;
-        
-        // Update local state
         setLocalMediaTypes(prev => ({
             ...prev,
             [conceptId]: mediaType
         }));
         
-        // Update concept in database
+        const concept = concepts.find(c => c.id === conceptId);
+        if (!concept) return;
+        
         const updatedConcept = {
             ...concept,
             media_type: mediaType
         };
         
         handleUpdateConcept(updatedConcept);
-    };
-
-    // Hook handling functions
-    const parseHooksFromString = (hooksString: string): Hook[] => {
-        if (!hooksString || typeof hooksString !== 'string') {
-            return [];
-        }
-        return hooksString.split('\\n').filter(line => line.trim() !== '').map((line, index) => ({
-            id: uuidv4(), 
-            title: `Hook ${index + 1}`, 
-            content: line.trim(),
-            is_active: true 
-        }));
-    };
-
-    const convertHooksToString = (hooks: Hook[]): string => {
-        if (!hooks || !Array.isArray(hooks)) return '';
-        return hooks.map(hook => hook.content).join('\\n');
     };
 
     // Add text hook
@@ -1822,6 +1950,74 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
         }
     };
 
+    // Custom Links Handlers
+    const handleAddCustomLink = (conceptId: string) => {
+        const newLink: CustomLink = {
+            id: uuidv4(),
+            name: '',
+            url: ''
+        };
+
+        // Update local state
+        setLocalCustomLinks(prev => ({
+            ...prev,
+            [conceptId]: [...(prev[conceptId] || []), newLink]
+        }));
+
+        // Update concept in database
+        const concept = concepts.find(c => c.id === conceptId);
+        if (concept) {
+            const updatedLinks = [...(concept.custom_links || []), newLink];
+            const updatedConcept = {
+                ...concept,
+                custom_links: updatedLinks
+            };
+            handleUpdateConcept(updatedConcept);
+        }
+    };
+
+    const handleRemoveCustomLink = (conceptId: string, linkId: string) => {
+        // Update local state
+        setLocalCustomLinks(prev => ({
+            ...prev,
+            [conceptId]: (prev[conceptId] || []).filter(link => link.id !== linkId)
+        }));
+
+        // Update concept in database
+        const concept = concepts.find(c => c.id === conceptId);
+        if (concept) {
+            const updatedLinks = (concept.custom_links || []).filter(link => link.id !== linkId);
+            const updatedConcept = {
+                ...concept,
+                custom_links: updatedLinks
+            };
+            handleUpdateConcept(updatedConcept);
+        }
+    };
+
+    const handleUpdateCustomLink = (conceptId: string, linkId: string, field: 'name' | 'url', value: string) => {
+        // Update local state
+        setLocalCustomLinks(prev => ({
+            ...prev,
+            [conceptId]: (prev[conceptId] || []).map(link =>
+                link.id === linkId ? { ...link, [field]: value } : link
+            )
+        }));
+
+        // Debounce database update
+        const concept = concepts.find(c => c.id === conceptId);
+        if (concept) {
+            const updatedLinks = (concept.custom_links || []).map(link =>
+                link.id === linkId ? { ...link, [field]: value } : link
+            );
+            const updatedConcept = {
+                ...concept,
+                custom_links: updatedLinks
+            };
+            debouncedUpdateConcept(updatedConcept);
+        }
+    };
+
     if (loading) {
         return (
             <div className="flex justify-center items-center min-h-[200px]">
@@ -1930,6 +2126,110 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                     <AlertDescription>{error}</AlertDescription>
                 </Alert>
             )}
+
+            {/* Filtering and Sorting Controls */}
+            <Card className="p-4">
+                <div className="flex flex-wrap gap-4 items-center">
+                    <div className="flex items-center gap-2">
+                        <Filter className="h-4 w-4" />
+                        <span className="text-sm font-medium">Filters:</span>
+                    </div>
+                    
+                    <Select value={filterStatus} onValueChange={setFilterStatus}>
+                        <SelectTrigger className="w-40">
+                            <SelectValue placeholder="Status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">All Status</SelectItem>
+                            {getUniqueValues('status').map(status => (
+                                <SelectItem key={status} value={status}>{status}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+
+                    <Select value={filterEditor} onValueChange={setFilterEditor}>
+                        <SelectTrigger className="w-40">
+                            <SelectValue placeholder="Editor" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">All Editors</SelectItem>
+                            {getUniqueValues('video_editor').map(editor => (
+                                <SelectItem key={editor} value={editor}>{editor}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+
+                    <Select value={filterStrategist} onValueChange={setFilterStrategist}>
+                        <SelectTrigger className="w-40">
+                            <SelectValue placeholder="Strategist" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">All Strategists</SelectItem>
+                            {getUniqueValues('strategist').map(strategist => (
+                                <SelectItem key={strategist} value={strategist}>{strategist}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+
+                    <Select value={filterProduct} onValueChange={setFilterProduct}>
+                        <SelectTrigger className="w-40">
+                            <SelectValue placeholder="Product" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">All Products</SelectItem>
+                            {getUniqueProducts().map(product => (
+                                <SelectItem key={product.id} value={product.id}>{product.name}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+
+                    <Select value={filterMediaType} onValueChange={setFilterMediaType}>
+                        <SelectTrigger className="w-40">
+                            <SelectValue placeholder="Media Type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">All Types</SelectItem>
+                            <SelectItem value="video">Video</SelectItem>
+                            <SelectItem value="image">Image</SelectItem>
+                        </SelectContent>
+                    </Select>
+
+                    <div className="flex items-center gap-2 ml-4">
+                        <SortAsc className="h-4 w-4" />
+                        <span className="text-sm font-medium">Sort:</span>
+                    </div>
+
+                    <Select value={sortBy} onValueChange={setSortBy}>
+                        <SelectTrigger className="w-48">
+                            <SelectValue placeholder="Sort by" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="default">Default Order</SelectItem>
+                            <SelectItem value="date_assigned_newest">Date Assigned (Newest)</SelectItem>
+                            <SelectItem value="date_assigned_oldest">Date Assigned (Oldest)</SelectItem>
+                            <SelectItem value="status">Status</SelectItem>
+                            <SelectItem value="editor">Editor</SelectItem>
+                            <SelectItem value="strategist">Strategist</SelectItem>
+                        </SelectContent>
+                    </Select>
+
+                    {hasActiveFilters && (
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={resetFilters}
+                            className="ml-2"
+                        >
+                            <RotateCcw className="h-4 w-4 mr-2" />
+                            Reset
+                        </Button>
+                    )}
+
+                    <div className="ml-auto text-sm text-gray-500">
+                        Showing {sortedAndFilteredConcepts.length} of {concepts.length} concepts
+                    </div>
+                </div>
+            </Card>
             
             <div className="flex flex-col space-y-4">
                 {/* Concept Cards with scroll indicators */}
@@ -1937,7 +2237,7 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                     <div className="absolute left-0 top-1/2 transform -translate-y-1/2 w-12 h-full bg-gradient-to-r from-background to-transparent z-10 pointer-events-none"></div>
                     
                     <div className="flex overflow-x-auto pb-4 space-x-6 hide-scrollbar" style={{ scrollbarWidth: 'none', minHeight: "750px" }}>
-                        {concepts.map((concept) => (
+                        {sortedAndFilteredConcepts.map((concept) => (
                             <Card 
                                 key={concept.id} 
                                 className={`${
@@ -2094,6 +2394,69 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                                 </div>
                                             )}
                                         </div>
+                                    </div>
+                                    
+                                    {/* Custom Links Section */}
+                                    <div className="mt-2">
+                                        <div className="flex justify-between items-center mb-1">
+                                            <label className="block text-xs font-medium">Custom Links:</label>
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                onClick={() => handleAddCustomLink(concept.id)}
+                                                className="h-6 w-6 p-0"
+                                            >
+                                                <Plus className="h-3 w-3" />
+                                            </Button>
+                                        </div>
+                                        
+                                        {(localCustomLinks[concept.id] || []).length === 0 ? (
+                                            <div className="text-gray-500 text-xs italic p-2 bg-gray-50 rounded">
+                                                No custom links added
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-2">
+                                                {(localCustomLinks[concept.id] || []).map((link) => (
+                                                    <div key={link.id} className="p-2 border rounded space-y-1">
+                                                        <div className="flex justify-between items-center">
+                                                            <span className="text-xs font-medium text-gray-600">Link {(localCustomLinks[concept.id] || []).indexOf(link) + 1}</span>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                className="h-6 w-6 p-0 text-red-500"
+                                                                onClick={() => handleRemoveCustomLink(concept.id, link.id)}
+                                                            >
+                                                                <X className="h-3 w-3" />
+                                                            </Button>
+                                                        </div>
+                                                        <Input
+                                                            value={link.name}
+                                                            onChange={(e) => handleUpdateCustomLink(concept.id, link.id, 'name', e.target.value)}
+                                                            placeholder="Link name (e.g., Asset Pack)"
+                                                            className="text-xs"
+                                                        />
+                                                        <div className="flex items-center space-x-1">
+                                                            <Input
+                                                                value={link.url}
+                                                                onChange={(e) => handleUpdateCustomLink(concept.id, link.id, 'url', e.target.value)}
+                                                                placeholder="https://..."
+                                                                className="text-xs flex-1"
+                                                            />
+                                                            {link.url && (
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="sm"
+                                                                    className="h-6 w-6 p-0"
+                                                                    onClick={() => window.open(link.url, '_blank')}
+                                                                >
+                                                                    <ExternalLink className="h-3 w-3" />
+                                                                </Button>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
                                     </div>
                                     
                                     {/* Frame.io Review Link - Display when concept is ready for review or approved */}
@@ -2283,6 +2646,16 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                                             : "bg-green-100 text-green-700 border border-green-200"
                                             }`}>
                                                 Status: {concept.status}
+                                            </div>
+                                        )}
+                                        {concept.date_assigned && (
+                                            <div className="text-xs px-3 py-1.5 bg-gray-100 text-gray-800 rounded-full font-medium border border-gray-200">
+                                                Assigned: {new Date(concept.date_assigned).toLocaleDateString('en-US', { 
+                                                    month: 'short', 
+                                                    day: 'numeric',
+                                                    hour: '2-digit',
+                                                    minute: '2-digit'
+                                                })}
                                             </div>
                                         )}
                                         {concept.product_id && (() => {
