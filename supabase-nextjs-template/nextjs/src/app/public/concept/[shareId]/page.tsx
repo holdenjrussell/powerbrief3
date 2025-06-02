@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { createSPAClient } from '@/lib/supabase/client';
-import { Scene } from '@/lib/types/powerbrief';
+import { Scene, Brand, BriefBatch, BriefConcept, Hook } from '@/lib/types/powerbrief';
 import { Loader2, ArrowLeft, ChevronDown, ChevronUp, CheckCircle, AlertTriangle, Link as LinkIcon, UploadCloud } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
@@ -707,48 +707,48 @@ export default function SharedConceptPage({ params }: { params: ParamsType | Pro
 
           {/* Text hooks */}
           {concept.text_hook_options && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Text Hook Options</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="whitespace-pre-wrap">{concept.text_hook_options}</p>
-              </CardContent>
-            </Card>
+            <div className="mb-4">
+              <h4 className="font-semibold mb-1">Text Hook Options</h4>
+              {Array.isArray(concept.text_hook_options) ? (
+                <div className="space-y-1 whitespace-pre-wrap bg-gray-50 p-3 rounded">
+                  {concept.text_hook_options.map((hook: Hook, index: number) => (
+                    <p key={hook.id || index}>{hook.content}</p>
+                  ))}
+                </div>
+              ) : (
+                <p className="whitespace-pre-wrap bg-gray-50 p-3 rounded">{String(concept.text_hook_options)}</p>
+              )}
+            </div>
           )}
 
           {/* Spoken hooks */}
           {concept.spoken_hook_options && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Spoken Hook Options</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {(() => {
-                  // Parse and number the hooks
-                  const hooks = concept.spoken_hook_options
+            <div className="mb-4">
+              <h4 className="font-semibold mb-1">Spoken Hook Options</h4>
+              {Array.isArray(concept.spoken_hook_options) ? (
+                 <div className="space-y-1 whitespace-pre-wrap bg-gray-50 p-3 rounded">
+                  {concept.spoken_hook_options.map((hook: Hook, index: number) => (
+                    <p key={hook.id || index}>{hook.content}</p>
+                  ))}
+                </div>
+              ) : (
+                <div className="space-y-3 bg-gray-50 p-3 rounded">
+                  {(String(concept.spoken_hook_options))
                     .split(/\n\s*\n/)
                     .flatMap(section => section.split('\n'))
                     .map(hook => hook.trim())
-                    .filter(hook => hook.length > 0);
-                  
-                  return hooks.length > 0 ? (
-                    <div className="space-y-3">
-                      {hooks.map((hook, index) => (
-                        <div key={index} className="flex gap-3">
-                          <span className="flex-shrink-0 w-6 h-6 bg-blue-100 text-blue-800 rounded-full flex items-center justify-center text-sm font-medium">
-                            {index + 1}
-                          </span>
-                          <p className="flex-1 text-sm leading-relaxed">{hook}</p>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="whitespace-pre-wrap">{concept.spoken_hook_options}</p>
-                  );
-                })()}
-              </CardContent>
-            </Card>
+                    .filter(hook => hook.length > 0)
+                    .map((hook, index) => (
+                      <div key={index} className="flex gap-3">
+                        <span className="flex-shrink-0 w-6 h-6 bg-blue-100 text-blue-800 rounded-full flex items-center justify-center text-sm font-medium">
+                          {index + 1}
+                        </span>
+                        <p className="flex-1 text-sm leading-relaxed">{hook}</p>
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
           )}
 
           {/* Body content - scenes */}
