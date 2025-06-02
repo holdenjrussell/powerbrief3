@@ -9,7 +9,7 @@ import { Brand, BriefBatch, BriefConcept, Scene, Hook, AiBriefingRequest, ShareS
 import { 
     Sparkles, Plus, X, FileUp, Trash2, Share2, MoveUp, MoveDown, 
     Loader2, Check, Pencil, Bug, Film, FileImage, ArrowLeft, Copy, LinkIcon, Mail,
-    Filter, SortAsc, RotateCcw, ExternalLink, CheckCircle, XCircle
+    Filter, SortAsc, RotateCcw, ExternalLink, XCircle
 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -2064,7 +2064,7 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
         // Update local state
         setLocalPrerequisites(prev => ({
             ...prev,
-            [conceptId]: updatedPrerequisites
+            [concept.id]: updatedPrerequisites
         }));
 
         // Update concept in database
@@ -2087,7 +2087,7 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
         // Update local state
         setLocalPrerequisites(prev => ({
             ...prev,
-            [conceptId]: updatedPrerequisites
+            [concept.id]: updatedPrerequisites
         }));
 
         // Update concept in database
@@ -2559,47 +2559,78 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                     
                                     {/* Prerequisites Section */}
                                     <div className="mt-2">
-                                        <div className="flex justify-between items-center mb-1">
-                                            <label className="block text-xs font-medium">Prerequisites:</label>
-                                        </div>
-                                        
-                                        {/* Prerequisites Multi-Select */}
-                                        <div className="space-y-1">
-                                            {prerequisiteTypes.map((prerequisiteType) => {
-                                                const currentPrerequisites = localPrerequisites[concept.id] || [];
-                                                const isSelected = currentPrerequisites.some(p => p.type === prerequisiteType);
-                                                const prerequisite = currentPrerequisites.find(p => p.type === prerequisiteType);
-                                                const isCompleted = prerequisite?.completed || false;
-                                                
-                                                return (
-                                                    <div key={prerequisiteType} className="flex items-center justify-between p-2 border rounded">
-                                                        <div className="flex items-center space-x-2">
+                                        <details className="group">
+                                            <summary className="flex justify-between items-center cursor-pointer p-2 border rounded hover:bg-gray-50">
+                                                <label className="text-xs font-medium">Prerequisites (Missing Assets)</label>
+                                                <span className="text-xs text-gray-500 group-open:hidden">Click to expand</span>
+                                                <span className="text-xs text-gray-500 hidden group-open:inline">Click to collapse</span>
+                                            </summary>
+                                            
+                                            <div className="mt-2 p-3 border border-t-0 rounded-b bg-gray-50 space-y-2">
+                                                <p className="text-xs text-gray-600 mb-3">Check the assets we DON&apos;T have:</p>
+                                                {prerequisiteTypes.map((prerequisiteType) => {
+                                                    const currentPrerequisites = localPrerequisites[concept.id] || [];
+                                                    const isMissing = currentPrerequisites.some(p => p.type === prerequisiteType && !p.completed);
+                                                    
+                                                    return (
+                                                        <div key={prerequisiteType} className="flex items-center space-x-2">
                                                             <input
                                                                 type="checkbox"
-                                                                checked={isSelected}
-                                                                onChange={() => handleTogglePrerequisite(concept.id, prerequisiteType)}
+                                                                checked={isMissing}
+                                                                onChange={() => {
+                                                                    const currentConcept = concepts.find(c => c.id === concept.id);
+                                                                    if (!currentConcept) return;
+
+                                                                    const currentPrerequisites = localPrerequisites[concept.id] || currentConcept.prerequisites || [];
+                                                                    const existingIndex = currentPrerequisites.findIndex(p => p.type === prerequisiteType);
+                                                                    
+                                                                    let updatedPrerequisites: Prerequisite[];
+                                                                    
+                                                                    if (existingIndex >= 0) {
+                                                                        if (isMissing) {
+                                                                            // Currently missing, remove it (we now have it)
+                                                                            updatedPrerequisites = currentPrerequisites.filter(p => p.type !== prerequisiteType);
+                                                                        } else {
+                                                                            // Currently have it, mark as missing
+                                                                            updatedPrerequisites = currentPrerequisites.map(p => 
+                                                                                p.type === prerequisiteType ? { ...p, completed: false } : p
+                                                                            );
+                                                                        }
+                                                                    } else {
+                                                                        // Add as missing
+                                                                        const newPrerequisite: Prerequisite = {
+                                                                            id: uuidv4(),
+                                                                            type: prerequisiteType,
+                                                                            completed: false
+                                                                        };
+                                                                        updatedPrerequisites = [...currentPrerequisites, newPrerequisite];
+                                                                    }
+
+                                                                    // Update local state
+                                                                    setLocalPrerequisites(prev => ({
+                                                                        ...prev,
+                                                                        [concept.id]: updatedPrerequisites
+                                                                    }));
+
+                                                                    // Update concept in database
+                                                                    const updatedConcept = {
+                                                                        ...currentConcept,
+                                                                        prerequisites: updatedPrerequisites
+                                                                    };
+                                                                    handleUpdateConcept(updatedConcept);
+                                                                }}
                                                                 className="h-4 w-4 rounded border-gray-300"
+                                                                aria-label={`Mark ${prerequisiteType} as missing`}
                                                             />
-                                                            <span className="text-xs">{prerequisiteType}</span>
+                                                            <span className="text-xs flex items-center">
+                                                                {isMissing && <XCircle className="h-3 w-3 text-red-500 mr-1" />}
+                                                                {prerequisiteType}
+                                                            </span>
                                                         </div>
-                                                        {isSelected && (
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="sm"
-                                                                className={`h-6 w-6 p-0 ${isCompleted ? 'text-green-600' : 'text-red-600'}`}
-                                                                onClick={() => handleTogglePrerequisiteCompletion(concept.id, prerequisite!.id)}
-                                                            >
-                                                                {isCompleted ? (
-                                                                    <CheckCircle className="h-4 w-4" />
-                                                                ) : (
-                                                                    <XCircle className="h-4 w-4" />
-                                                                )}
-                                                            </Button>
-                                                        )}
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </details>
                                     </div>
                                     
                                     {/* Frame.io Review Link - Display when concept is ready for review or approved */}
