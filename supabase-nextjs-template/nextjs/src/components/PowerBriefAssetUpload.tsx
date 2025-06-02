@@ -5,6 +5,7 @@ import { createSPAClient } from '@/lib/supabase/client';
 import AssetGroupingPreview from './PowerBriefAssetGroupingPreview';
 import { UploadedAssetGroup, UploadedAsset } from '@/lib/types/powerbrief';
 import { needsCompression, compressVideoWithQuality, getFileSizeMB } from '@/lib/utils/videoCompression';
+import { generateThumbnailsForAssetGroups } from '@/lib/utils/automaticThumbnailGeneration';
 
 // Logging utility
 const logger = {
@@ -29,6 +30,7 @@ interface AssetFile {
   id: string;
   previewUrl?: string;
   uploading?: boolean;
+  uploadProgress?: number; // Upload progress (0-100)
   uploadError?: string | null;
   supabaseUrl?: string;
   detectedRatio?: string | null;
@@ -694,7 +696,7 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
     });
 
     setIsProcessing(true);
-    setSelectedFiles(prevFiles => prevFiles.map(sf => ({ ...sf, uploading: true, uploadError: null })));
+    setSelectedFiles(prevFiles => prevFiles.map(sf => ({ ...sf, uploading: true, uploadProgress: 0, uploadError: null })));
 
     const supabase = createSPAClient();
     const uploadedAssets: UploadedAsset[] = [];
@@ -807,12 +809,28 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
           fileType: assetFile.file.type
         });
 
+        // Simulate upload progress
+        const updateProgress = (progress: number) => {
+          setSelectedFiles(prev => prev.map(sf => 
+            sf.id === assetFile.id ? { ...sf, uploadProgress: progress } : sf
+          ));
+        };
+
+        updateProgress(10); // Starting upload
+        await new Promise(resolve => setTimeout(resolve, 200)); // Small delay
+
+        updateProgress(25); // Preparing file
+        await new Promise(resolve => setTimeout(resolve, 100));
+
         const { data, error } = await supabase.storage
           .from('ad-creatives')
           .upload(filePath, assetFile.file, {
             cacheControl: '3600',
             upsert: false,
           });
+
+        updateProgress(60); // Main file uploaded
+        await new Promise(resolve => setTimeout(resolve, 150));
 
         if (error) {
           const errorMessage = `Upload failed: ${error.message}`;
@@ -825,6 +843,9 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
         }
 
         if (data) {
+          updateProgress(70); // Getting public URL
+          await new Promise(resolve => setTimeout(resolve, 100));
+          
           const { data: { publicUrl } } = supabase.storage.from('ad-creatives').getPublicUrl(filePath);
           
           if (!publicUrl) {
@@ -832,6 +853,9 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
             logger.error('Failed to get public URL', { fileName: assetFile.file.name, filePath });
             throw new Error(error);
           }
+
+          updateProgress(80); // Processing thumbnail
+          await new Promise(resolve => setTimeout(resolve, 100));
 
           const uploadedAsset: UploadedAsset & { thumbnailUrl?: string } = {
             id: assetFile.id,
@@ -890,10 +914,15 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
             }
           }
 
+          updateProgress(95); // Finalizing
+          await new Promise(resolve => setTimeout(resolve, 100));
+
+          updateProgress(100); // Complete
+
           uploadedAssets.push(uploadedAsset);
 
           setSelectedFiles(prev => prev.map(sf => 
-            sf.id === assetFile.id ? { ...sf, uploading: false, supabaseUrl: publicUrl } : sf
+            sf.id === assetFile.id ? { ...sf, uploading: false, uploadProgress: 100, supabaseUrl: publicUrl } : sf
           ));
           
           const uploadDuration = Date.now() - fileUploadStartTime;
@@ -989,6 +1018,51 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
 
     if (uploadedAssets.length > 0) {
       onAssetsUploaded(assetGroups);
+      
+      // Automatically generate thumbnails for any video assets that were uploaded
+      try {
+        console.log('[PowerBriefAssetUpload] Starting automatic thumbnail generation...');
+        
+        // Convert asset groups to the format expected by the thumbnail utility
+        const assetGroupsForThumbnails = assetGroups.map(group => ({
+          baseName: group.baseName,
+          assets: group.assets.map(asset => ({
+            id: asset.id,
+            name: asset.name,
+            supabaseUrl: asset.supabaseUrl,
+            type: asset.type
+          }))
+        }));
+        
+        const thumbnailResult = await generateThumbnailsForAssetGroups(
+          assetGroupsForThumbnails, 
+          conceptId
+        );
+        
+        if (thumbnailResult.processed > 0) {
+          addToast('success', 'Thumbnails Generated', 
+            `Automatically generated ${thumbnailResult.processed} video thumbnails.`);
+          logger.info('Automatic thumbnail generation completed', { 
+            processed: thumbnailResult.processed,
+            total: thumbnailResult.total,
+            errors: thumbnailResult.errors.length
+          });
+        }
+        
+        if (thumbnailResult.errors.length > 0) {
+          addToast('warning', 'Thumbnail Generation Issues', 
+            `${thumbnailResult.errors.length} thumbnails failed to generate. Videos uploaded successfully.`);
+          logger.warn('Some thumbnail generation errors occurred', { 
+            errors: thumbnailResult.errors 
+          });
+        }
+        
+      } catch (thumbnailError) {
+        logger.error('Automatic thumbnail generation failed', thumbnailError);
+        addToast('warning', 'Thumbnail Generation Failed', 
+          'Videos uploaded successfully, but thumbnail generation failed. You can generate them manually later.');
+      }
+      
       setSelectedFiles([]);
       setIsProcessing(false);
       logger.info('Assets uploaded callback completed, closing modal');
@@ -1230,7 +1304,7 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
                         {file.uploading && !file.compressing && (
                           <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                             <Loader2 size={12} className="animate-spin mr-1" />
-                            Uploading...
+                            Uploading... {file.uploadProgress || 0}%
                           </span>
                         )}
                         
@@ -1247,6 +1321,17 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
                             <div 
                               className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
                               style={{ width: `${file.compressionProgress || 0}%` }}
+                            ></div>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {file.uploading && !file.compressing && (
+                        <div className="mt-2">
+                          <div className="w-full bg-gray-200 rounded-full h-2">
+                            <div 
+                              className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
+                              style={{ width: `${file.uploadProgress || 0}%` }}
                             ></div>
                           </div>
                         </div>

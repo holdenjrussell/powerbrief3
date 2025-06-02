@@ -40,8 +40,7 @@ import BulkEditModal from './BulkEditModal'; // Import BulkEditModal
 import BulkRenameModal from './BulkRenameModal'; // Import BulkRenameModal
 import { createSPAClient } from '@/lib/supabase/client';
 import VideoThumbnailScrubberModal from './VideoThumbnailScrubberModal';
-import CopyGenerationResultsModal from './CopyGenerationResultsModal';
-import CustomPromptModal from './CustomPromptModal';
+import { generateThumbnailsForDraft } from '@/lib/utils/automaticThumbnailGeneration';
 
 // DefaultValues interface is now imported and aliased
 // ColumnDef interface is now imported
@@ -327,7 +326,7 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, activeBatch, select
     setAdDrafts(prev => [...prev, newDraft]);
   };
 
-  const handleAssetsImported = (importedAssetGroups: ImportedAssetGroup[]) => {
+  const handleAssetsImported = async (importedAssetGroups: ImportedAssetGroup[]) => {
     const newAdDrafts: AdDraft[] = importedAssetGroups.map((group, index) => {
         const adNameFromAsset = group.groupName.replace(/\.[^/.]+$/, "");
         return {
@@ -356,8 +355,77 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, activeBatch, select
             advantageCreative: { ...defaults.advantageCreative }
         };
     });
+    
+    // Add to state first
     setAdDrafts(prev => [...prev, ...newAdDrafts]);
     setIsAssetModalOpen(false);
+    
+    // Save the new drafts to database and automatically generate thumbnails
+    try {
+      console.log('[AdSheetView] Saving imported ad drafts and generating thumbnails...');
+      setSaving(true);
+      
+      const response = await fetch('/api/ad-drafts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ drafts: newAdDrafts }),
+      });
+      
+      if (!response.ok) throw new Error('Failed to save ad drafts');
+      
+      const savedDrafts = await response.json();
+      console.log('[AdSheetView] Drafts saved successfully:', savedDrafts.length);
+      
+      // Generate thumbnails for each draft that has video assets
+      let totalThumbnailsGenerated = 0;
+      const thumbnailErrors: string[] = [];
+      
+      for (const draft of savedDrafts) {
+        const hasVideoAssets = draft.assets && draft.assets.some((asset: { type: string }) => asset.type === 'video');
+        
+        if (hasVideoAssets) {
+          try {
+            console.log(`[AdSheetView] Generating thumbnails for draft: ${draft.adName}`);
+            
+            const thumbnailResult = await generateThumbnailsForDraft(draft.id);
+            
+            if (thumbnailResult.processed > 0) {
+              totalThumbnailsGenerated += thumbnailResult.processed;
+              console.log(`[AdSheetView] Generated ${thumbnailResult.processed} thumbnails for draft: ${draft.adName}`);
+            }
+            
+            if (thumbnailResult.errors.length > 0) {
+              console.warn(`[AdSheetView] Some thumbnail errors for draft ${draft.adName}:`, thumbnailResult.errors);
+              thumbnailResult.errors.forEach(error => {
+                thumbnailErrors.push(`${draft.adName}: ${error.error}`);
+              });
+            }
+            
+          } catch (thumbnailError) {
+            console.error(`[AdSheetView] Thumbnail generation failed for draft ${draft.adName}:`, thumbnailError);
+            thumbnailErrors.push(`${draft.adName}: Thumbnail generation failed`);
+          }
+        }
+      }
+      
+      // Show feedback to user
+      if (totalThumbnailsGenerated > 0) {
+        alert(`Assets imported successfully! Automatically generated ${totalThumbnailsGenerated} video thumbnails.`);
+      } else if (thumbnailErrors.length > 0) {
+        alert(`Assets imported successfully! However, some thumbnail generation failed. You can generate them manually using the "Generate Thumbnails" button.`);
+      } else {
+        alert('Assets imported successfully!');
+      }
+      
+      // Refresh the ad drafts to show the saved versions with thumbnails
+      await refreshAdDrafts();
+      
+    } catch (error) {
+      console.error('[AdSheetView] Error saving drafts or generating thumbnails:', error);
+      alert('Assets imported to sheet, but there was an issue saving to database. Please save manually.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleCellValueChange = (rowIndex: number, columnId: Extract<keyof AdDraft, string>, value: AdDraftValue) => {
@@ -460,6 +528,55 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, activeBatch, select
         
         console.log('✅ Final drafts to display:', draftsWithBrandId.length, draftsWithBrandId);
         setAdDrafts(draftsWithBrandId);
+        
+        // Check for video assets without thumbnails and generate them automatically
+        const draftsNeedingThumbnails = draftsWithBrandId.filter(draft => 
+          draft.assets && draft.assets.some(asset => 
+            asset.type === 'video' && !asset.thumbnailUrl
+          )
+        );
+        
+        if (draftsNeedingThumbnails.length > 0) {
+          console.log(`[AdSheetView] Found ${draftsNeedingThumbnails.length} drafts with video assets needing thumbnails. Auto-generating...`);
+          
+          // Auto-generate thumbnails for drafts with missing video thumbnails
+          setTimeout(async () => {
+            try {
+              let totalGenerated = 0;
+              const errors: string[] = [];
+              
+              for (const draft of draftsNeedingThumbnails) {
+                try {
+                  const result = await generateThumbnailsForDraft(draft.id);
+                  if (result.processed > 0) {
+                    totalGenerated += result.processed;
+                    console.log(`[AdSheetView] Auto-generated ${result.processed} thumbnails for ${draft.adName}`);
+                  }
+                  if (result.errors.length > 0) {
+                    result.errors.forEach(error => errors.push(`${draft.adName}: ${error.error}`));
+                  }
+                } catch (error) {
+                  console.error(`[AdSheetView] Thumbnail generation failed for ${draft.adName}:`, error);
+                  errors.push(`${draft.adName}: Thumbnail generation failed`);
+                }
+              }
+              
+              if (totalGenerated > 0) {
+                console.log(`[AdSheetView] Auto-thumbnail generation complete: ${totalGenerated} thumbnails generated`);
+                // Refresh drafts to show updated thumbnails
+                await refreshAdDrafts();
+              }
+              
+              if (errors.length > 0) {
+                console.warn(`[AdSheetView] Some thumbnail generation errors:`, errors);
+              }
+              
+            } catch (error) {
+              console.error('[AdSheetView] Auto-thumbnail generation error:', error);
+            }
+          }, 1000); // Small delay to ensure UI is ready
+        }
+        
       } catch (error) {
         console.error('Error loading ad drafts:', error);
       } finally {
@@ -2164,8 +2281,8 @@ Are you sure you want to continue?`;
         <BulkEditModal
           isOpen={isBulkEditModalOpen}
           onClose={() => setIsBulkEditModalOpen(false)}
-          onApply={handleApplyBulkEdit}
-          drafts={draftsForBulkEdit}
+          onApplyBulkEdit={handleApplyBulkEdit}
+          draftsToEdit={draftsForBulkEdit}
           brandId={defaults.brandId}
           adAccountId={defaults.adAccountId}
         />

@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Type the concept data properly
-    const uploadedAssets = conceptWithAssets?.uploaded_assets as unknown as UploadedAssetGroup[] | null;
+    const uploadedAssets = (conceptWithAssets as unknown as { uploaded_assets: UploadedAssetGroup[] })?.uploaded_assets || null;
 
     if (!uploadedAssets || uploadedAssets.length === 0) {
       return NextResponse.json({ message: 'No assets to send.' }, { status: 400 });
@@ -249,7 +249,8 @@ export async function POST(req: NextRequest) {
         createdDrafts.push({
           id: createdDraft.id,
           name: adDraftData.ad_name,
-          assetCount: group.assets.length
+          assetCount: group.assets.length,
+          hasVideoAssets: group.assets.some(asset => asset.type === 'video')
         });
       }
     }
@@ -272,7 +273,8 @@ export async function POST(req: NextRequest) {
       message: 'Assets sent to ad upload tool successfully',
       createdDrafts: createdDrafts,
       totalDrafts: createdDrafts.length,
-      appliedSettings: userSettings ? 'User settings applied' : 'Default settings applied'
+      appliedSettings: userSettings ? 'User settings applied' : 'Default settings applied',
+      needsThumbnailGeneration: createdDrafts.some(d => d.hasVideoAssets)
     }, { status: 200 });
 
   } catch (error) {

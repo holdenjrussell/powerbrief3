@@ -13,6 +13,7 @@ interface AssetFile {
   id: string;
   previewUrl?: string; // For image previews, if implemented
   uploading?: boolean; // To indicate upload in progress
+  uploadProgress?: number; // Upload progress (0-100)
   uploadError?: string | null; // To store upload error message
   supabaseUrl?: string; // To store the Supabase URL after successful upload
   compressing?: boolean; // To indicate compression in progress
@@ -313,7 +314,7 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
     if (selectedFiles.length === 0) return;
 
     setIsProcessing(true);
-    setSelectedFiles(prevFiles => prevFiles.map(sf => ({ ...sf, uploading: true, uploadError: null })));
+    setSelectedFiles(prevFiles => prevFiles.map(sf => ({ ...sf, uploading: true, uploadProgress: 0, uploadError: null })));
 
     const supabase = createSPAClient();
     const processedAssetGroups: ImportedAssetGroup[] = [];
@@ -410,6 +411,19 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
             const filePath = `${user.id}/${brandId}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '')}`;
 
             try {
+                // Simulate upload progress
+                const updateProgress = (progress: number) => {
+                  setSelectedFiles(prev => prev.map(sf => 
+                    sf.id === assetFile.id ? { ...sf, uploadProgress: progress } : sf
+                  ));
+                };
+
+                updateProgress(10); // Starting upload
+                await new Promise(resolve => setTimeout(resolve, 200)); // Small delay
+
+                updateProgress(25); // Preparing file
+                await new Promise(resolve => setTimeout(resolve, 100));
+
                 const { data, error } = await supabase.storage
                     .from('ad-creatives') // Your bucket name
                     .upload(filePath, file, {
@@ -417,17 +431,28 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
                         upsert: false, // true if you want to overwrite
                     });
 
+                updateProgress(75); // Upload complete, processing...
+                await new Promise(resolve => setTimeout(resolve, 150));
+
                 if (error) {
                     throw error;
                 }
 
                 if (data) {
+                    updateProgress(85); // Getting public URL
+                    await new Promise(resolve => setTimeout(resolve, 100));
+
                     // Get public URL (or construct it if your RLS allows public reads with a known path structure)
                     const { data: { publicUrl } } = supabase.storage.from('ad-creatives').getPublicUrl(filePath);
                     
                     if (!publicUrl) {
                         throw new Error('Could not get public URL for uploaded file.');
                     }
+
+                    updateProgress(95); // Finalizing
+                    await new Promise(resolve => setTimeout(resolve, 100));
+
+                    updateProgress(100); // Complete
 
                     uploadedGroupFiles.push({
                         id: assetFile.id,
@@ -442,7 +467,7 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
                         aspectRatiosInThisGroup.push(assetFile.detectedRatio);
                     }
 
-                    setSelectedFiles(prev => prev.map(sf => sf.id === assetFile.id ? {...sf, uploading: false, supabaseUrl: publicUrl} : sf));
+                    setSelectedFiles(prev => prev.map(sf => sf.id === assetFile.id ? {...sf, uploading: false, uploadProgress: 100, supabaseUrl: publicUrl} : sf));
                 }
             } catch (e: unknown) {
                 const uploadError = e as Error | { message: string } | string;
@@ -655,6 +680,13 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
                           </span>
                         )}
                         
+                        {assetFile.uploading && !assetFile.compressing && (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                            <Loader2 size={12} className="animate-spin mr-1" />
+                            Uploading... {assetFile.uploadProgress || 0}%
+                          </span>
+                        )}
+                        
                         {assetFile.originalSize && assetFile.originalSize !== assetFile.file.size && (
                           <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
                             ✓ Compressed: {getFileSizeMB(assetFile.file).toFixed(1)}MB 
@@ -687,6 +719,17 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
                             <div 
                               className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
                               style={{ width: `${assetFile.compressionProgress || 0}%` }}
+                            ></div>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {assetFile.uploading && !assetFile.compressing && (
+                        <div className="mt-2">
+                          <div className="w-full bg-gray-200 rounded-full h-2">
+                            <div 
+                              className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
+                              style={{ width: `${assetFile.uploadProgress || 0}%` }}
                             ></div>
                           </div>
                         </div>
