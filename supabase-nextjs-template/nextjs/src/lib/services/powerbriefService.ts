@@ -1,5 +1,5 @@
 import { createSSRClient } from '@/lib/supabase/server';
-import { Brand, BriefBatch, BriefConcept, DbBrand, DbBriefConcept, DbBriefBatch, ShareSettings, ShareResult, Scene } from '@/lib/types/powerbrief';
+import { Brand, BriefBatch, BriefConcept, DbBrand, DbBriefConcept, DbBriefBatch, ShareSettings, ShareResult, Scene, Hook } from '@/lib/types/powerbrief';
 import { v4 as uuidv4 } from 'uuid';
 
 const getSupabaseClient = async () => await createSSRClient();
@@ -247,6 +247,9 @@ export async function getBriefConcepts(batchId: string): Promise<BriefConcept[]>
     const concept: any = {
       ...item,
       body_content_structured: item.body_content_structured as unknown as Scene[],
+      // Ensure hook fields are correctly typed on return
+      text_hook_options: item.text_hook_options as unknown as Hook[] | null,
+      spoken_hook_options: item.spoken_hook_options as unknown as Hook[] | null,
     };
     
     // Ensure the object meets the BriefConcept interface
@@ -277,6 +280,9 @@ export async function getBriefConceptById(conceptId: string): Promise<BriefConce
   const concept: any = {
     ...data,
     body_content_structured: data.body_content_structured as unknown as Scene[],
+    // Ensure hook fields are correctly typed on return
+    text_hook_options: data.text_hook_options as unknown as Hook[] | null,
+    spoken_hook_options: data.spoken_hook_options as unknown as Hook[] | null,
   };
   
   // Ensure the object meets the BriefConcept interface
@@ -333,7 +339,8 @@ export async function createBriefConcept(concept: Omit<BriefConcept, 'id' | 'cre
     // Set video and designer instructions from brand defaults if not provided
     videoInstructions: concept.videoInstructions || defaultVideoInstructions,
     designerInstructions: concept.designerInstructions || defaultDesignerInstructions,
-    // Ensure hook fields are included
+    // Ensure hook fields are included and are Hook[] or null
+    text_hook_options: concept.text_hook_options || null,
     spoken_hook_options: concept.spoken_hook_options || null,
     hook_type: concept.hook_type || 'both',
     hook_count: concept.hook_count || 5
@@ -354,8 +361,9 @@ export async function createBriefConcept(concept: Omit<BriefConcept, 'id' | 'cre
   const createdConcept: any = {
     ...data,
     body_content_structured: data.body_content_structured as unknown as Scene[],
-    // Ensure hook fields are included in the returned object
-    spoken_hook_options: data.spoken_hook_options || null,
+    // Ensure hook fields are correctly typed on return
+    text_hook_options: data.text_hook_options as unknown as Hook[] | null,
+    spoken_hook_options: data.spoken_hook_options as unknown as Hook[] | null,
     hook_type: data.hook_type || 'both',
     hook_count: data.hook_count || 5
   };
@@ -378,6 +386,7 @@ export async function updateBriefConcept(concept: Partial<BriefConcept> & { id: 
   console.log('designerInstructions:', concept.designerInstructions);
   console.log('hook_type:', concept.hook_type);
   console.log('hook_count:', concept.hook_count);
+  console.log('text_hook_options:', concept.text_hook_options);
   console.log('spoken_hook_options:', concept.spoken_hook_options);
 
   const { data, error } = await supabase
@@ -396,10 +405,11 @@ export async function updateBriefConcept(concept: Partial<BriefConcept> & { id: 
   const updatedConcept: any = {
     ...data,
     body_content_structured: data.body_content_structured as unknown as Scene[],
-    // Make sure we include the hook fields in the returned concept
+    // Ensure hook fields are correctly typed on return
+    text_hook_options: data.text_hook_options as unknown as Hook[] | null,
+    spoken_hook_options: data.spoken_hook_options as unknown as Hook[] | null,
     hook_type: data.hook_type,
     hook_count: data.hook_count,
-    spoken_hook_options: data.spoken_hook_options
   };
   
   // Ensure the object meets the BriefConcept interface

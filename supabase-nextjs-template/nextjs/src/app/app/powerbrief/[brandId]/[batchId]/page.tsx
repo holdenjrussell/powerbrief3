@@ -153,10 +153,10 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                     
                     // Initialize Hook lists
                     if (Array.isArray(concept.text_hook_options)) { // New JSONB format (Hook[])
-                        initialLocalTextHooksList[concept.id] = concept.text_hook_options.map((hook: any, index: number) => (
+                        initialLocalTextHooksList[concept.id] = concept.text_hook_options.map((hook: Hook | string, index: number) => (
                             typeof hook === 'string' 
-                                ? { id: uuidv4(), title: `Hook ${index + 1}`, content: hook, is_active: true } 
-                                : { id: hook.id || uuidv4(), title: hook.title || `Hook ${index + 1}`, content: hook.content || '', is_active: hook.is_active !== undefined ? hook.is_active : true }
+                                ? { id: uuidv4(), title: `Hook ${index + 1}`, content: hook } 
+                                : { id: hook.id || uuidv4(), title: hook.title || `Hook ${index + 1}`, content: hook.content || '' }
                         ));
                     } else if (typeof concept.text_hook_options === 'string') { // Old TEXT format
                         initialLocalTextHooksList[concept.id] = parseHooksFromString(concept.text_hook_options as string); 
@@ -165,10 +165,10 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                     }
 
                     if (Array.isArray(concept.spoken_hook_options)) { // New JSONB format (Hook[])
-                        initialLocalSpokenHooksList[concept.id] = concept.spoken_hook_options.map((hook: any, index: number) => (
+                        initialLocalSpokenHooksList[concept.id] = concept.spoken_hook_options.map((hook: Hook | string, index: number) => (
                             typeof hook === 'string' 
-                                ? { id: uuidv4(), title: `Hook ${index + 1}`, content: hook, is_active: true } 
-                                : { id: hook.id || uuidv4(), title: hook.title || `Hook ${index + 1}`, content: hook.content || '', is_active: hook.is_active !== undefined ? hook.is_active : true }
+                                ? { id: uuidv4(), title: `Hook ${index + 1}`, content: hook } 
+                                : { id: hook.id || uuidv4(), title: hook.title || `Hook ${index + 1}`, content: hook.content || '' }
                         ));
                     } else if (typeof concept.spoken_hook_options === 'string') { // Old TEXT format
                         initialLocalSpokenHooksList[concept.id] = parseHooksFromString(concept.spoken_hook_options as string);
@@ -806,8 +806,8 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
             
             if (aiResponse.text_hook_options && Array.isArray(aiResponse.text_hook_options)) {
                 console.log('AI Response - Text hooks array received:', aiResponse.text_hook_options);
-                const newTextHooks: Hook[] = aiResponse.text_hook_options.map((hookContent: string, index: number) => ({ id: uuidv4(), title: `Hook ${index + 1}`, content: hookContent, is_active: true }));
-                updatedConceptData.text_hook_options = newTextHooks as any; // Cast as any for now, assuming BriefConcept type will be updated
+                const newTextHooks: Hook[] = aiResponse.text_hook_options.map((hookContent: string, index: number) => ({ id: uuidv4(), title: `Hook ${index + 1}`, content: hookContent }));
+                updatedConceptData.text_hook_options = newTextHooks;
                 setLocalTextHooksList(prev => ({
                     ...prev,
                     [conceptId]: newTextHooks
@@ -818,8 +818,8 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
             
             if (aiResponse.spoken_hook_options && Array.isArray(aiResponse.spoken_hook_options)) {
                 console.log('AI Response - Spoken hooks array received:', aiResponse.spoken_hook_options);
-                const newSpokenHooks: Hook[] = aiResponse.spoken_hook_options.map((hookContent: string, index: number) => ({ id: uuidv4(), title: `Hook ${index + 1}`, content: hookContent, is_active: true }));
-                updatedConceptData.spoken_hook_options = newSpokenHooks as any; // Cast as any for now
+                const newSpokenHooks: Hook[] = aiResponse.spoken_hook_options.map((hookContent: string, index: number) => ({ id: uuidv4(), title: `Hook ${index + 1}`, content: hookContent }));
+                updatedConceptData.spoken_hook_options = newSpokenHooks;
                 setLocalSpokenHooksList(prev => ({
                     ...prev,
                     [conceptId]: newSpokenHooks
@@ -1044,8 +1044,8 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                     
                     if (aiResponse.text_hook_options && Array.isArray(aiResponse.text_hook_options)) {
                         console.log(`Generate All AI - Text hooks array received for concept ${concept.id}:`, aiResponse.text_hook_options);
-                        const newTextHooks: Hook[] = aiResponse.text_hook_options.map((hookContent: string, index: number) => ({ id: uuidv4(), title: `Hook ${index + 1}`, content: hookContent, is_active: true }));
-                        updatedConceptData.text_hook_options = newTextHooks as any; // Cast as any for now
+                        const newTextHooks: Hook[] = aiResponse.text_hook_options.map((hookContent: string, index: number) => ({ id: uuidv4(), title: `Hook ${index + 1}`, content: hookContent }));
+                        updatedConceptData.text_hook_options = newTextHooks;
                         setLocalTextHooksList(prev => ({
                             ...prev,
                             [concept.id]: newTextHooks
@@ -1061,9 +1061,8 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                             id: uuidv4(), 
                             title: `Hook ${index + 1}`, 
                             content, 
-                            is_active: true 
                         }));
-                        updatedConceptData.spoken_hook_options = newSpokenHooksList as any; // Cast as any for now
+                        updatedConceptData.spoken_hook_options = newSpokenHooksList;
                         setLocalSpokenHooksList(prev => ({
                             ...prev,
                             [concept.id]: newSpokenHooksList
@@ -1301,14 +1300,13 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
             if (isTypingRef.current[`text-${concept.id}`] && localTextHooksList[concept.id]) {
                 newLocalTextHooksList[concept.id] = localTextHooksList[concept.id];
             } else {
-                if (Array.isArray(concept.text_hook_options)) {
-                    newLocalTextHooksList[concept.id] = concept.text_hook_options.map((hook: any, index: number) => (
+                if (Array.isArray(concept.text_hook_options)) { // New JSONB format (Hook[])
+                    newLocalTextHooksList[concept.id] = concept.text_hook_options.map((hook: Hook | string, index: number) => (
                         typeof hook === 'string' 
-                            ? { id: uuidv4(), title: `Hook ${index + 1}`, content: hook, is_active: true } 
-                            : { id: hook.id || uuidv4(), title: hook.title || `Hook ${index + 1}`, content: hook.content || '', is_active: hook.is_active !== undefined ? hook.is_active : true }
+                            ? { id: uuidv4(), title: `Hook ${index + 1}`, content: hook } 
+                            : { id: hook.id || uuidv4(), title: hook.title || `Hook ${index + 1}`, content: hook.content || '' }
                     ));
-                } else if (typeof concept.text_hook_options === 'string' && concept.text_hook_options) {
-                     // This is the old string format, parse it
+                } else if (typeof concept.text_hook_options === 'string' && concept.text_hook_options) { // Old TEXT format
                     newLocalTextHooksList[concept.id] = parseHooksFromString(concept.text_hook_options);
                 } else {
                     newLocalTextHooksList[concept.id] = localTextHooksList[concept.id] || []; // Fallback to existing or empty
@@ -1318,14 +1316,13 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
             if (isTypingRef.current[`spoken-${concept.id}`] && localSpokenHooksList[concept.id]) {
                 newLocalSpokenHooksList[concept.id] = localSpokenHooksList[concept.id];
             } else {
-                if (Array.isArray(concept.spoken_hook_options)) {
-                    newLocalSpokenHooksList[concept.id] = concept.spoken_hook_options.map((hook: any, index: number) => (
+                if (Array.isArray(concept.spoken_hook_options)) { // New JSONB format (Hook[])
+                    newLocalSpokenHooksList[concept.id] = concept.spoken_hook_options.map((hook: Hook | string, index: number) => (
                         typeof hook === 'string' 
-                            ? { id: uuidv4(), title: `Hook ${index + 1}`, content: hook, is_active: true } 
-                            : { id: hook.id || uuidv4(), title: hook.title || `Hook ${index + 1}`, content: hook.content || '', is_active: hook.is_active !== undefined ? hook.is_active : true }
+                            ? { id: uuidv4(), title: `Hook ${index + 1}`, content: hook } 
+                            : { id: hook.id || uuidv4(), title: hook.title || `Hook ${index + 1}`, content: hook.content || '' }
                     ));
-                } else if (typeof concept.spoken_hook_options === 'string' && concept.spoken_hook_options) {
-                    // This is the old string format, parse it
+                } else if (typeof concept.spoken_hook_options === 'string' && concept.spoken_hook_options) { // Old TEXT format
                     newLocalSpokenHooksList[concept.id] = parseHooksFromString(concept.spoken_hook_options);
                 } else {
                     newLocalSpokenHooksList[concept.id] = localSpokenHooksList[concept.id] || []; // Fallback to existing or empty
@@ -1679,21 +1676,41 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
 
     // Add text hook
     const handleAddTextHook = (conceptId: string) => {
-        const currentHooks = localTextHooksList[conceptId] || [];
         const newHook: Hook = {
-            id: `text-hook-${Date.now()}`,
-            title: `Hook ${currentHooks.length + 1}`,
+            id: uuidv4(), // Use uuidv4 for unique ID
+            title: `Hook ${(localTextHooksList[conceptId] || []).length + 1}`,
             content: ''
+            // Assuming Hook type does not include is_active based on lib/types/powerbrief.ts
         };
-        
-        const updatedHooks = [...currentHooks, newHook];
-        setLocalTextHooksList(prev => ({
-            ...prev,
-            [conceptId]: updatedHooks
-        }));
-        
-        // DON'T update the database immediately for empty hooks
-        // The database will be updated when the user types content via handleUpdateTextHook
+
+        // Update local list for immediate UI feedback of the new textarea
+        setLocalTextHooksList(prevLocal => {
+            const currentLocalHooks = prevLocal[conceptId] || [];
+            const updatedLocalHooks = [...currentLocalHooks, newHook];
+            return { ...prevLocal, [conceptId]: updatedLocalHooks };
+        });
+
+        // Update the main 'concepts' state which will trigger useEffect and persistence
+        setConcepts(prevConcepts => {
+            let conceptToPersist: BriefConcept | undefined;
+            const newConcepts = prevConcepts.map(c => {
+                if (c.id === conceptId) {
+                    const existingConceptHooks = Array.isArray(c.text_hook_options) ? c.text_hook_options : [];
+                    conceptToPersist = {
+                        ...c,
+                        text_hook_options: [...existingConceptHooks, newHook]
+                    };
+                    return conceptToPersist;
+                }
+                return c;
+            });
+
+            if (conceptToPersist) {
+                // This conceptToPersist has the new hook. Debounce saving this version.
+                debouncedUpdateConcept(conceptToPersist);
+            }
+            return newConcepts; // Return updated concepts array for state
+        });
     };
 
     // Remove text hook
@@ -1706,12 +1723,11 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
             [conceptId]: updatedHooks
         }));
         
-        // Update the string version for database compatibility
         const concept = concepts.find(c => c.id === conceptId);
         if (concept) {
             const updatedConcept = {
                 ...concept,
-                text_hook_options: convertHooksToString(updatedHooks)
+                text_hook_options: updatedHooks // Pass Hook[] directly
             };
             handleUpdateConcept(updatedConcept);
         }
@@ -1728,27 +1744,47 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
 
         const concept = concepts.find(c => c.id === conceptId);
         if (concept) {
-            debouncedUpdateConcept({ ...concept, text_hook_options: updatedHooks as any });
+            debouncedUpdateConcept({ ...concept, text_hook_options: updatedHooks });
         }
     };
 
     // Add spoken hook
     const handleAddSpokenHook = (conceptId: string) => {
-        const currentHooks = localSpokenHooksList[conceptId] || [];
         const newHook: Hook = {
-            id: `spoken-hook-${Date.now()}`,
-            title: `Hook ${currentHooks.length + 1}`,
+            id: uuidv4(), // Use uuidv4 for unique ID
+            title: `Hook ${(localSpokenHooksList[conceptId] || []).length + 1}`,
             content: ''
+            // Assuming Hook type does not include is_active
         };
-        
-        const updatedHooks = [...currentHooks, newHook];
-        setLocalSpokenHooksList(prev => ({
-            ...prev,
-            [conceptId]: updatedHooks
-        }));
-        
-        // DON'T update the database immediately for empty hooks
-        // The database will be updated when the user types content via handleUpdateSpokenHook
+
+        // Update local list for immediate UI feedback of the new textarea
+        setLocalSpokenHooksList(prevLocal => {
+            const currentLocalHooks = prevLocal[conceptId] || [];
+            const updatedLocalHooks = [...currentLocalHooks, newHook];
+            return { ...prevLocal, [conceptId]: updatedLocalHooks };
+        });
+
+        // Update the main 'concepts' state which will trigger useEffect and persistence
+        setConcepts(prevConcepts => {
+            let conceptToPersist: BriefConcept | undefined;
+            const newConcepts = prevConcepts.map(c => {
+                if (c.id === conceptId) {
+                    const existingConceptHooks = Array.isArray(c.spoken_hook_options) ? c.spoken_hook_options : [];
+                    conceptToPersist = {
+                        ...c,
+                        spoken_hook_options: [...existingConceptHooks, newHook]
+                    };
+                    return conceptToPersist;
+                }
+                return c;
+            });
+
+            if (conceptToPersist) {
+                // This conceptToPersist has the new hook. Debounce saving this version.
+                debouncedUpdateConcept(conceptToPersist);
+            }
+            return newConcepts; // Return updated concepts array for state
+        });
     };
 
     // Remove spoken hook
@@ -1761,12 +1797,11 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
             [conceptId]: updatedHooks
         }));
         
-        // Update the string version for database compatibility
         const concept = concepts.find(c => c.id === conceptId);
         if (concept) {
             const updatedConcept = {
                 ...concept,
-                spoken_hook_options: convertHooksToString(updatedHooks)
+                spoken_hook_options: updatedHooks // Pass Hook[] directly
             };
             handleUpdateConcept(updatedConcept);
         }
@@ -1783,7 +1818,7 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
 
         const concept = concepts.find(c => c.id === conceptId);
         if (concept) {
-            debouncedUpdateConcept({ ...concept, spoken_hook_options: updatedHooks as any });
+            debouncedUpdateConcept({ ...concept, spoken_hook_options: updatedHooks });
         }
     };
 
@@ -2589,7 +2624,7 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                                                         const currentHooks = localTextHooksList[concept.id] || [];
                                                                         const updatedConcept = {
                                                                             ...currentConcept,
-                                                                            text_hook_options: convertHooksToString(currentHooks)
+                                                                            text_hook_options: currentHooks // Pass Hook[] directly
                                                                         };
                                                                         handleUpdateConcept(updatedConcept);
                                                                     }
@@ -2669,7 +2704,7 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                                                         const currentHooks = localSpokenHooksList[concept.id] || [];
                                                                         const updatedConcept = {
                                                                             ...currentConcept,
-                                                                            spoken_hook_options: convertHooksToString(currentHooks)
+                                                                            spoken_hook_options: currentHooks // Pass Hook[] directly
                                                                         };
                                                                         handleUpdateConcept(updatedConcept);
                                                                     }

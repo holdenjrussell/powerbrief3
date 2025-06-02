@@ -165,8 +165,8 @@ export interface BriefConcept {
   media_url: string | null;
   media_type: string | null;
   ai_custom_prompt: string | null;
-  text_hook_options: string | null;
-  spoken_hook_options: string | null;
+  text_hook_options: Hook[] | null;
+  spoken_hook_options: Hook[] | null;
   cta_script: string | null;
   cta_text_overlay: string | null;
   description: string | null;
@@ -200,7 +200,8 @@ export interface AiBriefingRequest {
   };
   conceptSpecificPrompt: string;
   conceptCurrentData: {
-    text_hook_options?: string;
+    text_hook_options?: string[];
+    spoken_hook_options?: string[];
     body_content_structured?: Scene[];
     cta_script?: string;
     cta_text_overlay?: string;
@@ -218,8 +219,8 @@ export interface AiBriefingRequest {
 }
 
 export interface AiBriefingResponse {
-  text_hook_options: string;
-  spoken_hook_options: string;
+  text_hook_options: string[];
+  spoken_hook_options: string[];
   body_content_structured_scenes: Scene[];
   cta_script: string;
   cta_text_overlay: string;
@@ -254,7 +255,7 @@ export type DbBriefBatch = {
   created_at: string;
   status?: string | null;
   shared_with?: string[] | null;
-  share_settings?: Record<string, ShareSettings> | null;
+  share_settings?: Json | null;
   starting_concept_number?: number;
   updated_at: string;
 };
@@ -275,8 +276,8 @@ export type DbBriefConcept = {
   media_url: string | null;
   media_type: string | null;
   ai_custom_prompt: string | null;
-  text_hook_options: string | null;
-  spoken_hook_options: string | null;
+  text_hook_options: Json | null;
+  spoken_hook_options: Json | null;
   body_content_structured: Json;
   cta_script: string | null;
   cta_text_overlay: string | null;
@@ -286,7 +287,7 @@ export type DbBriefConcept = {
   hook_type?: string | null;
   hook_count?: number | null;
   order_in_batch: number;
-  share_settings?: Record<string, ShareSettings> | null;
+  share_settings?: Json | null;
   shared_with?: string[] | null;
   review_status?: string | null;
   review_link?: string | null;
@@ -384,8 +385,8 @@ export interface CreateBriefConceptInput {
   media_url: string | null;
   media_type: string | null;
   ai_custom_prompt: string | null;
-  text_hook_options: string | null;
-  spoken_hook_options: string | null;
+  text_hook_options: Hook[] | null;
+  spoken_hook_options: Hook[] | null;
   cta_script: string | null;
   cta_text_overlay: string | null;
   description: string | null;
