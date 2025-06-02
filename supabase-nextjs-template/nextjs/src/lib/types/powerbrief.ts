@@ -153,7 +153,7 @@ export interface CustomLink {
 
 export interface Prerequisite {
   id: string;
-  type: 'AI Voiceover' | 'UGC Script' | 'UGC B Roll' | 'AI UGC' | 'AI B Roll' | 'Stock Footage' | 'Custom Animation';
+  type: 'AI Voiceover' | 'UGC Script' | 'UGC B Roll' | 'AI UGC' | 'AI B Roll' | 'Stock Footage' | 'Custom Animation' | string;
   completed: boolean;
 }
 

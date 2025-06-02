@@ -86,6 +86,7 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
 
     // Prerequisites state
     const [localPrerequisites, setLocalPrerequisites] = useState<Record<string, Prerequisite[]>>({});
+    const [customPrerequisiteTypes, setCustomPrerequisiteTypes] = useState<Record<string, string[]>>({});
 
     // Filtering and sorting state
     const [filterStatus, setFilterStatus] = useState<string>('all');
@@ -2036,10 +2037,11 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
         'AI UGC',
         'AI B Roll',
         'Stock Footage',
-        'Custom Animation'
+        'Custom Animation',
+        'Other'
     ] as const;
 
-    const handleTogglePrerequisite = (conceptId: string, prerequisiteType: typeof prerequisiteTypes[number]) => {
+    const handleTogglePrerequisite = (conceptId: string, prerequisiteType: typeof prerequisiteTypes[number] | string) => {
         const concept = concepts.find(c => c.id === conceptId);
         if (!concept) return;
 
@@ -2068,6 +2070,78 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
         }));
 
         // Update concept in database
+        const updatedConcept = {
+            ...concept,
+            prerequisites: updatedPrerequisites
+        };
+        handleUpdateConcept(updatedConcept);
+    };
+
+    const handleAddCustomPrerequisite = (conceptId: string) => {
+        const customTypes = customPrerequisiteTypes[conceptId] || [];
+        const newCustomType = `Custom ${customTypes.length + 1}`;
+        
+        // Add to custom types list
+        setCustomPrerequisiteTypes(prev => ({
+            ...prev,
+            [conceptId]: [...customTypes, newCustomType]
+        }));
+
+        // Also add as a prerequisite
+        handleTogglePrerequisite(conceptId, newCustomType);
+    };
+
+    const handleRemoveCustomPrerequisite = (conceptId: string, customType: string) => {
+        // Remove from custom types list
+        setCustomPrerequisiteTypes(prev => ({
+            ...prev,
+            [conceptId]: (prev[conceptId] || []).filter(type => type !== customType)
+        }));
+
+        // Also remove from prerequisites
+        const concept = concepts.find(c => c.id === conceptId);
+        if (!concept) return;
+
+        const currentPrerequisites = localPrerequisites[conceptId] || concept.prerequisites || [];
+        const updatedPrerequisites = currentPrerequisites.filter(p => p.type !== customType);
+
+        setLocalPrerequisites(prev => ({
+            ...prev,
+            [conceptId]: updatedPrerequisites
+        }));
+
+        const updatedConcept = {
+            ...concept,
+            prerequisites: updatedPrerequisites
+        };
+        handleUpdateConcept(updatedConcept);
+    };
+
+    const handleUpdateCustomPrerequisiteName = (conceptId: string, oldType: string, newType: string) => {
+        // Update custom types list
+        setCustomPrerequisiteTypes(prev => ({
+            ...prev,
+            [conceptId]: (prev[conceptId] || []).map(type => type === oldType ? newType : type)
+        }));
+
+        // Update prerequisites - preserve the checked state and replace old type with new type
+        const concept = concepts.find(c => c.id === conceptId);
+        if (!concept) return;
+
+        const currentPrerequisites = localPrerequisites[conceptId] || concept.prerequisites || [];
+        const updatedPrerequisites = currentPrerequisites.map(p => {
+            if (p.type === oldType) {
+                // Update the type but preserve all other properties (including completed status)
+                return { ...p, type: newType };
+            }
+            return p;
+        });
+
+        setLocalPrerequisites(prev => ({
+            ...prev,
+            [conceptId]: updatedPrerequisites
+        }));
+
         const updatedConcept = {
             ...concept,
             prerequisites: updatedPrerequisites
@@ -2111,7 +2185,7 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                     case 'AI B Roll': return 'NEEDS AI B ROLL';
                     case 'Stock Footage': return 'NEEDS STOCK FOOTAGE';
                     case 'Custom Animation': return 'NEEDS ANIMATION';
-                    default: return 'NEEDS CONTENT';
+                    default: return `NEEDS ${prereq.type.toUpperCase()}`;
                 }
             });
     };
@@ -2561,14 +2635,19 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                     <div className="mt-2">
                                         <details className="group">
                                             <summary className="flex justify-between items-center cursor-pointer p-2 border rounded hover:bg-gray-50">
-                                                <label className="text-xs font-medium">Prerequisites (Missing Assets)</label>
+                                                <div className="text-xs font-medium">
+                                                    <div>Prerequisites</div>
+                                                    <div className="text-gray-500 font-normal">(Missing Assets)</div>
+                                                </div>
                                                 <span className="text-xs text-gray-500 group-open:hidden">Click to expand</span>
                                                 <span className="text-xs text-gray-500 hidden group-open:inline">Click to collapse</span>
                                             </summary>
                                             
                                             <div className="mt-2 p-3 border border-t-0 rounded-b bg-gray-50 space-y-2">
                                                 <p className="text-xs text-gray-600 mb-3">Check the assets we DON&apos;T have:</p>
-                                                {prerequisiteTypes.map((prerequisiteType) => {
+                                                
+                                                {/* Standard prerequisite types */}
+                                                {prerequisiteTypes.filter(type => type !== 'Other').map((prerequisiteType) => {
                                                     const currentPrerequisites = localPrerequisites[concept.id] || [];
                                                     const isMissing = currentPrerequisites.some(p => p.type === prerequisiteType && !p.completed);
                                                     
@@ -2629,6 +2708,73 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                                         </div>
                                                     );
                                                 })}
+                                                
+                                                {/* Custom prerequisite types */}
+                                                {(customPrerequisiteTypes[concept.id] || []).map((customType, index) => {
+                                                    const currentPrerequisites = localPrerequisites[concept.id] || [];
+                                                    const isMissing = currentPrerequisites.some(p => p.type === customType && !p.completed);
+                                                    
+                                                    return (
+                                                        <div key={`custom-${concept.id}-${index}`} className="flex items-center space-x-2">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={isMissing}
+                                                                onChange={() => {
+                                                                    // Use the current value from the array, not the stale customType
+                                                                    const currentType = (customPrerequisiteTypes[concept.id] || [])[index];
+                                                                    handleTogglePrerequisite(concept.id, currentType);
+                                                                }}
+                                                                className="h-4 w-4 rounded border-gray-300"
+                                                                aria-label={`Mark ${customType} as missing`}
+                                                            />
+                                                            <div className="flex items-center space-x-1 flex-1">
+                                                                {isMissing && <XCircle className="h-3 w-3 text-red-500" />}
+                                                                <Input
+                                                                    value={customType}
+                                                                    onChange={(e) => {
+                                                                        // Update the custom types array directly
+                                                                        const newCustomTypes = [...(customPrerequisiteTypes[concept.id] || [])];
+                                                                        newCustomTypes[index] = e.target.value;
+                                                                        setCustomPrerequisiteTypes(prev => ({
+                                                                            ...prev,
+                                                                            [concept.id]: newCustomTypes
+                                                                        }));
+                                                                    }}
+                                                                    onBlur={() => {
+                                                                        // Only update the prerequisite when losing focus
+                                                                        const newValue = (customPrerequisiteTypes[concept.id] || [])[index];
+                                                                        if (newValue !== customType) {
+                                                                            handleUpdateCustomPrerequisiteName(concept.id, customType, newValue);
+                                                                        }
+                                                                    }}
+                                                                    className="text-xs h-6 px-2"
+                                                                    placeholder="Custom prerequisite"
+                                                                />
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="sm"
+                                                                    className="h-6 w-6 p-0 text-red-500"
+                                                                    onClick={() => handleRemoveCustomPrerequisite(concept.id, customType)}
+                                                                >
+                                                                    <X className="h-3 w-3" />
+                                                                </Button>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                                
+                                                {/* Add custom prerequisite button */}
+                                                <div className="pt-2 border-t border-gray-200">
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => handleAddCustomPrerequisite(concept.id)}
+                                                        className="w-full h-8 text-xs"
+                                                    >
+                                                        <Plus className="h-3 w-3 mr-1" />
+                                                        Add Other
+                                                    </Button>
+                                                </div>
                                             </div>
                                         </details>
                                     </div>
