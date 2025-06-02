@@ -341,12 +341,12 @@ ${brand.competition_data || 'Not specified'}
         
         if (asset.type === 'image') {
           // For images, continue using inline data
-          const assetResponse = await fetch(asset.supabase_url);
-          if (!assetResponse.ok) {
-            throw new Error(`Failed to fetch asset: ${assetResponse.statusText}`);
-          }
-          const assetBuffer = await assetResponse.arrayBuffer();
-          
+        const assetResponse = await fetch(asset.supabase_url);
+        if (!assetResponse.ok) {
+          throw new Error(`Failed to fetch asset: ${assetResponse.statusText}`);
+        }
+        const assetBuffer = await assetResponse.arrayBuffer();
+
           assetPart = {
             inlineData: {
               mimeType: 'image/jpeg',
