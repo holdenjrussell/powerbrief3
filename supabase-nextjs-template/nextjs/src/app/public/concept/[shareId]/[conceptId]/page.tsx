@@ -2,7 +2,7 @@
 // latest updates
 import React, { useState, useEffect } from 'react';
 import { createSPAClient } from '@/lib/supabase/client';
-import { BriefConcept, Scene, UploadedAssetGroup } from '@/lib/types/powerbrief';
+import { BriefConcept, Scene, UploadedAssetGroup, Hook } from '@/lib/types/powerbrief';
 import { Loader2, ArrowLeft, Link as LinkIcon, CheckCircle, AlertTriangle, UploadCloud, X, ExternalLink, MessageCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
@@ -602,6 +602,12 @@ function MediaModal({ isOpen, onClose, mediaUrl, mediaType, mediaName, conceptId
     </div>
   );
 }
+
+// Helper function to convert Hook[] to string, if not already present
+const convertHooksToString = (hooks: Hook[]): string => {
+  if (!hooks || !Array.isArray(hooks)) return '';
+  return hooks.map(hook => hook.content).join('\n');
+};
 
 export default function SharedSingleConceptPage({ params }: { params: ParamsType | Promise<ParamsType> }) {
   const [loading, setLoading] = useState<boolean>(true);
@@ -1570,50 +1576,28 @@ export default function SharedSingleConceptPage({ params }: { params: ParamsType
             </Card>
           )}
 
-          {/* Text hooks */}
-          {concept.text_hook_options && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Text Hook Options</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="whitespace-pre-wrap">{concept.text_hook_options}</p>
-              </CardContent>
-            </Card>
+          {/* Text Hooks */}
+          {concept.text_hook_options && Array.isArray(concept.text_hook_options) && concept.text_hook_options.length > 0 && (
+            <div className="mt-4">
+              <h3 className="font-medium text-sm mb-1">Text Hook Options</h3>
+              <div className="space-y-1 text-sm bg-gray-50 p-3 rounded">
+                {concept.text_hook_options.map((hook: Hook, index: number) => (
+                  <p key={hook.id || index} className="whitespace-pre-wrap">{hook.content}</p>
+                ))}
+              </div>
+            </div>
           )}
 
-          {/* Spoken hooks */}
-          {concept.spoken_hook_options && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Spoken Hook Options</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {(() => {
-                  // Parse and number the hooks
-                  const hooks = concept.spoken_hook_options
-                    .split(/\n\s*\n/)
-                    .flatMap(section => section.split('\n'))
-                    .map(hook => hook.trim())
-                    .filter(hook => hook.length > 0);
-                  
-                  return hooks.length > 0 ? (
-                    <div className="space-y-3">
-                      {hooks.map((hook, index) => (
-                        <div key={index} className="flex gap-3">
-                          <span className="flex-shrink-0 w-6 h-6 bg-blue-100 text-blue-800 rounded-full flex items-center justify-center text-sm font-medium">
-                            {index + 1}
-                          </span>
-                          <p className="flex-1 text-sm leading-relaxed">{hook}</p>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="whitespace-pre-wrap">{concept.spoken_hook_options}</p>
-                  );
-                })()}
-              </CardContent>
-            </Card>
+          {/* Spoken Hooks */}
+          {concept.spoken_hook_options && Array.isArray(concept.spoken_hook_options) && concept.spoken_hook_options.length > 0 && (
+            <div className="mt-4">
+              <h3 className="font-medium text-sm mb-1">Spoken Hook Options</h3>
+              <div className="space-y-1 text-sm bg-gray-50 p-3 rounded">
+                {concept.spoken_hook_options.map((hook: Hook, index: number) => (
+                  <p key={hook.id || index} className="whitespace-pre-wrap">{hook.content}</p>
+                ))}
+              </div>
+            </div>
           )}
 
           {/* Body content - scenes */}
@@ -1679,7 +1663,7 @@ export default function SharedSingleConceptPage({ params }: { params: ParamsType
               <CardContent>
                 <SharedVoiceGenerator
                   scenes={concept.body_content_structured || []}
-                  spokenHooks={concept.spoken_hook_options || ''}
+                  spokenHooks={Array.isArray(concept.spoken_hook_options) ? convertHooksToString(concept.spoken_hook_options) : (concept.spoken_hook_options || '')}
                   ctaScript={concept.cta_script || ''}
                   conceptId={concept.id}
                   isEditable={isEditable}

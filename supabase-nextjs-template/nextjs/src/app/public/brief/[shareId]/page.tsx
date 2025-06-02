@@ -519,11 +519,13 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
                       )}
                       
                       {/* Text Hooks */}
-                      {concept.text_hook_options && (
+                      {concept.text_hook_options && Array.isArray(concept.text_hook_options) && concept.text_hook_options.length > 0 && (
                         <div className="mt-4">
                           <h3 className="font-medium text-sm mb-1">Text Hook options</h3>
-                          <div className="whitespace-pre-wrap text-sm bg-gray-50 p-2 rounded">
-                            {concept.text_hook_options}
+                          <div className="space-y-1 text-sm bg-gray-50 p-2 rounded">
+                            {concept.text_hook_options.map((hook: Hook, index: number) => (
+                              <p key={hook.id || index} className="whitespace-pre-wrap">{hook.content}</p>
+                            ))}
                           </div>
                         </div>
                       )}
