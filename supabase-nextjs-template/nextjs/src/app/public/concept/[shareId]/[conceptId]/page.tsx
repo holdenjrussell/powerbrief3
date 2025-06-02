@@ -1663,8 +1663,12 @@ export default function SharedSingleConceptPage({ params }: { params: ParamsType
               <CardContent>
                 <SharedVoiceGenerator
                   scenes={concept.body_content_structured || []}
-                  spokenHooks={Array.isArray(concept.spoken_hook_options) ? convertHooksToString(concept.spoken_hook_options) : (concept.spoken_hook_options || '')}
-                  ctaScript={concept.cta_script || ''}
+                  spokenHooks={
+                    Array.isArray(concept.spoken_hook_options) 
+                      ? convertHooksToString(concept.spoken_hook_options) 
+                      : (typeof concept.spoken_hook_options === 'string' ? concept.spoken_hook_options : '')
+                  } 
+                  ctaScript={concept.cta_script || ''} 
                   conceptId={concept.id}
                   isEditable={isEditable}
                   brandId={brand?.id || ''}
