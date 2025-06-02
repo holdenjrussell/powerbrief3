@@ -8,7 +8,7 @@ import { getProductsByBrand } from '@/lib/services/productService';
 import { Brand, BriefBatch, BriefConcept, Scene, Hook, AiBriefingRequest, ShareSettings, Product } from '@/lib/types/powerbrief';
 import { 
     Sparkles, Plus, X, FileUp, Trash2, Share2, MoveUp, MoveDown, 
-    Loader2, Check, Pencil, Bug, Film, FileImage, ArrowLeft, Copy, LinkIcon, Mail
+    Loader2, Check, Pencil, Bug, Film, FileImage, ArrowLeft, Copy, LinkIcon, Mail,
 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -19,6 +19,7 @@ import Link from 'next/link';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import MarkdownTextarea from '@/components/ui/markdown-textarea';
 import ConceptVoiceGenerator from '@/components/ConceptVoiceGenerator';
+import { v4 as uuidv4 } from 'uuid';
 
 // Helper to unwrap params safely
 type ParamsType = { brandId: string, batchId: string };
@@ -43,8 +44,6 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
     const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const isTypingRef = useRef<Record<string, boolean>>({});
     const [localPrompts, setLocalPrompts] = useState<Record<string, string>>({});
-    const [localTextHooks, setLocalTextHooks] = useState<Record<string, string>>({});
-    const [localSpokenHooks, setLocalSpokenHooks] = useState<Record<string, string>>({});
     const [localCtaScript, setLocalCtaScript] = useState<Record<string, string>>({});
     const [localCtaTextOverlay, setLocalCtaTextOverlay] = useState<Record<string, string>>({});
     const [localScenes, setLocalScenes] = useState<Record<string, Scene[]>>({});
@@ -113,8 +112,9 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
 
                 // Initialize local states for each concept based on fetched data
                 const initialLocalPrompts: Record<string, string> = {};
-                const initialLocalTextHooks: Record<string, string> = {};
-                const initialLocalSpokenHooks: Record<string, string> = {};
+                // These are temporary holders if data is string, before converting to Hook[]
+                const tempLegacyTextHooks: Record<string, string> = {}; 
+                const tempLegacySpokenHooks: Record<string, string> = {};
                 const initialLocalCtaScript: Record<string, string> = {};
                 const initialLocalCtaTextOverlay: Record<string, string> = {};
                 const initialLocalScenes: Record<string, Scene[]> = {};
@@ -134,8 +134,8 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
 
                 conceptsData.forEach(concept => {
                     initialLocalPrompts[concept.id] = concept.ai_custom_prompt || '';
-                    initialLocalTextHooks[concept.id] = concept.text_hook_options || '';
-                    initialLocalSpokenHooks[concept.id] = concept.spoken_hook_options || '';
+                    tempLegacyTextHooks[concept.id] = typeof concept.text_hook_options === 'string' ? concept.text_hook_options : ''; 
+                    tempLegacySpokenHooks[concept.id] = typeof concept.spoken_hook_options === 'string' ? concept.spoken_hook_options : '';
                     initialLocalCtaScript[concept.id] = concept.cta_script || '';
                     initialLocalCtaTextOverlay[concept.id] = concept.cta_text_overlay || '';
                     initialLocalScenes[concept.id] = concept.body_content_structured || [];
@@ -151,14 +151,33 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                     initialLocalHookTypes[concept.id] = concept.hook_type || 'both';
                     initialLocalHookCounts[concept.id] = concept.hook_count || 5;
                     
-                    // Parse existing hooks from strings into individual hook objects
-                    initialLocalTextHooksList[concept.id] = parseHooksFromString(concept.text_hook_options || '');
-                    initialLocalSpokenHooksList[concept.id] = parseHooksFromString(concept.spoken_hook_options || '');
+                    // Initialize Hook lists
+                    if (Array.isArray(concept.text_hook_options)) { // New JSONB format (Hook[])
+                        initialLocalTextHooksList[concept.id] = concept.text_hook_options.map((hook: any, index: number) => (
+                            typeof hook === 'string' 
+                                ? { id: uuidv4(), title: `Hook ${index + 1}`, content: hook, is_active: true } 
+                                : { id: hook.id || uuidv4(), title: hook.title || `Hook ${index + 1}`, content: hook.content || '', is_active: hook.is_active !== undefined ? hook.is_active : true }
+                        ));
+                    } else if (typeof concept.text_hook_options === 'string') { // Old TEXT format
+                        initialLocalTextHooksList[concept.id] = parseHooksFromString(concept.text_hook_options as string); 
+                    } else {
+                        initialLocalTextHooksList[concept.id] = []; // Default to empty array
+                    }
+
+                    if (Array.isArray(concept.spoken_hook_options)) { // New JSONB format (Hook[])
+                        initialLocalSpokenHooksList[concept.id] = concept.spoken_hook_options.map((hook: any, index: number) => (
+                            typeof hook === 'string' 
+                                ? { id: uuidv4(), title: `Hook ${index + 1}`, content: hook, is_active: true } 
+                                : { id: hook.id || uuidv4(), title: hook.title || `Hook ${index + 1}`, content: hook.content || '', is_active: hook.is_active !== undefined ? hook.is_active : true }
+                        ));
+                    } else if (typeof concept.spoken_hook_options === 'string') { // Old TEXT format
+                        initialLocalSpokenHooksList[concept.id] = parseHooksFromString(concept.spoken_hook_options as string);
+                    } else {
+                        initialLocalSpokenHooksList[concept.id] = []; // Default to empty array
+                    }
                 });
 
                 setLocalPrompts(initialLocalPrompts);
-                setLocalTextHooks(initialLocalTextHooks);
-                setLocalSpokenHooks(initialLocalSpokenHooks);
                 setLocalCtaScript(initialLocalCtaScript);
                 setLocalCtaTextOverlay(initialLocalCtaTextOverlay);
                 setLocalScenes(initialLocalScenes);
@@ -173,8 +192,8 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                 setLocalMediaTypes(initialLocalMediaTypes);
                 setLocalHookTypes(initialLocalHookTypes);
                 setLocalHookCounts(initialLocalHookCounts);
-                setLocalTextHooksList(initialLocalTextHooksList);
-                setLocalSpokenHooksList(initialLocalSpokenHooksList);
+                setLocalTextHooksList(initialLocalTextHooksList); // This is the Hook[] list
+                setLocalSpokenHooksList(initialLocalSpokenHooksList); // This is the Hook[] list
                 
                 if (conceptsData.length > 0 && !activeConceptId) {
                     setActiveConceptId(conceptsData[0].id);
@@ -265,8 +284,8 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                 media_url: null,
                 media_type: null,
                 ai_custom_prompt: null,
-                text_hook_options: null,
-                spoken_hook_options: null,
+                text_hook_options: [], // Initialize as empty Hook[] for JSONB
+                spoken_hook_options: [], // Initialize as empty Hook[] for JSONB
                 cta_script: null,
                 cta_text_overlay: null,
                 description: null,
@@ -568,8 +587,8 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                         custom_editor_name: null,
                         status: null,
                         ai_custom_prompt: null,
-                        text_hook_options: null,
-                        spoken_hook_options: null,
+                        text_hook_options: [], // Initialize as empty Hook[] for JSONB
+                        spoken_hook_options: [], // Initialize as empty Hook[] for JSONB
                         cta_script: null,
                         cta_text_overlay: null,
                         description: null,
@@ -690,7 +709,8 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
             }));
             
             // Now use the updated concept with the saved prompt
-            const conceptWithSavedPrompt = concepts.find(c => c.id === conceptId) || concept;
+            // Re-fetch concept from state AFTER prompt save to ensure it includes the latest prompt
+            const conceptWithSavedPrompt = concepts.find(c => c.id === conceptId) || concept; 
             
             // Get the current hook type and count from local state first, falling back to the concept values
             const hookType = localHookTypes[conceptId] || conceptWithSavedPrompt.hook_type || 'both';
@@ -736,9 +756,10 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                     system_instructions_video: brand.system_instructions_video,
                     product_info: productInfo
                 },
-                conceptSpecificPrompt: currentPromptValue, // Use the current prompt value directly
-                conceptCurrentData: {
-                    text_hook_options: conceptWithSavedPrompt.text_hook_options || '',
+                conceptSpecificPrompt: currentPromptValue, 
+                conceptCurrentData: { 
+                    text_hook_options: (localTextHooksList[conceptId] || []).map(h => h.content), 
+                    spoken_hook_options: (localSpokenHooksList[conceptId] || []).map(h => h.content), 
                     body_content_structured: conceptWithSavedPrompt.body_content_structured || [],
                     cta_script: conceptWithSavedPrompt.cta_script || '',
                     cta_text_overlay: conceptWithSavedPrompt.cta_text_overlay || '',
@@ -776,45 +797,61 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
             const aiResponse = await response.json();
             
             // Update concept with AI response
-            const updatedConcept = await updateBriefConcept({
-                ...conceptWithSavedPrompt,
-                text_hook_options: aiResponse.text_hook_options || conceptWithSavedPrompt.text_hook_options,
-                spoken_hook_options: aiResponse.spoken_hook_options || conceptWithSavedPrompt.spoken_hook_options,
+            const updatedConceptData: Partial<BriefConcept> = {
                 body_content_structured: aiResponse.body_content_structured_scenes || conceptWithSavedPrompt.body_content_structured,
                 cta_script: aiResponse.cta_script || conceptWithSavedPrompt.cta_script,
                 cta_text_overlay: aiResponse.cta_text_overlay || conceptWithSavedPrompt.cta_text_overlay,
                 description: aiResponse.description || conceptWithSavedPrompt.description
-            });
+            };
             
-            // Update local text and spoken hooks state
-            if (aiResponse.text_hook_options) {
-                console.log('AI Response - Text hooks received:', aiResponse.text_hook_options);
-                setLocalTextHooks(prev => ({
-                    ...prev,
-                    [conceptId]: aiResponse.text_hook_options
-                }));
-                // Also update the text hooks list for the UI
-                const parsedTextHooks = parseHooksFromString(aiResponse.text_hook_options);
-                console.log('Parsed text hooks:', parsedTextHooks);
+            if (aiResponse.text_hook_options && Array.isArray(aiResponse.text_hook_options)) {
+                console.log('AI Response - Text hooks array received:', aiResponse.text_hook_options);
+                const newTextHooks: Hook[] = aiResponse.text_hook_options.map((hookContent: string, index: number) => ({ id: uuidv4(), title: `Hook ${index + 1}`, content: hookContent, is_active: true }));
+                updatedConceptData.text_hook_options = newTextHooks as any; // Cast as any for now, assuming BriefConcept type will be updated
                 setLocalTextHooksList(prev => ({
                     ...prev,
-                    [conceptId]: parsedTextHooks
+                    [conceptId]: newTextHooks
+                }));
+            } else if (conceptWithSavedPrompt.text_hook_options) {
+                updatedConceptData.text_hook_options = conceptWithSavedPrompt.text_hook_options;
+            }
+            
+            if (aiResponse.spoken_hook_options && Array.isArray(aiResponse.spoken_hook_options)) {
+                console.log('AI Response - Spoken hooks array received:', aiResponse.spoken_hook_options);
+                const newSpokenHooks: Hook[] = aiResponse.spoken_hook_options.map((hookContent: string, index: number) => ({ id: uuidv4(), title: `Hook ${index + 1}`, content: hookContent, is_active: true }));
+                updatedConceptData.spoken_hook_options = newSpokenHooks as any; // Cast as any for now
+                setLocalSpokenHooksList(prev => ({
+                    ...prev,
+                    [conceptId]: newSpokenHooks
+                }));
+            } else if (conceptWithSavedPrompt.spoken_hook_options) {
+                updatedConceptData.spoken_hook_options = conceptWithSavedPrompt.spoken_hook_options;
+            }
+            
+            const conceptToUpdate = {
+                ...conceptWithSavedPrompt,
+                ...updatedConceptData
+            };
+            
+            const updatedConcept = await updateBriefConcept(conceptToUpdate);
+            
+            // Update local text and spoken hooks state
+            if (aiResponse.text_hook_options && Array.isArray(aiResponse.text_hook_options)) {
+                console.log('AI Response - Text hooks received:', aiResponse.text_hook_options);
+                const newTextHooksList = aiResponse.text_hook_options.map((content: string, index: number) => ({ id: uuidv4(), title: `Hook ${index + 1}`, content, is_active: true }));
+                setLocalTextHooksList(prev => ({
+                    ...prev,
+                    [conceptId]: newTextHooksList
                 }));
             }
             
             // Update local spoken hooks state when received from AI
-            if (aiResponse.spoken_hook_options) {
+            if (aiResponse.spoken_hook_options && Array.isArray(aiResponse.spoken_hook_options)) {
                 console.log('AI Response - Spoken hooks received:', aiResponse.spoken_hook_options);
-                setLocalSpokenHooks(prev => ({
-                    ...prev,
-                    [conceptId]: aiResponse.spoken_hook_options
-                }));
-                // Also update the spoken hooks list for the UI
-                const parsedSpokenHooks = parseHooksFromString(aiResponse.spoken_hook_options);
-                console.log('Parsed spoken hooks:', parsedSpokenHooks);
+                const newSpokenHooksList = aiResponse.spoken_hook_options.map((content: string, index: number) => ({ id: uuidv4(), title: `Hook ${index + 1}`, content, is_active: true }));
                 setLocalSpokenHooksList(prev => ({
                     ...prev,
-                    [conceptId]: parsedSpokenHooks
+                    [conceptId]: newSpokenHooksList
                 }));
             } else {
                 console.log('AI Response - No spoken hooks received. Full AI response:', aiResponse);
@@ -961,7 +998,8 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                         },
                         conceptSpecificPrompt: currentPromptValue,
                         conceptCurrentData: {
-                            text_hook_options: concept.text_hook_options || '',
+                            text_hook_options: (concept.text_hook_options && Array.isArray(concept.text_hook_options) ? concept.text_hook_options.map(h => (h as Hook).content) : []), 
+                            spoken_hook_options: (concept.spoken_hook_options && Array.isArray(concept.spoken_hook_options) ? concept.spoken_hook_options.map(h => (h as Hook).content) : []), 
                             body_content_structured: concept.body_content_structured || [],
                             cta_script: concept.cta_script || '',
                             cta_text_overlay: concept.cta_text_overlay || '',
@@ -997,45 +1035,38 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                     const aiResponse = await response.json();
                     
                     // Update concept with AI response
-                    const updatedConcept = await updateBriefConcept({
-                        ...concept,
-                        id: concept.id,
-                        text_hook_options: aiResponse.text_hook_options || concept.text_hook_options,
-                        spoken_hook_options: aiResponse.spoken_hook_options || concept.spoken_hook_options,
+                    const updatedConceptData: Partial<BriefConcept> = {
                         body_content_structured: aiResponse.body_content_structured_scenes || concept.body_content_structured,
                         cta_script: aiResponse.cta_script || concept.cta_script,
                         cta_text_overlay: aiResponse.cta_text_overlay || concept.cta_text_overlay,
                         description: aiResponse.description || concept.description
-                    });
+                    };
                     
-                    // Update local state for hooks
-                    if (aiResponse.text_hook_options) {
-                        console.log(`Generate All AI - Text hooks received for concept ${concept.id}:`, aiResponse.text_hook_options);
-                        setLocalTextHooks(prev => ({
-                            ...prev,
-                            [concept.id]: aiResponse.text_hook_options
-                        }));
-                        // Also update the text hooks list for the UI
-                        const parsedTextHooks = parseHooksFromString(aiResponse.text_hook_options);
-                        console.log(`Parsed text hooks for concept ${concept.id}:`, parsedTextHooks);
+                    if (aiResponse.text_hook_options && Array.isArray(aiResponse.text_hook_options)) {
+                        console.log(`Generate All AI - Text hooks array received for concept ${concept.id}:`, aiResponse.text_hook_options);
+                        const newTextHooks: Hook[] = aiResponse.text_hook_options.map((hookContent: string, index: number) => ({ id: uuidv4(), title: `Hook ${index + 1}`, content: hookContent, is_active: true }));
+                        updatedConceptData.text_hook_options = newTextHooks as any; // Cast as any for now
                         setLocalTextHooksList(prev => ({
                             ...prev,
-                            [concept.id]: parsedTextHooks
+                            [concept.id]: newTextHooks
                         }));
+                    } else if (concept.text_hook_options) {
+                        updatedConceptData.text_hook_options = concept.text_hook_options;
                     }
                     
-                    if (aiResponse.spoken_hook_options) {
-                        console.log(`Generate All AI - Spoken hooks received for concept ${concept.id}:`, aiResponse.spoken_hook_options);
-                        setLocalSpokenHooks(prev => ({
-                            ...prev,
-                            [concept.id]: aiResponse.spoken_hook_options
+                    if (aiResponse.spoken_hook_options && Array.isArray(aiResponse.spoken_hook_options)) {
+                        console.log(`Generate All AI - Spoken hooks array received for concept ${concept.id}:`, aiResponse.spoken_hook_options);
+                        // Correctly update localSpokenHooksList with Hook[] objects
+                        const newSpokenHooksList = aiResponse.spoken_hook_options.map((content: string, index: number) => ({ 
+                            id: uuidv4(), 
+                            title: `Hook ${index + 1}`, 
+                            content, 
+                            is_active: true 
                         }));
-                        // Also update the spoken hooks list for the UI
-                        const parsedSpokenHooks = parseHooksFromString(aiResponse.spoken_hook_options);
-                        console.log(`Parsed spoken hooks for concept ${concept.id}:`, parsedSpokenHooks);
+                        updatedConceptData.spoken_hook_options = newSpokenHooksList as any; // Cast as any for now
                         setLocalSpokenHooksList(prev => ({
                             ...prev,
-                            [concept.id]: parsedSpokenHooks
+                            [concept.id]: newSpokenHooksList
                         }));
                     } else {
                         console.log(`Generate All AI - No spoken hooks received for concept ${concept.id}. Full AI response:`, aiResponse);
@@ -1050,8 +1081,16 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                         }));
                     }
                     
+                    const conceptToUpdate = {
+                        ...concept,
+                        ...updatedConceptData
+                    };
+                    
+                    const updatedConceptResult = await updateBriefConcept(conceptToUpdate); // Renamed to avoid conflict
+                    
+                    // Update the main concepts state with the result from the database update
                     setConcepts(prev => 
-                        prev.map(c => c.id === updatedConcept.id ? updatedConcept : c)
+                        prev.map(c => c.id === updatedConceptResult.id ? updatedConceptResult : c)
                     );
                     
                     successCount++;
@@ -1213,8 +1252,6 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
     // Update localPrompts when concepts change
     useEffect(() => {
         const promptMap: Record<string, string> = {};
-        const textHooksMap: Record<string, string> = {};
-        const spokenHooksMap: Record<string, string> = {};
         const ctaScriptMap: Record<string, string> = {};
         const ctaTextOverlayMap: Record<string, string> = {};
         const scenesMap: Record<string, Scene[]> = {};
@@ -1229,8 +1266,6 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
         
         concepts.forEach(concept => {
             promptMap[concept.id] = concept.ai_custom_prompt || '';
-            textHooksMap[concept.id] = concept.text_hook_options || '';
-            spokenHooksMap[concept.id] = concept.spoken_hook_options || '';
             ctaScriptMap[concept.id] = concept.cta_script || '';
             ctaTextOverlayMap[concept.id] = concept.cta_text_overlay || '';
             scenesMap[concept.id] = [...(concept.body_content_structured || [])];
@@ -1245,8 +1280,6 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
         });
         
         setLocalPrompts(promptMap);
-        setLocalTextHooks(textHooksMap);
-        setLocalSpokenHooks(spokenHooksMap);
         setLocalCtaScript(ctaScriptMap);
         setLocalCtaTextOverlay(ctaTextOverlayMap);
         setLocalScenes(scenesMap);
@@ -1260,78 +1293,49 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
         setLocalDescriptions(descriptionsMap);
         
         // Handle hook lists separately to prevent focus loss during typing
-        setLocalTextHooksList(prev => {
-            const newState = { ...prev };
-            concepts.forEach(concept => {
-                // Only update if user is not currently typing in this concept's hooks
-                if (!isTypingRef.current[`text-${concept.id}`]) {
-                    const existingHooks = prev[concept.id] || [];
-                    const dbHookString = concept.text_hook_options || '';
-                    
-                    // Only parse hooks if there are clear AI-generated patterns
-                    // Avoid parsing manually entered content that just has line breaks
-                    const hasAIPatterns = (
-                        dbHookString.includes(' OR ') || // Contains "OR" separator
-                        dbHookString.match(/^\s*\d+\./m) || // Contains numbered lists like "1."
-                        dbHookString.match(/^\s*[-*•]/m) || // Contains bullet points
-                        (dbHookString.split('\n').filter(line => line.trim()).length > 3 && dbHookString.length > 100) // Many lines AND long content
-                    );
-                    
-                    const shouldParseHooks = (
-                        // Only parse if we have no existing hooks AND there are clear AI patterns
-                        existingHooks.length === 0 && dbHookString.length > 0 && hasAIPatterns
-                    ) || (
-                        // Or if database content is significantly longer and has AI patterns (likely from AI generation)
-                        dbHookString.length > 200 && // Increased threshold for longer content
-                        dbHookString.length > (existingHooks[0]?.content?.length || 0) * 3 && // Database content is much longer
-                        hasAIPatterns // Must have AI-generated patterns
-                    );
-                    
-                    if (shouldParseHooks) {
-                        const parsedHooks = parseHooksFromString(dbHookString);
-                        newState[concept.id] = parsedHooks;
-                    }
+        const newLocalTextHooksList: Record<string, Hook[]> = {};
+        const newLocalSpokenHooksList: Record<string, Hook[]> = {};
+
+        concepts.forEach(concept => {
+            // Prioritize existing local list if user is typing
+            if (isTypingRef.current[`text-${concept.id}`] && localTextHooksList[concept.id]) {
+                newLocalTextHooksList[concept.id] = localTextHooksList[concept.id];
+            } else {
+                if (Array.isArray(concept.text_hook_options)) {
+                    newLocalTextHooksList[concept.id] = concept.text_hook_options.map((hook: any, index: number) => (
+                        typeof hook === 'string' 
+                            ? { id: uuidv4(), title: `Hook ${index + 1}`, content: hook, is_active: true } 
+                            : { id: hook.id || uuidv4(), title: hook.title || `Hook ${index + 1}`, content: hook.content || '', is_active: hook.is_active !== undefined ? hook.is_active : true }
+                    ));
+                } else if (typeof concept.text_hook_options === 'string' && concept.text_hook_options) {
+                     // This is the old string format, parse it
+                    newLocalTextHooksList[concept.id] = parseHooksFromString(concept.text_hook_options);
+                } else {
+                    newLocalTextHooksList[concept.id] = localTextHooksList[concept.id] || []; // Fallback to existing or empty
                 }
-            });
-            return newState;
-        });
-        
-        setLocalSpokenHooksList(prev => {
-            const newState = { ...prev };
-            concepts.forEach(concept => {
-                // Only update if user is not currently typing in this concept's hooks
-                if (!isTypingRef.current[`spoken-${concept.id}`]) {
-                    const existingHooks = prev[concept.id] || [];
-                    const dbHookString = concept.spoken_hook_options || '';
-                    
-                    // Only parse hooks if there are clear AI-generated patterns
-                    // Avoid parsing manually entered content that just has line breaks
-                    const hasAIPatterns = (
-                        dbHookString.includes(' OR ') || // Contains "OR" separator
-                        dbHookString.match(/^\s*\d+\./m) || // Contains numbered lists like "1."
-                        dbHookString.match(/^\s*[-*•]/m) || // Contains bullet points
-                        (dbHookString.split('\n').filter(line => line.trim()).length > 3 && dbHookString.length > 100) // Many lines AND long content
-                    );
-                    
-                    const shouldParseHooks = (
-                        // Only parse if we have no existing hooks AND there are clear AI patterns
-                        existingHooks.length === 0 && dbHookString.length > 0 && hasAIPatterns
-                    ) || (
-                        // Or if database content is significantly longer and has AI patterns (likely from AI generation)
-                        dbHookString.length > 200 && // Increased threshold for longer content
-                        dbHookString.length > (existingHooks[0]?.content?.length || 0) * 3 && // Database content is much longer
-                        hasAIPatterns // Must have AI-generated patterns
-                    );
-                    
-                    if (shouldParseHooks) {
-                        const parsedHooks = parseHooksFromString(dbHookString);
-                        newState[concept.id] = parsedHooks;
-                    }
+            }
+
+            if (isTypingRef.current[`spoken-${concept.id}`] && localSpokenHooksList[concept.id]) {
+                newLocalSpokenHooksList[concept.id] = localSpokenHooksList[concept.id];
+            } else {
+                if (Array.isArray(concept.spoken_hook_options)) {
+                    newLocalSpokenHooksList[concept.id] = concept.spoken_hook_options.map((hook: any, index: number) => (
+                        typeof hook === 'string' 
+                            ? { id: uuidv4(), title: `Hook ${index + 1}`, content: hook, is_active: true } 
+                            : { id: hook.id || uuidv4(), title: hook.title || `Hook ${index + 1}`, content: hook.content || '', is_active: hook.is_active !== undefined ? hook.is_active : true }
+                    ));
+                } else if (typeof concept.spoken_hook_options === 'string' && concept.spoken_hook_options) {
+                    // This is the old string format, parse it
+                    newLocalSpokenHooksList[concept.id] = parseHooksFromString(concept.spoken_hook_options);
+                } else {
+                    newLocalSpokenHooksList[concept.id] = localSpokenHooksList[concept.id] || []; // Fallback to existing or empty
                 }
-            });
-            return newState;
+            }
         });
-    }, [concepts]);
+        setLocalTextHooksList(newLocalTextHooksList);
+        setLocalSpokenHooksList(newLocalSpokenHooksList);
+
+    }, [concepts]); // Dependency array might need isTypingRef if its changes should trigger this
 
     // Debug prompt for a concept
     const handleDebugPrompt = async (conceptId: string) => {
@@ -1374,7 +1378,8 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
             },
             conceptSpecificPrompt: customPrompt, // Use the local value
             conceptCurrentData: {
-                text_hook_options: localTextHooks[conceptId] || concept.text_hook_options || '',
+                text_hook_options: (localTextHooksList[conceptId] || []).map(h => h.content), 
+                spoken_hook_options: (localSpokenHooksList[conceptId] || []).map(h => h.content), 
                 body_content_structured: localScenes[conceptId] || concept.body_content_structured || [],
                 cta_script: localCtaScript[conceptId] || concept.cta_script || '',
                 cta_text_overlay: localCtaTextOverlay[conceptId] || concept.cta_text_overlay || '',
@@ -1402,12 +1407,13 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
             // For image briefs, only include description and cta
             currentDataStr = JSON.stringify({
                 description: localDescriptions[conceptId] || concept.description || '',
-                cta: localCtaScript[conceptId] || concept.cta_script || ''
+                cta: localCtaScript[conceptId] || concept.cta_script || '' // Assuming cta_script is used for image CTA
             }, null, 2);
         } else {
             // For video briefs, use the full structure
             currentDataStr = JSON.stringify({
-                text_hook_options: localTextHooks[conceptId] || concept.text_hook_options || '',
+                text_hook_options: (localTextHooksList[conceptId] || []).map(h => h.content), // Send as array of strings
+                spoken_hook_options: (localSpokenHooksList[conceptId] || []).map(h => h.content), // Send as array of strings
                 body_content_structured: localScenes[conceptId] || concept.body_content_structured || [],
                 cta_script: localCtaScript[conceptId] || concept.cta_script || '',
                 cta_text_overlay: localCtaTextOverlay[conceptId] || concept.cta_text_overlay || ''
@@ -1655,66 +1661,20 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
 
     // Hook handling functions
     const parseHooksFromString = (hooksString: string): Hook[] => {
-        if (!hooksString || typeof hooksString !== 'string') return [];
-        
-        // First, check if this looks like manually entered content that should stay as one hook
-        // Manual content typically doesn't have AI-generated patterns
-        const hasAIPatterns = (
-            hooksString.match(/\bOR\b/i) || // Contains "OR" separator
-            hooksString.match(/^\s*\d+\./m) || // Contains numbered lists like "1."
-            hooksString.match(/^\s*[-*•]/m) || // Contains bullet points
-            hooksString.split('\n').filter(line => line.trim()).length > 3 // Has more than 3 non-empty lines
-        );
-        
-        // If it doesn't look like AI-generated content, keep it as a single hook
-        if (!hasAIPatterns) {
-            return [{
-                id: `hook-${Date.now()}-0`,
-                title: 'Hook 1',
-                content: hooksString
-            }];
+        if (!hooksString || typeof hooksString !== 'string') {
+            return [];
         }
-        
-        // Otherwise, parse as multiple hooks (for AI-generated content)
-        let hooks: string[] = [];
-        
-        // Try splitting by "OR" first (case insensitive)
-        if (hooksString.match(/\bOR\b/i)) {
-            hooks = hooksString.split(/\bOR\b/i).map(hook => hook.trim());
-        } 
-        // Try splitting by numbered patterns like "1.", "2.", etc.
-        else if (hooksString.match(/^\s*\d+\./m)) {
-            hooks = hooksString.split(/(?=^\s*\d+\.)/m).map(hook => hook.trim());
-        }
-        // Try splitting by bullet points like "-" or "*"
-        else if (hooksString.match(/^\s*[-*•]/m)) {
-            hooks = hooksString.split(/(?=^\s*[-*•])/m).map(hook => hook.trim());
-        }
-        // Fallback to newline splitting, but filter out common separators
-        else {
-            hooks = hooksString.split('\n')
-                .map(line => line.trim())
-                .filter(line => !line.match(/^(OR|and|&|\|)$/i)); // Only filter out separator-only lines
-        }
-        
-        // Clean up each hook by removing leading numbers, bullets, or separators
-        hooks = hooks.map(hook => {
-            return hook
-                .replace(/^\s*\d+\.\s*/, '') // Remove leading numbers like "1. "
-                .replace(/^\s*[-*•]\s*/, '') // Remove leading bullets
-                .replace(/^\s*(OR|and|&|\|)\s*/i, '') // Remove leading separators
-                .trim();
-        }); // Don't filter out empty hooks here - preserve them!
-        
-        return hooks.map((hook, index) => ({
-            id: `hook-${Date.now()}-${index}`,
-            title: `Hook ${index + 1}`,
-            content: hook === '[EMPTY_HOOK]' ? '' : hook // Convert placeholder back to empty string
+        return hooksString.split('\\n').filter(line => line.trim() !== '').map((line, index) => ({
+            id: uuidv4(), 
+            title: `Hook ${index + 1}`, 
+            content: line.trim(),
+            is_active: true 
         }));
     };
 
     const convertHooksToString = (hooks: Hook[]): string => {
-        return hooks.map(hook => hook.content || '[EMPTY_HOOK]').join('\n');
+        if (!hooks || !Array.isArray(hooks)) return '';
+        return hooks.map(hook => hook.content).join('\\n');
     };
 
     // Add text hook
@@ -1759,28 +1719,16 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
 
     // Update text hook
     const handleUpdateTextHook = (conceptId: string, hookId: string, content: string) => {
-        // Set typing state to prevent useEffect from updating hooks while user is typing
-        isTypingRef.current[`text-${conceptId}`] = true;
-        
+        isTypingRef.current[`text-${conceptId}`] = false; // Reset typing flag
         const currentHooks = localTextHooksList[conceptId] || [];
         const updatedHooks = currentHooks.map(hook => 
             hook.id === hookId ? { ...hook, content } : hook
         );
-        
-        setLocalTextHooksList(prev => ({
-            ...prev,
-            [conceptId]: updatedHooks
-        }));
-        
-        // Update the string version for database compatibility with debounced save
+        setLocalTextHooksList(prev => ({ ...prev, [conceptId]: updatedHooks }));
+
         const concept = concepts.find(c => c.id === conceptId);
         if (concept) {
-            const updatedConcept = {
-                ...concept,
-                text_hook_options: convertHooksToString(updatedHooks)
-            };
-            // Use debounced update to prevent losing focus
-            debouncedUpdateConcept(updatedConcept);
+            debouncedUpdateConcept({ ...concept, text_hook_options: updatedHooks as any });
         }
     };
 
@@ -1826,28 +1774,16 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
 
     // Update spoken hook
     const handleUpdateSpokenHook = (conceptId: string, hookId: string, content: string) => {
-        // Set typing state to prevent useEffect from updating hooks while user is typing
-        isTypingRef.current[`spoken-${conceptId}`] = true;
-        
+        isTypingRef.current[`spoken-${conceptId}`] = false; // Reset typing flag
         const currentHooks = localSpokenHooksList[conceptId] || [];
         const updatedHooks = currentHooks.map(hook => 
             hook.id === hookId ? { ...hook, content } : hook
         );
-        
-        setLocalSpokenHooksList(prev => ({
-            ...prev,
-            [conceptId]: updatedHooks
-        }));
-        
-        // Update the string version for database compatibility with debounced save
+        setLocalSpokenHooksList(prev => ({ ...prev, [conceptId]: updatedHooks }));
+
         const concept = concepts.find(c => c.id === conceptId);
         if (concept) {
-            const updatedConcept = {
-                ...concept,
-                spoken_hook_options: convertHooksToString(updatedHooks)
-            };
-            // Use debounced update to prevent losing focus
-            debouncedUpdateConcept(updatedConcept);
+            debouncedUpdateConcept({ ...concept, spoken_hook_options: updatedHooks as any });
         }
     };
 
@@ -3075,7 +3011,7 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                     <div className="mt-4 pt-4 border-t border-gray-100">
                                         <ConceptVoiceGenerator 
                                             scenes={localScenes[concept.id] || concept.body_content_structured || []}
-                                            spokenHooks={localSpokenHooks[concept.id] || concept.spoken_hook_options || ''}
+                                            spokenHooks={convertHooksToString(localSpokenHooksList[concept.id] || [])} // Use list and convert to string
                                             ctaScript={localCtaScript[concept.id] || concept.cta_script || ''}
                                             conceptId={concept.id}
                                             brandId={brandId}
