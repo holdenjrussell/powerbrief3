@@ -1,6 +1,9 @@
-import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold, Part } from '@google/generative-ai';
+import { GoogleGenAI, createUserContent, createPartFromUri } from '@google/genai';
 import { NextRequest, NextResponse } from 'next/server';
 import { createSSRClient } from '@/lib/supabase/server';
+import { promises as fs } from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 
 const MODEL_NAME = 'gemini-2.5-pro-preview-05-06';
 
@@ -296,33 +299,7 @@ export async function POST(req: NextRequest) {
     console.log(`Processing ${processedAssets.length} selected assets out of ${assets.length} total assets`);
 
     // Initialize Gemini
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({
-      model: MODEL_NAME,
-      generationConfig: {
-        temperature: 0.7,
-        responseMimeType: "application/json",
-        maxOutputTokens: 8192,
-      },
-      safetySettings: [
-        {
-          category: HarmCategory.HARM_CATEGORY_HARASSMENT,
-          threshold: HarmBlockThreshold.BLOCK_NONE,
-        },
-        {
-          category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-          threshold: HarmBlockThreshold.BLOCK_NONE,
-        },
-        {
-          category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-          threshold: HarmBlockThreshold.BLOCK_NONE,
-        },
-        {
-          category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-          threshold: HarmBlockThreshold.BLOCK_NONE,
-        },
-      ],
-    });
+    const ai = new GoogleGenAI({ apiKey });
 
     const results = [];
 
@@ -359,36 +336,128 @@ ${brand.competition_data || 'Not specified'}
           prompt = `${populatedSystemInstructions}\n\nCUSTOM INSTRUCTIONS: ${customPrompt.toUpperCase()}\n\nPlease analyze this ${asset.type} asset and generate compelling Meta ad copy that directly reflects its content and message, taking into account the custom instructions above. Return only the JSON response as specified.`;
         }
 
-        // Fetch the asset file
-        const assetResponse = await fetch(asset.supabase_url);
-        if (!assetResponse.ok) {
-          throw new Error(`Failed to fetch asset: ${assetResponse.statusText}`);
-        }
-
-        const assetBuffer = await assetResponse.arrayBuffer();
-        const mimeType = asset.type === 'image' ? 'image/jpeg' : 'video/mp4';
-
-        const parts: Part[] = [
-          { text: prompt },
-          {
+        // Process asset based on type
+        let assetPart: object;
+        
+        if (asset.type === 'image') {
+          // For images, continue using inline data
+          const assetResponse = await fetch(asset.supabase_url);
+          if (!assetResponse.ok) {
+            throw new Error(`Failed to fetch asset: ${assetResponse.statusText}`);
+          }
+          const assetBuffer = await assetResponse.arrayBuffer();
+          
+          assetPart = {
             inlineData: {
-              mimeType,
+              mimeType: 'image/jpeg',
               data: Buffer.from(assetBuffer).toString('base64')
             }
-          }
-        ];
-
-        // Generate content
-        const result = await model.generateContent({
-          contents: [
-            { 
-              role: "user", 
-              parts
+          };
+        } else if (asset.type === 'video') {
+          // For videos, use File API to avoid payload size limits
+          let tempFilePath: string | null = null;
+          let uploadedFile: { name?: string; uri?: string; mimeType?: string; state?: string } | null = null;
+          
+          try {
+            // Fetch the video
+            const assetResponse = await fetch(asset.supabase_url);
+            if (!assetResponse.ok) {
+              throw new Error(`Failed to fetch asset: ${assetResponse.statusText}`);
             }
-          ]
+            const assetBuffer = await assetResponse.arrayBuffer();
+            
+            // Write to temporary file
+            const safeAssetName = asset.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+            const tempFileName = `temp_video_${Date.now()}_${safeAssetName}`;
+            tempFilePath = path.join(os.tmpdir(), tempFileName);
+            await fs.writeFile(tempFilePath, Buffer.from(assetBuffer));
+
+            console.log(`Uploading video file: ${asset.name} from ${tempFilePath}`);
+            
+            // Upload to Google File API
+            uploadedFile = await ai.files.upload({
+              file: tempFilePath,
+              config: { mimeType: 'video/mp4' },
+            });
+            
+            console.log(`Uploaded file ${asset.name}, initial state: ${uploadedFile.state}`);
+
+            if (!uploadedFile.name) {
+              throw new Error(`Failed to obtain file name for uploaded video: ${asset.name}`);
+            }
+
+            // Wait for file to become ACTIVE
+            let attempts = 0;
+            const maxAttempts = 30; // Wait up to 5 minutes (30 * 10 seconds)
+            
+            while (uploadedFile.state !== 'ACTIVE' && attempts < maxAttempts) {
+              if (uploadedFile.state === 'FAILED') {
+                throw new Error(`File processing failed for video: ${asset.name}`);
+              }
+              
+              console.log(`File ${asset.name} is in state: ${uploadedFile.state}. Waiting for ACTIVE state... (attempt ${attempts + 1}/${maxAttempts})`);
+              
+              // Wait 10 seconds before checking again
+              await new Promise(resolve => setTimeout(resolve, 10000));
+              
+              // Check file status
+              const fileStatus = await ai.files.get({ name: uploadedFile.name });
+              uploadedFile = fileStatus;
+              attempts++;
+            }
+            
+            if (uploadedFile.state !== 'ACTIVE') {
+              throw new Error(`File ${asset.name} did not become ACTIVE after ${maxAttempts} attempts. Final state: ${uploadedFile.state}`);
+            }
+
+            if (!uploadedFile.uri) {
+              throw new Error(`Failed to obtain URI for uploaded video: ${asset.name}`);
+            }
+
+            console.log(`File ${asset.name} is now ACTIVE. URI: ${uploadedFile.uri}`);
+
+            // Create file reference part
+            assetPart = createPartFromUri(uploadedFile.uri, uploadedFile.mimeType || 'video/mp4');
+            
+          } catch (uploadError: unknown) {
+            const errorMessage = uploadError instanceof Error ? uploadError.message : 'Unknown error';
+            console.error(`Error uploading video ${asset.name}:`, uploadError);
+            
+            // Clean up uploaded file if it exists
+            if (uploadedFile && uploadedFile.name) {
+              try {
+                await ai.files.delete({ name: uploadedFile.name });
+                console.log(`Cleaned up uploaded file: ${uploadedFile.name}`);
+              } catch (deleteError) {
+                console.error(`Failed to delete uploaded file:`, deleteError);
+              }
+            }
+            throw new Error(`Processing video ${asset.name} failed: ${errorMessage}`);
+          } finally {
+            // Clean up temporary file
+            if (tempFilePath) {
+              try {
+                await fs.unlink(tempFilePath);
+                console.log(`Deleted temporary file: ${tempFilePath}`);
+              } catch (cleanupError) {
+                console.error(`Error deleting temporary file:`, cleanupError);
+              }
+            }
+          }
+        } else {
+          throw new Error(`Unsupported asset type: ${asset.type}`);
+        }
+
+        // Generate content using new SDK
+        const response = await ai.models.generateContent({
+          model: MODEL_NAME,
+          contents: createUserContent([
+            prompt,
+            assetPart
+          ]),
         });
 
-        const responseText = result.response.text();
+        const responseText = response.text;
         
         // Parse the JSON response
         let generatedCopy: GeneratedCopy;
