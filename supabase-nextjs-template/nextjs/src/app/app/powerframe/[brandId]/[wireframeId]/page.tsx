@@ -429,9 +429,8 @@ export default function WireframeEditorPage() {
       const currentRows = wireframe.structure.rows;
       const newRows: ExtendedWireframeRow[] = [];
       
-      // Group modules by their section first, then by row position within each section
+      // Group modules by their section - each section becomes ONE row
       const modulesBySection = new Map<string, ExtractedModule[]>();
-      const sectionNames = new Map<string, string>();
       
       extractedModules.modules.forEach((module: ExtractedModule, index: number) => {
         const sectionName = module.sectionName || 'Default Section';
@@ -439,60 +438,43 @@ export default function WireframeEditorPage() {
           modulesBySection.set(sectionName, []);
         }
         modulesBySection.get(sectionName)!.push({ ...module, originalIndex: index });
-        sectionNames.set(sectionName, sectionName);
       });
 
-      // Create rows based on sections
-      let globalRowIndex = 0;
+      // Create ONE row per section
       modulesBySection.forEach((modules, sectionName) => {
-        // Group modules within this section by their row position
-        const modulesByRow = new Map<number, ExtractedModule[]>();
-        modules.forEach((module) => {
-          const rowIndex = module.position?.row || 0;
-          if (!modulesByRow.has(rowIndex)) {
-            modulesByRow.set(rowIndex, []);
-          }
-          modulesByRow.get(rowIndex)!.push(module);
-        });
+        const rowId = `row-${Date.now()}-${sectionName.replace(/\s+/g, '-').toLowerCase()}`;
+        
+        // Convert all modules in this section to wireframe modules
+        const wireframeModules: ExtendedWireframeModule[] = modules.map((module) => ({
+          id: `module-${Date.now()}-${module.originalIndex}`,
+          wireframe_id: wireframeId,
+          type: module.type as ModuleType,
+          name: module.name || module.type,
+          content: {
+            ...module.content,
+            text: module.content?.text || module.content?.placeholder || ''
+          },
+          position: {
+            row: module.position?.row || 0,
+            column: module.position?.column || 0,
+            width: module.position?.width || 4,
+            height: module.position?.height || 200
+          },
+          alignment: (module.alignment || 'left') as AlignmentType,
+          is_content_placeholder: module.type === 'text',
+          is_design_descriptor: false,
+          order_index: module.originalIndex || 0,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }));
 
-        // Create separate wireframe rows for each row group within the section
-        modulesByRow.forEach((rowModules, rowIndex) => {
-          // Sort modules by column position
-          rowModules.sort((a, b) => (a.position?.column || 0) - (b.position?.column || 0));
-          
-          const rowId = `row-${Date.now()}-${globalRowIndex}`;
-          const wireframeModules: ExtendedWireframeModule[] = rowModules.map((module) => ({
-            id: `module-${Date.now()}-${module.originalIndex}`,
-            wireframe_id: wireframeId,
-            type: module.type as ModuleType,
-            name: module.name || module.type,
-            content: {
-              ...module.content,
-              text: module.content?.text || module.content?.placeholder || ''
-            },
-            position: {
-              row: rowIndex,
-              column: module.position?.column || 0,
-              width: module.position?.width || 4,
-              height: module.position?.height || 200
-            },
-            alignment: (module.alignment || 'left') as AlignmentType,
-            is_content_placeholder: module.type === 'text',
-            is_design_descriptor: false,
-            order_index: module.originalIndex || 0,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          }));
-
-          newRows.push({
-            id: rowId,
-            name: `${sectionName} - Row ${rowIndex + 1}`,
-            columns: 12,
-            modules: wireframeModules,
-            layout: 'grid'
-          });
-
-          globalRowIndex++;
+        // Create a single row for this entire section
+        newRows.push({
+          id: rowId,
+          name: sectionName,
+          columns: 12,
+          modules: wireframeModules,
+          layout: 'grid' // Use grid layout to support stacking within the section
         });
       });
 
@@ -860,7 +842,7 @@ export default function WireframeEditorPage() {
                       <div className={
                         (row as ExtendedWireframeRow).layout === 'horizontal' 
                           ? "flex flex-wrap gap-2" 
-                          : "grid grid-cols-12 gap-2"
+                          : "grid grid-cols-12 gap-2 grid-rows-[repeat(auto-fit,minmax(60px,auto))]"
                       }>
                         {row.modules.map((module, moduleIndex) => (
                           <div
@@ -881,7 +863,8 @@ export default function WireframeEditorPage() {
                                     flexShrink: 0
                                   }
                                   : { 
-                                      gridColumn: `span ${module.position.width}`,
+                                      gridColumn: `${module.position.column + 1} / span ${module.position.width}`,
+                                      gridRow: `${module.position.row + 1}`,
                                       height: `${module.position.height}px`,
                                       minHeight: '60px',
                                       maxHeight: 'none'
