@@ -15,6 +15,7 @@ import {
     DownloadCloud,
     BarChart3,
     Users,
+    BookOpen,
 } from 'lucide-react';
 import { useGlobal } from "@/lib/context/GlobalContext";
 import { createSPASassClient } from "@/lib/supabase/client";
@@ -109,6 +110,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         },
         { name: 'AdRipper', href: '/app/adripper', icon: DownloadCloud },
         { name: 'Ad Upload Tool', href: '/app/ad-upload-tool', icon: UploadCloud },
+        { name: 'SOPs', href: '/app/sops', icon: BookOpen },
         { name: 'User Settings', href: '/app/user-settings', icon: User },
     ];
 
