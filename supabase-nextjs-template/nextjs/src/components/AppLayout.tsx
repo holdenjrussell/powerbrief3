@@ -16,6 +16,7 @@ import {
     BarChart3,
     Users,
     BookOpen,
+    Frame,
 } from 'lucide-react';
 import { useGlobal } from "@/lib/context/GlobalContext";
 import { createSPASassClient } from "@/lib/supabase/client";
@@ -95,6 +96,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     const navigation = [
         { name: 'Homepage', href: '/app', icon: Home },
         { name: 'PowerBrief', href: '/app/powerbrief', icon: Presentation },
+        { name: 'PowerFrame', href: '/app/powerframe', icon: Frame },
         {
             name: 'Team Sync',
             icon: Users,
@@ -262,7 +264,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                         <button
                             onClick={() => setUserDropdownOpen(!isUserDropdownOpen)}
                             className="flex items-center space-x-2 text-sm text-gray-700 hover:text-gray-900"
-                            aria-expanded={isUserDropdownOpen}
+                            aria-expanded={isUserDropdownOpen ? "true" : "false"}
                             aria-haspopup="true"
                         >
                             <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center">
