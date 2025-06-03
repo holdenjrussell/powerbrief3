@@ -481,6 +481,7 @@ export type Database = {
           user_id: string
           video_editor: string | null
           videoInstructions: string | null
+          revision_count: number | null
         }
         Insert: {
           ai_custom_prompt?: string | null
@@ -514,6 +515,7 @@ export type Database = {
           user_id: string
           video_editor?: string | null
           videoInstructions?: string | null
+          revision_count?: number | null
         }
         Update: {
           ai_custom_prompt?: string | null
@@ -547,6 +549,7 @@ export type Database = {
           user_id?: string
           video_editor?: string | null
           videoInstructions?: string | null
+          revision_count?: number | null
         }
         Relationships: [
           {
@@ -573,6 +576,11 @@ export type Database = {
           concept_id: string
           created_at: string
           id: string
+          parent_id: string | null
+          revision_version: number
+          is_resolved: boolean
+          resolved_at: string | null
+          resolved_by: string | null
           timestamp_seconds: number
           updated_at: string
           user_id: string | null
@@ -584,6 +592,11 @@ export type Database = {
           concept_id: string
           created_at?: string
           id?: string
+          parent_id?: string | null
+          revision_version?: number
+          is_resolved?: boolean
+          resolved_at?: string | null
+          resolved_by?: string | null
           timestamp_seconds: number
           updated_at?: string
           user_id?: string | null
@@ -595,6 +608,11 @@ export type Database = {
           concept_id?: string
           created_at?: string
           id?: string
+          parent_id?: string | null
+          revision_version?: number
+          is_resolved?: boolean
+          resolved_at?: string | null
+          resolved_by?: string | null
           timestamp_seconds?: number
           updated_at?: string
           user_id?: string | null
@@ -613,6 +631,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "concept_editors"
             referencedColumns: ["concept_id"]
+          },
+          {
+            foreignKeyName: "concept_comments_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "concept_comments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "concept_comments_resolved_by_fkey"
+            columns: ["resolved_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
           },
         ]
       }

@@ -13,6 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { toast } from '@/components/ui/use-toast';
 import AssetGroupingPreview from '@/components/PowerBriefAssetGroupingPreview';
+import { CommentModal, TimelineComment } from '@/components/CommentModal';
 
 interface ConceptForReview {
     id: string;
@@ -24,6 +25,7 @@ interface ConceptForReview {
     uploaded_assets?: UploadedAssetGroup[];
     asset_upload_status?: string;
     updated_at: string;
+    revision_count?: number;
     brief_batches?: {
         id: string;
         name: string;
@@ -46,18 +48,6 @@ interface AdBatch {
 interface Brand {
     id: string;
     name: string;
-}
-
-interface TimelineComment {
-    id: string;
-    timestamp: number;
-    comment: string;
-    author: string;
-    created_at: string;
-    updated_at?: string;
-    parent_id?: string | null;
-    user_id?: string | null;
-    replies?: TimelineComment[];
 }
 
 interface MediaModalProps {
@@ -585,7 +575,7 @@ export default function ReviewsPage() {
             const response = await fetch(`/api/concept-comments?conceptId=${conceptId}`);
             if (response.ok) {
                 const data = await response.json();
-                const comments = data.comments.map((comment: any) => ({
+                const comments: TimelineComment[] = data.comments.map((comment: any) => ({
                     id: comment.id,
                     timestamp: comment.timestamp_seconds,
                     comment: comment.comment_text,
@@ -593,7 +583,11 @@ export default function ReviewsPage() {
                     created_at: comment.created_at,
                     updated_at: comment.updated_at,
                     parent_id: comment.parent_id,
-                    user_id: comment.user_id
+                    user_id: comment.user_id,
+                    revision_version: comment.revision_version || 1,
+                    is_resolved: comment.is_resolved || false,
+                    resolved_at: comment.resolved_at,
+                    resolved_by: comment.resolved_by
                 }));
                 setConceptComments(prev => ({ ...prev, [conceptId]: comments }));
             }
@@ -628,16 +622,39 @@ export default function ReviewsPage() {
                     created_at: data.comment.created_at,
                     updated_at: data.comment.updated_at,
                     parent_id: data.comment.parent_id,
-                    user_id: data.comment.user_id
+                    user_id: data.comment.user_id,
+                    revision_version: data.comment.revision_version || 1,
+                    is_resolved: data.comment.is_resolved || false,
+                    resolved_at: data.comment.resolved_at,
+                    resolved_by: data.comment.resolved_by
                 };
 
-                const updatedComments = [...(conceptComments[conceptId] || []), newComment];
-                setConceptComments(prev => ({ ...prev, [conceptId]: updatedComments }));
+                setConceptComments(prev => {
+                    const updated = { ...prev };
+                    if (updated[conceptId]) {
+                        updated[conceptId] = [...updated[conceptId], newComment];
+                    } else {
+                        updated[conceptId] = [newComment];
+                    }
+                    return updated;
+                });
             } else {
                 console.error('Failed to add comment');
+                toast({
+                    title: 'Error',
+                    description: 'Failed to add comment. Please try again.',
+                    variant: 'destructive',
+                    duration: 3000,
+                });
             }
         } catch (error) {
             console.error('Error adding comment:', error);
+            toast({
+                title: 'Error',
+                description: 'Failed to add comment. Please try again.',
+                variant: 'destructive',
+                duration: 3000,
+            });
         }
     };
 
@@ -657,7 +674,6 @@ export default function ReviewsPage() {
 
             if (response.ok) {
                 const data = await response.json();
-                // Update the comment in the local state
                 setConceptComments(prev => {
                     const updated = { ...prev };
                     Object.keys(updated).forEach(conceptId => {
@@ -675,9 +691,80 @@ export default function ReviewsPage() {
                 });
             } else {
                 console.error('Failed to edit comment');
+                toast({
+                    title: 'Error',
+                    description: 'Failed to edit comment. Please try again.',
+                    variant: 'destructive',
+                    duration: 3000,
+                });
             }
         } catch (error) {
             console.error('Error editing comment:', error);
+            toast({
+                title: 'Error',
+                description: 'Failed to edit comment. Please try again.',
+                variant: 'destructive',
+                duration: 3000,
+            });
+        }
+    };
+
+    // Function to resolve/unresolve a comment
+    const handleResolveComment = async (commentId: string, isResolved: boolean) => {
+        try {
+            const response = await fetch('/api/concept-comments/resolve', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    commentId,
+                    isResolved
+                }),
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setConceptComments(prev => {
+                    const updated = { ...prev };
+                    Object.keys(updated).forEach(conceptId => {
+                        updated[conceptId] = updated[conceptId].map(c => 
+                            c.id === commentId 
+                                ? { 
+                                    ...c, 
+                                    is_resolved: data.comment.is_resolved,
+                                    resolved_at: data.comment.resolved_at,
+                                    resolved_by: data.comment.resolved_by,
+                                    updated_at: data.comment.updated_at
+                                }
+                                : c
+                        );
+                    });
+                    return updated;
+                });
+                
+                toast({
+                    title: isResolved ? "Comment Resolved" : "Comment Reopened",
+                    description: isResolved ? "Comment has been marked as resolved." : "Comment has been reopened.",
+                    duration: 3000,
+                });
+            } else {
+                console.error('Failed to resolve comment');
+                toast({
+                    title: 'Error',
+                    description: 'Failed to update comment status. Please try again.',
+                    variant: 'destructive',
+                    duration: 3000,
+                });
+            }
+        } catch (error) {
+            console.error('Error resolving comment:', error);
+            toast({
+                title: 'Error',
+                description: 'Failed to update comment status. Please try again.',
+                variant: 'destructive',
+                duration: 3000,
+            });
         }
     };
 
@@ -705,9 +792,21 @@ export default function ReviewsPage() {
                 });
             } else {
                 console.error('Failed to delete comment');
+                toast({
+                    title: 'Error',
+                    description: 'Failed to delete comment. Please try again.',
+                    variant: 'destructive',
+                    duration: 3000,
+                });
             }
         } catch (error) {
             console.error('Error deleting comment:', error);
+            toast({
+                title: 'Error',
+                description: 'Failed to delete comment. Please try again.',
+                variant: 'destructive',
+                duration: 3000,
+            });
         }
     };
 
@@ -1394,6 +1493,42 @@ export default function ReviewsPage() {
         return brands;
     };
 
+    // Function to handle concept resubmission after revisions
+    const handleConceptResubmission = async (conceptId: string) => {
+        try {
+            const response = await fetch('/api/concept-revision', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ conceptId }),
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                toast({
+                    title: "Concept Resubmitted",
+                    description: data.message,
+                    duration: 3000,
+                });
+                
+                // Refresh the concepts to get updated revision count
+                // This would typically be called when a user resubmits assets
+                
+            } else {
+                console.error('Failed to increment revision count');
+            }
+        } catch (error) {
+            console.error('Error incrementing revision count:', error);
+        }
+    };
+
+    // Get current revision for a concept
+    const getCurrentRevision = (conceptId: string): number => {
+        const concept = [...pendingReviews, ...approvedConcepts].find(c => c.id === conceptId);
+        return concept?.revision_count || 1;
+    };
+
     if (loading) {
         return (
             <div className="flex justify-center items-center min-h-[200px]">
@@ -1994,19 +2129,23 @@ export default function ReviewsPage() {
                 }}
             />
 
-            {/* Media Modal */}
-            {modalMedia && (
-                <MediaModal
+            {/* Enhanced Comment Modal */}
+            {modalOpen && modalMedia && (
+                <CommentModal
                     isOpen={modalOpen}
                     onClose={closeModal}
                     mediaUrl={modalMedia.url}
                     mediaType={modalMedia.type}
                     mediaName={modalMedia.name}
                     conceptId={modalMedia.conceptId}
-                    onAddComment={modalMedia.conceptId ? (timestamp: number, comment: string) => handleAddComment(modalMedia.conceptId!, timestamp, comment) : undefined}
-                    onEditComment={modalMedia.conceptId ? (commentId: string, comment: string) => handleEditComment(commentId, comment) : undefined}
-                    onDeleteComment={modalMedia.conceptId ? (commentId: string) => handleDeleteComment(commentId) : undefined}
                     existingComments={modalMedia.conceptId ? conceptComments[modalMedia.conceptId] || [] : []}
+                    onAddComment={modalMedia.conceptId ? (timestamp, comment, parentId) => 
+                        handleAddComment(modalMedia.conceptId!, timestamp, comment, parentId) : undefined}
+                    onEditComment={handleEditComment}
+                    onDeleteComment={handleDeleteComment}
+                    onResolveComment={handleResolveComment}
+                    currentRevision={modalMedia.conceptId ? getCurrentRevision(modalMedia.conceptId) : 1}
+                    canResolveComments={true}
                 />
             )}
         </div>

@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    // Fetch comments for the concept, including replies
+    // Fetch comments for the concept, including replies and revision tracking fields
     const { data: comments, error } = await serviceSupabase
       .from('concept_comments')
       .select('*')
@@ -88,6 +88,20 @@ export async function POST(req: NextRequest) {
         authorName = 'Anonymous Reviewer';
       }
 
+      // Get the current revision count for the concept
+      const { data: conceptData, error: conceptError } = await serviceSupabase
+        .from('brief_concepts')
+        .select('revision_count')
+        .eq('id', conceptId)
+        .single();
+
+      if (conceptError) {
+        console.error('Error fetching concept data:', conceptError);
+        return NextResponse.json({ error: 'Failed to fetch concept data' }, { status: 500 });
+      }
+
+      const currentRevision = conceptData?.revision_count || 1;
+
       // Insert comment using service role client for unauthenticated users
       const { data: newComment, error: insertError } = await serviceSupabase
         .from('concept_comments')
@@ -98,7 +112,9 @@ export async function POST(req: NextRequest) {
           author_email: authorEmail,
           timestamp_seconds: timestamp,
           comment_text: comment.trim(),
-          parent_id: parentId || null
+          parent_id: parentId || null,
+          revision_version: currentRevision,
+          is_resolved: false
         })
         .select()
         .single();
@@ -121,6 +137,20 @@ export async function POST(req: NextRequest) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
+    // Get the current revision count for the concept
+    const { data: conceptData, error: conceptError } = await serviceSupabase
+      .from('brief_concepts')
+      .select('revision_count')
+      .eq('id', conceptId)
+      .single();
+
+    if (conceptError) {
+      console.error('Error fetching concept data:', conceptError);
+      return NextResponse.json({ error: 'Failed to fetch concept data' }, { status: 500 });
+    }
+
+    const currentRevision = conceptData?.revision_count || 1;
+
     const { data: newComment, error: insertError } = await serviceSupabase
       .from('concept_comments')
       .insert({
@@ -130,7 +160,9 @@ export async function POST(req: NextRequest) {
         author_email: authorEmail,
         timestamp_seconds: timestamp,
         comment_text: comment.trim(),
-        parent_id: parentId || null
+        parent_id: parentId || null,
+        revision_version: currentRevision,
+        is_resolved: false
       })
       .select()
       .single();
@@ -150,11 +182,11 @@ export async function POST(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   try {
     const body = await req.json();
-    const { commentId, comment, shareId } = body;
+    const { commentId, comment, shareId, isResolved } = body;
 
-    if (!commentId || !comment?.trim()) {
+    if (!commentId) {
       return NextResponse.json({ 
-        error: 'Comment ID and comment text are required' 
+        error: 'Comment ID is required' 
       }, { status: 400 });
     }
 
@@ -178,26 +210,71 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: 'Comment not found' }, { status: 404 });
     }
 
-    // Check if user can edit this comment
-    let canEdit = false;
-    if (user && !authError && existingComment.user_id === user.id) {
-      canEdit = true;
-    } else if (shareId && !existingComment.user_id) {
-      // Anonymous comment on shared page - allow editing
-      canEdit = true;
+    // Prepare update object
+    const updateData: Record<string, string | boolean | null> = {
+      updated_at: new Date().toISOString()
+    };
+
+    // Handle comment text updates (only for comment authors)
+    if (comment !== undefined) {
+      if (!comment?.trim()) {
+        return NextResponse.json({ 
+          error: 'Comment text is required' 
+        }, { status: 400 });
+      }
+
+      // Check if user can edit this comment's text
+      let canEditText = false;
+      if (user && !authError && existingComment.user_id === user.id) {
+        canEditText = true;
+      } else if (shareId && !existingComment.user_id) {
+        // Anonymous comment on shared page - allow editing
+        canEditText = true;
+      }
+
+      if (!canEditText) {
+        return NextResponse.json({ error: 'Not authorized to edit this comment' }, { status: 403 });
+      }
+
+      updateData.comment_text = comment.trim();
     }
 
-    if (!canEdit) {
-      return NextResponse.json({ error: 'Not authorized to edit this comment' }, { status: 403 });
+    // Handle resolution status updates (concept owners and admins)
+    if (isResolved !== undefined) {
+      // Check if user can resolve this comment (must own the concept)
+      if (!user || authError) {
+        return NextResponse.json({ error: 'Authentication required to resolve comments' }, { status: 401 });
+      }
+
+      const { data: conceptData, error: conceptError } = await serviceSupabase
+        .from('brief_concepts')
+        .select('user_id')
+        .eq('id', existingComment.concept_id)
+        .single();
+
+      if (conceptError) {
+        console.error('Error fetching concept data:', conceptError);
+        return NextResponse.json({ error: 'Failed to verify concept ownership' }, { status: 500 });
+      }
+
+      if (!conceptData || conceptData.user_id !== user.id) {
+        return NextResponse.json({ error: 'Not authorized to resolve comments on this concept' }, { status: 403 });
+      }
+
+      updateData.is_resolved = isResolved;
+      if (isResolved) {
+        updateData.resolved_at = new Date().toISOString();
+        updateData.resolved_by = user.id;
+      } else {
+        updateData.resolved_at = null;
+        updateData.resolved_by = null;
+      }
     }
 
     // Update the comment
     const { data: updatedComment, error: updateError } = await serviceSupabase
       .from('concept_comments')
-      .update({
-        comment_text: comment.trim(),
-        updated_at: new Date().toISOString()
-      })
+      .update(updateData)
       .eq('id', commentId)
       .select()
       .single();
