@@ -2,7 +2,8 @@
 // latest updates
 import React, { useState, useEffect } from 'react';
 import { createSPAClient } from '@/lib/supabase/client';
-import { BriefConcept, Scene, UploadedAssetGroup, Hook } from '@/lib/types/powerbrief';
+import { getProductsByBrand } from '@/lib/services/productService';
+import { BriefConcept, Scene, UploadedAssetGroup, Hook, Product } from '@/lib/types/powerbrief';
 import { Loader2, ArrowLeft, Link as LinkIcon, CheckCircle, AlertTriangle, UploadCloud, X, ExternalLink, MessageCircle, Plus } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
@@ -24,6 +25,7 @@ interface ExtendedBriefConcept extends Omit<BriefConcept, 'review_status'> {
   share_settings?: Record<string, any>;
   uploaded_assets?: UploadedAssetGroup[];
   asset_upload_status?: string;
+  product_id?: string;
 }
 
 // Extend the batch type to include share_settings
@@ -615,6 +617,7 @@ export default function SharedSingleConceptPage({ params }: { params: ParamsType
   const [showLoginPrompt, setShowLoginPrompt] = useState<boolean>(false);
   const [concept, setConcept] = useState<ExtendedBriefConcept | null>(null);
   const [brand, setBrand] = useState<any>(null);
+  const [products, setProducts] = useState<Product[]>([]);
   const [isEditable, setIsEditable] = useState<boolean>(false);
   const [reviewLink, setReviewLink] = useState<string>('');
   const [updatingResubmission, setUpdatingResubmission] = useState<boolean>(false);
@@ -647,6 +650,13 @@ export default function SharedSingleConceptPage({ params }: { params: ParamsType
   const unwrappedParams = params instanceof Promise ? React.use(params) : params;
   const { shareId, conceptId } = unwrappedParams;
 
+  // Get product name from product ID
+  const getProductName = (productId: string | null): string | null => {
+    if (!productId) return null;
+    const product = products.find(p => p.id === productId);
+    return product ? product.name : null;
+  };
+
   useEffect(() => {
     const fetchSharedConcept = async () => {
       try {
@@ -675,6 +685,15 @@ export default function SharedSingleConceptPage({ params }: { params: ParamsType
         // Set the brand from the batch
         if (batchData[0].brands) {
           setBrand(batchData[0].brands);
+          
+          // Fetch products for the brand
+          try {
+            const productsData = await getProductsByBrand(batchData[0].brands.id);
+            setProducts(productsData);
+          } catch (productsError) {
+            console.error('Error fetching products:', productsError);
+            // Continue without products if there's an error
+          }
         }
 
         // Get the specific concept
@@ -706,33 +725,30 @@ export default function SharedSingleConceptPage({ params }: { params: ParamsType
         
         // Check if the concept status is appropriate for sharing
         const statusLowerCase = conceptData?.status?.toLowerCase();
-        if (conceptData && 
-            statusLowerCase !== "ready for designer" && 
-            statusLowerCase !== "ready for editor" && 
-            statusLowerCase !== "ready for review" && 
-            statusLowerCase !== "approved" && 
-            statusLowerCase !== "revisions requested") {
-          setError('This concept is not available for viewing. Only concepts with status "ready for designer", "ready for editor", "ready for review", "approved", or "revisions requested" can be viewed.');
-          setConcept(null);
+        if (statusLowerCase !== 'ready for editor' && 
+            statusLowerCase !== 'ready for designer' && 
+            statusLowerCase !== 'revisions requested' &&
+            statusLowerCase !== 'approved') {
+          console.warn('Concept status may not be appropriate for sharing:', conceptData?.status);
         }
+
+        setError(null);
       } catch (err: any) {
         console.error('Error fetching shared concept:', err);
-        setError(err.message || 'Failed to load shared content');
-        // Show login prompt if content not found (RLS) or specific auth-related errors
-        if (
-          (err.message?.toLowerCase().includes('not found') && 
-           !err.message?.toLowerCase().includes('share settings not found') && 
-           !err.message?.toLowerCase().includes('concept not found')) || // Avoid triggering for explicit "concept not found"
-          err.message?.includes('FetchError') || 
-          err.message?.includes('User not found') // Added "User not found"
-        ) {
-            setShowLoginPrompt(true);
+        setError('Failed to load shared concept. Please try again.');
+        
+        // Show login prompt for authentication-related errors
+        if (err.message?.includes('not found') || err.message?.includes('permission denied')) {
+          setShowLoginPrompt(true);
         }
       } finally {
         setLoading(false);
       }
     };
 
+    if (shareId && conceptId) {
+      fetchSharedConcept();
+    }
     fetchSharedConcept();
   }, [shareId, conceptId]);
 
@@ -1278,6 +1294,11 @@ export default function SharedSingleConceptPage({ params }: { params: ParamsType
         {concept.video_editor && (
           <div className="inline-block px-4 py-1.5 bg-purple-100 text-purple-800 rounded-full text-sm font-medium border border-purple-300">
             {concept.media_type === 'video' ? 'Video Editor' : 'Designer'}: {concept.video_editor}
+          </div>
+        )}
+        {concept.product_id && (
+          <div className="inline-block px-4 py-1.5 bg-orange-100 text-orange-800 rounded-full text-sm font-medium border border-orange-300">
+            Product: {getProductName(concept.product_id) || concept.product_id}
           </div>
         )}
       </div>

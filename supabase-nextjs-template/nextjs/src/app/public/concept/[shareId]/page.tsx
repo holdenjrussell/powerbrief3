@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { createSPAClient } from '@/lib/supabase/client';
-import { Scene, Brand, BriefBatch, BriefConcept, Hook } from '@/lib/types/powerbrief';
+import { getProductsByBrand } from '@/lib/services/productService';
+import { Scene, Brand, BriefBatch, BriefConcept, Hook, Product } from '@/lib/types/powerbrief';
 import { Loader2, ArrowLeft, ChevronDown, ChevronUp, CheckCircle, AlertTriangle, Link as LinkIcon, UploadCloud, X, ExternalLink, Plus } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
@@ -77,6 +78,7 @@ export default function SharedConceptPage({ params }: { params: ParamsType | Pro
   const [error, setError] = useState<string | null>(null);
   const [concept, setConcept] = useState<ConceptWithShareSettings | null>(null);
   const [brand, setBrand] = useState<BrandWithResources | null>(null);
+  const [products, setProducts] = useState<Product[]>([]);
   const [showVideoInstructions, setShowVideoInstructions] = useState<boolean>(false);
   const [showDesignerInstructions, setShowDesignerInstructions] = useState<boolean>(false);
   const [isEditable, setIsEditable] = useState<boolean>(false);
@@ -119,6 +121,17 @@ export default function SharedConceptPage({ params }: { params: ParamsType | Pro
         }
 
         setConcept(conceptWithShare);
+
+        // Fetch products for the brand
+        if (conceptWithShare.brief_batches?.brands.id) {
+          try {
+            const productsData = await getProductsByBrand(conceptWithShare.brief_batches.brands.id);
+            setProducts(productsData);
+          } catch (productsError) {
+            console.error('Error fetching products:', productsError);
+            // Continue without products if there's an error
+          }
+        }
       } catch (err: any) {
         console.error('Error fetching shared concept:', err);
         setError(err.message || 'Failed to load shared content');
@@ -358,6 +371,13 @@ export default function SharedConceptPage({ params }: { params: ParamsType | Pro
     }
   };
 
+  // Get product name from product ID
+  const getProductName = (productId: string | null): string | null => {
+    if (!productId) return null;
+    const product = products.find(p => p.id === productId);
+    return product ? product.name : null;
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
@@ -424,7 +444,7 @@ export default function SharedConceptPage({ params }: { params: ParamsType | Pro
         )}
         {concept.product_id && (
           <div className="inline-block px-4 py-1.5 bg-orange-100 text-orange-800 rounded-full text-sm font-medium border border-orange-300">
-            Product ID: {String(concept.product_id)}
+            Product: {getProductName(concept.product_id) || concept.product_id}
           </div>
         )}
       </div>

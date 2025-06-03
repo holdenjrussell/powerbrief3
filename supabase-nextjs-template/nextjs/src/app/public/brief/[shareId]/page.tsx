@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { createSPAClient } from '@/lib/supabase/client';
-import { Brand, BriefBatch, BriefConcept, Scene, Hook } from '@/lib/types/powerbrief';
+import { getProductsByBrand } from '@/lib/services/productService';
+import { Hook, Product } from '@/lib/types/powerbrief';
 import { Loader2, Eye, EyeOff, X } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
@@ -10,32 +11,64 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
-// Extended types to match the actual data shape from Supabase
-interface ExtendedBriefBatch extends Omit<BriefBatch, 'brand_id'> {
-  brands: {
-    id: string;
-    user_id: string;
-    name: string; // This is the brand_name
-    brand_info_data: any;
-    target_audience_data: any;
-    competition_data: any;
-    created_at: string;
-    updated_at: string;
+interface BrandData {
+  id: string;
+  user_id: string;
+  name: string;
+  brand_info_data: Record<string, unknown>;
+  target_audience_data: Record<string, unknown>;
+  competition_data: Record<string, unknown>;
+  editing_resources?: Array<{ name: string; url: string }>;
+  resource_logins?: Array<{ resourceName: string; username: string; password: string }>;
+  dos_and_donts?: {
+    imagesDos: string[];
+    imagesDonts: string[];
+    videosDos: string[];
+    videosDonts: string[];
   };
-  share_settings?: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+}
+
+interface BatchData {
+  id: string;
+  name: string;
+  brand_id: string;
+  user_id: string;
+  brands: BrandData;
+  share_settings?: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+interface ConceptData {
+  id: string;
+  concept_title: string;
+  status?: string;
+  strategist?: string;
+  video_editor?: string;
+  editor_id?: string;
+  custom_editor_name?: string;
+  media_url?: string;
+  media_type?: string;
+  videoInstructions?: string;
+  designerInstructions?: string;
+  text_hook_options?: Hook[];
+  product_id?: string;
+  order_in_batch: number;
 }
 
 export default function SharedBriefPage({ params }: { params: { shareId: string } }) {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [showLoginPrompt, setShowLoginPrompt] = useState<boolean>(false);
-  const [brand, setBrand] = useState<any>(null);
-  const [batch, setBatch] = useState<any>(null);
-  const [concepts, setConcepts] = useState<any[]>([]);
+  const [brand, setBrand] = useState<BrandData | null>(null);
+  const [batch, setBatch] = useState<BatchData | null>(null);
+  const [concepts, setConcepts] = useState<ConceptData[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [isEditable, setIsEditable] = useState<boolean>(false);
   const [sortBy, setSortBy] = useState<string>('default');
   const [filterByEditor, setFilterByEditor] = useState<string>('all');
@@ -45,26 +78,29 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState<string | null>(null);
   const [loginLoading, setLoginLoading] = useState(false);
-  const router = useRouter();
   
   // Unwrap params using React.use()
-  const unwrappedParams = React.use(params as any) as { shareId: string };
+  const unwrappedParams = React.use(params) as any;
   const { shareId } = unwrappedParams;
 
+  // Get product name from product ID
+  const getProductName = (productId: string | null): string | null => {
+    if (!productId) return null;
+    const product = products.find(p => p.id === productId);
+    return product ? product.name : null;
+  };
+
   // Function to get editor display name from concept (handles all editor field types)
-  const getConceptEditorName = (concept: any): string | null => {
+  const getConceptEditorName = (concept: ConceptData): string | null => {
     // Priority: saved editor > custom editor > legacy video_editor
-    if (concept.editor_id && concept.editor_name) {
-      return concept.editor_name; // This would come from a join with editors table
-    }
     if (concept.custom_editor_name) {
       return concept.custom_editor_name;
     }
-    return concept.video_editor;
+    return concept.video_editor || null;
   };
 
   // Get unique editors from concepts for filter dropdown
-  const getUniqueEditors = (conceptList: any[]): string[] => {
+  const getUniqueEditors = (conceptList: ConceptData[]): string[] => {
     const editors = new Set<string>();
     conceptList.forEach(concept => {
       const editorName = getConceptEditorName(concept);
@@ -75,17 +111,14 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
     return Array.from(editors).sort();
   };
 
-  // Function to filter concepts by editor
-  const filterConcepts = (conceptsToFilter: any[], editorFilter: string): any[] => {
+  // Filter concepts by editor
+  const filterConcepts = (conceptsToFilter: ConceptData[], editorFilter: string): ConceptData[] => {
     if (editorFilter === 'all') {
       return conceptsToFilter;
     }
     
     if (editorFilter === 'unassigned') {
-      return conceptsToFilter.filter(concept => {
-        const editorName = getConceptEditorName(concept);
-        return !editorName || !editorName.trim();
-      });
+      return conceptsToFilter.filter(concept => !getConceptEditorName(concept));
     }
     
     return conceptsToFilter.filter(concept => {
@@ -94,8 +127,8 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
     });
   };
 
-  // Function to sort concepts based on selected criteria
-  const sortConcepts = (conceptsToSort: any[], sortCriteria: string) => {
+  // Sort concepts based on criteria
+  const sortConcepts = (conceptsToSort: ConceptData[], sortCriteria: string) => {
     const sorted = [...conceptsToSort];
     
     switch (sortCriteria) {
@@ -118,16 +151,20 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
           return statusA.localeCompare(statusB);
         });
       case 'title':
+        return sorted.sort((a, b) => a.concept_title.localeCompare(b.concept_title));
+      default: // 'default' - status priority order
+        const statusPriority: Record<string, number> = {
+          'REVISIONS REQUESTED': 1,
+          'READY FOR EDITOR': 2,
+          'READY FOR DESIGNER': 3,
+          'APPROVED': 4
+        };
         return sorted.sort((a, b) => {
-          const titleA = a.concept_title || '';
-          const titleB = b.concept_title || '';
-          return titleA.localeCompare(titleB);
-        });
-      default:
-        // Default sorting: APPROVED to the end, then by order_in_batch
-        return sorted.sort((a, b) => {
-          if (a.status === "APPROVED" && b.status !== "APPROVED") return 1;
-          if (a.status !== "APPROVED" && b.status === "APPROVED") return -1;
+          const priorityA = statusPriority[a.status || ''] || 99;
+          const priorityB = statusPriority[b.status || ''] || 99;
+          if (priorityA !== priorityB) {
+            return priorityA - priorityB;
+          }
           return a.order_in_batch - b.order_in_batch;
         });
     }
@@ -170,9 +207,9 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
           return;
         }
 
-        const batchWithShare = batchData[0];
+        const batchWithShare = batchData[0] as unknown as BatchData;
         // Use type assertion to treat the data as having share_settings
-        const shareSettings = (batchWithShare as any).share_settings?.[shareId];
+        const shareSettings = batchWithShare.share_settings?.[shareId] as Record<string, unknown>;
         
         if (!shareSettings) {
           setError('Share settings not found');
@@ -181,7 +218,7 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
         }
 
         // Check if share has expired
-        if (shareSettings.expires_at && new Date(shareSettings.expires_at) < new Date()) {
+        if (shareSettings.expires_at && new Date(shareSettings.expires_at as string) < new Date()) {
           setError('This shared link has expired');
           setLoading(false);
           return;
@@ -194,6 +231,15 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
         const brandData = batchWithShare.brands;
         if (brandData) {
           setBrand(brandData);
+          
+          // Fetch products for the brand
+          try {
+            const productsData = await getProductsByBrand(brandData.id);
+            setProducts(productsData);
+          } catch (productsError) {
+            console.error('Error fetching products:', productsError);
+            // Continue without products if there's an error
+          }
         }
 
         // Set batch data
@@ -216,7 +262,7 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
           concept.status === "READY FOR EDITOR" ||
           concept.status === "REVISIONS REQUESTED" ||
           concept.status === "APPROVED"
-        );
+        ) as unknown as ConceptData[];
 
         // Sort concepts to move APPROVED to the end
         const sortedConcepts = [...filteredConcepts].sort((a, b) => {
@@ -226,15 +272,16 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
         });
 
         setConcepts(sortedConcepts);
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('Error fetching shared batch:', err);
-        setError(err.message || 'Failed to load shared content');
+        const errorMessage = err instanceof Error ? err.message : 'Failed to load shared content';
+        setError(errorMessage);
         // Show login prompt if content not found (RLS) or specific auth-related errors
         if (
-          (err.message?.toLowerCase().includes('not found') && 
-           !err.message?.toLowerCase().includes('share settings not found')) || 
-          err.message?.includes('FetchError') || 
-          err.message?.includes('User not found') // Added "User not found"
+          (errorMessage.toLowerCase().includes('not found') && 
+           !errorMessage.toLowerCase().includes('share settings not found')) || 
+          errorMessage.includes('FetchError') || 
+          errorMessage.includes('User not found') // Added "User not found"
         ) {
             setShowLoginPrompt(true);
         }
@@ -248,27 +295,23 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoginError(null);
     setLoginLoading(true);
+    setLoginError(null);
+
     try {
       const supabase = createSPAClient();
-      const { error: signInError } = await supabase.auth.signInWithPassword({
+      const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
-      if (signInError) {
-        throw signInError;
-      }
-      
-      window.location.reload();
-      setShowLoginPrompt(false); 
-      setEmail('');
-      setPassword('');
+      if (error) throw error;
 
-    } catch (err: any) {
-      console.error('Login failed:', err);
-      setLoginError(err.message || 'An unknown error occurred during login.');
+      // Redirect to the original shared URL after successful login
+      window.location.reload();
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred during login.';
+      setLoginError(errorMessage);
     } finally {
       setLoginLoading(false);
     }
@@ -373,7 +416,7 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
         <TabsContent value="concepts" className="space-y-6">
           {concepts.length === 0 ? (
             <div className="text-center p-6 bg-gray-50 rounded-lg">
-              <p className="text-gray-500">No concepts with status "ready for designer", "ready for editor", "revisions requested", or "approved" available in this batch.</p>
+              <p className="text-gray-500">No concepts with status &quot;ready for designer&quot;, &quot;ready for editor&quot;, &quot;revisions requested&quot;, or &quot;approved&quot; available in this batch.</p>
             </div>
           ) : (
             <>
@@ -474,6 +517,9 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
                       )}
                       {getConceptEditorName(concept) && (
                         <CardDescription>Video Editor/Designer: {getConceptEditorName(concept)}</CardDescription>
+                      )}
+                      {concept.product_id && (
+                        <CardDescription>Product: {getProductName(concept.product_id) || concept.product_id}</CardDescription>
                       )}
                     </CardHeader>
                     <CardContent className="space-y-4">
@@ -640,7 +686,7 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
                       <div>
                         <h3 className="font-medium">Editing Resources</h3>
                         <div className="space-y-2 mt-2">
-                          {brand.editing_resources.map((resource: any, index: number) => (
+                          {brand.editing_resources.map((resource: { name: string; url: string }, index: number) => (
                             <div key={index} className="bg-gray-50 p-3 rounded flex justify-between items-center">
                               <span className="font-semibold">{resource.name}</span>
                               <a 
@@ -662,7 +708,7 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
                       <div>
                         <h3 className="font-medium">Resource Logins</h3>
                         <div className="space-y-2 mt-2">
-                          {brand.resource_logins.map((login: any, index: number) => (
+                          {brand.resource_logins.map((login: { resourceName: string; username: string; password: string }, index: number) => (
                             <div key={index} className="bg-gray-50 p-3 rounded">
                               <p className="font-semibold">{login.resourceName}</p>
                               <div className="grid grid-cols-2 gap-2 mt-1">
@@ -726,10 +772,10 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
                             <div>
                               <h4 className="font-medium text-sm mb-2">Video Guidelines</h4>
                               
-                              {/* Video Do's */}
+                              {/* Video Do&apos;s */}
                               {brand.dos_and_donts.videosDos?.length > 0 && (
                                 <div className="mb-2">
-                                  <h5 className="text-sm font-medium text-green-600 mb-1">Do's</h5>
+                                  <h5 className="text-sm font-medium text-green-600 mb-1">Do&apos;s</h5>
                                   <div className="space-y-1">
                                     {brand.dos_and_donts.videosDos.map((item: string, index: number) => (
                                       <div key={index} className="bg-green-50 border border-green-200 p-2 rounded text-sm break-words">
@@ -740,10 +786,10 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
                                 </div>
                               )}
                               
-                              {/* Video Don'ts */}
+                              {/* Video Don&apos;ts */}
                               {brand.dos_and_donts.videosDonts?.length > 0 && (
                                 <div>
-                                  <h5 className="text-sm font-medium text-red-600 mb-1">Don'ts</h5>
+                                  <h5 className="text-sm font-medium text-red-600 mb-1">Don&apos;ts</h5>
                                   <div className="space-y-1">
                                     {brand.dos_and_donts.videosDonts.map((item: string, index: number) => (
                                       <div key={index} className="bg-red-50 border border-red-200 p-2 rounded text-sm break-words">
