@@ -17,6 +17,9 @@ import {
     Users,
     BookOpen,
     Frame,
+    Megaphone,
+    CheckSquare,
+    AlertTriangle,
 } from 'lucide-react';
 import { useGlobal } from "@/lib/context/GlobalContext";
 import { createSPASassClient } from "@/lib/supabase/client";
@@ -101,7 +104,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             name: 'Team Sync',
             icon: Users,
             subItems: [
-                { name: 'Scorecard', href: '/app/scorecard', icon: BarChart3 },
+                { name: 'Scorecard', href: '/app/team-sync?tab=scorecard', icon: BarChart3 },
+                { name: 'Announcements', href: '/app/team-sync?tab=announcements', icon: Megaphone },
+                { name: 'To-Dos', href: '/app/team-sync?tab=todos', icon: CheckSquare },
+                { name: 'Issues', href: '/app/team-sync?tab=issues', icon: AlertTriangle },
             ],
         },
         { 
@@ -173,6 +179,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                                     <>
                                         <button
                                             onClick={() => toggleSubMenu(item.name)}
+                                            aria-expanded={openSubMenu === item.name}
                                             className={`group flex items-center w-full px-2 py-2 text-sm font-medium rounded-md ${
                                                 isActive
                                                     ? 'bg-primary-50 text-primary-600'
@@ -264,7 +271,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                         <button
                             onClick={() => setUserDropdownOpen(!isUserDropdownOpen)}
                             className="flex items-center space-x-2 text-sm text-gray-700 hover:text-gray-900"
-                            aria-expanded={isUserDropdownOpen ? "true" : "false"}
+                            aria-expanded={isUserDropdownOpen}
                             aria-haspopup="true"
                         >
                             <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center">
