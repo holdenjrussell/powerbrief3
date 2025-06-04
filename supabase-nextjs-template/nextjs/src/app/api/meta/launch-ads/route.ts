@@ -1208,15 +1208,21 @@ export async function POST(req: NextRequest) {
         
         // Use existing aspect ratios or detect from filename as fallback
         const aspectRatios = asset.aspectRatios || [];
-        const detectedRatio = aspectRatios.length === 0 ? detectAspectRatioFromFilename(asset.name) : null;
+        const detectedRatio = detectAspectRatioFromFilename(asset.name);
         const ratiosToCheck = aspectRatios.length > 0 ? aspectRatios : (detectedRatio ? [detectedRatio] : []);
         
         console.log(`[Launch API]         - ${asset.name}: Using ratios ${JSON.stringify(ratiosToCheck)} (detected: ${detectedRatio})`);
         
+        // If no aspect ratio can be determined, include it as a feed asset by default
+        if (ratiosToCheck.length === 0) {
+          console.log(`[Launch API]         - ${asset.name}: No aspect ratio found, including as feed asset`);
+          return true;
+        }
+        
         // Only include 4x5 aspect ratio assets for specific feed placements:
         // Facebook feed, Facebook video feeds, Instagram explore, Facebook marketplace,
         // Instagram profile feed, Facebook profile feed, Facebook in stream videos
-        return ratiosToCheck.some(ratio => ['4:5', '4x5'].includes(ratio));
+        return ratiosToCheck.some(ratio => ['4:5', '4x5', '1:1', '1x1'].includes(ratio));
       });
       
       const storyAssets = (draft.assets as ProcessedAdDraftAsset[]).filter((asset: ProcessedAdDraftAsset) => {
@@ -1224,7 +1230,7 @@ export async function POST(req: NextRequest) {
         
         // Use existing aspect ratios or detect from filename as fallback
         const aspectRatios = asset.aspectRatios || [];
-        const detectedRatio = aspectRatios.length === 0 ? detectAspectRatioFromFilename(asset.name) : null;
+        const detectedRatio = detectAspectRatioFromFilename(asset.name);
         const ratiosToCheck = aspectRatios.length > 0 ? aspectRatios : (detectedRatio ? [detectedRatio] : []);
         
         // Only include 9x16 aspect ratio assets for story/reels placements
