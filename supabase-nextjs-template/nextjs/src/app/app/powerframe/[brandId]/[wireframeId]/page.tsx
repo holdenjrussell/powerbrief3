@@ -104,6 +104,9 @@ export default function WireframeEditorPage() {
   const [resizingModuleHeight, setResizingModuleHeight] = useState<string | null>(null);
   const [selectedModel, setSelectedModel] = useState<'gemini-2.5-pro' | 'gemini-2.5-flash'>('gemini-2.5-pro');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [dragOverPosition, setDragOverPosition] = useState<{ rowId: string; index: number } | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [modulePositions, setModulePositions] = useState<Map<string, { row: number; column: number }>>(new Map());
   
   const { user } = useGlobal();
 
@@ -293,9 +296,77 @@ export default function WireframeEditorPage() {
     });
   };
 
+  // Add collision detection helper
+  const checkCollision = (rowId: string, position: { row: number; column: number; width: number }, excludeModuleId?: string) => {
+    const row = wireframe?.structure.rows.find(r => r.id === rowId);
+    if (!row) return false;
+    
+    return row.modules.some(module => {
+      if (module.id === excludeModuleId) return false;
+      
+      const moduleEnd = module.position.column + module.position.width;
+      const positionEnd = position.column + position.width;
+      
+      return module.position.row === position.row &&
+        ((position.column >= module.position.column && position.column < moduleEnd) ||
+         (positionEnd > module.position.column && positionEnd <= moduleEnd) ||
+         (position.column <= module.position.column && positionEnd >= moduleEnd));
+    });
+  };
+
+  // Add auto-layout helper
+  const autoLayoutModules = (rowId: string) => {
+    const row = wireframe?.structure.rows.find(r => r.id === rowId);
+    if (!row) return;
+    
+    const sortedModules = [...row.modules].sort((a, b) => {
+      if (a.position.row !== b.position.row) return a.position.row - b.position.row;
+      return a.position.column - b.position.column;
+    });
+    
+    let currentRow = 0;
+    let currentColumn = 0;
+    
+    const updatedModules = sortedModules.map(module => {
+      if (currentColumn + module.position.width > 12) {
+        currentRow++;
+        currentColumn = 0;
+      }
+      
+      const newPosition = {
+        ...module.position,
+        row: currentRow,
+        column: currentColumn
+      };
+      
+      currentColumn += module.position.width;
+      
+      return { ...module, position: newPosition };
+    });
+    
+    setWireframe({
+      ...wireframe!,
+      structure: {
+        ...wireframe!.structure,
+        rows: wireframe!.structure.rows.map(r => 
+          r.id === rowId ? { ...r, modules: updatedModules } : r
+        )
+      }
+    });
+  };
+
   const handleModuleDragStart = (e: React.DragEvent, module: WireframeModule, rowId: string) => {
     setDraggedItem({ module, sourceRowId: rowId });
+    setIsDragging(true);
     e.dataTransfer.effectAllowed = 'move';
+    
+    // Add visual feedback
+    const dragImage = e.currentTarget.cloneNode(true) as HTMLElement;
+    dragImage.style.opacity = '0.5';
+    dragImage.style.transform = 'rotate(2deg)';
+    document.body.appendChild(dragImage);
+    e.dataTransfer.setDragImage(dragImage, e.nativeEvent.offsetX, e.nativeEvent.offsetY);
+    setTimeout(() => document.body.removeChild(dragImage), 0);
   };
 
   const handleModuleDrop = (e: React.DragEvent, targetRowId: string) => {
@@ -514,6 +585,12 @@ export default function WireframeEditorPage() {
         )
       }
     });
+  };
+
+  const handleModuleDragEnd = () => {
+    setIsDragging(false);
+    setDragOverPosition(null);
+    setDraggedItem(null);
   };
 
   if (loading) {
@@ -800,6 +877,17 @@ export default function WireframeEditorPage() {
                       </div>
                       
                       <div className="flex items-center space-x-2">
+                        {/* Auto-layout button */}
+                        <button
+                          onClick={() => autoLayoutModules(row.id)}
+                          className="p-1 rounded hover:bg-gray-100 text-gray-600 hover:text-gray-900"
+                          title="Auto-arrange modules"
+                        >
+                          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                          </svg>
+                        </button>
+                        
                         {/* Layout Toggle */}
                         <div className="flex items-center bg-gray-100 rounded p-1">
                           <button
@@ -878,6 +966,7 @@ export default function WireframeEditorPage() {
                               }
                               handleModuleDragStart(e, module, row.id);
                             }}
+                            onDragEnd={handleModuleDragEnd}
                             onDragOver={(e) => {
                               e.preventDefault();
                               if (draggedItem && draggedItem.module.id !== module.id) {
