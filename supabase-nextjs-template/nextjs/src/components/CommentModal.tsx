@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react';
-import { X, Play, Pause, MessageSquare, Check, CheckCircle, Edit, Trash2, Reply, ChevronDown, ChevronUp } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { X, MessageSquare, Check, CheckCircle, Edit, Trash2, Reply, ChevronDown, ChevronUp } from 'lucide-react';
 
 export interface TimelineComment {
     id: string;
@@ -49,6 +49,7 @@ export function CommentModal({
     canResolveComments = false
 }: CommentModalProps) {
     const videoRef = useRef<HTMLVideoElement>(null);
+    const timelineRef = useRef<HTMLDivElement>(null);
     const [isPlaying, setIsPlaying] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
@@ -60,12 +61,69 @@ export function CommentModal({
     const [replyingToId, setReplyingToId] = useState<string | null>(null);
     const [replyText, setReplyText] = useState('');
     const [showResolvedComments, setShowResolvedComments] = useState(false);
+    const [isDragging, setIsDragging] = useState(false);
+
+    // Add mouse event handlers for timeline scrubbing
+    useEffect(() => {
+        const handleMouseMove = (e: MouseEvent) => {
+            if (!isDragging || !timelineRef.current || !videoRef.current || duration === 0) return;
+            e.preventDefault();
+            const newTime = getTimeFromPosition(e.clientX);
+            seekToTime(newTime);
+        };
+
+        const handleMouseUp = () => {
+            setIsDragging(false);
+        };
+
+        if (isDragging) {
+            document.addEventListener('mousemove', handleMouseMove);
+            document.addEventListener('mouseup', handleMouseUp);
+            return () => {
+                document.removeEventListener('mousemove', handleMouseMove);
+                document.removeEventListener('mouseup', handleMouseUp);
+            };
+        }
+    }, [isDragging, duration]);
 
     // Format time in MM:SS format
     const formatTime = (seconds: number): string => {
         const minutes = Math.floor(seconds / 60);
         const remainingSeconds = Math.floor(seconds % 60);
         return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+    };
+
+    // Get time from mouse position
+    const getTimeFromPosition = (clientX: number) => {
+        const timeline = timelineRef.current;
+        if (!timeline || duration === 0) return 0;
+
+        const rect = timeline.getBoundingClientRect();
+        const percent = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+        return percent * duration;
+    };
+
+    // Seek to specific time
+    const seekToTime = (time: number) => {
+        if (!videoRef.current) return;
+        const clampedTime = Math.max(0, Math.min(duration, time));
+        videoRef.current.currentTime = clampedTime;
+        setCurrentTime(clampedTime);
+    };
+
+    // Handle timeline click
+    const handleTimelineClick = (e: React.MouseEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        const newTime = getTimeFromPosition(e.clientX);
+        seekToTime(newTime);
+    };
+
+    // Handle mouse down on timeline
+    const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        setIsDragging(true);
+        const newTime = getTimeFromPosition(e.clientX);
+        seekToTime(newTime);
     };
 
     // Handle video play/pause
@@ -82,7 +140,7 @@ export function CommentModal({
 
     // Handle video time update
     const handleTimeUpdate = () => {
-        if (videoRef.current) {
+        if (videoRef.current && !isDragging) {
             setCurrentTime(videoRef.current.currentTime);
         }
     };
@@ -93,6 +151,10 @@ export function CommentModal({
             setDuration(videoRef.current.duration);
         }
     };
+
+    // Handle video play/pause events
+    const handleVideoPlay = () => setIsPlaying(true);
+    const handleVideoPause = () => setIsPlaying(false);
 
     // Add comment at current timestamp
     const handleAddCommentAtTime = () => {
@@ -279,6 +341,7 @@ export function CommentModal({
                     <textarea
                         value={editingCommentText}
                         onChange={(e) => setEditingCommentText(e.target.value)}
+                        aria-label="Edit comment"
                         className="w-full p-2 border border-gray-300 rounded text-sm resize-none"
                         rows={2}
                         autoFocus
@@ -336,6 +399,7 @@ export function CommentModal({
                                 value={replyText}
                                 onChange={(e) => setReplyText(e.target.value)}
                                 placeholder="Add your reply..."
+                                aria-label="Reply comment"
                                 className="w-full p-2 border border-gray-300 rounded text-sm resize-none"
                                 rows={3}
                                 autoFocus
@@ -386,49 +450,71 @@ export function CommentModal({
                                 className="w-full h-full object-contain"
                                 onTimeUpdate={handleTimeUpdate}
                                 onLoadedMetadata={handleLoadedMetadata}
+                                onPlay={handleVideoPlay}
+                                onPause={handleVideoPause}
                                 controls={false}
                             />
                             
                             {/* Video controls overlay */}
-                            <div className="absolute bottom-4 left-4 right-4 bg-black bg-opacity-50 rounded-lg p-4">
+                            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
+                                {/* Timeline scrubber */}
+                                <div className="mb-3">
+                                    <div 
+                                        ref={timelineRef}
+                                        className="relative h-3 bg-white/30 rounded-full cursor-pointer hover:h-4 transition-all duration-200"
+                                        onClick={handleTimelineClick}
+                                        onMouseDown={handleMouseDown}
+                                    >
+                                        {/* Progress bar */}
+                                        <div 
+                                            className="absolute top-0 left-0 h-full bg-blue-500 rounded-full transition-all duration-75"
+                                            style={{ width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }}
+                                        />
+                                        
+                                        {/* Draggable handle */}
+                                        <div 
+                                            className={`absolute top-1/2 transform -translate-y-1/2 -translate-x-1/2 w-5 h-5 bg-blue-600 rounded-full border-2 border-white shadow-lg cursor-grab ${isDragging ? 'cursor-grabbing scale-125' : ''} transition-transform hover:scale-110`}
+                                            style={{ left: `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }}
+                                        />
+                                    </div>
+                                    
+                                    {/* Time labels */}
+                                    <div className="flex justify-between mt-1 text-xs text-white/80">
+                                        <span>0:00</span>
+                                        <span>{formatTime(duration)}</span>
+                                    </div>
+                                </div>
+                                
+                                {/* Control buttons */}
                                 <div className="flex items-center justify-between text-white">
-                                    <div className="flex items-center space-x-4">
+                                    <div className="flex items-center space-x-3">
                                         <button
                                             onClick={togglePlayPause}
-                                            className="bg-white bg-opacity-20 rounded-full p-2 hover:bg-opacity-30 transition-all"
+                                            className="bg-white/20 hover:bg-white/30 rounded-full p-2 transition-colors"
                                         >
-                                            {isPlaying ? <Pause className="h-6 w-6" /> : <Play className="h-6 w-6" />}
+                                            {isPlaying ? (
+                                                <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                                                    <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/>
+                                                </svg>
+                                            ) : (
+                                                <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                                                    <path d="M8 5v14l11-7z"/>
+                                                </svg>
+                                            )}
                                         </button>
                                         
-                                        <span className="text-sm">
+                                        <span className="text-sm font-medium">
                                             {formatTime(currentTime)} / {formatTime(duration)}
                                         </span>
                                     </div>
                                     
                                     <button
                                         onClick={handleAddCommentAtTime}
-                                        className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-all flex items-center space-x-2"
+                                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-lg transition-colors flex items-center space-x-2"
                                     >
                                         <MessageSquare className="h-4 w-4" />
-                                        <span>Add Comment</span>
+                                        <span>Add Comment at {formatTime(currentTime)}</span>
                                     </button>
-                                </div>
-                                
-                                {/* Progress bar */}
-                                <div className="mt-2">
-                                    <div 
-                                        className="bg-white bg-opacity-20 rounded-full h-2"
-                                        role="progressbar"
-                                        aria-label="Video progress"
-                                        aria-valuenow={Math.round(currentTime)}
-                                        aria-valuemin={0}
-                                        aria-valuemax={Math.round(duration)}
-                                    >
-                                        <div 
-                                            className="bg-blue-600 h-2 rounded-full transition-all"
-                                            style={{ width: `${(currentTime / duration) * 100}%` }}
-                                        />
-                                    </div>
                                 </div>
                             </div>
                         </>
@@ -514,6 +600,7 @@ export function CommentModal({
                                     value={newComment}
                                     onChange={(e) => setNewComment(e.target.value)}
                                     placeholder="Add your feedback..."
+                                    aria-label="New comment"
                                     className="w-full p-2 border border-gray-300 rounded text-sm resize-none"
                                     rows={3}
                                     autoFocus
