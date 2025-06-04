@@ -308,36 +308,68 @@ export async function POST(req: NextRequest) {
       
       const draftDbId = upsertedDraft.id;
 
-      const { error: deleteAssetsError } = await (supabase as any)
+      // First, get existing assets for comparison
+      const { data: existingAssets, error: fetchAssetsError } = await (supabase as any)
         .from('ad_draft_assets')
-        .delete()
+        .select('id, name, supabase_url, type, thumbnail_url')
         .eq('ad_draft_id', draftDbId);
 
-      if (deleteAssetsError) {
-        console.error('[API AD_DRAFTS POST] Error deleting old assets for draft:', draft.adName, deleteAssetsError);
-        results.push({ id: draft.id, success: false, error: `Failed to clear old assets: ${deleteAssetsError.message}` });
-        continue;
+      if (fetchAssetsError) {
+        console.error('[API AD_DRAFTS POST] Error fetching existing assets:', fetchAssetsError);
       }
 
-      if (draft.assets && draft.assets.length > 0) {
-        const assetRows: AdDraftAssetInsertRow[] = draft.assets.map(asset => ({
-          ad_draft_id: draftDbId,
-          name: asset.name,
-          supabase_url: asset.supabaseUrl,
-          type: asset.type,
-          thumbnail_url: (asset as any).thumbnailUrl || null, // Include thumbnail URL if available
-          thumbnail_timestamp: (asset as any).thumbnailTimestamp || null, // Include thumbnail timestamp if available
-        }));
-        const { error: insertAssetsError } = await (supabase as any)
-          .from('ad_draft_assets')
-          .insert(assetRows);
+      // Compare existing assets with new assets to determine if update is needed
+      const existingAssetMap = new Map((existingAssets || []).map((a: any) => [a.name, a]));
+      const newAssetMap = new Map((draft.assets || []).map(a => [a.name, a]));
+      
+      // Check if assets have changed
+      const assetsChanged = 
+        existingAssetMap.size !== newAssetMap.size ||
+        Array.from(newAssetMap.entries()).some(([name, asset]) => {
+          const existing = existingAssetMap.get(name) as any;
+          return !existing || 
+                 existing.supabase_url !== asset.supabaseUrl ||
+                 existing.type !== asset.type;
+        });
 
-        if (insertAssetsError) {
-          console.error('[API AD_DRAFTS POST] Error inserting assets for draft:', draft.adName, insertAssetsError);
-          results.push({ id: draft.id, success: false, error: `Failed to insert assets: ${insertAssetsError.message}` });
+      if (assetsChanged) {
+        console.log(`[API AD_DRAFTS POST] Assets changed for draft ${draft.adName}, updating...`);
+        
+        // Only delete and re-insert if assets have actually changed
+        const { error: deleteAssetsError } = await (supabase as any)
+          .from('ad_draft_assets')
+          .delete()
+          .eq('ad_draft_id', draftDbId);
+
+        if (deleteAssetsError) {
+          console.error('[API AD_DRAFTS POST] Error deleting old assets for draft:', draft.adName, deleteAssetsError);
+          results.push({ id: draft.id, success: false, error: `Failed to clear old assets: ${deleteAssetsError.message}` });
           continue;
         }
+
+        if (draft.assets && draft.assets.length > 0) {
+          const assetRows: AdDraftAssetInsertRow[] = draft.assets.map(asset => ({
+            ad_draft_id: draftDbId,
+            name: asset.name,
+            supabase_url: asset.supabaseUrl,
+            type: asset.type,
+            thumbnail_url: (asset as any).thumbnailUrl || null, // Include thumbnail URL if available
+            thumbnail_timestamp: (asset as any).thumbnailTimestamp || null, // Include thumbnail timestamp if available
+          }));
+          const { error: insertAssetsError } = await (supabase as any)
+            .from('ad_draft_assets')
+            .insert(assetRows);
+
+          if (insertAssetsError) {
+            console.error('[API AD_DRAFTS POST] Error inserting assets for draft:', draft.adName, insertAssetsError);
+            results.push({ id: draft.id, success: false, error: `Failed to insert assets: ${insertAssetsError.message}` });
+            continue;
+          }
+        }
+      } else {
+        console.log(`[API AD_DRAFTS POST] Assets unchanged for draft ${draft.adName}, skipping asset update`);
       }
+      
       results.push({ id: draftDbId, success: true });
     }
 

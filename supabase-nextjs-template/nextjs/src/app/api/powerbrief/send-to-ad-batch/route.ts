@@ -95,7 +95,25 @@ export async function POST(req: NextRequest) {
           adSetId: settings.adSetId,
           adSetName: settings.adSetName,
           siteLinks: settings.siteLinks || [],
-          advantageCreative: settings.advantageCreative || {}
+          advantageCreative: settings.advantageCreative || {
+            inline_comment: false,
+            image_templates: false,
+            image_touchups: false,
+            video_auto_crop: false,
+            image_brightness_and_contrast: false,
+            enhance_cta: false,
+            text_optimizations: false,
+            image_uncrop: false,
+            adapt_to_placement: false,
+            media_type_automation: false,
+            product_extensions: false,
+            description_automation: false,
+            add_text_overlay: false,
+            site_extensions: false,
+            music: false,
+            '3d_animation': false,
+            translate_text: false
+          }
         };
         
         // Validate that adSetId belongs to campaignId if both are set
@@ -108,34 +126,84 @@ export async function POST(req: NextRequest) {
         console.log(`[SEND-TO-AD-BATCH] Using default ad configuration for brand: ${brandId}`);
         console.log(`[SEND-TO-AD-BATCH] Campaign ID: ${userSettings.campaignId}, Ad Set ID: ${userSettings.adSetId}`);
       } else {
-        // Fallback to ad_batches for backward compatibility
-        const { data: adBatch, error: batchError } = await supabaseAdmin
-          .from('ad_batches')
-          .select('*')
-          .eq('brand_id', brandId)
+        console.log(`[SEND-TO-AD-BATCH] No default configuration found for user ${userId} and brand ${brandId}`);
+        
+        // If no default config, try to find any configuration for this user/brand
+        const { data: anyConfig, error: anyConfigError } = await supabaseAdmin
+          .from('ad_configurations')
+          .select('settings')
           .eq('user_id', userId)
-          .eq('is_active', true)
-          .order('last_accessed_at', { ascending: false })
+          .eq('brand_id', brandId)
+          .order('created_at', { ascending: false })
           .limit(1)
           .single();
-
-        if (!batchError && adBatch) {
+          
+        if (!anyConfigError && anyConfig) {
+          const settings = anyConfig.settings as unknown as AdConfigurationSettings;
           userSettings = {
-            primaryText: adBatch.primary_text || 'Check out our latest offer!',
-            headline: adBatch.headline || 'Amazing New Product',
-            description: adBatch.description || '',
-            destinationUrl: adBatch.destination_url || 'https://example.com',
-            callToAction: adBatch.call_to_action || 'LEARN_MORE',
-            status: adBatch.status || 'PAUSED',
-            urlParams: adBatch.url_params || '',
-            campaignId: adBatch.campaign_id,
-            campaignName: null, // Ad batches don't store names yet
-            adSetId: adBatch.ad_set_id,
-            adSetName: null, // Ad batches don't store names yet
-            siteLinks: adBatch.site_links || [],
-            advantageCreative: adBatch.advantage_plus_creative || {}
+            primaryText: settings.primaryText || 'Check out our latest offer!',
+            headline: settings.headline || 'Amazing New Product',
+            description: settings.description || '',
+            destinationUrl: settings.destinationUrl || 'https://example.com',
+            callToAction: settings.callToAction || 'LEARN_MORE',
+            status: settings.status || 'PAUSED',
+            urlParams: settings.urlParams || '',
+            campaignId: settings.campaignId,
+            campaignName: settings.campaignName,
+            adSetId: settings.adSetId,
+            adSetName: settings.adSetName,
+            siteLinks: settings.siteLinks || [],
+            advantageCreative: settings.advantageCreative || {
+              inline_comment: false,
+              image_templates: false,
+              image_touchups: false,
+              video_auto_crop: false,
+              image_brightness_and_contrast: false,
+              enhance_cta: false,
+              text_optimizations: false,
+              image_uncrop: false,
+              adapt_to_placement: false,
+              media_type_automation: false,
+              product_extensions: false,
+              description_automation: false,
+              add_text_overlay: false,
+              site_extensions: false,
+              music: false,
+              '3d_animation': false,
+              translate_text: false
+            }
           };
-          console.log(`[SEND-TO-AD-BATCH] Using existing ad batch settings for brand: ${brandId}`);
+          console.log(`[SEND-TO-AD-BATCH] Using most recent ad configuration for brand: ${brandId}`);
+        } else {
+          // Fallback to ad_batches for backward compatibility
+          const { data: adBatch, error: batchError } = await supabaseAdmin
+            .from('ad_batches')
+            .select('*')
+            .eq('brand_id', brandId)
+            .eq('user_id', userId)
+            .eq('is_active', true)
+            .order('last_accessed_at', { ascending: false })
+            .limit(1)
+            .single();
+
+          if (!batchError && adBatch) {
+            userSettings = {
+              primaryText: adBatch.primary_text || 'Check out our latest offer!',
+              headline: adBatch.headline || 'Amazing New Product',
+              description: adBatch.description || '',
+              destinationUrl: adBatch.destination_url || 'https://example.com',
+              callToAction: adBatch.call_to_action || 'LEARN_MORE',
+              status: adBatch.status || 'PAUSED',
+              urlParams: adBatch.url_params || '',
+              campaignId: adBatch.campaign_id,
+              campaignName: null, // Ad batches don't store names yet
+              adSetId: adBatch.ad_set_id,
+              adSetName: null, // Ad batches don't store names yet
+              siteLinks: adBatch.site_links || [],
+              advantageCreative: adBatch.advantage_plus_creative || {}
+            };
+            console.log(`[SEND-TO-AD-BATCH] Using existing ad batch settings for brand: ${brandId}`);
+          }
         }
       }
     } catch (settingsError) {

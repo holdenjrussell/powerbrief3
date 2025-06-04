@@ -103,7 +103,7 @@ const AdUploadToolPage = () => {
   // Load configurations when brand changes
   useEffect(() => {
     if (selectedBrand?.id) {
-      loadConfigurations(selectedBrand.id);
+      loadConfigurations(selectedBrand.id, selectedBrand);
     } else {
       setConfigurations([]);
       setSelectedConfiguration(null);
@@ -194,12 +194,16 @@ const AdUploadToolPage = () => {
       const savedSettings = localStorage.getItem(`ad-upload-settings-${user?.id}`);
       if (savedSettings) {
         const settings = JSON.parse(savedSettings);
-        setCurrentDefaults(settings);
         
         // Find and set the selected brand
         const brand = mappedBrands.find(b => b.id === settings.brandId);
         if (brand) {
           setSelectedBrand(brand);
+          // Load configurations for the saved brand
+          await loadConfigurations(brand.id, brand);
+        } else {
+          // If saved brand not found, just set the defaults
+          setCurrentDefaults(settings);
         }
         console.log('Settings loaded from localStorage');
       }
@@ -211,7 +215,7 @@ const AdUploadToolPage = () => {
     }
   };
 
-  const loadConfigurations = async (brandId: string) => {
+  const loadConfigurations = async (brandId: string, brand?: Brand) => {
     try {
       setIsLoadingConfigurations(true);
       const response = await fetch(`/api/ad-configurations?brandId=${brandId}`);
@@ -222,8 +226,65 @@ const AdUploadToolPage = () => {
         // Auto-select default configuration if exists
         const defaultConfig = configs.find((c: AdConfiguration) => c.is_default);
         if (defaultConfig) {
+          console.log('[AdUploadToolPage] Found default configuration:', defaultConfig.name);
           setSelectedConfiguration(defaultConfig);
-          loadConfigurationSettings(defaultConfig);
+          loadConfigurationSettings(defaultConfig, brand);
+        } else if (configs.length > 0) {
+          // If no default, select the first configuration
+          console.log('[AdUploadToolPage] No default configuration found, selecting first available');
+          const firstConfig = configs[0];
+          setSelectedConfiguration(firstConfig);
+          loadConfigurationSettings(firstConfig, brand);
+        } else {
+          console.log('[AdUploadToolPage] No configurations found for brand');
+          // Create basic defaults when no configurations exist
+          const brandToUse = brand || selectedBrand;
+          if (brandToUse) {
+            const defaults: DefaultValues = {
+              brandId: brandToUse.id,
+              adAccountId: brandToUse.adAccountId,
+              adAccountName: brandToUse.adAccountName,
+              campaignId: null,
+              campaignName: null,
+              adSetId: null,
+              adSetName: null,
+              fbPage: brandToUse.fbPage,
+              fbPageName: brandToUse.fbPageName,
+              igAccount: brandToUse.igAccount,
+              igAccountName: brandToUse.igAccountName,
+              urlParams: '',
+              pixel: brandToUse.pixel,
+              pixelName: brandToUse.pixelName,
+              status: 'PAUSED',
+              primaryText: 'Check out our latest offer!',
+              headline: 'Amazing New Product',
+              description: '',
+              destinationUrl: 'https://example.com',
+              callToAction: 'LEARN_MORE',
+              siteLinks: [],
+              advantageCreative: {
+                inline_comment: false,
+                image_templates: false,
+                image_touchups: false,
+                video_auto_crop: false,
+                image_brightness_and_contrast: false,
+                enhance_cta: false,
+                text_optimizations: false,
+                image_uncrop: false,
+                adapt_to_placement: false,
+                media_type_automation: false,
+                product_extensions: false,
+                description_automation: false,
+                add_text_overlay: false,
+                site_extensions: false,
+                '3d_animation': false,
+                translate_text: false
+              }
+            };
+            
+            setCurrentDefaults(defaults);
+            saveSettings(defaults);
+          }
         }
       }
     } catch (error) {
@@ -233,19 +294,20 @@ const AdUploadToolPage = () => {
     }
   };
 
-  const loadConfigurationSettings = (config: AdConfiguration) => {
-    if (!selectedBrand) return;
+  const loadConfigurationSettings = (config: AdConfiguration, brand?: Brand) => {
+    const brandToUse = brand || selectedBrand;
+    if (!brandToUse) return;
     
     const defaults: DefaultValues = {
-      brandId: selectedBrand.id,
-      adAccountId: selectedBrand.adAccountId,
-      adAccountName: selectedBrand.adAccountName,
-      fbPage: selectedBrand.fbPage,
-      fbPageName: selectedBrand.fbPageName,
-      igAccount: selectedBrand.igAccount,
-      igAccountName: selectedBrand.igAccountName,
-      pixel: selectedBrand.pixel,
-      pixelName: selectedBrand.pixelName,
+      brandId: brandToUse.id,
+      adAccountId: brandToUse.adAccountId,
+      adAccountName: brandToUse.adAccountName,
+      fbPage: brandToUse.fbPage,
+      fbPageName: brandToUse.fbPageName,
+      igAccount: brandToUse.igAccount,
+      igAccountName: brandToUse.igAccountName,
+      pixel: brandToUse.pixel,
+      pixelName: brandToUse.pixelName,
       // Spread the configuration settings to preserve all saved values including names
       ...config.settings
     };
@@ -254,57 +316,17 @@ const AdUploadToolPage = () => {
     saveSettings(defaults);
   };
 
-  const handleBrandSelect = (brandId: string) => {
+  const handleBrandSelect = async (brandId: string) => {
     const brand = brands.find(b => b.id === brandId);
     if (brand) {
       setSelectedBrand(brand);
       setSelectedConfiguration(null);
       
-      // Create default settings for this brand
-      const defaults: DefaultValues = {
-        brandId: brand.id,
-        adAccountId: brand.adAccountId,
-        adAccountName: brand.adAccountName,
-        campaignId: null,
-        campaignName: null,
-        adSetId: null,
-        adSetName: null,
-        fbPage: brand.fbPage,
-        fbPageName: brand.fbPageName,
-        igAccount: brand.igAccount,
-        igAccountName: brand.igAccountName,
-        urlParams: '',
-        pixel: brand.pixel,
-        pixelName: brand.pixelName,
-        status: 'PAUSED',
-        primaryText: 'Check out our latest offer!',
-        headline: 'Amazing New Product',
-        description: '',
-        destinationUrl: 'https://example.com',
-        callToAction: 'LEARN_MORE',
-        siteLinks: [],
-        advantageCreative: {
-          inline_comment: false,
-          image_templates: false,
-          image_touchups: false,
-          video_auto_crop: false,
-          image_brightness_and_contrast: false,
-          enhance_cta: false,
-          text_optimizations: false,
-          image_uncrop: false,
-          adapt_to_placement: false,
-          media_type_automation: false,
-          product_extensions: false,
-          description_automation: false,
-          add_text_overlay: false,
-          site_extensions: false,
-          '3d_animation': false,
-          translate_text: false
-        }
-      };
+      // Load configurations for this brand and wait for them to complete
+      await loadConfigurations(brandId, brand);
       
-    setCurrentDefaults(defaults);
-      saveSettings(defaults);
+      // Don't set defaults here - let loadConfigurations handle it
+      // The loadConfigurations function will auto-select and apply the default config
     }
   };
 

@@ -1194,10 +1194,20 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, activeBatch, select
     }
   };
 
-  // Auto-save ad drafts when they change (debounced)
+  // Auto-save ad drafts with proper debouncing and race condition prevention
   useEffect(() => {
+    // Skip if no brand ID or if we're still loading initial data
+    if (!defaults.brandId || loading) return;
+    
+    // Skip if adDrafts is empty (initial load)
+    if (adDrafts.length === 0) return;
+    
+    // Create a flag to track if this effect is still active
+    let isActive = true;
+    
     const saveAdDrafts = async () => {
-      if (!defaults.brandId || adDrafts.length === 0 || loading) return;
+      // Double-check we're still active before saving
+      if (!isActive || !defaults.brandId || adDrafts.length === 0 || loading) return;
       
       // Ensure all drafts have brandId before saving
       const draftsWithBrandId = adDrafts.map(draft => ({
@@ -1218,16 +1228,28 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, activeBatch, select
         });
         
         if (!response.ok) throw new Error('Failed to save ad drafts');
+        
+        // Only process the response if we're still active
+        if (isActive) {
+          const result = await response.json();
+          console.log('[AdSheetView] Auto-save completed:', result.results?.length || 0, 'drafts saved');
+        }
       } catch (error) {
         console.error('Error saving ad drafts:', error);
       } finally {
-        setSaving(false);
+        if (isActive) {
+          setSaving(false);
+        }
       }
     };
 
-    // Debounce the save operation
-    const timeoutId = setTimeout(saveAdDrafts, 1000);
-    return () => clearTimeout(timeoutId);
+    // Debounce the save operation with a longer delay
+    const timeoutId = setTimeout(saveAdDrafts, 2000); // Increased from 1000ms to 2000ms
+    
+    return () => {
+      isActive = false;
+      clearTimeout(timeoutId);
+    };
   }, [adDrafts, defaults.brandId, loading]); // Remove activeBatch?.id dependency
 
   // Asset Preview Modal Component
