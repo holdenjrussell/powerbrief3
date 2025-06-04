@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { useBrand } from '@/lib/context/BrandContext';
 import { 
@@ -29,7 +29,7 @@ import IssuesTab from '@/components/team-sync/IssuesTab';
 
 const VALID_TABS = ['scorecard', 'announcements', 'todos', 'issues'];
 
-export default function TeamSyncPage() {
+function TeamSyncContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
@@ -158,5 +158,24 @@ export default function TeamSyncPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function TeamSyncLoading() {
+  return (
+    <div className="p-6 flex items-center justify-center min-h-[400px]">
+      <div className="text-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary-600 mx-auto mb-4" />
+        <p className="text-gray-600">Loading Team Sync...</p>
+      </div>
+    </div>
+  );
+}
+
+export default function TeamSyncPage() {
+  return (
+    <Suspense fallback={<TeamSyncLoading />}>
+      <TeamSyncContent />
+    </Suspense>
   );
 } 
