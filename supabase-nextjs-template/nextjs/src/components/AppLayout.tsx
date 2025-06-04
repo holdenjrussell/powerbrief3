@@ -20,6 +20,7 @@ import {
     CheckSquare,
     AlertTriangle,
     Settings,
+    FileText,
 } from 'lucide-react';
 import { useGlobal } from "@/lib/context/GlobalContext";
 import { createSPASassClient } from "@/lib/supabase/client";
@@ -101,6 +102,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         { name: 'Homepage', href: '/app', icon: Home },
         { name: 'PowerBrief', href: '/app/powerbrief', icon: Presentation },
         { name: 'PowerFrame', href: '/app/powerframe', icon: Frame },
+        { name: 'UGC Creator Pipeline', href: '/app/ugc-creator-pipeline', icon: FileText },
         {
             name: 'Team Sync',
             icon: Users,

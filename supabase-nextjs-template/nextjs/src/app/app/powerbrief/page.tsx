@@ -6,7 +6,7 @@ import { useBrand } from '@/lib/context/BrandContext';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, Plus, Building2, AlertCircle, FileText, Settings } from 'lucide-react';
+import { Loader2, Plus, Building2, AlertCircle, Settings, FileText } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { getBriefBatches, createBriefBatch } from '@/lib/services/powerbriefService';
 import { BriefBatch } from '@/lib/types/powerbrief';
@@ -165,28 +165,6 @@ export default function PowerBriefPage() {
                     ))}
                 </div>
             )}
-            
-            {/* Quick Links Section */}
-            <div className="mt-8">
-                <h2 className="text-lg font-semibold mb-4">Quick Links</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Link href={`/app/powerbrief/${selectedBrand.id}/ugc-creator-pipeline`}>
-                        <Card className="cursor-pointer hover:shadow-md transition-shadow">
-                            <CardContent className="p-4">
-                                <div className="flex items-center space-x-3">
-                                    <div className="p-2 bg-primary-100 rounded-lg">
-                                        <FileText className="h-5 w-5 text-primary-600" />
-                                    </div>
-                                    <div>
-                                        <h3 className="font-medium">UGC Creator Pipeline</h3>
-                                        <p className="text-sm text-gray-600">Manage creator content</p>
-                                    </div>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </Link>
-                </div>
-            </div>
         </div>
     );
 } 
