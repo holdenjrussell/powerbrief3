@@ -1,8 +1,9 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from 'react';
-import { ChevronDown, Building2, Settings } from 'lucide-react';
+import { ChevronDown, Building2, Settings, Users } from 'lucide-react';
 import { useBrand } from '@/lib/context/BrandContext';
+import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 
 export default function BrandSelector() {
@@ -48,7 +49,7 @@ export default function BrandSelector() {
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="flex items-center space-x-2 px-3 py-2 text-sm text-gray-700 hover:text-gray-900 hover:bg-gray-50 rounded-md transition-colors"
-        aria-expanded={isOpen ? "true" : "false"}
+        aria-expanded={isOpen}
         aria-haspopup="true"
       >
         <Building2 className="h-5 w-5 text-gray-500" />
@@ -62,23 +63,34 @@ export default function BrandSelector() {
             <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
               Brands
             </div>
-            {brands.map((brand) => (
-              <button
-                key={brand.id}
-                onClick={() => {
-                  setSelectedBrand(brand);
-                  setIsOpen(false);
-                }}
-                className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center justify-between ${
-                  selectedBrand?.id === brand.id ? 'bg-primary-50 text-primary-700' : 'text-gray-700'
-                }`}
-              >
-                <span>{brand.name}</span>
-                {selectedBrand?.id === brand.id && (
-                  <span className="text-primary-600">✓</span>
-                )}
-              </button>
-            ))}
+            {brands.map((brand) => {
+              const isShared = 'isShared' in brand && brand.isShared;
+              return (
+                <button
+                  key={brand.id}
+                  onClick={() => {
+                    setSelectedBrand(brand);
+                    setIsOpen(false);
+                  }}
+                  className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center justify-between ${
+                    selectedBrand?.id === brand.id ? 'bg-primary-50 text-primary-700' : 'text-gray-700'
+                  }`}
+                >
+                  <div className="flex items-center space-x-2">
+                    <span>{brand.name}</span>
+                    {isShared && (
+                      <Badge variant="secondary" className="text-xs">
+                        <Users className="h-3 w-3 mr-1" />
+                        Shared
+                      </Badge>
+                    )}
+                  </div>
+                  {selectedBrand?.id === brand.id && (
+                    <span className="text-primary-600">✓</span>
+                  )}
+                </button>
+              );
+            })}
           </div>
           
           <div className="border-t border-gray-200">

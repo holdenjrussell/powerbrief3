@@ -5,19 +5,35 @@ const supabase = createSPAClient();
 
 // Get all products for a brand
 export async function getProductsByBrand(brandId: string): Promise<Product[]> {
-  const { data, error } = await supabase
-    .from('products' as any)
-    .select('*')
-    .eq('brand_id', brandId)
-    .eq('is_active', true)
-    .order('name', { ascending: true });
+  try {
+    const { data, error } = await supabase
+      .from('products' as any)
+      .select('*')
+      .eq('brand_id', brandId)
+      .eq('is_active', true)
+      .order('name', { ascending: true });
 
-  if (error) {
-    console.error('Error fetching products:', error);
-    throw error;
+    if (error) {
+      // If the table doesn't exist, just return empty array
+      if (error.code === '42P01' || error.message?.includes('relation "public.products" does not exist')) {
+        console.log('Products table does not exist yet');
+        return [];
+      }
+      // If it's an RLS error, also return empty array
+      if (error.code === '42501' || error.message?.includes('permission denied')) {
+        console.log('No permission to access products table');
+        return [];
+      }
+      console.error('Error fetching products:', error);
+      // Return empty array instead of throwing to prevent page crashes
+      return [];
+    }
+
+    return (data || []) as unknown as Product[];
+  } catch (err) {
+    console.error('Unexpected error fetching products:', err);
+    return [];
   }
-
-  return (data || []) as unknown as Product[];
 }
 
 // Get a single product by ID

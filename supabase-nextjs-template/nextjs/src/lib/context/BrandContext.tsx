@@ -2,7 +2,8 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Brand } from '@/lib/types/powerbrief';
-import { getBrands } from '@/lib/services/powerbriefService';
+import { getBrands, getBrandById } from '@/lib/services/powerbriefService';
+import { getSharedBrands } from '@/lib/services/brandSharingService';
 import { useGlobal } from './GlobalContext';
 
 interface BrandContextType {
@@ -32,16 +33,55 @@ export function BrandProvider({ children }: { children: ReactNode }) {
     try {
       setIsLoading(true);
       setError(null);
-      const fetchedBrands = await getBrands(user.id);
-      setBrands(fetchedBrands);
+      
+      // Fetch owned brands first
+      const ownedBrands = await getBrands(user.id);
+      
+      // Try to fetch shared brands, but don't fail if it doesn't work
+      let sharedBrandsList: (Brand & { isShared: boolean; shareRole: string; sharedBy?: { email: string; full_name?: string } })[] = [];
+      try {
+        const sharedBrands = await getSharedBrands();
+        
+        // Fetch full brand data for shared brands
+        const sharedBrandPromises = sharedBrands
+          .filter(sharedBrand => sharedBrand.brand?.id)
+          .map(async (sharedBrand) => {
+            try {
+              const fullBrand = await getBrandById(sharedBrand.brand!.id);
+              if (fullBrand) {
+                return {
+                  ...fullBrand,
+                  // Add indicators that this is a shared brand
+                  isShared: true,
+                  shareRole: sharedBrand.role,
+                  sharedBy: sharedBrand.shared_by_user
+                } as Brand & { isShared: boolean; shareRole: string; sharedBy?: { email: string; full_name?: string } };
+              }
+              return null;
+            } catch (error) {
+              console.error(`Failed to fetch shared brand ${sharedBrand.brand!.id}:`, error);
+              return null;
+            }
+          });
+        
+        sharedBrandsList = (await Promise.all(sharedBrandPromises))
+          .filter((brand): brand is NonNullable<typeof brand> => brand !== null);
+      } catch (sharedBrandsError) {
+        console.error('Failed to fetch shared brands, continuing with owned brands only:', sharedBrandsError);
+        // Continue with just owned brands
+      }
+      
+      // Combine owned and shared brands
+      const allBrands = [...ownedBrands, ...sharedBrandsList];
+      setBrands(allBrands);
       
       // Try to restore previously selected brand from localStorage
       const savedBrandId = localStorage.getItem(`selected-brand-${user.id}`);
-      if (savedBrandId && fetchedBrands.length > 0) {
-        const savedBrand = fetchedBrands.find(b => b.id === savedBrandId);
-        setSelectedBrand(savedBrand || fetchedBrands[0]);
-      } else if (fetchedBrands.length > 0) {
-        setSelectedBrand(fetchedBrands[0]);
+      if (savedBrandId && allBrands.length > 0) {
+        const savedBrand = allBrands.find(b => b.id === savedBrandId);
+        setSelectedBrand(savedBrand || allBrands[0]);
+      } else if (allBrands.length > 0) {
+        setSelectedBrand(allBrands[0]);
       } else {
         setSelectedBrand(null);
       }

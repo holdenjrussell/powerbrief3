@@ -17,6 +17,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogD
 import MetaAssetsSelector from '@/components/MetaAssetsSelector';
 import SlackIntegrationCard from '@/components/SlackIntegrationCard';
 import MetaTokenManager from '@/components/MetaTokenManager';
+import BrandSharingManager from '@/components/BrandSharingManager';
 
 // Helper to unwrap params safely
 type ParamsType = { brandId: string };
@@ -186,14 +187,32 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
             
             try {
                 setLoading(true);
-                const [brandData, productsData] = await Promise.all([
-                    getBrandById(brandId),
-                    getProductsByBrand(brandId)
-                ]);
+                
+                // Fetch brand data first
+                let brandData = null;
+                try {
+                    brandData = await getBrandById(brandId);
+                    console.log('Brand data fetched:', brandData ? 'success' : 'null');
+                } catch (brandError) {
+                    console.error('Error fetching brand:', brandError);
+                    throw new Error(`Failed to fetch brand: ${brandError instanceof Error ? brandError.message : 'Unknown error'}`);
+                }
                 
                 if (!brandData) {
+                    console.log('No brand data found, redirecting to powerbrief page');
                     router.push('/app/powerbrief');
                     return;
+                }
+                
+                // Fetch products data
+                let productsData: Product[] = [];
+                try {
+                    productsData = await getProductsByBrand(brandId);
+                    console.log('Products fetched:', productsData.length);
+                } catch (productsError) {
+                    console.error('Error fetching products:', productsError);
+                    // Don't throw here, just use empty array
+                    productsData = [];
                 }
                 
                 setBrand(brandData);
@@ -225,8 +244,9 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
                 
                 setError(null);
             } catch (err) {
-                console.error('Error fetching brand data:', err);
-                setError('Failed to load brand data. Please try again.');
+                console.error('Error in fetchData:', err);
+                const errorMessage = err instanceof Error ? err.message : 'Failed to load brand data. Please try again.';
+                setError(errorMessage);
             } finally {
                 setLoading(false);
             }
@@ -1432,6 +1452,15 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
                     brand={brand}
                     onSlackSettingsUpdated={handleSlackSettingsUpdated}
                 />
+                
+                {/* Brand Sharing Column */}
+                <div className="min-w-[420px] max-w-[420px] flex-shrink-0">
+                    <BrandSharingManager
+                        brandId={brand.id}
+                        brandName={brand.name}
+                        isOwner={brand.user_id === user?.id}
+                    />
+                </div>
             </div>
             
             {/* Delete Brand Dialog */}

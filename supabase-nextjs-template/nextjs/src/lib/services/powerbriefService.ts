@@ -1,5 +1,5 @@
 import { createSSRClient } from '@/lib/supabase/server';
-import { Brand, BriefBatch, BriefConcept, DbBrand, DbBriefConcept, DbBriefBatch, ShareSettings, ShareResult, Scene, Hook } from '@/lib/types/powerbrief';
+import { Brand, BriefBatch, BriefConcept, DbBrand, DbBriefConcept, DbBriefBatch, ShareSettings, ShareResult, Scene, Hook, EditingResource, ResourceLogin, DosAndDonts } from '@/lib/types/powerbrief';
 import { v4 as uuidv4 } from 'uuid';
 
 const getSupabaseClient = async () => await createSSRClient();
@@ -7,23 +7,89 @@ const getSupabaseClient = async () => await createSSRClient();
 // Brand Services
 export async function getBrands(userId: string): Promise<Brand[]> {
   const supabase = await getSupabaseClient();
-  const { data, error } = await supabase
+  
+  try {
+    // Try to use the new RPC function to get all accessible brands (owned + shared)
+    // Note: This RPC function might not exist yet if the migration hasn't been run
+    const { data: rpcData, error: rpcError } = await supabase
+      .rpc('get_user_accessible_brands' as any, { p_user_id: userId });
+
+    if (!rpcError && rpcData) {
+      // For each brand returned by the RPC, fetch the full brand data
+      const brandIds = (rpcData as any[]).map((item: any) => item.id);
+      
+      if (brandIds.length === 0) {
+        return [];
+      }
+
+      // Fetch full brand data for all accessible brands
+      const { data: brandsData, error: brandsError } = await supabase
+        .from('brands')
+        .select('*')
+        .in('id', brandIds)
+        .order('created_at', { ascending: false });
+
+      if (brandsError) {
+        console.error('Error fetching full brand data:', brandsError);
+        throw brandsError;
+      }
+
+      // Transform from DB format to app format and add access info
+      return (brandsData || []).map((item: DbBrand) => {
+        const accessInfo = (rpcData as any[]).find((d: any) => d.id === item.id);
+        
+        // Transform the data with proper type casting
+        const transformedBrand: Brand = {
+          ...item,
+          brand_info_data: item.brand_info_data as unknown as Brand['brand_info_data'],
+          target_audience_data: item.target_audience_data as unknown as Brand['target_audience_data'],
+          competition_data: item.competition_data as unknown as Brand['competition_data'],
+          editing_resources: (item.editing_resources as unknown as EditingResource[]) || [],
+          resource_logins: (item.resource_logins as unknown as ResourceLogin[]) || [],
+          dos_and_donts: (item.dos_and_donts as unknown as DosAndDonts) || {
+            imagesDos: [],
+            imagesDonts: [],
+            videosDos: [],
+            videosDonts: []
+          },
+          // Add access type and role info for UI display
+          access_type: accessInfo?.access_type || 'owner',
+          share_role: accessInfo?.role || null,
+        } as Brand & { access_type?: string; share_role?: string | null };
+        
+        return transformedBrand;
+      });
+    }
+  } catch (error) {
+    console.error('Error using RPC function, falling back to direct query:', error);
+  }
+  
+  // Fallback to the old method if RPC function doesn't exist yet
+  const { data: fallbackData, error: fallbackError } = await supabase
     .from('brands')
     .select('*')
     .eq('user_id', userId)
     .order('created_at', { ascending: false });
 
-  if (error) {
-    console.error('Error fetching brands:', error);
-    throw error;
+  if (fallbackError) {
+    console.error('Error fetching brands (fallback):', fallbackError);
+    throw fallbackError;
   }
 
   // Transform from DB format to app format
-  return (data || []).map((item: DbBrand) => ({
+  return (fallbackData || []).map((item: DbBrand) => ({
     ...item,
     brand_info_data: item.brand_info_data as unknown as Brand['brand_info_data'],
     target_audience_data: item.target_audience_data as unknown as Brand['target_audience_data'],
     competition_data: item.competition_data as unknown as Brand['competition_data'],
+    editing_resources: (item.editing_resources as unknown as EditingResource[]) || [],
+    resource_logins: (item.resource_logins as unknown as ResourceLogin[]) || [],
+    dos_and_donts: (item.dos_and_donts as unknown as DosAndDonts) || {
+      imagesDos: [],
+      imagesDonts: [],
+      videosDos: [],
+      videosDonts: []
+    }
   }));
 }
 
