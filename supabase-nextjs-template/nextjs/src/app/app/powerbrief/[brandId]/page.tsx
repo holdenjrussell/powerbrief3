@@ -452,7 +452,7 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
         <div className="p-6 space-y-6">
             <div className="flex justify-between items-center">
                 <div className="flex items-center space-x-4">
-                    <Link href="/app/powerbrief">
+                    <Link href="/app/brands">
                         <Button variant="outline">
                             <ArrowLeft className="h-4 w-4 mr-2" />
                             Back to Brands
