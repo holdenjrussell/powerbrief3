@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useGlobal } from '@/lib/context/GlobalContext';
 import { useBrand } from '@/lib/context/BrandContext';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
@@ -75,6 +75,9 @@ function MediaModal({ isOpen, onClose, mediaUrl, mediaType, mediaName, conceptId
     const [editingCommentText, setEditingCommentText] = useState('');
     const [replyingToId, setReplyingToId] = useState<string | null>(null);
     const [replyText, setReplyText] = useState('');
+    const [isPlaying, setIsPlaying] = useState(false);
+    const [isDragging, setIsDragging] = useState(false);
+    const timelineRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         const handleEscape = (e: KeyboardEvent) => {
@@ -94,14 +97,75 @@ function MediaModal({ isOpen, onClose, mediaUrl, mediaType, mediaName, conceptId
         };
     }, [isOpen, onClose]);
 
+    // Add mouse event handlers for timeline scrubbing
+    useEffect(() => {
+        const handleMouseMove = (e: MouseEvent) => {
+            if (!isDragging || !timelineRef.current || !videoRef || duration === 0) return;
+            e.preventDefault();
+            const newTime = getTimeFromPosition(e.clientX);
+            seekToTime(newTime);
+        };
+
+        const handleMouseUp = () => {
+            setIsDragging(false);
+        };
+
+        if (isDragging) {
+            document.addEventListener('mousemove', handleMouseMove);
+            document.addEventListener('mouseup', handleMouseUp);
+            return () => {
+                document.removeEventListener('mousemove', handleMouseMove);
+                document.removeEventListener('mouseup', handleMouseUp);
+            };
+        }
+    }, [isDragging, videoRef, duration]);
+
     const formatTime = (seconds: number) => {
         const mins = Math.floor(seconds / 60);
         const secs = Math.floor(seconds % 60);
         return `${mins}:${secs.toString().padStart(2, '0')}`;
     };
 
+    const getTimeFromPosition = (clientX: number) => {
+        const timeline = timelineRef.current;
+        if (!timeline || duration === 0) return 0;
+
+        const rect = timeline.getBoundingClientRect();
+        const percent = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+        return percent * duration;
+    };
+
+    const seekToTime = (time: number) => {
+        if (!videoRef) return;
+        const clampedTime = Math.max(0, Math.min(duration, time));
+        videoRef.currentTime = clampedTime;
+        setCurrentTime(clampedTime);
+    };
+
+    const handleTimelineClick = (e: React.MouseEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        const newTime = getTimeFromPosition(e.clientX);
+        seekToTime(newTime);
+    };
+
+    const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        setIsDragging(true);
+        const newTime = getTimeFromPosition(e.clientX);
+        seekToTime(newTime);
+    };
+
+    const handlePlayPause = () => {
+        if (!videoRef) return;
+        if (isPlaying) {
+            videoRef.pause();
+        } else {
+            videoRef.play();
+        }
+    };
+
     const handleVideoTimeUpdate = () => {
-        if (videoRef) {
+        if (videoRef && !isDragging) {
             setCurrentTime(videoRef.currentTime);
         }
     };
@@ -110,6 +174,14 @@ function MediaModal({ isOpen, onClose, mediaUrl, mediaType, mediaName, conceptId
         if (videoRef) {
             setDuration(videoRef.duration);
         }
+    };
+
+    const handleVideoPlay = () => {
+        setIsPlaying(true);
+    };
+
+    const handleVideoPause = () => {
+        setIsPlaying(false);
     };
 
     const handleAddCommentClick = () => {
@@ -225,25 +297,80 @@ function MediaModal({ isOpen, onClose, mediaUrl, mediaType, mediaName, conceptId
                                 className="max-w-full max-h-[60vh] object-contain"
                             />
                         ) : (
-                            <video
-                                ref={setVideoRef}
-                                src={mediaUrl}
-                                className="max-w-full max-h-[60vh] object-contain"
-                                controls
-                                onTimeUpdate={handleVideoTimeUpdate}
-                                onLoadedMetadata={handleVideoLoadedMetadata}
-                            />
+                            <div className="relative w-full">
+                                <video
+                                    ref={setVideoRef}
+                                    src={mediaUrl}
+                                    className="max-w-full max-h-[60vh] object-contain w-full"
+                                    controls={false}
+                                    onTimeUpdate={handleVideoTimeUpdate}
+                                    onLoadedMetadata={handleVideoLoadedMetadata}
+                                    onPlay={handleVideoPlay}
+                                    onPause={handleVideoPause}
+                                />
+                                
+                                {/* Custom Video Controls */}
+                                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
+                                    {/* Timeline */}
+                                    <div className="mb-3">
+                                        <div 
+                                            ref={timelineRef}
+                                            className="relative h-2 bg-white/30 rounded-full cursor-pointer hover:h-3 transition-all duration-200"
+                                            onClick={handleTimelineClick}
+                                            onMouseDown={handleMouseDown}
+                                        >
+                                            {/* Progress bar */}
+                                            <div 
+                                                className="absolute top-0 left-0 h-full bg-blue-500 rounded-full transition-all duration-75"
+                                                style={{ width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }}
+                                            />
+                                            
+                                            {/* Draggable handle */}
+                                            <div 
+                                                className={`absolute top-1/2 transform -translate-y-1/2 -translate-x-1/2 w-4 h-4 bg-blue-500 rounded-full border-2 border-white shadow-lg cursor-grab ${isDragging ? 'cursor-grabbing scale-125' : ''} transition-transform hover:scale-110 opacity-0 hover:opacity-100`}
+                                                style={{ left: `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }}
+                                            />
+                                        </div>
+                                    </div>
+                                    
+                                    {/* Control buttons and time display */}
+                                    <div className="flex items-center justify-between text-white">
+                                        <div className="flex items-center space-x-3">
+                                            <button
+                                                onClick={handlePlayPause}
+                                                className="bg-white/20 hover:bg-white/30 rounded-full p-2 transition-colors"
+                                            >
+                                                {isPlaying ? (
+                                                    <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                                                        <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/>
+                                                    </svg>
+                                                ) : (
+                                                    <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                                                        <path d="M8 5v14l11-7z"/>
+                                                    </svg>
+                                                )}
+                                            </button>
+                                            
+                                            <span className="text-sm font-medium">
+                                                {formatTime(currentTime)} / {formatTime(duration)}
+                                            </span>
+                                        </div>
+                                        
+                                        {conceptId && (
+                                            <button
+                                                onClick={handleAddCommentClick}
+                                                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-lg transition-colors flex items-center space-x-2"
+                                            >
+                                                <MessageCircle className="h-4 w-4" />
+                                                <span>Add Comment at {formatTime(currentTime)}</span>
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
                         )}
                         
-                        {/* Add comment button for videos */}
-                        {mediaType === 'video' && conceptId && (
-                            <button
-                                onClick={handleAddCommentClick}
-                                className="absolute bottom-4 right-4 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-lg"
-                            >
-                                Add Comment at {formatTime(currentTime)}
-                            </button>
-                        )}
+                        {/* Remove the old comment button that was outside the video controls */}
                     </div>
                     
                     <div className="p-4 bg-gray-50 flex justify-between items-center">
@@ -819,8 +946,9 @@ export default function ReviewsPage() {
             try {
                 setLoading(true);
                 
-                // Get all concepts that are ready for review for the current user and selected brand
-                let pendingQuery = supabase
+                // Get all concepts that are ready for review for the selected brand
+                // Remove user_id filter to allow shared users to see all concepts for brands they have access to
+                const pendingQuery = supabase
                     .from('brief_concepts' as any)
                     .select(`
                         *,
@@ -834,8 +962,7 @@ export default function ReviewsPage() {
                             )
                         )
                     `)
-                    .eq('review_status', 'ready_for_review')
-                    .eq('user_id', user.id);
+                    .eq('review_status', 'ready_for_review');
                 
                 // Filter by brand through the brief_batches relationship
                 const { data: pendingConcepts, error: pendingError } = await pendingQuery
@@ -849,7 +976,8 @@ export default function ReviewsPage() {
                 );
                 
                 // Get approved concepts with uploaded assets that haven't been sent to ad batches yet
-                let approvedQuery = supabase
+                // Remove user_id filter here as well
+                const approvedQuery = supabase
                     .from('brief_concepts' as any)
                     .select(`
                         *,
@@ -864,7 +992,6 @@ export default function ReviewsPage() {
                         )
                     `)
                     .eq('review_status', 'approved')
-                    .eq('user_id', user.id)
                     .not('uploaded_assets', 'is', null)
                     .neq('asset_upload_status', 'sent_to_ad_upload');
                 
@@ -878,8 +1005,8 @@ export default function ReviewsPage() {
                     concept.brief_batches?.brand_id === selectedBrand.id
                 );
                 
-                setPendingReviews(filteredPendingConcepts as ConceptForReview[]);
-                setApprovedConcepts(filteredApprovedConcepts as ConceptForReview[]);
+                setPendingReviews(filteredPendingConcepts as unknown as ConceptForReview[]);
+                setApprovedConcepts(filteredApprovedConcepts as unknown as ConceptForReview[]);
                 
                 // Initialize reviewer notes
                 const notesObj: Record<string, string> = {};
@@ -914,7 +1041,8 @@ export default function ReviewsPage() {
         try {
             setLoadingAssets(true);
             
-            // Get all concepts with uploaded assets for the current user
+            // Get all concepts with uploaded assets for the selected brand
+            // Remove user_id filter to allow shared users to see all concepts for brands they have access to
             const { data: conceptsWithAssets, error: assetsError } = await supabase
                 .from('brief_concepts' as any)
                 .select(`
@@ -929,7 +1057,6 @@ export default function ReviewsPage() {
                         )
                     )
                 `)
-                .eq('user_id', user.id)
                 .not('uploaded_assets', 'is', null)
                 .order('updated_at', { ascending: false });
             
@@ -940,7 +1067,7 @@ export default function ReviewsPage() {
                 concept.brief_batches?.brand_id === selectedBrand.id
             );
             
-            setUploadedAssetsConcepts(filteredConcepts as ConceptForReview[]);
+            setUploadedAssetsConcepts(filteredConcepts as unknown as ConceptForReview[]);
         } catch (err) {
             console.error('Failed to fetch uploaded assets:', err);
         } finally {
