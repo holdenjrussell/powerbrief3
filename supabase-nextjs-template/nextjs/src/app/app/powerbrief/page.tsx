@@ -6,11 +6,11 @@ import { useBrand } from '@/lib/context/BrandContext';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, Plus, Building2, AlertCircle, Settings, FileText } from 'lucide-react';
+import { Loader2, Plus, Building2, AlertCircle, FileText } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { getBriefBatches, createBriefBatch } from '@/lib/services/powerbriefService';
 import { BriefBatch } from '@/lib/types/powerbrief';
-import Link from 'next/link';
 
 export default function PowerBriefPage() {
     const { user } = useGlobal();
@@ -93,21 +93,13 @@ export default function PowerBriefPage() {
                     <h1 className="text-2xl font-bold">{selectedBrand.name} - Brief Batches</h1>
                     <p className="text-gray-600 mt-1">Manage your creative briefs and campaigns</p>
                 </div>
-                <div className="flex space-x-3">
-                    <Link href={`/app/powerbrief/${selectedBrand.id}/brand-config`}>
-                        <Button variant="outline">
-                            <Settings className="h-4 w-4 mr-2" />
-                            Brand Settings
-                        </Button>
-                    </Link>
-                    <Button 
-                        className="bg-primary-600 text-white hover:bg-primary-700"
-                        onClick={handleCreateBatch}
-                    >
-                        <Plus className="h-4 w-4 mr-2" />
-                        New Brief Batch
-                    </Button>
-                </div>
+                <Button 
+                    className="bg-primary-600 text-white hover:bg-primary-700"
+                    onClick={handleCreateBatch}
+                >
+                    <Plus className="h-4 w-4 mr-2" />
+                    New Brief Batch
+                </Button>
             </div>
             
             {error && (

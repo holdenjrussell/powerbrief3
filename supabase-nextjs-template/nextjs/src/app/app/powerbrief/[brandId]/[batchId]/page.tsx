@@ -2204,7 +2204,7 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                 <Alert>
                     <AlertDescription>Batch not found.</AlertDescription>
                 </Alert>
-                <Link href={`/app/powerbrief/${brandId}/briefs`}>
+                <Link href="/app/powerbrief">
                     <Button className="mt-4">
                         <ArrowLeft className="h-4 w-4 mr-2" />
                         Back to Briefs
@@ -2218,7 +2218,7 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
         <div className="p-6 space-y-6">
             <div className="flex justify-between items-center">
                 <div className="flex items-center space-x-4">
-                    <Link href={`/app/powerbrief/${brandId}/briefs`}>
+                    <Link href="/app/powerbrief">
                         <Button variant="outline">
                             <ArrowLeft className="h-4 w-4 mr-2" />
                             Back to Briefs
