@@ -35,5 +35,5 @@ export default function UGCCreatorPipelinePage() {
     }
 
     // Redirect to the brand-specific UGC Creator Pipeline page
-    redirect(`/app/powerbrief/${selectedBrand.id}/ugc-creator-pipeline`);
+    redirect(`/app/powerbrief/${selectedBrand.id}/ugc-pipeline`);
 } 
