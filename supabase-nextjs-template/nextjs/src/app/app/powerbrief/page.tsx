@@ -2,101 +2,67 @@
 
 import React, { useState, useEffect } from 'react';
 import { useGlobal } from '@/lib/context/GlobalContext';
+import { useBrand } from '@/lib/context/BrandContext';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, Plus, Building2, AlertCircle } from 'lucide-react';
+import { Loader2, Plus, Building2, AlertCircle, FileText, Settings } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { getBrands, createBrand } from '@/lib/services/powerbriefService';
-import { Brand, BrandInfoData, TargetAudienceData, CompetitionData } from '@/lib/types/powerbrief';
+import { getBriefBatches, createBriefBatch } from '@/lib/services/powerbriefService';
+import { BriefBatch } from '@/lib/types/powerbrief';
 import Link from 'next/link';
-import { Input } from '@/components/ui/input';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 
 export default function PowerBriefPage() {
     const { user } = useGlobal();
+    const { selectedBrand, isLoading: brandsLoading } = useBrand();
     const [loading, setLoading] = useState<boolean>(true);
-    const [brands, setBrands] = useState<Brand[]>([]);
+    const [briefBatches, setBriefBatches] = useState<BriefBatch[]>([]);
     const [error, setError] = useState<string | null>(null);
-    const [showNewBrandDialog, setShowNewBrandDialog] = useState<boolean>(false);
-    const [newBrandName, setNewBrandName] = useState<string>('');
-    const [creatingBrand, setCreatingBrand] = useState<boolean>(false);
     const router = useRouter();
 
     useEffect(() => {
-        const fetchBrands = async () => {
-            if (!user?.id) return;
+        const fetchBriefBatches = async () => {
+            if (!user?.id || !selectedBrand?.id) {
+                setLoading(false);
+                return;
+            }
             
             try {
                 setLoading(true);
-                const brandsData = await getBrands(user.id);
-                setBrands(brandsData);
+                const batches = await getBriefBatches(selectedBrand.id);
+                setBriefBatches(batches);
                 setError(null);
             } catch (err) {
-                console.error('Failed to fetch brands:', err);
-                setError('Failed to load brands. Please try again.');
+                console.error('Failed to fetch brief batches:', err);
+                setError('Failed to load brief batches. Please try again.');
             } finally {
                 setLoading(false);
             }
         };
 
-        fetchBrands();
-    }, [user?.id]);
+        fetchBriefBatches();
+    }, [user?.id, selectedBrand?.id]);
 
-    const handleCreateBrand = async () => {
-        if (!user?.id || !newBrandName.trim()) return;
+    const handleCreateBatch = async () => {
+        if (!user?.id || !selectedBrand?.id) return;
         
         try {
-            setCreatingBrand(true);
-            
-            // Create empty data structures for new brand
-            const emptyBrandInfo: BrandInfoData = {
-                positioning: '',
-                product: '',
-                technology: '',
-                testimonials: '',
-                healthBenefits: '',
-                targetAudienceSummary: '',
-                brandVoice: '',
-                competitiveAdvantage: ''
-            };
-            
-            const emptyTargetAudience: TargetAudienceData = {
-                gender: '',
-                age: '',
-                topSpendingDemographics: '',
-                location: '',
-                characteristics: ''
-            };
-            
-            const emptyCompetition: CompetitionData = {
-                competitorAdLibraries: '',
-                notes: ''
-            };
-            
-            const newBrand = await createBrand({
+            const newBatch = await createBriefBatch({
+                brand_id: selectedBrand.id,
                 user_id: user.id,
-                name: newBrandName.trim(),
-                brand_info_data: emptyBrandInfo,
-                target_audience_data: emptyTargetAudience,
-                competition_data: emptyCompetition
+                name: `Brief Batch ${new Date().toLocaleDateString()}`,
+                status: 'active'
             });
             
-            setBrands(prev => [newBrand, ...prev]);
-            setNewBrandName('');
-            setShowNewBrandDialog(false);
-            
-            // Navigate to the new brand
-            router.push(`/app/powerbrief/${newBrand.id}`);
+            // Navigate to the new batch
+            router.push(`/app/powerbrief/${selectedBrand.id}/${newBatch.id}`);
         } catch (err) {
-            console.error('Failed to create brand:', err);
-            setError('Failed to create brand. Please try again.');
-        } finally {
-            setCreatingBrand(false);
+            console.error('Failed to create brief batch:', err);
+            setError('Failed to create brief batch. Please try again.');
         }
     };
 
-    if (loading) {
+    if (brandsLoading || loading) {
         return (
             <div className="flex justify-center items-center min-h-[200px]">
                 <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
@@ -104,17 +70,44 @@ export default function PowerBriefPage() {
         );
     }
 
+    if (!selectedBrand) {
+        return (
+            <div className="space-y-6 p-6">
+                <Card>
+                    <CardContent className="p-8 text-center text-gray-500">
+                        <Building2 className="h-16 w-16 mx-auto mb-4 text-gray-400" />
+                        <h3 className="text-lg font-medium text-gray-900 mb-2">No brand selected</h3>
+                        <p className="max-w-md mx-auto">
+                            Please select a brand from the dropdown above to view its briefs.
+                        </p>
+                    </CardContent>
+                </Card>
+            </div>
+        );
+    }
+
     return (
         <div className="space-y-6 p-6">
             <div className="flex justify-between items-center">
-                <h1 className="text-2xl font-bold">Main Menu - Brand List</h1>
-                <Button 
-                    className="bg-primary-600 text-white hover:bg-primary-700"
-                    onClick={() => setShowNewBrandDialog(true)}
-                >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add New Brand
-                </Button>
+                <div>
+                    <h1 className="text-2xl font-bold">{selectedBrand.name} - Brief Batches</h1>
+                    <p className="text-gray-600 mt-1">Manage your creative briefs and campaigns</p>
+                </div>
+                <div className="flex space-x-3">
+                    <Link href={`/app/powerbrief/${selectedBrand.id}/brand-config`}>
+                        <Button variant="outline">
+                            <Settings className="h-4 w-4 mr-2" />
+                            Brand Settings
+                        </Button>
+                    </Link>
+                    <Button 
+                        className="bg-primary-600 text-white hover:bg-primary-700"
+                        onClick={handleCreateBatch}
+                    >
+                        <Plus className="h-4 w-4 mr-2" />
+                        New Brief Batch
+                    </Button>
+                </div>
             </div>
             
             {error && (
@@ -124,41 +117,48 @@ export default function PowerBriefPage() {
                 </Alert>
             )}
             
-            {brands.length === 0 ? (
+            {briefBatches.length === 0 ? (
                 <Card>
                     <CardContent className="p-8 text-center text-gray-500">
-                        <Building2 className="h-16 w-16 mx-auto mb-4 text-gray-400" />
-                        <h3 className="text-lg font-medium text-gray-900 mb-2">No brands created yet</h3>
+                        <FileText className="h-16 w-16 mx-auto mb-4 text-gray-400" />
+                        <h3 className="text-lg font-medium text-gray-900 mb-2">No brief batches yet</h3>
                         <p className="max-w-md mx-auto">
-                            Add your first brand to get started!
+                            Create your first brief batch to start managing creative briefs for {selectedBrand.name}.
                         </p>
                         <Button 
                             className="mt-6 bg-primary-600 text-white hover:bg-primary-700"
-                            onClick={() => setShowNewBrandDialog(true)}
+                            onClick={handleCreateBatch}
                         >
                             <Plus className="h-4 w-4 mr-2" />
-                            Add New Brand
+                            Create Brief Batch
                         </Button>
                     </CardContent>
                 </Card>
             ) : (
-                <div className="flex overflow-x-auto pb-4 space-x-6 hide-scrollbar">
-                    {brands.map((brand) => (
-                        <Link href={`/app/powerbrief/${brand.id}`} key={brand.id} className="min-w-[300px]">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {briefBatches.map((batch) => (
+                        <Link href={`/app/powerbrief/${selectedBrand.id}/${batch.id}`} key={batch.id}>
                             <Card className="cursor-pointer hover:shadow-md transition-shadow h-full">
                                 <CardHeader>
-                                    <CardTitle>{brand.name}</CardTitle>
+                                    <CardTitle>{batch.name}</CardTitle>
                                     <CardDescription>
-                                        Created: {new Date(brand.created_at).toLocaleDateString()}
+                                        Created: {new Date(batch.created_at).toLocaleDateString()}
                                     </CardDescription>
                                 </CardHeader>
                                 <CardContent>
-                                    <div className="flex items-center justify-center h-24 bg-gray-100 rounded-md">
-                                        <Building2 className="h-10 w-10 text-gray-400" />
+                                    <div className="space-y-2">
+                                        <div className="flex justify-between text-sm">
+                                            <span className="text-gray-600">Status:</span>
+                                            <span className={`font-medium ${
+                                                batch.status === 'active' ? 'text-green-600' : 'text-gray-600'
+                                            }`}>
+                                                {batch.status}
+                                            </span>
+                                        </div>
                                     </div>
                                 </CardContent>
                                 <CardFooter>
-                                    <Button variant="outline" className="w-full">View Brand</Button>
+                                    <Button variant="outline" className="w-full">View Briefs</Button>
                                 </CardFooter>
                             </Card>
                         </Link>
@@ -166,53 +166,27 @@ export default function PowerBriefPage() {
                 </div>
             )}
             
-            {/* New Brand Dialog */}
-            <Dialog open={showNewBrandDialog} onOpenChange={setShowNewBrandDialog}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Create New Brand</DialogTitle>
-                        <DialogDescription>
-                            Enter a name for your new brand. You can add more details later.
-                        </DialogDescription>
-                    </DialogHeader>
-                    
-                    <div className="py-4">
-                        <Input
-                            placeholder="Brand Name"
-                            value={newBrandName}
-                            onChange={(e) => setNewBrandName(e.target.value)}
-                            disabled={creatingBrand}
-                        />
-                    </div>
-                    
-                    <DialogFooter>
-                        <Button 
-                            variant="outline" 
-                            onClick={() => setShowNewBrandDialog(false)}
-                            disabled={creatingBrand}
-                        >
-                            Cancel
-                        </Button>
-                        <Button 
-                            className="bg-primary-600 text-white hover:bg-primary-700"
-                            onClick={handleCreateBrand}
-                            disabled={!newBrandName.trim() || creatingBrand}
-                        >
-                            {creatingBrand ? (
-                                <>
-                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                    Creating...
-                                </>
-                            ) : (
-                                <>
-                                    <Plus className="h-4 w-4 mr-2" />
-                                    Create Brand
-                                </>
-                            )}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+            {/* Quick Links Section */}
+            <div className="mt-8">
+                <h2 className="text-lg font-semibold mb-4">Quick Links</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Link href={`/app/powerbrief/${selectedBrand.id}/ugc-creator-pipeline`}>
+                        <Card className="cursor-pointer hover:shadow-md transition-shadow">
+                            <CardContent className="p-4">
+                                <div className="flex items-center space-x-3">
+                                    <div className="p-2 bg-primary-100 rounded-lg">
+                                        <FileText className="h-5 w-5 text-primary-600" />
+                                    </div>
+                                    <div>
+                                        <h3 className="font-medium">UGC Creator Pipeline</h3>
+                                        <p className="text-sm text-gray-600">Manage creator content</p>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </Link>
+                </div>
+            </div>
         </div>
     );
 } 
