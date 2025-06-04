@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
+import { useBrand } from '@/lib/context/BrandContext';
 import { 
   Card, 
   CardContent, 
@@ -16,6 +17,8 @@ import {
   Megaphone,
   CheckSquare,
   AlertTriangle,
+  Building2,
+  Loader2
 } from 'lucide-react';
 
 // Import the tab components
@@ -28,15 +31,59 @@ const VALID_TABS = ['scorecard', 'announcements', 'todos', 'issues'];
 
 export default function TeamSyncPage() {
   const searchParams = useSearchParams();
-  const initialTab = searchParams.get('tab');
-  const [activeTab, setActiveTab] = useState(initialTab && VALID_TABS.includes(initialTab) ? initialTab : 'scorecard');
+  const router = useRouter();
+  const pathname = usePathname();
+  const { selectedBrand, isLoading: brandsLoading } = useBrand();
+  
+  // Get the current tab from URL or default to 'scorecard'
+  const currentTabFromUrl = searchParams.get('tab');
+  const validTab = currentTabFromUrl && VALID_TABS.includes(currentTabFromUrl) ? currentTabFromUrl : 'scorecard';
+  const [activeTab, setActiveTab] = useState(validTab);
 
+  // Sync activeTab with URL params whenever they change
   useEffect(() => {
-    const currentTab = searchParams.get('tab');
-    if (currentTab && VALID_TABS.includes(currentTab) && currentTab !== activeTab) {
-      setActiveTab(currentTab);
+    const tabFromUrl = searchParams.get('tab');
+    const newTab = tabFromUrl && VALID_TABS.includes(tabFromUrl) ? tabFromUrl : 'scorecard';
+    if (newTab !== activeTab) {
+      setActiveTab(newTab);
     }
-  }, [searchParams, activeTab]);
+  }, [searchParams]); // Remove activeTab from dependencies to avoid circular updates
+
+  // Handle tab change - update both state and URL
+  const handleTabChange = (newTab: string) => {
+    setActiveTab(newTab);
+    // Update URL with new tab parameter
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('tab', newTab);
+    router.push(`${pathname}?${params.toString()}`);
+  };
+
+  if (brandsLoading) {
+    return (
+      <div className="p-6 flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary-600 mx-auto mb-4" />
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!selectedBrand) {
+    return (
+      <div className="p-6 space-y-6">
+        <Card>
+          <CardContent className="p-8 text-center text-gray-500">
+            <Building2 className="h-16 w-16 mx-auto mb-4 text-gray-400" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No brand selected</h3>
+            <p className="max-w-md mx-auto">
+              Please select a brand from the dropdown above to access Team Sync features.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 space-y-6">
@@ -47,7 +94,7 @@ export default function TeamSyncPage() {
             <Users className="h-6 w-6 text-primary-600" />
           </div>
           <div>
-            <h1 className="text-2xl font-semibold text-gray-900">Team Sync</h1>
+            <h1 className="text-2xl font-semibold text-gray-900">Team Sync - {selectedBrand.name}</h1>
             <p className="text-gray-600">Manage your team&apos;s scorecard, announcements, tasks, and issues</p>
           </div>
         </div>
@@ -56,7 +103,7 @@ export default function TeamSyncPage() {
       {/* Tabs */}
       <Card>
         <CardContent className="p-0">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
             <div className="border-b">
               <TabsList className="grid w-full grid-cols-4 h-12 bg-transparent">
                 <TabsTrigger 
@@ -92,19 +139,19 @@ export default function TeamSyncPage() {
 
             <div className="p-6">
               <TabsContent value="scorecard" className="mt-0">
-                <ScorecardTab />
+                <ScorecardTab brandId={selectedBrand.id} />
               </TabsContent>
 
               <TabsContent value="announcements" className="mt-0">
-                <AnnouncementsTab />
+                <AnnouncementsTab brandId={selectedBrand.id} />
               </TabsContent>
 
               <TabsContent value="todos" className="mt-0">
-                <TodosTab />
+                <TodosTab brandId={selectedBrand.id} />
               </TabsContent>
 
               <TabsContent value="issues" className="mt-0">
-                <IssuesTab />
+                <IssuesTab brandId={selectedBrand.id} />
               </TabsContent>
             </div>
           </Tabs>

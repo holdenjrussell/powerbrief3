@@ -2,10 +2,11 @@
 
 import React, { useState, useEffect } from 'react';
 import { useGlobal } from '@/lib/context/GlobalContext';
+import { useBrand } from '@/lib/context/BrandContext';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, ExternalLink, CheckCircle, Upload, AlertTriangle, ChevronDown, ChevronUp, Filter, SortAsc, X, MessageCircle, Plus } from 'lucide-react';
+import { Loader2, ExternalLink, CheckCircle, Upload, AlertTriangle, ChevronDown, ChevronUp, Filter, SortAsc, X, MessageCircle, Plus, Building2 } from 'lucide-react';
 import { createSPAClient } from '@/lib/supabase/client';
 import { UploadedAssetGroup } from '@/lib/types/powerbrief';
 import Link from 'next/link';
@@ -508,6 +509,7 @@ function MediaModal({ isOpen, onClose, mediaUrl, mediaType, mediaName, conceptId
 
 export default function ReviewsPage() {
     const { user } = useGlobal();
+    const { selectedBrand, isLoading: brandsLoading } = useBrand();
     const [pendingReviews, setPendingReviews] = useState<ConceptForReview[]>([]);
     const [approvedConcepts, setApprovedConcepts] = useState<ConceptForReview[]>([]);
     const [uploadedAssetsConcepts, setUploadedAssetsConcepts] = useState<ConceptForReview[]>([]);
@@ -520,7 +522,7 @@ export default function ReviewsPage() {
     
     // Filter and sort states for uploaded assets
     const [assetFilter, setAssetFilter] = useState<string>('all');
-    const [selectedBrand, setSelectedBrand] = useState<string>('all');
+    const [selectedBrandFilter, setSelectedBrandFilter] = useState<string>('all');
     const [assetSort, setAssetSort] = useState<string>('newest');
     
     // Sending to ad uploader state
@@ -812,13 +814,13 @@ export default function ReviewsPage() {
 
     useEffect(() => {
         const fetchReviews = async () => {
-            if (!user?.id) return;
+            if (!user?.id || !selectedBrand) return;
             
             try {
                 setLoading(true);
                 
-                // Get all concepts that are ready for review for the current user
-                const { data: pendingConcepts, error: pendingError } = await supabase
+                // Get all concepts that are ready for review for the current user and selected brand
+                let pendingQuery = supabase
                     .from('brief_concepts' as any)
                     .select(`
                         *,
@@ -833,13 +835,21 @@ export default function ReviewsPage() {
                         )
                     `)
                     .eq('review_status', 'ready_for_review')
-                    .eq('user_id', user.id)
+                    .eq('user_id', user.id);
+                
+                // Filter by brand through the brief_batches relationship
+                const { data: pendingConcepts, error: pendingError } = await pendingQuery
                     .order('updated_at', { ascending: false });
                 
                 if (pendingError) throw pendingError;
                 
-                // Get approved concepts with uploaded assets that haven't been sent to ad batches yet for the current user
-                const { data: approvedConceptsData, error: approvedError } = await supabase
+                // Filter by selected brand in memory since we can't filter nested relations directly
+                const filteredPendingConcepts = (pendingConcepts || []).filter((concept: any) => 
+                    concept.brief_batches?.brand_id === selectedBrand.id
+                );
+                
+                // Get approved concepts with uploaded assets that haven't been sent to ad batches yet
+                let approvedQuery = supabase
                     .from('brief_concepts' as any)
                     .select(`
                         *,
@@ -856,17 +866,24 @@ export default function ReviewsPage() {
                     .eq('review_status', 'approved')
                     .eq('user_id', user.id)
                     .not('uploaded_assets', 'is', null)
-                    .neq('asset_upload_status', 'sent_to_ad_upload')
+                    .neq('asset_upload_status', 'sent_to_ad_upload');
+                
+                const { data: approvedConceptsData, error: approvedError } = await approvedQuery
                     .order('updated_at', { ascending: false });
                 
                 if (approvedError) throw approvedError;
                 
-                setPendingReviews((pendingConcepts || []) as ConceptForReview[]);
-                setApprovedConcepts((approvedConceptsData || []) as ConceptForReview[]);
+                // Filter by selected brand in memory
+                const filteredApprovedConcepts = (approvedConceptsData || []).filter((concept: any) => 
+                    concept.brief_batches?.brand_id === selectedBrand.id
+                );
+                
+                setPendingReviews(filteredPendingConcepts as ConceptForReview[]);
+                setApprovedConcepts(filteredApprovedConcepts as ConceptForReview[]);
                 
                 // Initialize reviewer notes
                 const notesObj: Record<string, string> = {};
-                pendingConcepts?.forEach(concept => {
+                filteredPendingConcepts?.forEach((concept: any) => {
                     notesObj[concept.id] = '';
                 });
                 setReviewerNotes(notesObj);
@@ -881,7 +898,7 @@ export default function ReviewsPage() {
         };
 
         fetchReviews();
-    }, [user?.id]);
+    }, [user?.id, selectedBrand]);
 
     // Load comments for all concepts when they're fetched
     useEffect(() => {
@@ -892,7 +909,7 @@ export default function ReviewsPage() {
     }, [pendingReviews, approvedConcepts]);
 
     const fetchUploadedAssets = async () => {
-        if (!user?.id) return;
+        if (!user?.id || !selectedBrand) return;
         
         try {
             setLoadingAssets(true);
@@ -918,7 +935,12 @@ export default function ReviewsPage() {
             
             if (assetsError) throw assetsError;
             
-            setUploadedAssetsConcepts((conceptsWithAssets || []) as ConceptForReview[]);
+            // Filter by selected brand in memory
+            const filteredConcepts = (conceptsWithAssets || []).filter((concept: any) => 
+                concept.brief_batches?.brand_id === selectedBrand.id
+            );
+            
+            setUploadedAssetsConcepts(filteredConcepts as ConceptForReview[]);
         } catch (err) {
             console.error('Failed to fetch uploaded assets:', err);
         } finally {
@@ -1457,9 +1479,9 @@ export default function ReviewsPage() {
         }
 
         // Filter by brand
-        if (selectedBrand !== 'all') {
+        if (selectedBrandFilter !== 'all') {
             filtered = filtered.filter(concept => 
-                concept.brief_batches?.brand_id === selectedBrand
+                concept.brief_batches?.brand_id === selectedBrandFilter
             );
         }
 
@@ -1529,7 +1551,7 @@ export default function ReviewsPage() {
         return concept?.revision_count || 1;
     };
 
-    if (loading) {
+    if (loading || brandsLoading) {
         return (
             <div className="flex justify-center items-center min-h-[200px]">
                 <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
@@ -1537,10 +1559,26 @@ export default function ReviewsPage() {
         );
     }
 
+    if (!selectedBrand) {
+        return (
+            <div className="space-y-6 p-6">
+                <Card>
+                    <CardContent className="p-8 text-center text-gray-500">
+                        <Building2 className="h-16 w-16 mx-auto mb-4 text-gray-400" />
+                        <h3 className="text-lg font-medium text-gray-900 mb-2">No brand selected</h3>
+                        <p className="max-w-md mx-auto">
+                            Please select a brand from the dropdown above to view ad reviews.
+                        </p>
+                    </CardContent>
+                </Card>
+            </div>
+        );
+    }
+
     return (
         <div className="space-y-6 p-6">
             <div className="flex justify-between items-center">
-                <h1 className="text-2xl font-bold">Ad Review Queue</h1>
+                <h1 className="text-2xl font-bold">Ad Review Queue - {selectedBrand.name}</h1>
             </div>
             
             {error && (
@@ -1906,8 +1944,8 @@ export default function ReviewsPage() {
                                         <div className="flex items-center space-x-2">
                                             <Label className="text-sm font-medium">Brand:</Label>
                                             <select
-                                                value={selectedBrand}
-                                                onChange={(e) => setSelectedBrand(e.target.value)}
+                                                value={selectedBrandFilter}
+                                                onChange={(e) => setSelectedBrandFilter(e.target.value)}
                                                 className="px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                                                 title="Filter by brand"
                                             >

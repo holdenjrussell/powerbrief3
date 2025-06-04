@@ -37,11 +37,16 @@ import {
 interface Announcement {
   id: string;
   user_id: string;
+  brand_id?: string;
   title: string;
   content: string;
   priority: 'low' | 'normal' | 'high' | 'urgent';
   created_at: string;
   updated_at: string;
+}
+
+interface AnnouncementsTabProps {
+  brandId: string;
 }
 
 const priorityColors = {
@@ -58,7 +63,7 @@ const priorityIcons = {
   urgent: AlertCircle
 };
 
-export default function AnnouncementsTab() {
+export default function AnnouncementsTab({ brandId }: AnnouncementsTabProps) {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -72,7 +77,7 @@ export default function AnnouncementsTab() {
   const fetchAnnouncements = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/team-sync/announcements');
+      const response = await fetch(`/api/team-sync/announcements?brandId=${brandId}`);
       const data = await response.json();
       if (response.ok) {
         setAnnouncements(data.announcements);
@@ -88,7 +93,7 @@ export default function AnnouncementsTab() {
 
   useEffect(() => {
     fetchAnnouncements();
-  }, []);
+  }, [brandId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -96,8 +101,8 @@ export default function AnnouncementsTab() {
     try {
       const method = editingAnnouncement ? 'PUT' : 'POST';
       const body = editingAnnouncement 
-        ? { ...formData, id: editingAnnouncement.id }
-        : formData;
+        ? { ...formData, id: editingAnnouncement.id, brand_id: brandId }
+        : { ...formData, brand_id: brandId };
 
       const response = await fetch('/api/team-sync/announcements', {
         method,

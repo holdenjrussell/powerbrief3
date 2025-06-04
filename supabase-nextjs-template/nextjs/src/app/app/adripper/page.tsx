@@ -8,36 +8,27 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { 
-  Grid, 
-  List, 
   Search, 
   Download,
   Heart,
   Trash2,
-  ExternalLink,
   ImageIcon,
   Play,
   Zap,
   Volume2,
   VolumeX,
   Upload,
-  Folder,
   Database,
-  X
+  X,
+  Building2
 } from 'lucide-react';
 import { createSPAClient } from '@/lib/supabase/client';
 import AdSpySearch from '@/components/AdSpySearch';
 import { useGlobal } from "@/lib/context/GlobalContext";
-import { getBrands, getBriefBatches } from '@/lib/services/powerbriefService';
-import { Brand as PowerBriefBrand } from '@/lib/types/powerbrief';
+import { useBrand } from '@/lib/context/BrandContext';
+import { getBriefBatches } from '@/lib/services/powerbriefService';
 
 const supabase = createSPAClient();
-
-interface Brand {
-  id: string;
-  name: string;
-  created_at: string;
-}
 
 interface SocialMediaContent {
   id: string;
@@ -154,11 +145,8 @@ const VideoModal: React.FC<VideoModalProps> = ({ isOpen, onClose, videoItem }) =
 };
 
 export default function AdRipperPage() {
-  const [brands, setBrands] = useState<Brand[]>([]);
-  const [selectedBrand, setSelectedBrand] = useState<Brand | null>(null);
   const [content, setContent] = useState<SocialMediaContent[]>([]);
   const [selectedContent, setSelectedContent] = useState<Set<string>>(new Set());
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterPlatform, setFilterPlatform] = useState<string>('all');
   const [filterType, setFilterType] = useState<string>('all');
@@ -181,6 +169,7 @@ export default function AdRipperPage() {
   const [showBatchSelector, setShowBatchSelector] = useState(false);
 
   const { user } = useGlobal();
+  const { selectedBrand, isLoading: brandsLoading } = useBrand();
 
   // Open video modal
   const openVideoModal = (item: SocialMediaContent) => {
@@ -210,42 +199,15 @@ export default function AdRipperPage() {
     }
   };
 
-  // Load brands on component mount
-  useEffect(() => {
-    loadBrands();
-  }, [user?.id]);
-
   // Load content when brand is selected
   useEffect(() => {
     if (selectedBrand) {
       loadContent(selectedBrand.id);
+      fetchAvailableAdBatches(selectedBrand.id);
+    } else {
+      setContent([]);
     }
   }, [selectedBrand]);
-
-  const loadBrands = async () => {
-    if (!user?.id) return;
-    
-    try {
-      // Use the same getBrands service that PowerBrief and ad uploader use
-      const brandsData = await getBrands(user.id);
-      
-      // Map to the local Brand interface
-      const mappedBrands = brandsData.map((brand: PowerBriefBrand) => ({
-        id: brand.id,
-        name: brand.name,
-        created_at: brand.created_at
-      }));
-      
-      setBrands(mappedBrands);
-      
-      // Auto-select first brand if available
-      if (mappedBrands.length > 0 && !selectedBrand) {
-        setSelectedBrand(mappedBrands[0]);
-      }
-    } catch (error) {
-      console.error('Error loading brands:', error);
-    }
-  };
 
   const loadContent = async (brandId: string) => {
     setIsLoading(true);
@@ -600,59 +562,16 @@ export default function AdRipperPage() {
 
   // Fetch available ad batches for the selected brand
   const fetchAvailableAdBatches = async (brandId: string) => {
-    if (!brandId) return;
-    
     try {
-      // Use the PowerBrief service to get brief batches instead of ad batches
       const batches = await getBriefBatches(brandId);
-      const mappedBatches = batches.map(batch => ({
+      const formattedBatches = batches.map(batch => ({
         id: batch.id,
         name: batch.name
       }));
-      setAvailableAdBatches(mappedBatches);
+      setAvailableAdBatches(formattedBatches);
     } catch (error) {
-      console.error('Error fetching brief batches:', error);
-    }
-  };
-
-  // Fetch ad batches when brand changes
-  useEffect(() => {
-    if (selectedBrand) {
-      fetchAvailableAdBatches(selectedBrand.id);
-    }
-  }, [selectedBrand]);
-
-  const debugContentLoading = async () => {
-    if (!selectedBrand) return;
-    
-    console.log('=== DEBUG: Content Loading ===');
-    console.log('Selected brand:', selectedBrand);
-    console.log('User:', user);
-    
-    try {
-      // Check if we can connect to Supabase
-      const { data: testData, error: testError } = await supabase
-        .from('social_media_content' as any)
-        .select('count(*)')
-        .eq('brand_id', selectedBrand.id);
-      
-      console.log('Total content count for brand:', testData);
-      if (testError) console.error('Count query error:', testError);
-      
-      // Get all content for this brand
-      const { data: allData, error: allError } = await supabase
-        .from('social_media_content' as any)
-        .select('*')
-        .eq('brand_id', selectedBrand.id);
-      
-      console.log('All content for brand:', allData);
-      if (allError) console.error('All content query error:', allError);
-      
-      // Force reload
-      await loadContent(selectedBrand.id);
-      
-    } catch (error) {
-      console.error('Debug error:', error);
+      console.error('Error fetching ad batches:', error);
+      setAvailableAdBatches([]);
     }
   };
 
@@ -679,600 +598,437 @@ export default function AdRipperPage() {
     return new Date(dateString).toLocaleDateString();
   };
 
-  return (
-    <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-900 flex items-center gap-2">
-            <Zap className="h-6 w-6 text-yellow-500" />
-            AdRipper
-          </h1>
-          <p className="text-gray-600 mt-1">Rip ads from social media and organize them by brand</p>
-        </div>
-        <div className="flex gap-2">
-          <Button
-            variant={viewMode === 'grid' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setViewMode('grid')}
-          >
-            <Grid className="h-4 w-4" />
-          </Button>
-          <Button
-            variant={viewMode === 'list' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setViewMode('list')}
-          >
-            <List className="h-4 w-4" />
-          </Button>
+  // Show loading state while brands are loading
+  if (brandsLoading || isLoading) {
+    return (
+      <div className="container mx-auto p-6">
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading...</p>
+          </div>
         </div>
       </div>
+    );
+  }
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* Brand Sidebar */}
-        <div className="lg:col-span-1">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Folder className="h-5 w-5" />
-                Brands
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {brands.length === 0 ? (
-                <div className="text-center py-4 text-gray-500 text-sm">
-                  No brands found. Create a brand in PowerBrief first.
-                </div>
-              ) : (
-                brands.map((brand) => (
-                  <Button
-                    key={brand.id}
-                    variant={selectedBrand?.id === brand.id ? 'default' : 'ghost'}
-                    className="w-full justify-start"
-                    onClick={() => setSelectedBrand(brand)}
-                  >
-                    <Folder className="h-4 w-4 mr-2" />
-                    {brand.name}
-                  </Button>
-                ))
-              )}
-            </CardContent>
-          </Card>
+  // Show message if no brand is selected
+  if (!selectedBrand) {
+    return (
+      <div className="container mx-auto p-6">
+        <Card>
+          <CardContent className="p-8 text-center text-gray-500">
+            <Building2 className="h-16 w-16 mx-auto mb-4 text-gray-400" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No brand selected</h3>
+            <p className="max-w-md mx-auto">
+              Please select a brand from the dropdown above to start ripping ads.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="container mx-auto p-6">
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold mb-2">Ad Ripper - {selectedBrand.name}</h1>
+        <p className="text-gray-600">Rip ads from social media platforms and save them to your brand board.</p>
+      </div>
+
+      <div className="space-y-4">
+        {/* Header with brand name and actions */}
+        <div className="flex justify-between items-center">
+          <div>
+            <h2 className="text-xl font-semibold">{selectedBrand.name}</h2>
+            <p className="text-gray-600">{filteredContent.length} ripped ads</p>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              onClick={() => setShowAddUrls(!showAddUrls)}
+              variant="outline"
+              className="bg-yellow-50 border-yellow-200 hover:bg-yellow-100"
+            >
+              <Zap className="h-4 w-4 mr-2 text-yellow-600" />
+              Rip Ads
+            </Button>
+          </div>
         </div>
 
-        {/* Main Content Area */}
-        <div className="lg:col-span-3">
-          {selectedBrand ? (
-            <div className="space-y-4">
-              {/* Header with brand name and actions */}
-              <div className="flex justify-between items-center">
-                <div>
-                  <h2 className="text-xl font-semibold">{selectedBrand.name}</h2>
-                  <p className="text-gray-600">{filteredContent.length} ripped ads</p>
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    onClick={() => setShowAddUrls(!showAddUrls)}
-                    variant="outline"
-                    className="bg-yellow-50 border-yellow-200 hover:bg-yellow-100"
-                  >
-                    <Zap className="h-4 w-4 mr-2 text-yellow-600" />
-                    Rip Ads
-                  </Button>
-                  <Button
-                    onClick={debugContentLoading}
-                    variant="outline"
-                    size="sm"
-                    className="text-xs"
-                  >
-                    🔍 Debug
-                  </Button>
-                </div>
+        {/* Selection Actions Bar - Only show when items are selected */}
+        {selectedContent.size > 0 && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-blue-700 font-medium">
+                  {selectedContent.size} asset{selectedContent.size !== 1 ? 's' : ''} selected
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSelectedContent(new Set())}
+                  className="text-blue-600 hover:text-blue-800"
+                >
+                  Clear selection
+                </Button>
               </div>
+              <div className="flex gap-2">
+                <Button onClick={handleDownloadSelected} variant="outline">
+                  <Download className="h-4 w-4 mr-2" />
+                  Download ({selectedContent.size})
+                </Button>
+                <Button 
+                  onClick={() => setShowBatchSelector(true)}
+                  disabled={isSendingToAdBatch}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  {isSendingToAdBatch ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Sending...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="h-4 w-4 mr-2" />
+                      Send to PowerBrief ({selectedContent.size})
+                    </>
+                  )}
+                </Button>
+                <Button 
+                  onClick={handleDeleteSelected}
+                  variant="destructive"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete ({selectedContent.size})
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
 
-              {/* Selection Actions Bar - Only show when items are selected */}
-              {selectedContent.size > 0 && (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="text-blue-700 font-medium">
-                        {selectedContent.size} asset{selectedContent.size !== 1 ? 's' : ''} selected
-                      </span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setSelectedContent(new Set())}
-                        className="text-blue-600 hover:text-blue-800"
-                      >
-                        Clear selection
-                      </Button>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button onClick={handleDownloadSelected} variant="outline">
-                        <Download className="h-4 w-4 mr-2" />
-                        Download ({selectedContent.size})
-                      </Button>
-                      <Button 
-                        onClick={() => setShowBatchSelector(true)}
-                        disabled={isSendingToAdBatch}
-                        className="bg-blue-600 hover:bg-blue-700 text-white"
-                      >
-                        {isSendingToAdBatch ? (
-                          <>
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                            Sending...
-                          </>
-                        ) : (
-                          <>
-                            <Upload className="h-4 w-4 mr-2" />
-                            Send to PowerBrief ({selectedContent.size})
-                          </>
-                        )}
-                      </Button>
-                      <Button 
-                        onClick={handleDeleteSelected}
-                        variant="destructive"
-                      >
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Delete ({selectedContent.size})
-                      </Button>
+        {/* Tab Navigation */}
+        <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg">
+          <Button
+            variant={activeTab === 'manual' ? 'default' : 'ghost'}
+            onClick={() => setActiveTab('manual')}
+            className="flex-1"
+          >
+            <Zap className="h-4 w-4 mr-2" />
+            Manual Ripping
+          </Button>
+          <Button
+            variant={activeTab === 'adspy' ? 'default' : 'ghost'}
+            onClick={() => setActiveTab('adspy')}
+            className="flex-1"
+          >
+            <Database className="h-4 w-4 mr-2" />
+            AdSpy Search
+          </Button>
+        </div>
+
+        {/* Tab Content */}
+        {activeTab === 'manual' && (
+          <div className="space-y-4">
+            {/* Add URLs Section */}
+            {showAddUrls && (
+              <Card className="border-yellow-200 bg-yellow-50">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Zap className="h-5 w-5 text-yellow-600" />
+                    Rip Ads from Social Media
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="bg-white p-3 rounded-lg border">
+                    <h4 className="text-sm font-medium text-gray-900 mb-2">Supported Platforms:</h4>
+                    <div className="grid grid-cols-3 gap-2 text-xs">
+                      <div className="flex items-center gap-1">
+                        <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                        Facebook
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <div className="w-2 h-2 bg-pink-500 rounded-full"></div>
+                        Instagram
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <div className="w-2 h-2 bg-black rounded-full"></div>
+                        TikTok
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
+                  
+                  <Textarea
+                    value={mediaUrls}
+                    onChange={(e) => setMediaUrls(e.target.value)}
+                    placeholder="Campaign Name: Holiday Sale&#10;&#10;Facebook Videos:&#10;https://www.facebook.com/page/posts/123456789/&#10;https://www.facebook.com/watch?v=1234567890&#10;&#10;Instagram Posts:&#10;https://www.instagram.com/p/CabcdeFgHij/&#10;&#10;TikTok Videos:&#10;https://www.tiktok.com/@username/video/1234567890123456789&#10;&#10;(Non-URL lines like headers and labels will be automatically skipped)"
+                    rows={8}
+                    disabled={isProcessing}
+                    className="font-mono text-sm"
+                  />
+                  
+                  <div className="bg-green-50 p-3 rounded-lg border border-green-200">
+                    <p className="text-xs text-green-700">
+                      <strong>Smart Filtering:</strong> Paste mixed content with headers, labels, and URLs. 
+                      Only valid social media URLs will be processed - everything else is automatically skipped.
+                    </p>
+                  </div>
+                  
+                  <div className="flex gap-2">
+                    <Button 
+                      onClick={handleAddUrls} 
+                      disabled={isProcessing || !mediaUrls.trim()}
+                      className="bg-yellow-600 hover:bg-yellow-700"
+                    >
+                      {isProcessing ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                          {processingProgress.total > 0 ? (
+                            `Ripping ${processingProgress.current}/${processingProgress.total} ads...`
+                          ) : (
+                            'Ripping Ads...'
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          <Zap className="h-4 w-4 mr-2" />
+                          Rip Ads
+                        </>
+                      )}
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      onClick={() => setShowAddUrls(false)}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                  
+                  {/* Progress Bar */}
+                  {isProcessing && processingProgress.total > 0 && (
+                    <div className="space-y-2">
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                          className="bg-yellow-600 h-2 rounded-full transition-all duration-300"
+                          style={{ width: `${(processingProgress.current / processingProgress.total) * 100}%` }}
+                        ></div>
+                      </div>
+                      <p className="text-sm text-gray-600 text-center">
+                        {processingProgress.currentUrl && `Processing: ${processingProgress.currentUrl}`}
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
 
-              {/* Tab Navigation */}
-              <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg">
-                <Button
-                  variant={activeTab === 'manual' ? 'default' : 'ghost'}
-                  onClick={() => setActiveTab('manual')}
-                  className="flex-1"
+            {/* Search and Filters */}
+            <div className="flex gap-4 items-center">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  placeholder="Search ripped ads..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              <select
+                value={filterPlatform}
+                onChange={(e) => setFilterPlatform(e.target.value)}
+                className="px-3 py-2 border rounded-md"
+                title="Filter by platform"
+              >
+                <option value="all">All Platforms</option>
+                <option value="facebook">Facebook</option>
+                <option value="instagram">Instagram</option>
+                <option value="tiktok">TikTok</option>
+              </select>
+              <select
+                value={filterType}
+                onChange={(e) => setFilterType(e.target.value)}
+                className="px-3 py-2 border rounded-md"
+                title="Filter by content type"
+              >
+                <option value="all">All Types</option>
+                <option value="image">Images</option>
+                <option value="video">Videos</option>
+              </select>
+              <label className="flex items-center gap-2 px-3 py-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={showSentToAdBatch}
+                  onChange={(e) => setShowSentToAdBatch(e.target.checked)}
+                  className="rounded"
+                />
+                Show sent to PowerBrief
+              </label>
+            </div>
+
+            {/* Content Grid/List */}
+            {isLoading ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-yellow-600 mx-auto mb-2"></div>
+                Loading ripped ads...
+              </div>
+            ) : filteredContent.length === 0 ? (
+              <div className="text-center py-12">
+                <Zap className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No ads ripped yet</h3>
+                <p className="text-gray-500 mb-4">Start by ripping some ads from social media!</p>
+                <Button 
+                  onClick={() => setShowAddUrls(true)}
+                  className="bg-yellow-600 hover:bg-yellow-700"
                 >
                   <Zap className="h-4 w-4 mr-2" />
-                  Manual Ripping
-                </Button>
-                <Button
-                  variant={activeTab === 'adspy' ? 'default' : 'ghost'}
-                  onClick={() => setActiveTab('adspy')}
-                  className="flex-1"
-                >
-                  <Database className="h-4 w-4 mr-2" />
-                  AdSpy Search
+                  Rip Your First Ads
                 </Button>
               </div>
-
-              {/* Tab Content */}
-              {activeTab === 'manual' && (
-                <div className="space-y-4">
-                  {/* Add URLs Section */}
-                  {showAddUrls && (
-                    <Card className="border-yellow-200 bg-yellow-50">
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <Zap className="h-5 w-5 text-yellow-600" />
-                          Rip Ads from Social Media
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        <div className="bg-white p-3 rounded-lg border">
-                          <h4 className="text-sm font-medium text-gray-900 mb-2">Supported Platforms:</h4>
-                          <div className="grid grid-cols-3 gap-2 text-xs">
-                            <div className="flex items-center gap-1">
-                              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                              Facebook
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <div className="w-2 h-2 bg-pink-500 rounded-full"></div>
-                              Instagram
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <div className="w-2 h-2 bg-black rounded-full"></div>
-                              TikTok
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {filteredContent.map((item) => (
+                  <Card 
+                    key={item.id} 
+                    className={`transition-all hover:shadow-md ${
+                      selectedContent.has(item.id) ? 'ring-2 ring-yellow-500' : ''
+                    }`}
+                  >
+                    <div className="relative">
+                      {/* Selection Checkbox - Top Left Corner */}
+                      <div className="absolute top-2 left-2 z-20">
+                        <input
+                          type="checkbox"
+                          checked={selectedContent.has(item.id)}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            const newSelection = new Set(selectedContent);
+                            if (e.target.checked) {
+                              newSelection.add(item.id);
+                            } else {
+                              newSelection.delete(item.id);
+                            }
+                            setSelectedContent(newSelection);
+                          }}
+                          className="w-5 h-5 text-blue-600 bg-white border-2 border-gray-300 rounded focus:ring-blue-500 focus:ring-2 shadow-sm"
+                          aria-label={`Select ${item.title}`}
+                        />
+                      </div>
+                      
+                      {/* Media Preview - Clickable for video modal */}
+                      <div 
+                        className="relative aspect-square bg-gray-100 rounded-t-lg overflow-hidden cursor-pointer"
+                        onClick={() => handleCardClick(item)}
+                      >
+                        {item.content_type === 'image' ? (
+                          <img
+                            src={item.file_url}
+                            alt={item.title}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = '/placeholder-image.png';
+                            }}
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center bg-gray-200">
+                            <div className="relative w-full h-full">
+                              <video
+                                src={item.file_url}
+                                className="w-full h-full object-cover"
+                                muted
+                                preload="metadata"
+                                onError={(e) => {
+                                  console.error('Video preview failed to load:', e);
+                                }}
+                              />
+                              {/* Play overlay for videos */}
+                              <div className="absolute inset-0 flex items-center justify-center">
+                                <div className="bg-black bg-opacity-50 rounded-full p-3">
+                                  <Play className="h-8 w-8 text-white fill-white" />
+                                </div>
+                              </div>
                             </div>
                           </div>
-                        </div>
+                        )}
                         
-                        <Textarea
-                          value={mediaUrls}
-                          onChange={(e) => setMediaUrls(e.target.value)}
-                          placeholder="Campaign Name: Holiday Sale&#10;&#10;Facebook Videos:&#10;https://www.facebook.com/page/posts/123456789/&#10;https://www.facebook.com/watch?v=1234567890&#10;&#10;Instagram Posts:&#10;https://www.instagram.com/p/CabcdeFgHij/&#10;&#10;TikTok Videos:&#10;https://www.tiktok.com/@username/video/1234567890123456789&#10;&#10;(Non-URL lines like headers and labels will be automatically skipped)"
-                          rows={8}
-                          disabled={isProcessing}
-                          className="font-mono text-sm"
-                        />
-                        
-                        <div className="bg-green-50 p-3 rounded-lg border border-green-200">
-                          <p className="text-xs text-green-700">
-                            <strong>Smart Filtering:</strong> Paste mixed content with headers, labels, and URLs. 
-                            Only valid social media URLs will be processed - everything else is automatically skipped.
-                          </p>
-                        </div>
-                        
-                        <div className="flex gap-2">
-                          <Button 
-                            onClick={handleAddUrls} 
-                            disabled={isProcessing || !mediaUrls.trim()}
-                            className="bg-yellow-600 hover:bg-yellow-700"
+                        {/* Overlay with type and platform */}
+                        <div className="absolute top-2 right-12 flex gap-1">
+                          <Badge variant="secondary" className="text-xs">
+                            {item.content_type === 'image' ? <ImageIcon className="h-3 w-3" /> : <Play className="h-3 w-3" />}
+                          </Badge>
+                          <Badge 
+                            variant="secondary" 
+                            className={`text-xs capitalize ${
+                              item.platform === 'facebook' ? 'bg-blue-100 text-blue-700' :
+                              item.platform === 'instagram' ? 'bg-pink-100 text-pink-700' :
+                              item.platform === 'tiktok' ? 'bg-gray-100 text-gray-700' :
+                              'bg-gray-100 text-gray-700'
+                            }`}
                           >
-                            {isProcessing ? (
-                              <>
-                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                                {processingProgress.total > 0 ? (
-                                  `Ripping ${processingProgress.current}/${processingProgress.total} ads...`
-                                ) : (
-                                  'Ripping Ads...'
-                                )}
-                              </>
-                            ) : (
-                              <>
-                                <Zap className="h-4 w-4 mr-2" />
-                                Rip Ads
-                              </>
-                            )}
-                          </Button>
-                          <Button 
-                            variant="outline" 
-                            onClick={() => setShowAddUrls(false)}
-                          >
-                            Cancel
-                          </Button>
+                            {item.platform}
+                          </Badge>
+                          {item.source_type === 'adspy' && (
+                            <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-700">
+                              AdSpy
+                            </Badge>
+                          )}
                         </div>
                         
-                        {/* Progress Bar */}
-                        {isProcessing && processingProgress.total > 0 && (
-                          <div className="space-y-2">
-                            <div className="w-full bg-gray-200 rounded-full h-2">
-                              <div 
-                                className="bg-yellow-600 h-2 rounded-full transition-all duration-300"
-                                style={{ width: `${(processingProgress.current / processingProgress.total) * 100}%` }}
-                              ></div>
-                            </div>
-                            <p className="text-sm text-gray-600 text-center">
-                              {processingProgress.currentUrl && `Processing: ${processingProgress.currentUrl}`}
-                            </p>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="absolute top-2 right-2 p-1 h-auto"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleFavorite(item.id);
+                          }}
+                        >
+                          <Heart 
+                            className={`h-4 w-4 ${item.is_favorite ? 'fill-red-500 text-red-500' : 'text-white'}`} 
+                          />
+                        </Button>
+                        
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="absolute top-2 right-8 p-1 h-auto"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteSingle(item.id);
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4 text-white" />
+                        </Button>
+                      </div>
+                      
+                      {/* Content Info */}
+                      <CardContent className="p-3">
+                        <h3 className="font-medium text-sm truncate" title={item.title}>
+                          {item.title}
+                        </h3>
+                        <div className="flex justify-between items-center mt-2 text-xs text-gray-500">
+                          <span>{formatFileSize(item.file_size)}</span>
+                          <span>{formatDate(item.created_at)}</span>
+                        </div>
+                        {item.download_count > 0 && (
+                          <div className="text-xs text-gray-400 mt-1">
+                            Downloaded {item.download_count} times
                           </div>
                         )}
                       </CardContent>
-                    </Card>
-                  )}
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
-                  {/* Search and Filters */}
-                  <div className="flex gap-4 items-center">
-                    <div className="relative flex-1">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                      <Input
-                        placeholder="Search ripped ads..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="pl-10"
-                      />
-                    </div>
-                    <select
-                      value={filterPlatform}
-                      onChange={(e) => setFilterPlatform(e.target.value)}
-                      className="px-3 py-2 border rounded-md"
-                      title="Filter by platform"
-                    >
-                      <option value="all">All Platforms</option>
-                      <option value="facebook">Facebook</option>
-                      <option value="instagram">Instagram</option>
-                      <option value="tiktok">TikTok</option>
-                    </select>
-                    <select
-                      value={filterType}
-                      onChange={(e) => setFilterType(e.target.value)}
-                      className="px-3 py-2 border rounded-md"
-                      title="Filter by content type"
-                    >
-                      <option value="all">All Types</option>
-                      <option value="image">Images</option>
-                      <option value="video">Videos</option>
-                    </select>
-                    <label className="flex items-center gap-2 px-3 py-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={showSentToAdBatch}
-                        onChange={(e) => setShowSentToAdBatch(e.target.checked)}
-                        className="rounded"
-                      />
-                      Show sent to PowerBrief
-                    </label>
-                  </div>
-
-                  {/* Content Grid/List */}
-                  {isLoading ? (
-                    <div className="text-center py-8">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-yellow-600 mx-auto mb-2"></div>
-                      Loading ripped ads...
-                    </div>
-                  ) : filteredContent.length === 0 ? (
-                    <div className="text-center py-12">
-                      <Zap className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-                      <h3 className="text-lg font-medium text-gray-900 mb-2">No ads ripped yet</h3>
-                      <p className="text-gray-500 mb-4">Start by ripping some ads from social media!</p>
-                      <Button 
-                        onClick={() => setShowAddUrls(true)}
-                        className="bg-yellow-600 hover:bg-yellow-700"
-                      >
-                        <Zap className="h-4 w-4 mr-2" />
-                        Rip Your First Ads
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className={viewMode === 'grid' ? 
-                      'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4' : 
-                      'space-y-2'
-                    }>
-                      {filteredContent.map((item) => (
-                        <Card 
-                          key={item.id} 
-                          className={`transition-all hover:shadow-md ${
-                            selectedContent.has(item.id) ? 'ring-2 ring-yellow-500' : ''
-                          }`}
-                        >
-                          {viewMode === 'grid' ? (
-                            <div className="relative">
-                              {/* Selection Checkbox - Top Left Corner */}
-                              <div className="absolute top-2 left-2 z-20">
-                                <input
-                                  type="checkbox"
-                                  checked={selectedContent.has(item.id)}
-                                  onChange={(e) => {
-                                    e.stopPropagation();
-                                    const newSelection = new Set(selectedContent);
-                                    if (e.target.checked) {
-                                      newSelection.add(item.id);
-                                    } else {
-                                      newSelection.delete(item.id);
-                                    }
-                                    setSelectedContent(newSelection);
-                                  }}
-                                  className="w-5 h-5 text-blue-600 bg-white border-2 border-gray-300 rounded focus:ring-blue-500 focus:ring-2 shadow-sm"
-                                  aria-label={`Select ${item.title}`}
-                                />
-                              </div>
-                              
-                              {/* Media Preview - Clickable for video modal */}
-                              <div 
-                                className="relative aspect-square bg-gray-100 rounded-t-lg overflow-hidden cursor-pointer"
-                                onClick={() => handleCardClick(item)}
-                              >
-                                {item.content_type === 'image' ? (
-                                  <img
-                                    src={item.file_url}
-                                    alt={item.title}
-                                    className="w-full h-full object-cover"
-                                    onError={(e) => {
-                                      (e.target as HTMLImageElement).src = '/placeholder-image.png';
-                                    }}
-                                  />
-                                ) : (
-                                  <div className="w-full h-full flex items-center justify-center bg-gray-200">
-                                    <div className="relative w-full h-full">
-                                      <video
-                                        src={item.file_url}
-                                        className="w-full h-full object-cover"
-                                        muted
-                                        preload="metadata"
-                                        onError={(e) => {
-                                          console.error('Video preview failed to load:', e);
-                                        }}
-                                      />
-                                      {/* Play overlay for videos */}
-                                      <div className="absolute inset-0 flex items-center justify-center">
-                                        <div className="bg-black bg-opacity-50 rounded-full p-3">
-                                          <Play className="h-8 w-8 text-white fill-white" />
-                                        </div>
-                                      </div>
-                                    </div>
-                                  </div>
-                                )}
-                                
-                                {/* Overlay with type and platform */}
-                                <div className="absolute top-2 right-12 flex gap-1">
-                                  <Badge variant="secondary" className="text-xs">
-                                    {item.content_type === 'image' ? <ImageIcon className="h-3 w-3" /> : <Play className="h-3 w-3" />}
-                                  </Badge>
-                                  <Badge 
-                                    variant="secondary" 
-                                    className={`text-xs capitalize ${
-                                      item.platform === 'facebook' ? 'bg-blue-100 text-blue-700' :
-                                      item.platform === 'instagram' ? 'bg-pink-100 text-pink-700' :
-                                      item.platform === 'tiktok' ? 'bg-gray-100 text-gray-700' :
-                                      'bg-gray-100 text-gray-700'
-                                    }`}
-                                  >
-                                    {item.platform}
-                                  </Badge>
-                                  {item.source_type === 'adspy' && (
-                                    <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-700">
-                                      AdSpy
-                                    </Badge>
-                                  )}
-                                </div>
-                                
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="absolute top-2 right-2 p-1 h-auto"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    toggleFavorite(item.id);
-                                  }}
-                                >
-                                  <Heart 
-                                    className={`h-4 w-4 ${item.is_favorite ? 'fill-red-500 text-red-500' : 'text-white'}`} 
-                                  />
-                                </Button>
-                                
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="absolute top-2 right-8 p-1 h-auto"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleDeleteSingle(item.id);
-                                  }}
-                                >
-                                  <Trash2 className="h-4 w-4 text-white" />
-                                </Button>
-                              </div>
-                              
-                              {/* Content Info */}
-                              <CardContent className="p-3">
-                                <h3 className="font-medium text-sm truncate" title={item.title}>
-                                  {item.title}
-                                </h3>
-                                <div className="flex justify-between items-center mt-2 text-xs text-gray-500">
-                                  <span>{formatFileSize(item.file_size)}</span>
-                                  <span>{formatDate(item.created_at)}</span>
-                                </div>
-                                {item.download_count > 0 && (
-                                  <div className="text-xs text-gray-400 mt-1">
-                                    Downloaded {item.download_count} times
-                                  </div>
-                                )}
-                              </CardContent>
-                            </div>
-                          ) : (
-                            /* List View */
-                            <CardContent className="p-4">
-                              <div className="flex items-center gap-4">
-                                {/* Selection Checkbox */}
-                                <input
-                                  type="checkbox"
-                                  checked={selectedContent.has(item.id)}
-                                  onChange={(e) => {
-                                    e.stopPropagation();
-                                    const newSelection = new Set(selectedContent);
-                                    if (e.target.checked) {
-                                      newSelection.add(item.id);
-                                    } else {
-                                      newSelection.delete(item.id);
-                                    }
-                                    setSelectedContent(newSelection);
-                                  }}
-                                  className="w-4 h-4 text-blue-600 bg-white border-2 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
-                                  aria-label={`Select ${item.title}`}
-                                />
-                                
-                                <div className="w-16 h-16 bg-gray-100 rounded overflow-hidden flex-shrink-0">
-                                  {item.content_type === 'image' ? (
-                                    <img
-                                      src={item.file_url}
-                                      alt={item.title}
-                                      className="w-full h-full object-cover"
-                                    />
-                                  ) : (
-                                    <div className="w-full h-full flex items-center justify-center">
-                                      <div className="relative w-full h-full">
-                                        <video
-                                          src={item.file_url}
-                                          className="w-full h-full object-cover"
-                                          muted
-                                          preload="metadata"
-                                          onError={(e) => {
-                                            console.error('Video preview failed to load:', e);
-                                          }}
-                                        />
-                                        {/* Play overlay for videos */}
-                                        <div className="absolute inset-0 flex items-center justify-center">
-                                          <div className="bg-black bg-opacity-50 rounded-full p-1">
-                                            <Play className="h-3 w-3 text-white fill-white" />
-                                          </div>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                                
-                                <div className="flex-1 min-w-0">
-                                  <h3 className="font-medium truncate">{item.title}</h3>
-                                  <div className="flex items-center gap-2 mt-1">
-                                    <Badge 
-                                      variant="secondary" 
-                                      className={`text-xs capitalize ${
-                                        item.platform === 'facebook' ? 'bg-blue-100 text-blue-700' :
-                                        item.platform === 'instagram' ? 'bg-pink-100 text-pink-700' :
-                                        item.platform === 'tiktok' ? 'bg-gray-100 text-gray-700' :
-                                        'bg-gray-100 text-gray-700'
-                                      }`}
-                                    >
-                                      {item.platform}
-                                    </Badge>
-                                    <Badge variant="outline" className="text-xs">
-                                      {item.content_type}
-                                    </Badge>
-                                    {item.source_type === 'adspy' && (
-                                      <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-700">
-                                        AdSpy
-                                      </Badge>
-                                    )}
-                                    <span className="text-xs text-gray-500">
-                                      {formatFileSize(item.file_size)}
-                                    </span>
-                                  </div>
-                                </div>
-                                
-                                <div className="flex items-center gap-2">
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      window.open(item.source_url, '_blank');
-                                    }}
-                                  >
-                                    <ExternalLink className="h-4 w-4" />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      toggleFavorite(item.id);
-                                    }}
-                                  >
-                                    <Heart 
-                                      className={`h-4 w-4 ${item.is_favorite ? 'fill-red-500 text-red-500' : ''}`} 
-                                    />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleDeleteSingle(item.id);
-                                    }}
-                                  >
-                                    <Trash2 className="h-4 w-4 text-red-500" />
-                                  </Button>
-                                </div>
-                              </div>
-                            </CardContent>
-                          )}
-                        </Card>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {activeTab === 'adspy' && user && (
-                <AdSpySearch 
-                  selectedBrand={selectedBrand}
-                  userId={user.id}
-                  onAdDownloaded={() => loadContent(selectedBrand.id)}
-                />
-              )}
-            </div>
-          ) : (
-            <div className="text-center py-12">
-              <Folder className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">Select a brand to start</h3>
-              <p className="text-gray-500">Choose a brand from the sidebar to view and manage ripped ads</p>
-            </div>
-          )}
-        </div>
+        {activeTab === 'adspy' && user && (
+          <AdSpySearch 
+            selectedBrand={selectedBrand}
+            userId={user.id}
+            onAdDownloaded={() => loadContent(selectedBrand.id)}
+          />
+        )}
       </div>
 
       {/* Batch Selector Modal */}

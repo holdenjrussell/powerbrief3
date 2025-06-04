@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
     
@@ -10,10 +10,20 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { data: todos, error } = await supabase
+    const { searchParams } = new URL(request.url);
+    const brandId = searchParams.get('brandId');
+
+    let query = supabase
       .from('todos')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('user_id', user.id);
+
+    // Filter by brand if brandId is provided
+    if (brandId) {
+      query = query.eq('brand_id', brandId);
+    }
+
+    const { data: todos, error } = await query
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -38,7 +48,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { title, description, due_date, assignee_id, priority = 'normal' } = body;
+    const { title, description, due_date, assignee_id, priority = 'normal', brand_id } = body;
 
     if (!title) {
       return NextResponse.json({ error: 'Title is required' }, { status: 400 });
@@ -47,7 +57,15 @@ export async function POST(request: NextRequest) {
     // Convert empty string assignee_id to null for UUID field
     const processedAssigneeId = (assignee_id === '' || assignee_id === undefined || assignee_id === null) ? null : assignee_id;
 
-    const insertData = {
+    const insertData: {
+      user_id: string;
+      title: string;
+      description?: string;
+      due_date?: string;
+      assignee_id: string | null;
+      priority: string;
+      brand_id?: string;
+    } = {
       user_id: session.user.id,
       title,
       description,
@@ -55,6 +73,11 @@ export async function POST(request: NextRequest) {
       assignee_id: processedAssigneeId,
       priority
     };
+
+    // Add brand_id if provided
+    if (brand_id) {
+      insertData.brand_id = brand_id;
+    }
 
     const { data: todo, error } = await supabase
       .from('todos')
@@ -83,7 +106,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { id, title, description, completed, due_date, assignee_id, priority } = body;
+    const { id, title, description, completed, due_date, assignee_id, priority, brand_id } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'Todo ID is required' }, { status: 400 });
@@ -97,6 +120,7 @@ export async function PUT(request: NextRequest) {
       due_date?: string;
       assignee_id?: string | null;
       priority?: string;
+      brand_id?: string;
     } = { updated_at: new Date().toISOString() };
     
     if (title !== undefined) updateData.title = title;
@@ -106,6 +130,7 @@ export async function PUT(request: NextRequest) {
     // Convert empty string assignee_id to null for UUID field
     if (assignee_id !== undefined) updateData.assignee_id = (assignee_id === '' || assignee_id === null) ? null : assignee_id;
     if (priority !== undefined) updateData.priority = priority;
+    if (brand_id !== undefined) updateData.brand_id = brand_id;
 
     const { data: todo, error } = await supabase
       .from('todos')

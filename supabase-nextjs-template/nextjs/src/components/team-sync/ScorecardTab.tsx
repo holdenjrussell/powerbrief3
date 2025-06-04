@@ -76,7 +76,13 @@ export interface FormulaItem {
   displayValue?: string;
 }
 
-export default function ScorecardTab() {
+interface ScorecardTabProps {
+  brandId: string;
+}
+
+export default function ScorecardTab({ brandId }: ScorecardTabProps) {
+  // brandId will be used when scorecard functionality is implemented
+  console.log('ScorecardTab loaded for brand:', brandId);
   const [metrics, setMetrics] = useState<NewMetric[]>([]);
   const [viewOptions, setViewOptions] = useState<ScorecardViewOptions>({
     time_period: 'weekly',

@@ -38,6 +38,7 @@ import {
 interface Todo {
   id: string;
   user_id: string;
+  brand_id?: string;
   title: string;
   description: string;
   completed: boolean;
@@ -53,6 +54,7 @@ interface Todo {
 interface Issue {
   id: string;
   user_id: string;
+  brand_id?: string;
   title: string;
   description: string;
   issue_type: 'short_term' | 'long_term';
@@ -65,6 +67,10 @@ interface Issue {
   creator?: { email: string };
 }
 
+interface TodosTabProps {
+  brandId: string;
+}
+
 const priorityColors = {
   low: 'bg-gray-100 text-gray-800',
   normal: 'bg-blue-100 text-blue-800',
@@ -72,7 +78,7 @@ const priorityColors = {
   urgent: 'bg-red-100 text-red-800'
 };
 
-export default function TodosTab() {
+export default function TodosTab({ brandId }: TodosTabProps) {
   const [todos, setTodos] = useState<Todo[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -97,7 +103,7 @@ export default function TodosTab() {
   const fetchTodos = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/team-sync/todos');
+      const response = await fetch(`/api/team-sync/todos?brandId=${brandId}`);
       const data = await response.json();
       if (response.ok) {
         setTodos(data.todos);
@@ -125,7 +131,7 @@ export default function TodosTab() {
 
   useEffect(() => {
     fetchTodos();
-  }, []);
+  }, [brandId]);
 
   // Fetch linked issues for all todos when todos are loaded
   useEffect(() => {
@@ -142,8 +148,8 @@ export default function TodosTab() {
     try {
       const method = editingTodo ? 'PUT' : 'POST';
       const body = editingTodo 
-        ? { ...formData, id: editingTodo.id }
-        : formData;
+        ? { ...formData, id: editingTodo.id, brand_id: brandId }
+        : { ...formData, brand_id: brandId };
 
       const response = await fetch('/api/team-sync/todos', {
         method,
@@ -236,7 +242,7 @@ export default function TodosTab() {
       const issueResponse = await fetch('/api/team-sync/issues', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(issueFormData)
+        body: JSON.stringify({ ...issueFormData, brand_id: brandId })
       });
 
       const issueData = await issueResponse.json();

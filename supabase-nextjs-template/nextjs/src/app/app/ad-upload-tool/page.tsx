@@ -2,15 +2,15 @@
 import React, { useState, useEffect } from 'react';
 import AdSheetView from '@/components/ad-upload-tool/AdSheetView';
 import { useGlobal } from '@/lib/context/GlobalContext';
-import { Loader2, Settings, ChevronDown, Save, Trash2 } from 'lucide-react';
+import { useBrand } from '@/lib/context/BrandContext';
+import { Loader2, Settings, ChevronDown, Save, Trash2, Building2 } from 'lucide-react';
 import { SiteLink, AdvantageCreativeEnhancements } from '@/components/ad-upload-tool/adUploadTypes';
-import { getBrands } from '@/lib/services/powerbriefService';
-import { Brand as PowerBriefBrand } from '@/lib/types/powerbrief';
 import SiteLinksManager from '@/components/ad-upload-tool/SiteLinksManager';
 import AdvantageCreativeManager from '@/components/ad-upload-tool/AdvantageCreativeManager';
 import MetaCampaignSelector from '@/components/ad-upload-tool/MetaCampaignSelector';
 import MetaAdSetSelector from '@/components/ad-upload-tool/MetaAdSetSelector';
 import { AdConfiguration, AdConfigurationSettings } from '@/lib/types/adConfigurations';
+import { Card, CardContent } from '@/components/ui/card';
 
 // Updated DefaultValues interface to include Meta features
 interface DefaultValues {
@@ -59,7 +59,7 @@ interface MetaConfig {
   pageBackedInstagramAccounts?: Record<string, string>;
 }
 
-interface Brand {
+interface BrandMetaData {
   id: string;
   name: string;
   fbPage: string;
@@ -84,23 +84,27 @@ interface Brand {
 
 const AdUploadToolPage = () => {
   const { user } = useGlobal();
+  const { selectedBrand, isLoading: brandsLoading } = useBrand();
   const [currentDefaults, setCurrentDefaults] = useState<DefaultValues | null>(null);
-  const [selectedBrand, setSelectedBrand] = useState<Brand | null>(null);
-  const [brands, setBrands] = useState<Brand[]>([]);
+  const [brandMetaData, setBrandMetaData] = useState<BrandMetaData | null>(null);
   const [configurations, setConfigurations] = useState<AdConfiguration[]>([]);
   const [selectedConfiguration, setSelectedConfiguration] = useState<AdConfiguration | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isLoadingBrands, setIsLoadingBrands] = useState(false);
   const [isLoadingConfigurations, setIsLoadingConfigurations] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showSaveConfigModal, setShowSaveConfigModal] = useState(false);
 
-  // Load saved settings and brands on component mount
+  // Load saved settings and brand meta data on component mount or brand change
   useEffect(() => {
-    if (user?.id) {
-      loadInitialData();
+    if (user?.id && selectedBrand) {
+      loadBrandMetaData();
+    } else if (!selectedBrand) {
+      setBrandMetaData(null);
+      setCurrentDefaults(null);
+      setConfigurations([]);
+      setSelectedConfiguration(null);
     }
-  }, [user?.id]);
+  }, [user?.id, selectedBrand]);
 
   // Load configurations when brand changes
   useEffect(() => {
@@ -112,105 +116,147 @@ const AdUploadToolPage = () => {
     }
   }, [selectedBrand?.id]);
 
-  const loadInitialData = async () => {
+  const loadBrandMetaData = async () => {
+    if (!selectedBrand) return;
+    
     try {
       setIsLoading(true);
       
-      // Load brands
-      setIsLoadingBrands(true);
-      const fetchedBrands: PowerBriefBrand[] = await getBrands(user!.id);
-      
-      // Enhanced brand mapping with Meta configuration
-      const mappedBrands: Brand[] = await Promise.all(
-        fetchedBrands.map(async (b) => {
-          // Fetch Meta configuration for each brand to get names and labels
-          let metaConfig = null;
-          try {
-            const metaResponse = await fetch(`/api/meta/brand-config?brandId=${b.id}`);
-            if (metaResponse.ok) {
-              const metaData = await metaResponse.json();
-              metaConfig = metaData.config;
-            }
-          } catch (error) {
-            console.error(`Error fetching Meta config for brand ${b.id}:`, error);
-          }
+      // Fetch Meta configuration for the brand
+      let metaConfig = null;
+      try {
+        const metaResponse = await fetch(`/api/meta/brand-config?brandId=${selectedBrand.id}`);
+        if (metaResponse.ok) {
+          const metaData = await metaResponse.json();
+          metaConfig = metaData.config;
+        }
+      } catch (error) {
+        console.error(`Error fetching Meta config for brand ${selectedBrand.id}:`, error);
+      }
 
-          // Helper function to get display name for an account
-          const getAccountDisplayName = (id: string, accounts: MetaAccount[], manualLabels: Record<string, string>) => {
-            if (!id) return null;
-            
-            // Check manual labels first
-            if (manualLabels[id]) {
-              return manualLabels[id];
-            }
-            
-            // Then check API accounts
-            const account = accounts.find(acc => acc.id === id);
-            return account?.name || null;
-          };
+      // Helper function to get display name for an account
+      const getAccountDisplayName = (id: string, accounts: MetaAccount[], manualLabels: Record<string, string>) => {
+        if (!id) return null;
+        
+        // Check manual labels first
+        if (manualLabels[id]) {
+          return manualLabels[id];
+        }
+        
+        // Then check API accounts
+        const account = accounts.find(acc => acc.id === id);
+        return account?.name || null;
+      };
 
-          return {
-            id: b.id,
-            name: b.name,
-            fbPage: b.meta_facebook_page_id || '',
-            fbPageName: metaConfig ? getAccountDisplayName(
-              b.meta_facebook_page_id || '', 
-              metaConfig.facebookPages || [], 
-              metaConfig.manualPageLabels || {}
-            ) : null,
-            igAccount: b.meta_instagram_actor_id || '',
-            igAccountName: metaConfig ? getAccountDisplayName(
-              b.meta_instagram_actor_id || '', 
-              metaConfig.instagramAccounts || [], 
-              metaConfig.manualInstagramLabels || {}
-            ) : null,
-            pixel: b.meta_pixel_id || '',
-            pixelName: metaConfig ? getAccountDisplayName(
-              b.meta_pixel_id || '', 
-              metaConfig.pixels || [], 
-              {}
-            ) : null,
-            adAccountId: b.meta_ad_account_id || '',
-            adAccountName: metaConfig ? getAccountDisplayName(
-              b.meta_ad_account_id || '', 
-              metaConfig.adAccounts || [], 
-              {}
-            ) : null,
-            // Include full Meta config for enhanced functionality
-            metaConfig,
-            // Legacy fields for backward compatibility
-            metaAdAccounts: metaConfig?.adAccounts || [],
-            metaFacebookPages: metaConfig?.facebookPages || [],
-            metaInstagramAccounts: metaConfig?.instagramAccounts || [],
-            metaPixels: metaConfig?.pixels || [],
-            manualPageLabels: metaConfig?.manualPageLabels || {},
-            manualInstagramLabels: metaConfig?.manualInstagramLabels || {},
-          };
-        })
-      );
+      const brandData: BrandMetaData = {
+        id: selectedBrand.id,
+        name: selectedBrand.name,
+        fbPage: selectedBrand.meta_facebook_page_id || '',
+        fbPageName: metaConfig ? getAccountDisplayName(
+          selectedBrand.meta_facebook_page_id || '', 
+          metaConfig.facebookPages || [], 
+          metaConfig.manualPageLabels || {}
+        ) : null,
+        igAccount: selectedBrand.meta_instagram_actor_id || '',
+        igAccountName: metaConfig ? getAccountDisplayName(
+          selectedBrand.meta_instagram_actor_id || '', 
+          metaConfig.instagramAccounts || [], 
+          metaConfig.manualInstagramLabels || {}
+        ) : null,
+        pixel: selectedBrand.meta_pixel_id || '',
+        pixelName: metaConfig ? getAccountDisplayName(
+          selectedBrand.meta_pixel_id || '', 
+          metaConfig.pixels || [], 
+          {}
+        ) : null,
+        adAccountId: selectedBrand.meta_ad_account_id || '',
+        adAccountName: metaConfig ? getAccountDisplayName(
+          selectedBrand.meta_ad_account_id || '', 
+          metaConfig.adAccounts || [], 
+          {}
+        ) : null,
+        // Include full Meta config for enhanced functionality
+        metaConfig,
+        // Legacy fields for backward compatibility
+        metaAdAccounts: metaConfig?.adAccounts || [],
+        metaFacebookPages: metaConfig?.facebookPages || [],
+        metaInstagramAccounts: metaConfig?.instagramAccounts || [],
+        metaPixels: metaConfig?.pixels || [],
+        manualPageLabels: metaConfig?.manualPageLabels || {},
+        manualInstagramLabels: metaConfig?.manualInstagramLabels || {},
+      };
       
-      setBrands(mappedBrands);
-      setIsLoadingBrands(false);
+      setBrandMetaData(brandData);
       
       // Try to load saved settings from localStorage
       const savedSettings = localStorage.getItem(`ad-upload-settings-${user?.id}`);
       if (savedSettings) {
         const settings = JSON.parse(savedSettings);
-        setCurrentDefaults(settings);
-        
-        // Find and set the selected brand
-        const brand = mappedBrands.find(b => b.id === settings.brandId);
-        if (brand) {
-          setSelectedBrand(brand);
+        // Only use saved settings if they match the current brand
+        if (settings.brandId === selectedBrand.id) {
+          setCurrentDefaults(settings);
+        } else {
+          // Create default settings for this brand
+          createDefaultSettings(brandData);
         }
-        console.log('Settings loaded from localStorage');
+      } else {
+        // Create default settings for this brand
+        createDefaultSettings(brandData);
       }
     } catch (error) {
-      console.error('Error loading initial data:', error);
-      setIsLoadingBrands(false);
+      console.error('Error loading brand meta data:', error);
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const createDefaultSettings = (brandData: BrandMetaData) => {
+    const defaults: DefaultValues = {
+      brandId: brandData.id,
+      adAccountId: brandData.adAccountId,
+      adAccountName: brandData.adAccountName,
+      campaignId: null,
+      campaignName: null,
+      adSetId: null,
+      adSetName: null,
+      fbPage: brandData.fbPage,
+      fbPageName: brandData.fbPageName,
+      igAccount: brandData.igAccount,
+      igAccountName: brandData.igAccountName,
+      urlParams: '',
+      pixel: brandData.pixel,
+      pixelName: brandData.pixelName,
+      status: 'PAUSED',
+      primaryText: 'Check out our latest offer!',
+      headline: 'Amazing New Product',
+      description: '',
+      destinationUrl: 'https://example.com',
+      callToAction: 'LEARN_MORE',
+      siteLinks: [],
+      advantageCreative: {
+        inline_comment: false,
+        image_templates: false,
+        image_touchups: false,
+        video_auto_crop: false,
+        image_brightness_and_contrast: false,
+        enhance_cta: false,
+        text_optimizations: false,
+        image_uncrop: false,
+        adapt_to_placement: false,
+        media_type_automation: false,
+        product_extensions: false,
+        description_automation: false,
+        add_text_overlay: false,
+        site_extensions: false,
+        '3d_animation': false,
+        translate_text: false
+      },
+      // Include Use Page as Actor setting from brand config
+      usePageAsActor: brandData.metaConfig?.usePageAsActor || false
+    };
+    
+    setCurrentDefaults(defaults);
+    saveSettings(defaults);
   };
 
   const loadConfigurations = async (brandId: string) => {
@@ -236,80 +282,24 @@ const AdUploadToolPage = () => {
   };
 
   const loadConfigurationSettings = (config: AdConfiguration) => {
-    if (!selectedBrand) return;
+    if (!brandMetaData) return;
     
     const defaults: DefaultValues = {
-      brandId: selectedBrand.id,
-      adAccountId: selectedBrand.adAccountId,
-      adAccountName: selectedBrand.adAccountName,
-      fbPage: selectedBrand.fbPage,
-      fbPageName: selectedBrand.fbPageName,
-      igAccount: selectedBrand.igAccount,
-      igAccountName: selectedBrand.igAccountName,
-      pixel: selectedBrand.pixel,
-      pixelName: selectedBrand.pixelName,
+      brandId: brandMetaData.id,
+      adAccountId: brandMetaData.adAccountId,
+      adAccountName: brandMetaData.adAccountName,
+      fbPage: brandMetaData.fbPage,
+      fbPageName: brandMetaData.fbPageName,
+      igAccount: brandMetaData.igAccount,
+      igAccountName: brandMetaData.igAccountName,
+      pixel: brandMetaData.pixel,
+      pixelName: brandMetaData.pixelName,
       // Spread the configuration settings to preserve all saved values including names
       ...config.settings
     };
     
     setCurrentDefaults(defaults);
     saveSettings(defaults);
-  };
-
-  const handleBrandSelect = (brandId: string) => {
-    const brand = brands.find(b => b.id === brandId);
-    if (brand) {
-      setSelectedBrand(brand);
-      setSelectedConfiguration(null);
-      
-      // Create default settings for this brand
-      const defaults: DefaultValues = {
-        brandId: brand.id,
-        adAccountId: brand.adAccountId,
-        adAccountName: brand.adAccountName,
-        campaignId: null,
-        campaignName: null,
-        adSetId: null,
-        adSetName: null,
-        fbPage: brand.fbPage,
-        fbPageName: brand.fbPageName,
-        igAccount: brand.igAccount,
-        igAccountName: brand.igAccountName,
-        urlParams: '',
-        pixel: brand.pixel,
-        pixelName: brand.pixelName,
-        status: 'PAUSED',
-        primaryText: 'Check out our latest offer!',
-        headline: 'Amazing New Product',
-        description: '',
-        destinationUrl: 'https://example.com',
-        callToAction: 'LEARN_MORE',
-        siteLinks: [],
-        advantageCreative: {
-          inline_comment: false,
-          image_templates: false,
-          image_touchups: false,
-          video_auto_crop: false,
-          image_brightness_and_contrast: false,
-          enhance_cta: false,
-          text_optimizations: false,
-          image_uncrop: false,
-          adapt_to_placement: false,
-          media_type_automation: false,
-          product_extensions: false,
-          description_automation: false,
-          add_text_overlay: false,
-          site_extensions: false,
-          '3d_animation': false,
-          translate_text: false
-        },
-        // Include Use Page as Actor setting from brand config
-        usePageAsActor: brand.metaConfig?.usePageAsActor || false
-      };
-      
-      setCurrentDefaults(defaults);
-      saveSettings(defaults);
-    }
   };
 
   const handleConfigurationSelect = (configId: string) => {
@@ -337,7 +327,7 @@ const AdUploadToolPage = () => {
   };
 
   const handleSaveConfiguration = async (name: string, description: string, isDefault: boolean) => {
-    if (!selectedBrand || !currentDefaults) return;
+    if (!brandMetaData || !currentDefaults) return;
 
     try {
       // Helper function to get account name for saving
@@ -363,25 +353,25 @@ const AdUploadToolPage = () => {
         adAccountId: currentDefaults.adAccountId,
         adAccountName: getAccountName(
           currentDefaults.adAccountId, 
-          selectedBrand.metaConfig?.adAccounts || [], 
+          brandMetaData.metaConfig?.adAccounts || [], 
           {}
         ),
         fbPage: currentDefaults.fbPage,
         fbPageName: getAccountName(
           currentDefaults.fbPage, 
-          selectedBrand.metaConfig?.facebookPages || [], 
-          selectedBrand.metaConfig?.manualPageLabels || {}
+          brandMetaData.metaConfig?.facebookPages || [], 
+          brandMetaData.metaConfig?.manualPageLabels || {}
         ),
         igAccount: currentDefaults.igAccount,
         igAccountName: getAccountName(
           currentDefaults.igAccount, 
-          selectedBrand.metaConfig?.instagramAccounts || [], 
-          selectedBrand.metaConfig?.manualInstagramLabels || {}
+          brandMetaData.metaConfig?.instagramAccounts || [], 
+          brandMetaData.metaConfig?.manualInstagramLabels || {}
         ),
         pixel: currentDefaults.pixel,
         pixelName: getAccountName(
           currentDefaults.pixel, 
-          selectedBrand.metaConfig?.pixels || [], 
+          brandMetaData.metaConfig?.pixels || [], 
           {}
         ),
         urlParams: currentDefaults.urlParams,
@@ -394,14 +384,14 @@ const AdUploadToolPage = () => {
         siteLinks: currentDefaults.siteLinks,
         advantageCreative: currentDefaults.advantageCreative,
         // Include Use Page as Actor setting
-        usePageAsActor: selectedBrand.metaConfig?.usePageAsActor || false
+        usePageAsActor: brandMetaData.metaConfig?.usePageAsActor || false
       };
 
       const response = await fetch('/api/ad-configurations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          brand_id: selectedBrand.id,
+          brand_id: brandMetaData.id,
           name,
           description,
           is_default: isDefault,
@@ -451,7 +441,7 @@ const AdUploadToolPage = () => {
     }
   };
 
-  if (isLoading) {
+  if (isLoading || brandsLoading) {
     return (
       <div className="container mx-auto p-4 md:p-8 bg-gray-50 min-h-screen">
         <div className="flex items-center justify-center min-h-[400px]">
@@ -464,33 +454,51 @@ const AdUploadToolPage = () => {
     );
   }
 
+  if (!selectedBrand) {
+    return (
+      <div className="container mx-auto p-4 md:p-8 bg-gray-50 min-h-screen">
+        <Card>
+          <CardContent className="p-8 text-center text-gray-500">
+            <Building2 className="h-16 w-16 mx-auto mb-4 text-gray-400" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No brand selected</h3>
+            <p className="max-w-md mx-auto">
+              Please select a brand from the dropdown above to start creating ads.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="container mx-auto p-4 md:p-8 bg-gray-50 min-h-screen">
       <header className="mb-8">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-800">Ad Upload Tool</h1>
+            <h1 className="text-3xl font-bold text-gray-800">Ad Upload Tool - {selectedBrand.name}</h1>
             <p className="text-gray-600">Streamline your ad creation and launching process.</p>
           </div>
           
-          {/* Brand Selection and Settings in header */}
+          {/* Configuration Selection and Settings in header */}
           <div className="flex items-center space-x-3">
-            {/* Brand Selection Dropdown */}
+            {/* Configuration Selection Dropdown */}
             <div className="relative">
-              <label htmlFor="brand-select" className="sr-only">Select Brand</label>
+              <label htmlFor="config-select" className="sr-only">Select Configuration</label>
               <select
-                id="brand-select"
-                value={selectedBrand?.id || ""}
-                onChange={(e) => handleBrandSelect(e.target.value)}
+                id="config-select"
+                value={selectedConfiguration?.id || ""}
+                onChange={(e) => handleConfigurationSelect(e.target.value)}
                 className="pl-3 pr-10 py-2 text-sm border-gray-300 focus:outline-none focus:ring-primary-500 focus:border-primary-500 rounded-md shadow-sm appearance-none bg-white min-w-[200px]"
-                disabled={isLoadingBrands}
-                title="Select a brand to work with"
+                disabled={isLoadingConfigurations}
+                title="Select a saved configuration"
               >
                 <option value="" disabled>
-                  {isLoadingBrands ? 'Loading Brands...' : 'Select Brand'}
+                  {isLoadingConfigurations ? 'Loading Configurations...' : 'Select Configuration'}
                 </option>
-                {brands.map(brand => (
-                  <option key={brand.id} value={brand.id}>{brand.name}</option>
+                {configurations.map(config => (
+                  <option key={config.id} value={config.id}>
+                    {config.name} {config.is_default && '(Default)'}
+                  </option>
                 ))}
               </select>
               <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
@@ -498,116 +506,58 @@ const AdUploadToolPage = () => {
               </div>
             </div>
 
-            {/* Configuration Selection Dropdown */}
-            {selectedBrand && (
-              <div className="relative">
-                <label htmlFor="config-select" className="sr-only">Select Configuration</label>
-                <select
-                  id="config-select"
-                  value={selectedConfiguration?.id || ""}
-                  onChange={(e) => handleConfigurationSelect(e.target.value)}
-                  className="pl-3 pr-10 py-2 text-sm border-gray-300 focus:outline-none focus:ring-primary-500 focus:border-primary-500 rounded-md shadow-sm appearance-none bg-white min-w-[200px]"
-                  disabled={isLoadingConfigurations}
-                  title="Select a saved configuration"
-                >
-                  <option value="" disabled>
-                    {isLoadingConfigurations ? 'Loading Configs...' : 'Select Configuration'}
-                  </option>
-                  {configurations.map(config => (
-                    <option key={config.id} value={config.id}>
-                      {config.name} {config.is_default ? '(Default)' : ''}
-                    </option>
-                  ))}
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
-                  <ChevronDown className="h-4 w-4" />
-                </div>
-              </div>
+            {/* Save Configuration Button */}
+            <button
+              onClick={() => setShowSaveConfigModal(true)}
+              className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-md transition-colors"
+              title="Save current settings as configuration"
+              disabled={!currentDefaults}
+            >
+              <Save className="h-5 w-5" />
+            </button>
+
+            {/* Delete Configuration Button */}
+            {selectedConfiguration && (
+              <button
+                onClick={() => handleDeleteConfiguration(selectedConfiguration.id)}
+                className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-md transition-colors"
+                title="Delete selected configuration"
+              >
+                <Trash2 className="h-5 w-5" />
+              </button>
             )}
 
-            {/* Action Buttons */}
-            {selectedBrand && (
-              <>
-                <button 
-                  onClick={() => setShowSaveConfigModal(true)}
-                  className="px-3 py-2 text-sm font-medium text-green-600 bg-white border border-green-600 rounded-md hover:bg-green-50 flex items-center"
-                  title="Save current settings as configuration"
-                >
-                  <Save className="h-4 w-4 mr-1" />
-                  Save Config
-                </button>
-
-                <button 
-                  onClick={() => setShowSettingsModal(true)}
-                  className="px-4 py-2 text-sm font-medium text-primary-600 bg-white border border-primary-600 rounded-md hover:bg-primary-50 flex items-center"
-                  title="Open settings modal"
-                >
-                  <Settings className="h-4 w-4 mr-2" />
-                  Settings
-                </button>
-              </>
-            )}
+            {/* Settings Button */}
+            <button
+              onClick={() => setShowSettingsModal(true)}
+              className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-md transition-colors"
+              title="Ad Upload Settings"
+              disabled={!currentDefaults}
+            >
+              <Settings className="h-5 w-5" />
+            </button>
           </div>
         </div>
-        
-        {selectedBrand && (
-          <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-blue-800">
-                  <strong>Current Brand:</strong> {selectedBrand.name}
-                  <span className="text-blue-600 ml-2">
-                    • Ad Account: {selectedBrand.adAccountName ? `${selectedBrand.adAccountName} (${selectedBrand.adAccountId})` : selectedBrand.adAccountId || 'Not set'}
-                  </span>
-                </p>
-                {selectedConfiguration && (
-                  <p className="text-xs text-blue-700 mt-1">
-                    <strong>Configuration:</strong> {selectedConfiguration.name}
-                    {selectedConfiguration.description && ` - ${selectedConfiguration.description}`}
-                  </p>
-                )}
-              </div>
-              {selectedConfiguration && (
-                <button
-                  onClick={() => handleDeleteConfiguration(selectedConfiguration.id)}
-                  className="text-red-500 hover:text-red-700 p-1"
-                  title="Delete configuration"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              )}
-            </div>
-          </div>
-        )}
       </header>
 
-      {!selectedBrand ? (
-        // Brand Selection Prompt
-        <div className="bg-white p-6 rounded-lg shadow-md max-w-md mx-auto">
-          <h2 className="text-2xl font-semibold text-gray-700 mb-6">Get Started</h2>
-          <p className="text-gray-600 mb-4">
-            Please select a brand from the dropdown in the header to start creating ads.
-          </p>
-          <div className="text-sm text-gray-500">
-            Need to add a new brand? Visit the Brand Management section to set up your Meta integration.
-          </div>
-        </div>
+      {/* Main Content */}
+      {currentDefaults && brandMetaData ? (
+        <AdSheetView 
+          defaults={currentDefaults} 
+          activeBatch={null}
+          selectedConfiguration={selectedConfiguration}
+        />
       ) : (
-        // Ad Sheet View - no back button needed
-        currentDefaults && (
-          <AdSheetView 
-            defaults={currentDefaults} 
-            activeBatch={null}
-            selectedConfiguration={selectedConfiguration}
-          />
-        )
+        <div className="text-center py-12">
+          <p className="text-gray-500">Loading ad configuration...</p>
+        </div>
       )}
 
       {/* Settings Modal */}
-      {showSettingsModal && currentDefaults && (
+      {showSettingsModal && currentDefaults && brandMetaData && (
         <SettingsModal
           defaults={currentDefaults}
-          brand={selectedBrand!}
+          brand={brandMetaData}
           onSave={handleSettingsUpdate}
           onClose={() => setShowSettingsModal(false)}
         />
@@ -628,7 +578,7 @@ const AdUploadToolPage = () => {
 // Settings Modal Component
 interface SettingsModalProps {
   defaults: DefaultValues;
-  brand: Brand;
+  brand: BrandMetaData;
   onSave: (defaults: DefaultValues) => void;
   onClose: () => void;
 }

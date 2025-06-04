@@ -42,6 +42,7 @@ import {
 interface Issue {
   id: string;
   user_id: string;
+  brand_id?: string;
   title: string;
   description: string;
   issue_type: 'short_term' | 'long_term';
@@ -57,6 +58,7 @@ interface Issue {
 interface Todo {
   id: string;
   user_id: string;
+  brand_id?: string;
   title: string;
   description: string;
   completed: boolean;
@@ -67,6 +69,10 @@ interface Todo {
   updated_at: string;
   assignee?: { email: string };
   creator?: { email: string };
+}
+
+interface IssuesTabProps {
+  brandId: string;
 }
 
 const statusColors = {
@@ -86,7 +92,7 @@ const typeColors = {
   long_term: 'bg-purple-100 text-purple-800'
 };
 
-export default function IssuesTab() {
+export default function IssuesTab({ brandId }: IssuesTabProps) {
   const [issues, setIssues] = useState<Issue[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -123,7 +129,7 @@ export default function IssuesTab() {
   const fetchIssues = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/team-sync/issues');
+      const response = await fetch(`/api/team-sync/issues?brandId=${brandId}`);
       const data = await response.json();
       if (response.ok) {
         setIssues(data.issues);
@@ -139,7 +145,7 @@ export default function IssuesTab() {
 
   const fetchTodos = async () => {
     try {
-      const response = await fetch('/api/team-sync/todos');
+      const response = await fetch(`/api/team-sync/todos?brandId=${brandId}`);
       if (response.ok) {
         // Todos fetched successfully but not used in this component
       }
@@ -151,7 +157,7 @@ export default function IssuesTab() {
   useEffect(() => {
     fetchIssues();
     fetchTodos();
-  }, []);
+  }, [brandId]);
 
   // Fetch linked todos for all issues when issues are loaded
   useEffect(() => {
@@ -168,8 +174,8 @@ export default function IssuesTab() {
     try {
       const method = editingIssue ? 'PUT' : 'POST';
       const body = editingIssue 
-        ? { ...formData, id: editingIssue.id }
-        : formData;
+        ? { ...formData, id: editingIssue.id, brand_id: brandId }
+        : { ...formData, brand_id: brandId };
 
       const response = await fetch('/api/team-sync/issues', {
         method,
@@ -291,7 +297,7 @@ export default function IssuesTab() {
       const todoResponse = await fetch('/api/team-sync/todos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(todoFormData)
+        body: JSON.stringify({ ...todoFormData, brand_id: brandId })
       });
 
       const todoData = await todoResponse.json();
