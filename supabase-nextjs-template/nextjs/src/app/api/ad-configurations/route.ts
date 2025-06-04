@@ -14,10 +14,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // Remove user_id filter - let RLS policies handle access control
+    // This allows shared brand users to see configurations for brands they have access to
     let query = supabase
       .from('ad_configurations')
       .select('*')
-      .eq('user_id', user.id)
       .order('is_default', { ascending: false })
       .order('created_at', { ascending: false });
 
