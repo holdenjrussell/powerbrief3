@@ -6,12 +6,13 @@ import Link from 'next/link';
 import { 
   Plus, 
   Frame, 
-  ArrowLeft, 
   MoreVertical, 
   Edit, 
   Trash2, 
   Share2,
-  Layout
+  Layout,
+  AlertTriangle,
+  Wrench
 } from 'lucide-react';
 import { useGlobal } from '@/lib/context/GlobalContext';
 import { getBrands } from '@/lib/services/powerbriefService';
@@ -166,14 +167,6 @@ export default function BrandPowerFramePage() {
     <div className="p-6">
       {/* Header */}
       <div className="mb-8">
-        <Link
-          href="/app/powerframe"
-          className="inline-flex items-center text-sm text-gray-500 hover:text-gray-700 mb-4"
-        >
-          <ArrowLeft className="h-4 w-4 mr-1" />
-          Back to brands
-        </Link>
-        
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 mb-2">
@@ -189,6 +182,35 @@ export default function BrandPowerFramePage() {
             <Plus className="h-4 w-4 mr-2" />
             New Wireframe
           </button>
+        </div>
+      </div>
+
+      {/* Under Construction Banner */}
+      <div className="mb-8 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-lg p-6">
+        <div className="flex items-center space-x-3">
+          <div className="flex-shrink-0">
+            <div className="flex items-center justify-center w-10 h-10 bg-amber-100 rounded-full">
+              <Wrench className="h-5 w-5 text-amber-600" />
+            </div>
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center space-x-2 mb-1">
+              <AlertTriangle className="h-4 w-4 text-amber-600" />
+              <h3 className="text-lg font-semibold text-amber-800">Under Construction</h3>
+            </div>
+            <p className="text-amber-700">
+              PowerFrame is currently in active development. Features may be incomplete or subject to change. 
+              We&apos;re working hard to bring you the best AI-powered wireframing experience!
+            </p>
+            <div className="mt-3 flex items-center space-x-2 text-sm text-amber-600">
+              <div className="flex space-x-1">
+                <div className="w-2 h-2 bg-amber-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                <div className="w-2 h-2 bg-amber-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                <div className="w-2 h-2 bg-amber-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+              </div>
+              <span className="font-medium">Building something amazing...</span>
+            </div>
+          </div>
         </div>
       </div>
 
