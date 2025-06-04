@@ -14,7 +14,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { toast } from '@/components/ui/use-toast';
 import AssetGroupingPreview from '@/components/PowerBriefAssetGroupingPreview';
-import { CommentModal, TimelineComment } from '@/components/CommentModal';
+import { TimelineComment } from '@/components/CommentModal';
+import MediaModal from '@/components/MediaModal';
 
 interface ConceptForReview {
     id: string;
@@ -315,7 +316,7 @@ function MediaModal({ isOpen, onClose, mediaUrl, mediaType, mediaName, conceptId
                                     <div className="mb-3">
                                         <div 
                                             ref={timelineRef}
-                                            className="relative h-2 bg-white/30 rounded-full cursor-pointer hover:h-3 transition-all duration-200"
+                                            className="relative h-3 bg-white/30 rounded-full cursor-pointer hover:h-4 transition-all duration-200"
                                             onClick={handleTimelineClick}
                                             onMouseDown={handleMouseDown}
                                         >
@@ -325,11 +326,17 @@ function MediaModal({ isOpen, onClose, mediaUrl, mediaType, mediaName, conceptId
                                                 style={{ width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }}
                                             />
                                             
-                                            {/* Draggable handle */}
+                                            {/* Draggable handle - always visible */}
                                             <div 
-                                                className={`absolute top-1/2 transform -translate-y-1/2 -translate-x-1/2 w-4 h-4 bg-blue-500 rounded-full border-2 border-white shadow-lg cursor-grab ${isDragging ? 'cursor-grabbing scale-125' : ''} transition-transform hover:scale-110 opacity-0 hover:opacity-100`}
+                                                className={`absolute top-1/2 transform -translate-y-1/2 -translate-x-1/2 w-5 h-5 bg-blue-600 rounded-full border-2 border-white shadow-lg cursor-grab ${isDragging ? 'cursor-grabbing scale-125' : ''} transition-transform hover:scale-110`}
                                                 style={{ left: `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }}
                                             />
+                                        </div>
+                                        
+                                        {/* Time labels */}
+                                        <div className="flex justify-between mt-1 text-xs text-white/80">
+                                            <span>0:00</span>
+                                            <span>{formatTime(duration)}</span>
                                         </div>
                                     </div>
                                     
@@ -2294,23 +2301,20 @@ export default function ReviewsPage() {
                 }}
             />
 
-            {/* Enhanced Comment Modal */}
+            {/* Enhanced Media Modal with Interactive Timeline */}
             {modalOpen && modalMedia && (
-                <CommentModal
+                <MediaModal
                     isOpen={modalOpen}
                     onClose={closeModal}
                     mediaUrl={modalMedia.url}
                     mediaType={modalMedia.type}
                     mediaName={modalMedia.name}
                     conceptId={modalMedia.conceptId}
-                    existingComments={modalMedia.conceptId ? conceptComments[modalMedia.conceptId] || [] : []}
                     onAddComment={modalMedia.conceptId ? (timestamp, comment, parentId) => 
                         handleAddComment(modalMedia.conceptId!, timestamp, comment, parentId) : undefined}
                     onEditComment={handleEditComment}
                     onDeleteComment={handleDeleteComment}
-                    onResolveComment={handleResolveComment}
-                    currentRevision={modalMedia.conceptId ? getCurrentRevision(modalMedia.conceptId) : 1}
-                    canResolveComments={true}
+                    existingComments={modalMedia.conceptId ? conceptComments[modalMedia.conceptId] || [] : []}
                 />
             )}
         </div>
