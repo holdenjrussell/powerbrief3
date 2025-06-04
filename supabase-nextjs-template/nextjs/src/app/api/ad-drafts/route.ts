@@ -101,6 +101,8 @@ export async function GET(req: NextRequest) {
     // Always load ALL drafts for the brand (ignore batch filtering)
     console.log(`[API AD_DRAFTS GET] Loading all drafts for brand: ${brandId}, user: ${user.id}`);
     
+    // Remove user_id filter - let RLS policies handle access control
+    // This allows shared brand users to see drafts for brands they have access to
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const query = (supabase as any)
       .from('ad_drafts')
@@ -136,7 +138,6 @@ export async function GET(req: NextRequest) {
         advantage_plus_creative
       `)
       .eq('brand_id', brandId)
-      .eq('user_id', user.id)
       .order('created_at', { ascending: false });
 
     // Note: We no longer filter by ad_batch_id - load all drafts for the brand
@@ -367,8 +368,8 @@ export async function DELETE(req: NextRequest) {
     const { error: deleteError } = await (supabase as any)
       .from('ad_drafts')
       .delete()
-      .in('id', draftIds)
-      .eq('user_id', user.id); 
+      .in('id', draftIds);
+      // Removed user_id filter - RLS policies will ensure users can only delete drafts they have access to
 
     if (deleteError) {
       console.error('[API AD_DRAFTS DELETE] Error deleting drafts:', deleteError);
