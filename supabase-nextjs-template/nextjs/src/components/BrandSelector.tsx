@@ -91,7 +91,7 @@ export default function BrandSelector() {
               Manage Brands
             </Link>
             <Link
-              href={selectedBrand ? `/app/powerbrief/${selectedBrand.id}/brand-config` : '/app/powerbrief'}
+              href={selectedBrand ? `/app/powerbrief/${selectedBrand.id}` : '/app/powerbrief'}
               onClick={() => setIsOpen(false)}
               className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
             >

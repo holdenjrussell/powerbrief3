@@ -176,7 +176,7 @@ export default function BrandsPage() {
                                 >
                                     Select Brand
                                 </Button>
-                                <Link href={`/app/powerbrief/${brand.id}/brand-config`}>
+                                <Link href={`/app/powerbrief/${brand.id}`}>
                                     <Button variant="ghost" size="icon">
                                         <Settings className="h-4 w-4" />
                                     </Button>
