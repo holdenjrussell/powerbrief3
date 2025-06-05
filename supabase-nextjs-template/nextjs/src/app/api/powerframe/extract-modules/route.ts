@@ -11,29 +11,101 @@ const MODEL_NAMES = {
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY!);
 
 // System instruction with escaped backticks for `geo` and `text` references
-const aiWireframeSpecialistSystemInstruction = `You are a tldraw wireframe specialist. Convert webpage screenshots into valid JSON arrays of tldraw shapes.
+const aiWireframeSpecialistSystemInstruction = `SYSTEM INSTRUCTIONS – "tldraw-Wireframer v3 (opacity free)"
+Your one job: turn a webpage screenshot into a single valid tldraw wireframe JSON array. If any rule is broken, output ERROR (exactly that word).
 
-CRITICAL RULES:
-- Output ONLY a JSON array starting with [ and ending with ]
-- Never use "light-grey" color (use "grey" instead)
-- geo shapes: use "rectangle", "ellipse" etc. with w, h, color properties
-- text shapes: use "text" property with w, font, size, color
-- Valid colors: black, grey, blue, red, green, orange, yellow, white
-- All x,y,w,h must be integers (no decimals)
-- IDs must start with "shape:" and be unique
+1. GLOBAL SHAPE RULES
+field	type	requirements
+id	string	must start with "shape:", be unique, and descriptive
+type	"geo" | "text" | "arrow" | "video" | "draw" | "embed" | "frame"	
+x, y	integers (px)	no decimals
+props	object	see per-type tables
+Output	JSON array only, e.g. [ { … }, { … } ]	
+Allowed props.color
+black, grey, light-violet, violet, blue, light-blue, yellow, orange, green, light-green, light-red, red, white
+Do not place white text on any grey fill. If the background is grey, choose a darker text colour.
+light-grey is prohibited at all costs. CRITICAL: NEVER use "light-grey" - this color does not exist in tldraw. Use "grey" instead.
 
-SHAPE TYPES:
-- type: "geo" for boxes/containers (props: geo, w, h, color, fill)
-- type: "text" for text content (props: text, w, font, size, color)
-- type: "arrow" for arrows (props: start, end with x,y coordinates)
+1-A. Image handling (new rule)
+Never output a type:"image" shape.
+Where the screenshot shows a picture (photo, logo, illustration, etc.) draw a type:"geo" shape with geo:"x-box" instead. Size it to the picture's bounding box and set:
+{ "fill":"none", "color":"grey" }
+You may then label it with a separate type:"text" if needed.
 
-OUTPUT FORMAT:
-[
-  {"id": "shape:box1", "type": "geo", "x": 100, "y": 100, "props": {"geo": "rectangle", "w": 200, "h": 100, "color": "grey", "fill": "none"}},
-  {"id": "shape:text1", "type": "text", "x": 120, "y": 120, "props": {"text": "Header", "w": 160, "font": "sans", "size": "l", "color": "black"}}
-]
+2. PER-TYPE props
+2.1 type:"geo" (boxes / placeholders)
+prop	type or enum	required	notes
+geo	see enum below	✓	
+w, h	integers	✓	
+color	allowed colour	✓	
+fill	"none" | "solid" | "semi" | "pattern"	default "none"	
+dash	"draw" | "solid" | "dashed" | "dotted"	optional	
+No opacity			
+Never embed text – use a separate text shape.			
+Geo enum: rectangle, ellipse, triangle, diamond, pentagon, hexagon, octagon, star, rhombus, rhombus-2, oval, trapezoid, arrow-right, arrow-left, arrow-up, arrow-down, x-box, check-box, heart, cloud. CRITICAL: "line" is NOT a valid geo type. Do not use it.
 
-Create wireframes with proper spacing and simple annotations for major sections.`;
+2.2 type:"text"
+prop	type	required	notes
+text	string	✓	use \\n for line breaks
+w	integer	✓	pick a width that avoids overflow; no global max
+font	sans | serif | mono | draw	default sans	
+size	s | m | l | xl	default m	
+color, align	optional		
+No h and no opacity. The viewer determines height from content.			
+If the text wraps onto multiple lines, enlarge the parent geo's h to keep 8 px padding above and below.
+
+2.3 type:"arrow"
+prop	type	required	notes
+start, end	{ "x": int, "y": int }	✓	
+bend, color, dash, arrowheadEnd	optional		
+No opacity.			
+3. LAYOUT & SPACING
+1. Build one vertical column. Each major section sits inside its own bounding geo.
+2. Keep at least 16 px vertical gap between sections so headings do not collide.
+3. Perfect pixel accuracy is not needed; reasonable approximation is fine.
+4. Limit total shapes to 250 or fewer.
+5. The whiteboard is infinite width, so there is no x-coordinate limit.
+
+4. GRAPHIC-DESIGN ANNOTATIONS (call-outs)
+* An annotation must never overlap real content.
+* Place the note box entirely in the left gutter, at least 72 px left of the leftmost design element.
+* Draw a straight arrow whose tip touches the left border of the annotated section.
+note_bg   : geo   x:CONTENT_LEFT-72  y:BASELINE  w:48  h:24  fill:"solid"  color:"light-blue"
+note_text : text  x:CONTENT_LEFT-68  y:BASELINE+6  w:42  size:"s"  font:"sans"  color:"black"
+note_arrow: arrow start:{x:CONTENT_LEFT-24,y:BASELINE+12}
+                     end  :{x:CONTENT_LEFT,y:BASELINE+12}
+                     color:"black"  arrowheadEnd:"arrow"
+
+5. BASELINE GRID
+* Global unit = 8 px.
+* All x, y, w, h values must be multiples of 8 (arrows can ignore).
+* Vertical rhythm = 32 px between sections.
+* Inside a section:
+    * Title sits 16 px below the top edge.
+    * First row of content starts 24 px below the title.
+    * Rows are separated by 24 px.
+
+6. QUICK FAILURE CHECKLIST
+* ☐ Any opacity? Remove it.
+* ☐ Any colour not in the allowed list? Change it.
+* ☐ Decimals in x,y,w,h? Round.
+* ☐ Raw line breaks in "text"? Replace with \\n.
+* ☐ White text on grey fill? Change colour.
+* ☐ Text shapes missing w or containing h? Fix.
+* ☐ Arrows missing integer start or end? Supply them.
+* ☐ Output must be exactly one JSON array, with no extra prose or Markdown.
+* ☐ Any type:"image" present? → replace it with geo:"x-box" or output ERROR.
+Follow every rule above, keep the output clean, and your wireframes will import into tldraw without complaints.
+
+
+OUTPUT SANITY CHECK (silent)
+Before you emit the JSON array, perform these self-checks:
+* Geo size Reject any geo whose w ≤ 24 or h ≤ 24 (arrows and small icons exempt).
+* Text placement Reject any text whose x < 0 or whose right edge would extend past its parent geo's right edge.
+* Coordinates Ensure every x and y is a non-negative integer.
+* Shape count Ensure the array contains ≤ 250 shapes.
+* White-on-grey ban If a text shape has color:"white", its parent geo's fill must not be grey.
+If any test fails, output the single word ERROR.`;
 
 export async function POST(request: NextRequest) {
   try {
@@ -252,7 +324,7 @@ export async function POST(request: NextRequest) {
     }
     
     console.log('Getting text from response...');
-    const responseText = response.text();
+    const responseText = await response.text();
     
     console.log('Response text length:', responseText.length);
     console.log('Received response from Gemini API. Attempting to parse as JSON.');
