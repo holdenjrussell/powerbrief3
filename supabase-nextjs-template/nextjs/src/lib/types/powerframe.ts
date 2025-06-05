@@ -1,4 +1,5 @@
 import { Json } from "./supabase";
+import { TLShape } from '@tldraw/tldraw';
 
 // Page Type interfaces
 export interface PageType {
@@ -76,10 +77,16 @@ export interface WireframeRow {
   columns: number; // Number of columns in this row (1-12)
   height?: string; // Optional height for the row
   modules: WireframeModule[];
+  order_index?: number;
+  layout?: 'horizontal' | 'grid'; // Added for new editor
+  name?: string; // Added for new editor
 }
 
 export interface WireframeStructure {
-  rows: WireframeRow[];
+  rows?: WireframeRow[]; // Made rows optional
+  columns?: number; // e.g., overall grid columns for the wireframe
+  backgroundColor?: string;
+  tldrawShapes?: TLShape[];
 }
 
 // Extracted module from competitor snapshot

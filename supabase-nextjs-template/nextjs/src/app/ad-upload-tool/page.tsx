@@ -92,6 +92,7 @@ const AdUploadToolPage = () => {
   const [isLoadingConfigurations, setIsLoadingConfigurations] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showSaveConfigModal, setShowSaveConfigModal] = useState(false);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
 
   // Load saved settings and brands on component mount
   useEffect(() => {
@@ -100,15 +101,15 @@ const AdUploadToolPage = () => {
     }
   }, [user?.id]);
 
-  // Load configurations when brand changes
+  // Load configurations when brand changes (but not on initial load)
   useEffect(() => {
-    if (selectedBrand?.id) {
+    if (selectedBrand?.id && !isInitialLoad) {
       loadConfigurations(selectedBrand.id, selectedBrand);
-    } else {
+    } else if (!selectedBrand?.id) {
       setConfigurations([]);
       setSelectedConfiguration(null);
     }
-  }, [selectedBrand?.id]);
+  }, [selectedBrand?.id, isInitialLoad]);
 
   const loadInitialData = async () => {
     try {
@@ -207,9 +208,13 @@ const AdUploadToolPage = () => {
         }
         console.log('Settings loaded from localStorage');
       }
+      
+      // Mark initial load as complete
+      setIsInitialLoad(false);
     } catch (error) {
       console.error('Error loading initial data:', error);
       setIsLoadingBrands(false);
+      setIsInitialLoad(false);
     } finally {
       setIsLoading(false);
     }
@@ -229,12 +234,16 @@ const AdUploadToolPage = () => {
           console.log('[AdUploadToolPage] Found default configuration:', defaultConfig.name);
           setSelectedConfiguration(defaultConfig);
           loadConfigurationSettings(defaultConfig, brand);
+          // Small delay to ensure state updates properly
+          await new Promise(resolve => setTimeout(resolve, 100));
         } else if (configs.length > 0) {
           // If no default, select the first configuration
           console.log('[AdUploadToolPage] No default configuration found, selecting first available');
           const firstConfig = configs[0];
           setSelectedConfiguration(firstConfig);
           loadConfigurationSettings(firstConfig, brand);
+          // Small delay to ensure state updates properly
+          await new Promise(resolve => setTimeout(resolve, 100));
         } else {
           console.log('[AdUploadToolPage] No configurations found for brand');
           // Create basic defaults when no configurations exist
@@ -298,6 +307,9 @@ const AdUploadToolPage = () => {
     const brandToUse = brand || selectedBrand;
     if (!brandToUse) return;
     
+    console.log('[loadConfigurationSettings] Loading config:', config.name);
+    console.log('[loadConfigurationSettings] Config settings:', config.settings);
+    
     const defaults: DefaultValues = {
       brandId: brandToUse.id,
       adAccountId: brandToUse.adAccountId,
@@ -312,6 +324,8 @@ const AdUploadToolPage = () => {
       ...config.settings
     };
     
+    console.log('[loadConfigurationSettings] Final defaults to be set:', defaults);
+    
     setCurrentDefaults(defaults);
     saveSettings(defaults);
   };
@@ -319,6 +333,8 @@ const AdUploadToolPage = () => {
   const handleBrandSelect = async (brandId: string) => {
     const brand = brands.find(b => b.id === brandId);
     if (brand) {
+      // Clear current state to ensure clean transition
+      setCurrentDefaults(null);
       setSelectedBrand(brand);
       setSelectedConfiguration(null);
       
@@ -566,12 +582,20 @@ const AdUploadToolPage = () => {
         </div>
       ) : (
         // Ad Sheet View - no back button needed
-        currentDefaults && (
+        currentDefaults && !isLoadingConfigurations ? (
           <AdSheetView 
+            key={`${selectedBrand.id}-${selectedConfiguration?.id || 'no-config'}`}
             defaults={currentDefaults} 
             activeBatch={null}
             selectedConfiguration={selectedConfiguration}
           />
+        ) : (
+          <div className="flex items-center justify-center min-h-[400px]">
+            <div className="text-center">
+              <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-primary-600" />
+              <p className="text-gray-600">Loading configuration...</p>
+            </div>
+          </div>
         )
       )}
 

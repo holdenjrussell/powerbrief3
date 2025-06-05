@@ -1,612 +1,488 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { 
-  ArrowLeft, 
-  Plus, 
-  Save,
-  Share2,
-  Upload,
-  Type,
-  Video,
-  Square,
-  Trash2,
-  AlignLeft,
-  AlignCenter,
-  AlignRight,
-  Rows,
-  GripVertical,
-  Bold,
-  Italic,
-  Underline,
-  Code,
-  Edit2,
-  Package,
-  Sparkles,
-  X,
-  Grid3X3,
-  MoreHorizontal
-} from 'lucide-react';
-import { useGlobal } from '@/lib/context/GlobalContext';
-import { getBrands, getBrandById } from '@/lib/services/powerbriefService';
-import { Brand, Product } from '@/lib/types/powerbrief';
-import { 
-  Wireframe, 
-  WireframeModule,
-  ModuleType,
-  AlignmentType,
-  WireframeRow
-} from '@/lib/types/powerframe';
-import { 
-  getWireframe, 
-  updateWireframeStructure,
-  uploadCompetitorSnapshot 
-} from '@/lib/services/powerframeService';
-import { getProductsByBrand } from '@/lib/services/productService';
+import { ArrowLeft, Sparkles, ChevronLeft, ChevronRight, Upload, X } from 'lucide-react';
+import dynamic from 'next/dynamic';
+import { toRichText } from '@tldraw/tldraw';
 
-interface DraggedItem {
-  module: WireframeModule;
-  sourceRowId: string;
-}
+// Dynamically import Tldraw to avoid SSR issues
+const Tldraw = dynamic(
+  () => import('@tldraw/tldraw').then((mod) => ({ default: mod.Tldraw })),
+  { 
+    ssr: false,
+    loading: () => <div className="w-full h-full flex items-center justify-center bg-gray-100">Loading canvas...</div>
+  }
+);
 
-interface ExtendedWireframeModule extends WireframeModule {
-  name?: string;
-}
-
-interface ExtendedWireframeRow extends WireframeRow {
-  name?: string;
-  modules: ExtendedWireframeModule[];
-  layout?: 'horizontal' | 'grid';
-}
-
-interface ExtractedModule {
-  type: string;
-  name?: string;
-  sectionName?: string;
-  content?: {
-    text?: string;
-    placeholder?: string;
-  };
-  position?: {
-    row?: number;
-    column?: number;
-    width?: number;
-    height?: number;
-  };
-  alignment?: string;
-  originalIndex?: number;
-}
+// Import CSS
+import '@tldraw/tldraw/tldraw.css';
 
 export default function WireframeEditorPage() {
   const params = useParams();
-  const router = useRouter();
   const brandId = params.brandId as string;
   const wireframeId = params.wireframeId as string;
   
-  const [brand, setBrand] = useState<Brand | null>(null);
-  const [wireframe, setWireframe] = useState<Wireframe | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [selectedModule, setSelectedModule] = useState<string | null>(null);
-  const [draggedModule, setDraggedModule] = useState<string | null>(null);
-  const [draggedItem, setDraggedItem] = useState<DraggedItem | null>(null);
-  const [resizingModule, setResizingModule] = useState<string | null>(null);
-  const [editingModule, setEditingModule] = useState<string | null>(null);
-  const [dragOverModule, setDragOverModule] = useState<string | null>(null);
-  const [editingModuleName, setEditingModuleName] = useState<string | null>(null);
-  const [htmlMode, setHtmlMode] = useState<{ [key: string]: boolean }>({});
-  const [selectedProducts, setSelectedProducts] = useState<Product[]>([]);
-  const [showProductSelector, setShowProductSelector] = useState(false);
-  const [availableProducts, setAvailableProducts] = useState<Product[]>([]);
-  const [editingRowName, setEditingRowName] = useState<string | null>(null);
-  const [resizingModuleHeight, setResizingModuleHeight] = useState<string | null>(null);
-  const [selectedModel, setSelectedModel] = useState<'gemini-2.5-pro' | 'gemini-2.5-flash'>('gemini-2.5-pro');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [dragOverPosition, setDragOverPosition] = useState<{ rowId: string; index: number } | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const [modulePositions, setModulePositions] = useState<Map<string, { row: number; column: number }>>(new Map());
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [prompt, setPrompt] = useState('');
+  const [selectedModel, setSelectedModel] = useState<'gemini-2.5-pro' | 'gemini-2.5-flash'>('gemini-2.5-pro');
+  const [isGenerating, setIsGenerating] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [currentEditor, setCurrentEditor] = useState<any>(null);
+  const [isClient, setIsClient] = useState(false);
   
-  const { user } = useGlobal();
+  // Temporary debugging feature
+  const [jsonInput, setJsonInput] = useState('');
+  const [isLoadingJson, setIsLoadingJson] = useState(false);
 
+  // Valid tldraw colors - expanded list
+  const VALID_COLORS = ['black', 'grey', 'white', 'blue', 'red', 'green', 'orange', 'yellow', 'light-violet', 'violet', 'light-blue', 'light-green', 'light-red', 'light-grey'];
+  
+  // Color mapping for invalid colors
+  const COLOR_MAP: Record<string, string> = {
+    'dark-grey': 'black',
+    'light-gray': 'light-grey',
+    'dark-gray': 'black',
+    'gray': 'grey'
+  };
+
+  // Function to validate and fix colors
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const validateColor = (color: any): string => {
+    if (typeof color !== 'string') return 'black';
+    
+    const lowerColor = color.toLowerCase();
+    
+    // If it's already valid, return it
+    if (VALID_COLORS.includes(lowerColor)) {
+      return lowerColor;
+    }
+    
+    // If we have a mapping for it, use that
+    if (COLOR_MAP[lowerColor]) {
+      return COLOR_MAP[lowerColor];
+    }
+    
+    // Default to black for any unknown color
+    return 'black';
+  };
+
+  // Function to validate and fix shape properties
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const validateShape = (shape: any): any => {
+    const validatedShape = { ...shape }; // Shallow copy for modification
+    
+    // Ensure props object exists
+    if (!validatedShape.props) {
+      validatedShape.props = {};
+    }
+
+    // Handle text shapes
+    if (validatedShape.type === 'text') {
+      // Check if shape has old 'text' property instead of 'richText'
+      if (validatedShape.props.text !== undefined && validatedShape.props.richText === undefined) {
+        console.warn(`DEFENSIVE FIX (TEXT): Shape ID ${validatedShape.id || 'N/A'} (type: text) has legacy 'text' property. Converting to 'richText'.`);
+        // Convert text to richText format
+        const textValue = String(validatedShape.props.text === null || typeof validatedShape.props.text === 'undefined' ? '' : validatedShape.props.text);
+        validatedShape.props.richText = toRichText(textValue);
+        delete validatedShape.props.text;
+      }
+      
+      // Ensure props.richText exists and is in the correct format
+      if (validatedShape.props.richText === undefined) {
+        console.warn(`DEFENSIVE FIX (TEXT): Shape ID ${validatedShape.id || 'N/A'} (type: text) missing 'richText' property. Adding default.`);
+        validatedShape.props.richText = toRichText('');
+      } else if (typeof validatedShape.props.richText === 'string') {
+        // If richText is a plain string, convert it to rich text format
+        console.warn(`DEFENSIVE FIX (TEXT): Shape ID ${validatedShape.id || 'N/A'} (type: text) has plain string 'richText'. Converting to rich text format.`);
+        validatedShape.props.richText = toRichText(validatedShape.props.richText);
+      } else if (typeof validatedShape.props.richText === 'object' && validatedShape.props.richText !== null) {
+        // richText is already an object (proper rich text format), leave it as is
+        console.log(`DEFENSIVE CHECK (TEXT): Shape ID ${validatedShape.id || 'N/A'} (type: text) already has richText object format.`);
+      }
+      
+      // Ensure font property exists and is valid
+      if (!validatedShape.props.font || !['sans', 'serif', 'mono', 'draw'].includes(validatedShape.props.font)) {
+        console.warn(`DEFENSIVE FIX (TEXT): Shape ID ${validatedShape.id || 'N/A'} (type: text) missing or invalid 'font'. Value: ${validatedShape.props.font}. Adding default 'sans'.`);
+        validatedShape.props.font = 'sans';
+      }
+      
+      // Ensure size property exists and is valid
+      if (!validatedShape.props.size || !['s', 'm', 'l', 'xl'].includes(validatedShape.props.size)) {
+        console.warn(`DEFENSIVE FIX (TEXT): Shape ID ${validatedShape.id || 'N/A'} (type: text) missing or invalid 'size'. Value: ${validatedShape.props.size}. Setting to default 'm'.`);
+        validatedShape.props.size = 'm';
+      }
+      
+      // Remove align property as it's not valid for text shapes in this TLDraw version
+      if (validatedShape.props.align !== undefined) {
+        console.warn(`DEFENSIVE FIX (TEXT): Shape ID ${validatedShape.id || 'N/A'} (type: text) has invalid 'align' property. Removing it.`);
+        delete validatedShape.props.align;
+      }
+      
+      // Add autoSize property if not present
+      if (typeof validatedShape.props.autoSize === 'undefined') {
+        validatedShape.props.autoSize = true; // Default to auto-sizing
+      }
+      
+      // If w is provided, ensure it's a positive number
+      if (validatedShape.props.w !== undefined) {
+        if (typeof validatedShape.props.w !== 'number' || validatedShape.props.w <= 0) {
+          console.warn(`DEFENSIVE FIX (TEXT): Shape ID ${validatedShape.id || 'N/A'} (type: text) has invalid 'w'. Value: ${validatedShape.props.w}. Removing it.`);
+          delete validatedShape.props.w;
+        }
+      }
+      
+      // Validate color
+      if (validatedShape.props.color) {
+        validatedShape.props.color = validateColor(validatedShape.props.color);
+      }
+    }
+    
+    // For geo shapes, handle text property (geo shapes CAN have text with font)
+    if (validatedShape.type === 'geo' && validatedShape.props?.text) {
+      // Ensure font property exists when text is present
+      if (!validatedShape.props.font) {
+        console.warn(`DEFENSIVE FIX (GEO): Shape ID ${validatedShape.id || 'N/A'} (type: geo) has text but missing font property. Adding default 'sans'.`);
+        validatedShape.props.font = 'sans';
+      }
+    }
+    
+    // Validate color property if it exists for any shape type
+    if (validatedShape.props?.color) {
+      validatedShape.props.color = validateColor(validatedShape.props.color);
+    }
+    
+    // Validate size property for geo shapes
+    if (validatedShape.type === 'geo' && validatedShape.props?.size) {
+       if (!['s', 'm', 'l', 'xl'].includes(validatedShape.props.size)) {
+        console.warn(`DEFENSIVE FIX (GEO_SIZE): Shape ID ${validatedShape.id || 'N/A'} (type: geo) has invalid 'size'. Value: ${validatedShape.props.size}. Setting to default 'm'.`);
+        validatedShape.props.size = 'm';
+       }
+    }
+    
+    return validatedShape;
+  };
+
+  // Ensure we're on the client side
   useEffect(() => {
-    if (!user?.id || !brandId || !wireframeId) return;
+    setIsClient(true);
+  }, []);
 
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        
-        // Fetch brands
-        const brandsData = await getBrands(user!.id);
-        
-        // Find current brand
-        const currentBrand = brandsData.find(b => b.id === brandId);
-        setBrand(currentBrand || null);
-        
-        // Fetch wireframe
-        const wireframeData = await getWireframe(wireframeId);
-        setWireframe(wireframeData);
-        
-        // Fetch products for this brand
-        const productsData = await getProductsByBrand(brandId);
-        setAvailableProducts(productsData);
-        
-      } catch (error) {
-        console.error('Error fetching data:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, [user?.id, brandId, wireframeId, router]);
-
-  const handleSave = async () => {
-    if (!wireframe) return;
-
-    setSaving(true);
-    try {
-      await updateWireframeStructure(wireframeId, {
-        structure: wireframe.structure
-      });
-    } catch (error) {
-      console.error('Error saving wireframe:', error);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const addRow = () => {
-    if (!wireframe) return;
-
-    const newRow: ExtendedWireframeRow = {
-      id: `row-${Date.now()}`,
-      columns: 12,
-      modules: [],
-      name: 'New Section',
-      layout: 'grid'
-    };
-
-    setWireframe({
-      ...wireframe,
-      structure: {
-        ...wireframe.structure,
-        rows: [...wireframe.structure.rows, newRow] as WireframeRow[]
-      }
-    });
-  };
-
-  const deleteRow = (rowId: string) => {
-    if (!wireframe) return;
-
-    setWireframe({
-      ...wireframe,
-      structure: {
-        ...wireframe.structure,
-        rows: wireframe.structure.rows.filter(row => row.id !== rowId)
-      }
-    });
-  };
-
-  const addModule = (rowId: string, type: ModuleType) => {
-    if (!wireframe) return;
-
-    const newModule: ExtendedWireframeModule = {
-      id: `module-${Date.now()}`,
-      wireframe_id: wireframeId,
-      type,
-      name: type.charAt(0).toUpperCase() + type.slice(1) + ' Module',
-      content: getDefaultContent(type),
-      position: { row: 0, column: 0, width: 4, height: 200 },
-      alignment: 'left',
-      is_content_placeholder: type === 'text',
-      is_design_descriptor: false,
-      order_index: 0,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    };
-
-    setWireframe({
-      ...wireframe,
-      structure: {
-        ...wireframe.structure,
-        rows: wireframe.structure.rows.map(row => 
-          row.id === rowId 
-            ? { ...row, modules: [...row.modules, newModule] }
-            : row
-        )
-      }
-    });
-  };
-
-  const deleteModule = (rowId: string, moduleId: string) => {
-    if (!wireframe) return;
-
-    setWireframe({
-      ...wireframe,
-      structure: {
-        ...wireframe.structure,
-        rows: wireframe.structure.rows.map(row => 
-          row.id === rowId 
-            ? { ...row, modules: row.modules.filter(m => m.id !== moduleId) }
-            : row
-        )
-      }
-    });
-  };
-
-  const updateModule = (rowId: string, moduleId: string, updates: Partial<WireframeModule>) => {
-    if (!wireframe) return;
-
-    setWireframe({
-      ...wireframe,
-      structure: {
-        ...wireframe.structure,
-        rows: wireframe.structure.rows.map(row => 
-          row.id === rowId 
-            ? {
-                ...row,
-                modules: row.modules.map(m => 
-                  m.id === moduleId ? { ...m, ...updates } : m
-                )
-              }
-            : row
-        )
-      }
-    });
-  };
-
-  const moveModule = (fromRowId: string, toRowId: string, module: WireframeModule, targetIndex?: number) => {
-    if (!wireframe) return;
-
-    setWireframe({
-      ...wireframe,
-      structure: {
-        ...wireframe.structure,
-        rows: wireframe.structure.rows.map(row => {
-          if (row.id === fromRowId && fromRowId === toRowId && targetIndex !== undefined) {
-            // Reordering within the same row
-            const modules = [...row.modules];
-            const currentIndex = modules.findIndex(m => m.id === module.id);
-            if (currentIndex !== -1) {
-              modules.splice(currentIndex, 1);
-              modules.splice(targetIndex, 0, module);
-            }
-            return { ...row, modules };
-          } else if (row.id === fromRowId) {
-            // Remove from source row
-            return {
-              ...row,
-              modules: row.modules.filter(m => m.id !== module.id)
-            };
-          } else if (row.id === toRowId) {
-            // Add to target row
-            const modules = [...row.modules];
-            if (targetIndex !== undefined) {
-              modules.splice(targetIndex, 0, module);
-            } else {
-              modules.push(module);
-            }
-            return { ...row, modules };
-          }
-          return row;
-        })
-      }
-    });
-  };
-
-  // Add collision detection helper
-  const checkCollision = (rowId: string, position: { row: number; column: number; width: number }, excludeModuleId?: string) => {
-    const row = wireframe?.structure.rows.find(r => r.id === rowId);
-    if (!row) return false;
-    
-    return row.modules.some(module => {
-      if (module.id === excludeModuleId) return false;
-      
-      const moduleEnd = module.position.column + module.position.width;
-      const positionEnd = position.column + position.width;
-      
-      return module.position.row === position.row &&
-        ((position.column >= module.position.column && position.column < moduleEnd) ||
-         (positionEnd > module.position.column && positionEnd <= moduleEnd) ||
-         (position.column <= module.position.column && positionEnd >= moduleEnd));
-    });
-  };
-
-  // Add auto-layout helper
-  const autoLayoutModules = (rowId: string) => {
-    const row = wireframe?.structure.rows.find(r => r.id === rowId);
-    if (!row) return;
-    
-    const sortedModules = [...row.modules].sort((a, b) => {
-      if (a.position.row !== b.position.row) return a.position.row - b.position.row;
-      return a.position.column - b.position.column;
-    });
-    
-    let currentRow = 0;
-    let currentColumn = 0;
-    
-    const updatedModules = sortedModules.map(module => {
-      if (currentColumn + module.position.width > 12) {
-        currentRow++;
-        currentColumn = 0;
+  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        alert('Please select a valid image file');
+        return;
       }
       
-      const newPosition = {
-        ...module.position,
-        row: currentRow,
-        column: currentColumn
+      // Validate file size (max 20MB)
+      if (file.size > 20 * 1024 * 1024) {
+        alert('Image file size must be less than 20MB');
+        return;
+      }
+
+      setSelectedImage(file);
+      
+      // Create preview
+      const reader = new FileReader();
+      reader.onload = () => {
+        setImagePreview(reader.result as string);
       };
-      
-      currentColumn += module.position.width;
-      
-      return { ...module, position: newPosition };
-    });
-    
-    setWireframe({
-      ...wireframe!,
-      structure: {
-        ...wireframe!.structure,
-        rows: wireframe!.structure.rows.map(r => 
-          r.id === rowId ? { ...r, modules: updatedModules } : r
-        )
+      reader.readAsDataURL(file);
       }
+    };
+
+  const removeImage = () => {
+    setSelectedImage(null);
+    setImagePreview(null);
+  };
+
+  const convertImageToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        // Remove the data:image/jpeg;base64, prefix to get just the base64 string
+        const base64String = result.split(',')[1];
+        resolve(base64String);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
     });
   };
 
-  const handleModuleDragStart = (e: React.DragEvent, module: WireframeModule, rowId: string) => {
-    setDraggedItem({ module, sourceRowId: rowId });
-    setIsDragging(true);
-    e.dataTransfer.effectAllowed = 'move';
+  const handleGenerateWireframe = async () => {
+    if (!selectedImage) {
+      alert('Please upload an image first');
+      return;
+    }
     
-    // Add visual feedback
-    const dragImage = e.currentTarget.cloneNode(true) as HTMLElement;
-    dragImage.style.opacity = '0.5';
-    dragImage.style.transform = 'rotate(2deg)';
-    document.body.appendChild(dragImage);
-    e.dataTransfer.setDragImage(dragImage, e.nativeEvent.offsetX, e.nativeEvent.offsetY);
-    setTimeout(() => document.body.removeChild(dragImage), 0);
-  };
-
-  const handleModuleDrop = (e: React.DragEvent, targetRowId: string) => {
-    e.preventDefault();
-    if (!draggedItem) return;
-
-    if (draggedItem.sourceRowId !== targetRowId) {
-      moveModule(draggedItem.sourceRowId, targetRowId, draggedItem.module);
-    }
-    setDraggedItem(null);
-  };
-
-  const handleResize = (rowId: string, moduleId: string, newWidth?: number, newHeight?: number) => {
-    const row = wireframe?.structure.rows.find(r => r.id === rowId);
-    const targetModule = row?.modules.find(m => m.id === moduleId);
-    if (!targetModule) return;
-    
-    updateModule(rowId, moduleId, {
-      position: {
-        ...targetModule.position,
-        width: newWidth !== undefined ? Math.max(1, Math.min(12, newWidth)) : targetModule.position.width,
-        height: newHeight !== undefined ? Math.max(50, newHeight) : targetModule.position.height
-      }
-    });
-  };
-
-  const getDefaultContent = (type: ModuleType) => {
-    switch (type) {
-      case 'text':
-        return { text: 'Text content here' };
-      case 'video':
-        return { placeholder: 'Video placeholder' };
-      case 'button':
-        return { text: 'Button', style: 'primary' as const };
-      case 'container':
-        return { backgroundColor: '#f3f4f6', placeholder: 'Image placeholder' };
-      case 'header':
-        return { text: 'Header Section' };
-      case 'footer':
-        return { text: 'Footer Section' };
-      default:
-        return {};
-    }
-  };
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !wireframe) return;
-
-    try {
-      const url = await uploadCompetitorSnapshot(file, wireframeId);
-      setWireframe({ ...wireframe, competitor_snapshot_url: url });
-    } catch (error) {
-      console.error('Error uploading file:', error);
-    }
-  };
-
-  const handleGenerateContent = async () => {
-    if (!wireframe?.competitor_snapshot_url) {
-      alert('Please upload a competitor snapshot first');
+    if (!currentEditor) {
+      alert('Editor not available');
       return;
     }
 
+    if (isGenerating) {
+      console.log('Generation already in progress, ignoring click');
+      return;
+    }
+
+    setIsGenerating(true);
     try {
-      setLoading(true);
+      // Convert image to base64
+      const base64Image = await convertImageToBase64(selectedImage);
       
-      // Fetch full brand configuration
-      const brandData = await getBrandById(brandId);
-      
-      // Only use products if some are selected
-      const hasSelectedProducts = selectedProducts.length > 0;
-      const productsToUse = hasSelectedProducts ? selectedProducts : [];
-      
-      const featuredProducts = productsToUse.slice(0, 3);
-      const mainProduct = featuredProducts[0];
-      const relatedProducts = featuredProducts.slice(1);
-      
-      // Build comprehensive brand context
+      // Create a basic brand context for the API
       const brandContext = {
-        brandName: brand?.name || brandData?.name || '',
+        brandName: 'Your Brand',
         brandConfig: {
-          voice: brandData?.brand_info_data?.brandVoice || '',
-          tone: brandData?.brand_info_data?.brandVoice || '', // Using brandVoice as tone
-          values: brandData?.brand_info_data?.positioning || '',
-          usp: brandData?.brand_info_data?.competitiveAdvantage || '',
-          targetAudience: brandData?.target_audience_data?.characteristics || '',
-          keywords: [] // Not available in current schema
+          voice: prompt || 'Professional and engaging',
+          tone: 'Friendly',
+          values: 'Quality and innovation',
+          usp: 'Best-in-class solutions',
+          targetAudience: 'Modern consumers',
+          keywords: [] 
         },
-        pageType: wireframe.page_type_id === 'pdp' ? 'PDP' : 
-                  wireframe.page_type_id === 'home' ? 'Home' :
-                  wireframe.page_type_id === 'collection' ? 'Collection' :
-                  wireframe.page_type_id === 'listicle' ? 'Listicle' :
-                  wireframe.page_type_id === 'advertorial' ? 'Advertorial' : 'General',
-        products: hasSelectedProducts ? {
-          main: mainProduct,
-          related: relatedProducts,
-          featured: featuredProducts
-        } : null
+        pageType: 'General'
       };
       
-      console.log('Brand context being sent:', brandContext);
-      console.log('Selected products:', selectedProducts);
-      console.log('Selected model:', selectedModel);
-      
-      // Call the extract modules API
+      console.log('Sending request to API...');
       const response = await fetch('/api/powerframe/extract-modules', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          imageUrl: wireframe.competitor_snapshot_url,
-          brandContext: JSON.stringify(brandContext), // Send as string for the prompt
-          pageType: brandContext.pageType,
-          products: brandContext.products, // Will be null if no products selected
-          model: selectedModel // Pass the selected model
+          imageData: base64Image,
+          imageType: selectedImage.type,
+          brandContext: JSON.stringify(brandContext),
+          pageType: 'General',
+          products: null,
+          model: selectedModel 
         }),
       });
 
+      console.log('API response status:', response.status);
+
       if (!response.ok) {
-        throw new Error('Failed to extract modules');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to generate wireframe');
       }
 
       const { extractedModules } = await response.json();
       
-      if (!extractedModules || !extractedModules.modules) {
-        throw new Error('Invalid response format');
+      if (!extractedModules || !Array.isArray(extractedModules)) {
+        throw new Error('Invalid response format from AI service');
       }
 
-      // Convert extracted modules to wireframe format
-      const currentRows = wireframe.structure.rows;
-      const newRows: ExtendedWireframeRow[] = [];
-      
-      // Group modules by their section - each section becomes ONE row
-      const modulesBySection = new Map<string, ExtractedModule[]>();
-      
-      extractedModules.modules.forEach((module: ExtractedModule, index: number) => {
-        const sectionName = module.sectionName || 'Default Section';
-        if (!modulesBySection.has(sectionName)) {
-          modulesBySection.set(sectionName, []);
-        }
-        modulesBySection.get(sectionName)!.push({ ...module, originalIndex: index });
-      });
-
-      // Create ONE row per section
-      modulesBySection.forEach((modules, sectionName) => {
-        const rowId = `row-${Date.now()}-${sectionName.replace(/\s+/g, '-').toLowerCase()}`;
-        
-        // Convert all modules in this section to wireframe modules
-        const wireframeModules: ExtendedWireframeModule[] = modules.map((module) => ({
-          id: `module-${Date.now()}-${module.originalIndex}`,
-          wireframe_id: wireframeId,
-          type: module.type as ModuleType,
-          name: module.name || module.type,
-          content: {
-            ...module.content,
-            text: module.content?.text || module.content?.placeholder || ''
-          },
-          position: {
-            row: module.position?.row || 0,
-            column: module.position?.column || 0,
-            width: module.position?.width || 4,
-            height: module.position?.height || 200
-          },
-          alignment: (module.alignment || 'left') as AlignmentType,
-          is_content_placeholder: module.type === 'text',
-          is_design_descriptor: false,
-          order_index: module.originalIndex || 0,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        }));
-
-        // Create a single row for this entire section
-        newRows.push({
-          id: rowId,
-          name: sectionName,
-          columns: 12,
-          modules: wireframeModules,
-          layout: 'grid' // Use grid layout to support stacking within the section
-        });
-      });
-
-      // Append new rows to existing ones
-      setWireframe({
-        ...wireframe,
-        structure: {
-          ...wireframe.structure,
-          rows: [...currentRows, ...newRows]
-        },
-        extracted_modules: extractedModules.modules,
-        system_instructions: `Generated with brand context: ${brandContext.brandName}, Page Type: ${brandContext.pageType}`
-      });
-
-      // Auto-save
-      await handleSave();
+      await processAndCreateShapes(extractedModules);
       
     } catch (error) {
-      console.error('Error generating content:', error);
-      alert('Failed to generate content. Please try again.');
+      console.error('Error generating wireframe:', error);
+      alert(`Failed to generate wireframe: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
-      setLoading(false);
+      setIsGenerating(false);
     }
   };
 
-  const updateRowLayout = (rowId: string, layout: 'horizontal' | 'grid') => {
-    if (!wireframe) return;
+  // Temporary debugging function to load JSON directly
+  const handleLoadJson = async () => {
+    if (!jsonInput.trim()) {
+      alert('Please enter JSON data first');
+      return;
+    }
+    
+    if (!currentEditor) {
+      alert('Editor not available');
+      return;
+    }
 
-    setWireframe({
-      ...wireframe,
-      structure: {
-        ...wireframe.structure,
-        rows: wireframe.structure.rows.map(r => 
-          r.id === rowId 
-            ? { ...r, layout } as WireframeRow
-            : r
-        )
+    if (isLoadingJson) {
+      console.log('JSON loading already in progress, ignoring click');
+      return;
+    }
+
+    setIsLoadingJson(true);
+    try {
+      console.log('Parsing JSON input...');
+      const parsedJson = JSON.parse(jsonInput);
+      
+      if (!Array.isArray(parsedJson)) {
+        throw new Error('JSON must be an array of shapes');
       }
+
+      await processAndCreateShapes(parsedJson);
+      
+    } catch (error) {
+      console.error('Error loading JSON:', error);
+      alert(`Failed to load JSON: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsLoadingJson(false);
+    }
+  };
+
+  // Extract the common shape processing logic
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const processAndCreateShapes = async (extractedModules: any[]) => {
+    console.log('Extracted modules from input:', JSON.stringify(extractedModules, null, 2));
+      
+    // Validate and ensure all shapes have proper IDs
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const processedShapes: any[] = [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    extractedModules.forEach((shape: any, index: number) => {
+      console.log(`Processing shape ${index}:`, JSON.stringify(shape, null, 2));
+      const validatedShape = validateShape(shape);
+      console.log(`Validated shape ${index}:`, JSON.stringify(validatedShape, null, 2));
+      
+      // Add the validated shape with an ID
+      processedShapes.push({
+        ...validatedShape,
+        id: validatedShape.id || currentEditor.createShapeId()
+      });
     });
+    
+    const validatedShapes = processedShapes;
+    
+    if (validatedShapes.length > 0 && isClient) {
+      // Clear existing shapes
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const existingShapeIds = currentEditor.getCurrentPageShapes().map((s: any) => s.id);
+      if (existingShapeIds.length > 0) {
+        currentEditor.deleteShapes(existingShapeIds);
+      }
+      
+      // Log the validated shapes for debugging
+      console.log('=== VALIDATED SHAPES BEFORE CREATION ===');
+      console.log(JSON.stringify(validatedShapes, null, 2));
+      console.log('=== END VALIDATED SHAPES ===');
+      
+      // Create shapes directly from input
+      try {
+        // Try batch creation first
+        currentEditor.createShapes(validatedShapes);
+        currentEditor.zoomToFit();
+        alert(`Generated ${validatedShapes.length} wireframe elements!`);
+      } catch (batchError) {
+        console.error('Error creating shapes in batch:', batchError);
+        console.error('Attempting to create shapes one by one to isolate the problem...');
+        
+        // Try creating shapes one by one to isolate the problematic shape
+        let successCount = 0;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const failedShapes: Array<{index: number, shape: any, error: any}> = [];
+        
+        for (let i = 0; i < validatedShapes.length; i++) {
+          const shape = validatedShapes[i];
+          try {
+            console.log(`Attempting to create shape ${i + 1}/${validatedShapes.length}:`, JSON.stringify(shape, null, 2));
+            currentEditor.createShapes([shape]);
+            successCount++;
+          } catch (singleShapeError) {
+            console.error(`Failed to create shape at index ${i}:`, singleShapeError);
+            console.error('Problematic shape data:', JSON.stringify(shape, null, 2));
+            
+            // Store the failed shape info
+            failedShapes.push({
+              index: i,
+              shape: shape,
+              error: singleShapeError
+            });
+            
+            // Log specific details about text shapes
+            if (shape.type === 'text') {
+              console.error('Text shape debug info:');
+              console.error('- props.richText type:', typeof shape.props?.richText);
+              console.error('- props.richText value:', shape.props?.richText);
+              console.error('- props.richText length:', shape.props?.richText?.length);
+              console.error('- props.font:', shape.props?.font);
+              console.error('- props.size:', shape.props?.size);
+              console.error('- props.color:', shape.props?.color);
+              console.error('- All props keys:', Object.keys(shape.props || {}));
+              
+              // Check for unusual characters in richText if it's a string
+              if (typeof shape.props?.richText === 'string') {
+                const charCodes = [];
+                for (let j = 0; j < shape.props.richText.length; j++) {
+                  charCodes.push(shape.props.richText.charCodeAt(j));
+                }
+                console.error('- Character codes in richText:', charCodes);
+              }
+            }
+            
+            // Continue to next shape instead of breaking
+            console.log(`Continuing to next shape...`);
+          }
+        }
+        
+        // Show comprehensive summary
+        if (successCount > 0) {
+          currentEditor.zoomToFit();
+        }
+        
+        // Create detailed error summary
+        console.log('\n=== SHAPE CREATION SUMMARY ===');
+        console.log(`✅ Successfully created: ${successCount}/${validatedShapes.length} shapes`);
+        console.log(`❌ Failed to create: ${failedShapes.length}/${validatedShapes.length} shapes`);
+        
+        if (failedShapes.length > 0) {
+          console.log('\n=== FAILED SHAPES DETAILS ===');
+          failedShapes.forEach(({index, shape, error}) => {
+            console.log(`\nShape ${index + 1} (ID: ${shape.id || 'N/A'}):`);
+            console.log(`- Type: ${shape.type}`);
+            console.log(`- Error: ${error.message}`);
+            console.log(`- Shape data:`, JSON.stringify(shape, null, 2));
+          });
+          
+          // Create summary for alert
+          const errorTypes = failedShapes.reduce((acc, {error}) => {
+            const errorMsg = error.message || 'Unknown error';
+            acc[errorMsg] = (acc[errorMsg] || 0) + 1;
+            return acc;
+          }, {} as Record<string, number>);
+          
+          const errorSummary = Object.entries(errorTypes)
+            .map(([error, count]) => `• ${error} (${count}x)`)
+            .join('\n');
+          
+          alert(`Shape Creation Results:
+✅ Success: ${successCount}/${validatedShapes.length}
+❌ Failed: ${failedShapes.length}/${validatedShapes.length}
+
+Common Errors:
+${errorSummary}
+
+Check console for detailed error analysis.`);
+        } else {
+          alert(`All ${successCount} shapes created successfully!`);
+        }
+      }
+    } else {
+      alert('No shapes were generated. Please try different input.');
+    }
   };
 
-  const handleModuleDragEnd = () => {
-    setIsDragging(false);
-    setDragOverPosition(null);
-    setDraggedItem(null);
-  };
-
-  if (loading) {
+  // Don't render anything until client-side
+  if (!isClient) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
-      </div>
+      <div className="h-full flex items-center justify-center bg-gray-100">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+          <p className="text-gray-600">Loading wireframe editor...</p>
+        </div>
+        </div>
     );
   }
 
-  if (!wireframe) return null;
-
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col bg-white">
       {/* Header */}
-      <div className="bg-white border-b px-6 py-4">
+      <div className="bg-white border-b px-6 py-4 flex-shrink-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
             <Link
@@ -617,893 +493,210 @@ export default function WireframeEditorPage() {
               Back
             </Link>
             <div>
-              <h1 className="text-xl font-semibold text-gray-900">{wireframe.name}</h1>
-              <p className="text-sm text-gray-500">{brand?.name}</p>
+              <h1 className="text-xl font-semibold text-gray-900">AI Wireframe Canvas</h1>
+              <p className="text-sm text-gray-500">Wireframe ID: {wireframeId}</p>
             </div>
-          </div>
-          
-          <div className="flex items-center space-x-3">
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
-            >
-              <Save className="h-4 w-4 mr-2" />
-              {saving ? 'Saving...' : 'Save'}
-            </button>
-            <button
-              onClick={() => setShowProductSelector(true)}
-              className="flex items-center space-x-2 px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700"
-            >
-              <Package className="h-4 w-4" />
-              <span>Select Products ({selectedProducts.length})</span>
-            </button>
-            
-            <div className="flex items-center space-x-2">
-              <div className="flex flex-col">
-                <label className="text-xs text-gray-500 mb-1">AI Model</label>
-                <select
-                  value={selectedModel}
-                  onChange={(e) => setSelectedModel(e.target.value as 'gemini-2.5-pro' | 'gemini-2.5-flash')}
-                  className="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  title="Choose AI model for content generation"
-                >
-                  <option value="gemini-2.5-pro">Gemini 2.5 Pro (Better quality)</option>
-                  <option value="gemini-2.5-flash">Gemini 2.5 Flash (Faster)</option>
-                </select>
-              </div>
-              
-              <button
-                onClick={handleGenerateContent}
-                disabled={loading || !wireframe?.competitor_snapshot_url}
-                className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed mt-5"
-                title={!wireframe?.competitor_snapshot_url ? 'Please upload a competitor snapshot first' : 'Generate content from competitor layout'}
-              >
-                <Sparkles className="h-4 w-4" />
-                <span>{loading ? 'Generating...' : 'Generate Content'}</span>
-              </button>
-            </div>
-            
-            <button className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700">
-              <Share2 className="h-4 w-4 mr-2" />
-              Share
-            </button>
           </div>
         </div>
       </div>
 
       <div className="flex-1 flex overflow-hidden">
-        {/* Sidebar */}
-        <div className={`${sidebarCollapsed ? 'w-12' : 'w-64'} bg-gray-50 border-r transition-all duration-300 overflow-y-auto`}>
-          <div className="p-4 space-y-6">
-            {/* Collapse/Expand Button */}
-            <div className="flex justify-between items-center">
-              {!sidebarCollapsed && <h3 className="text-sm font-medium text-gray-900">Tools</h3>}
+        {/* AI Generation Sidebar */}
+        <div className={`${sidebarCollapsed ? 'w-12' : 'w-80'} bg-gray-50 border-r transition-all duration-300 overflow-y-auto flex flex-col flex-shrink-0`}>
+          <div className="p-4 space-y-6 flex-grow">
+            <div className="flex justify-between items-center mb-4">
+              {!sidebarCollapsed && <h3 className="text-sm font-semibold text-gray-900">AI Generation</h3>}
               <button
                 onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-                className="p-2 rounded hover:bg-gray-200 transition-colors"
+                className="p-1 rounded hover:bg-gray-200 transition-colors"
                 title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
               >
                 {sidebarCollapsed ? (
-                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
+                  <ChevronRight className="h-4 w-4" />
                 ) : (
-                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                  </svg>
+                  <ChevronLeft className="h-4 w-4" />
                 )}
               </button>
             </div>
-
+            
             {!sidebarCollapsed && (
               <>
-                {/* Upload Competitor Snapshot */}
-                <div>
-                  <h3 className="text-sm font-medium text-gray-900 mb-3">Competitor Snapshot</h3>
-                  <label className="block">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleFileUpload}
-                      className="hidden"
-                    />
-                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center cursor-pointer hover:border-gray-400">
-                      <Upload className="mx-auto h-8 w-8 text-gray-400 mb-2" />
-                      <p className="text-sm text-gray-600">Upload snapshot</p>
-                    </div>
-                  </label>
-                  {wireframe.competitor_snapshot_url && (
-                    <div className="mt-2">
-                      <img 
-                        src={wireframe.competitor_snapshot_url} 
-                        alt="Competitor snapshot" 
-                        className="w-full rounded border"
-                      />
-                    </div>
-                  )}
-                </div>
+                <div className="space-y-4">
+                  {/* Image Upload */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Upload Image *
+                    </label>
+                    {!selectedImage ? (
+                      <div className="relative">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleImageUpload}
+                          className="hidden"
+                          id="image-upload"
+                        />
+                        <label
+                          htmlFor="image-upload"
+                          className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors"
+                        >
+                          <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                            <Upload className="w-8 h-8 mb-2 text-gray-400" />
+                            <p className="mb-2 text-sm text-gray-500">
+                              <span className="font-semibold">Click to upload</span>
+                            </p>
+                            <p className="text-xs text-gray-500">PNG, JPG, JPEG (MAX. 20MB)</p>
+                          </div>
+                        </label>
+            </div>
+                    ) : (
+                      <div className="relative">
+                        <div className="relative">
+                          {imagePreview && (
+                            <img
+                              src={imagePreview}
+                              alt="Upload preview"
+                              className="w-full h-32 object-cover rounded-lg border"
+                            />
+                          )}
+                          <button
+                            onClick={removeImage}
+                            className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+                            title="Remove image"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                        <p className="mt-2 text-sm text-gray-600">{selectedImage.name}</p>
+                      </div>
+                    )}
+                    <p className="mt-1 text-xs text-gray-500">
+                      Upload a screenshot or wireframe to analyze
+                    </p>
+                  </div>
 
-                {/* Module Types */}
-                <div>
-                  <h3 className="text-sm font-medium text-gray-900 mb-3">Add Elements</h3>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      className="flex flex-col items-center p-3 border rounded hover:bg-gray-100"
-                      draggable
-                      onDragStart={() => setDraggedModule('text')}
+                  <div>
+                    <label htmlFor="prompt" className="block text-sm font-medium text-gray-700 mb-2">
+                      Brand Voice/Instructions
+                    </label>
+                    <textarea
+                      id="prompt"
+                      value={prompt}
+                      onChange={(e) => setPrompt(e.target.value)}
+                      rows={3}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                      placeholder="Describe your brand voice, target audience, or specific instructions..."
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      Optional: Provide context about your brand or specific requirements
+                    </p>
+                    </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">AI Model</label>
+                    <select
+                      value={selectedModel}
+                      onChange={(e) => setSelectedModel(e.target.value as 'gemini-2.5-pro' | 'gemini-2.5-flash')}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                      aria-label="Select AI model for wireframe generation"
                     >
-                      <Type className="h-6 w-6 text-gray-600 mb-1" />
-                      <span className="text-xs">Text</span>
-                    </button>
+                      <option value="gemini-2.5-pro">Gemini 2.5 Pro (Quality)</option>
+                      <option value="gemini-2.5-flash">Gemini 2.5 Flash (Fast)</option>
+                    </select>
+                  </div>
+
+                  {/* Temporary JSON Input Feature */}
+                  <div className="border-t pt-4">
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3 mb-4">
+                      <h4 className="text-sm font-medium text-yellow-800 mb-1">🛠️ Debug Mode</h4>
+                      <p className="text-xs text-yellow-700">Load JSON directly to test shape validation</p>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        JSON Shapes Array
+                      </label>
+                      <textarea
+                        value={jsonInput}
+                        onChange={(e) => setJsonInput(e.target.value)}
+                        rows={8}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm font-mono text-xs"
+                        placeholder='Paste JSON array here, e.g.:
+[
+  {
+    "id": "shape:test_1",
+    "type": "text",
+    "x": 100,
+    "y": 100,
+    "props": {
+      "richText": "Hello World",
+      "font": "sans",
+      "size": "m",
+      "color": "black"
+    }
+  }
+]'
+                      />
+                      <p className="mt-1 text-xs text-gray-500">
+                        Paste a JSON array of TLDraw shapes to test directly
+                      </p>
+                    </div>
+
                     <button
-                      className="flex flex-col items-center p-3 border rounded hover:bg-gray-100"
-                      draggable
-                      onDragStart={() => setDraggedModule('video')}
+                      onClick={handleLoadJson}
+                      disabled={isLoadingJson || !jsonInput.trim()}
+                      className="w-full mt-3 flex items-center justify-center space-x-2 px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
                     >
-                      <Video className="h-6 w-6 text-gray-600 mb-1" />
-                      <span className="text-xs">Video</span>
+                      <span>{isLoadingJson ? 'Loading...' : 'Load JSON Shapes'}</span>
                     </button>
-                    <button
-                      className="flex flex-col items-center p-3 border rounded hover:bg-gray-100"
-                      draggable
-                      onDragStart={() => setDraggedModule('button')}
-                    >
-                      <Square className="h-6 w-6 text-gray-600 mb-1" />
-                      <span className="text-xs">Button</span>
-                    </button>
-                    <button
-                      className="flex flex-col items-center p-3 border rounded hover:bg-gray-100"
-                      draggable
-                      onDragStart={() => setDraggedModule('container')}
-                    >
-                      <div className="h-6 w-6 border-2 border-dashed border-gray-600 rounded mb-1" />
-                      <span className="text-xs">Container</span>
-                    </button>
+                    
+                    {isLoadingJson && (
+                      <div className="mt-2 flex items-center justify-center">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-yellow-600"></div>
+                        <span className="ml-2 text-xs text-gray-500">Processing JSON...</span>
+                      </div>
+                    )}
                   </div>
                 </div>
-
-                {/* Add Row */}
-                <div>
+            
+                <div className="pt-4 border-t">
                   <button
-                    onClick={addRow}
-                    className="w-full flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+                    onClick={handleGenerateWireframe}
+                    disabled={isGenerating || !selectedImage}
+                    className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Row
+                    <Sparkles className="h-5 w-5" />
+                    <span>{isGenerating ? 'Generating...' : 'Generate Wireframe'}</span>
                   </button>
-                </div>
+                  
+                  {isGenerating && (
+                    <div className="mt-2 flex items-center justify-center">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                      <span className="ml-2 text-xs text-gray-500">Analyzing with Gemini AI...</span>
+              </div>
+            )}
+            
+                  <p className="mt-2 text-xs text-gray-500 text-center">
+                    AI will analyze the image and create wireframe elements on the canvas
+                  </p>
+            </div>
               </>
             )}
           </div>
         </div>
 
         {/* Canvas */}
-        <div className="flex-1 bg-gray-100 p-6 overflow-y-auto">
-          <div className="max-w-6xl mx-auto">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center space-x-4">
-                <h1 className="text-2xl font-bold">{wireframe?.name || 'Wireframe Editor'}</h1>
-                <select
-                  className="px-3 py-1 border border-gray-300 rounded text-sm"
-                  value={wireframe?.page_type_id || 'general'}
-                  onChange={(e) => {
-                    if (wireframe) {
-                      setWireframe({
-                        ...wireframe,
-                        page_type_id: e.target.value === 'general' ? undefined : e.target.value
-                      });
-                    }
-                  }}
-                  title="Page Type"
-                >
-                  <option value="general">General Page</option>
-                  <option value="home">Home Page</option>
-                  <option value="pdp">Product Detail Page (PDP)</option>
-                  <option value="collection">Collection Page</option>
-                  <option value="listicle">Listicle</option>
-                  <option value="advertorial">Advertorial</option>
-                </select>
-              </div>
-            </div>
-            {wireframe.structure.rows.length === 0 ? (
-              <div className="bg-white rounded-lg border-2 border-dashed border-gray-300 p-12 text-center">
-                <Rows className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No rows yet</h3>
-                <p className="text-gray-500 mb-4">Add a row to start building your wireframe</p>
-                <button
-                  onClick={addRow}
-                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700"
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Row
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {wireframe.structure.rows.map((row) => (
-                  <div
-                    key={row.id}
-                    className="bg-white rounded-lg border p-4"
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      if (draggedModule) {
-                        addModule(row.id, draggedModule as ModuleType);
-                        setDraggedModule(null);
-                      } else if (draggedItem) {
-                        handleModuleDrop(e, row.id);
-                      }
-                    }}
-                  >
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center space-x-2">
-                        {editingRowName === row.id ? (
-                          <input
-                            type="text"
-                            className="text-sm font-medium px-2 py-1 border rounded"
-                            value={(row as ExtendedWireframeRow).name || 'Section'}
-                            onChange={(e) => {
-                              setWireframe({
-                                ...wireframe,
-                                structure: {
-                                  ...wireframe.structure,
-                                  rows: wireframe.structure.rows.map(r => 
-                                    r.id === row.id 
-                                      ? { ...r, name: e.target.value } as WireframeRow
-                                      : r
-                                  )
-                                }
-                              });
-                            }}
-                            onBlur={() => setEditingRowName(null)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                setEditingRowName(null);
-                              }
-                            }}
-                            placeholder="Section name"
-                            autoFocus
-                          />
-                        ) : (
-                          <span 
-                            className="text-sm font-medium text-gray-700 cursor-pointer hover:text-gray-900 flex items-center"
-                            onClick={() => setEditingRowName(row.id)}
-                          >
-                            {(row as ExtendedWireframeRow).name || 'Section'}
-                            <Edit2 className="h-3 w-3 ml-1" />
-                          </span>
-                        )}
-                      </div>
-                      
-                      <div className="flex items-center space-x-2">
-                        {/* Auto-layout button */}
-                        <button
-                          onClick={() => autoLayoutModules(row.id)}
-                          className="p-1 rounded hover:bg-gray-100 text-gray-600 hover:text-gray-900"
-                          title="Auto-arrange modules"
-                        >
-                          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                          </svg>
-                        </button>
-                        
-                        {/* Layout Toggle */}
-                        <div className="flex items-center bg-gray-100 rounded p-1">
-                          <button
-                            onClick={() => updateRowLayout(row.id, 'grid')}
-                            className={`p-1 rounded ${
-                              (row as ExtendedWireframeRow).layout !== 'horizontal' 
-                                ? 'bg-white shadow-sm' : 'hover:bg-gray-200'
-                            }`}
-                            title="Grid layout (stacking)"
-                          >
-                            <Grid3X3 className="h-3 w-3" />
-                          </button>
-                          <button
-                            onClick={() => updateRowLayout(row.id, 'horizontal')}
-                            className={`p-1 rounded ${
-                              (row as ExtendedWireframeRow).layout === 'horizontal' 
-                                ? 'bg-white shadow-sm' : 'hover:bg-gray-200'
-                            }`}
-                            title="Horizontal layout"
-                          >
-                            <MoreHorizontal className="h-3 w-3" />
-                          </button>
-                        </div>
-                        
-                        <button
-                          onClick={() => deleteRow(row.id)}
-                          className="text-red-500 hover:text-red-700"
-                          aria-label="Delete row"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </div>
-                    
-                    {row.modules.length === 0 ? (
-                      <div className="border-2 border-dashed border-gray-300 rounded p-8 text-center">
-                        <p className="text-sm text-gray-500">Drop elements here</p>
-                      </div>
-                    ) : (
-                      <div className={
-                        (row as ExtendedWireframeRow).layout === 'horizontal' 
-                          ? "flex flex-wrap gap-2" 
-                          : "grid grid-cols-12 gap-2 grid-rows-[repeat(auto-fit,minmax(60px,auto))]"
-                      }>
-                        {row.modules.map((module, moduleIndex) => (
-                          <div
-                            key={module.id}
-                            className={`relative group border rounded cursor-move ${
-                              selectedModule === module.id ? 'ring-2 ring-primary-500' : ''
-                            } ${resizingModule === module.id ? 'ring-2 ring-blue-500' : ''} ${
-                              resizingModuleHeight === module.id ? 'ring-2 ring-orange-500' : ''} ${
-                              dragOverModule === module.id ? 'ring-2 ring-green-500' : ''
-                            }`}
-                            style={
-                              (row as ExtendedWireframeRow).layout === 'horizontal' 
-                                ? {
-                                    width: `calc(${(module.position.width / 12) * 100}% - 0.5rem)`,
-                                    height: `${module.position.height}px`,
-                                    minHeight: '60px',
-                                    maxHeight: 'none',
-                                    flexShrink: 0
-                                  }
-                                  : { 
-                                      gridColumn: `${module.position.column + 1} / span ${module.position.width}`,
-                                      gridRow: `${module.position.row + 1}`,
-                                      height: `${module.position.height}px`,
-                                      minHeight: '60px',
-                                      maxHeight: 'none'
-                                    }
-                            }
-                            draggable={resizingModule !== module.id && editingModule !== module.id}
-                            onDragStart={(e) => {
-                              if (resizingModule === module.id || editingModule === module.id) {
-                                e.preventDefault();
-                                return;
-                              }
-                              handleModuleDragStart(e, module, row.id);
-                            }}
-                            onDragEnd={handleModuleDragEnd}
-                            onDragOver={(e) => {
-                              e.preventDefault();
-                              if (draggedItem && draggedItem.module.id !== module.id) {
-                                setDragOverModule(module.id);
-                              }
-                            }}
-                            onDragLeave={() => setDragOverModule(null)}
-                            onDrop={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              setDragOverModule(null);
-                              if (draggedItem && draggedItem.module.id !== module.id) {
-                                moveModule(
-                                  draggedItem.sourceRowId, 
-                                  row.id, 
-                                  draggedItem.module, 
-                                  moduleIndex
-                                );
-                                setDraggedItem(null);
-                              }
-                            }}
-                            onClick={() => setSelectedModule(module.id)}
-                            onDoubleClick={() => setEditingModule(module.id)}
-                          >
-                            {/* Drag handle */}
-                            <div className="absolute left-0 top-0 bottom-0 w-6 bg-gray-100 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-move z-10">
-                              <GripVertical className="h-4 w-4 text-gray-400" />
-                            </div>
-                            
-                            {/* Width resize handle */}
-                            <div
-                              className="absolute -right-1 top-0 bottom-0 w-3 opacity-0 group-hover:opacity-100 transition-opacity cursor-ew-resize flex items-center justify-center z-10"
-                              style={{ backgroundColor: 'transparent' }}
-                              onMouseDown={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                setResizingModule(module.id);
-                                const startX = e.clientX;
-                                const startWidth = module.position.width;
-                                
-                                const handleMouseMove = (e: MouseEvent) => {
-                                  e.preventDefault();
-                                  const diff = Math.round((e.clientX - startX) / 50);
-                                  const newWidth = Math.max(1, Math.min(12, startWidth + diff));
-                                  handleResize(row.id, module.id, newWidth);
-                                };
-                                
-                                const handleMouseUp = () => {
-                                  setResizingModule(null);
-                                  document.removeEventListener('mousemove', handleMouseMove);
-                                  document.removeEventListener('mouseup', handleMouseUp);
-                                };
-                                
-                                document.addEventListener('mousemove', handleMouseMove);
-                                document.addEventListener('mouseup', handleMouseUp);
-                              }}
-                            >
-                              <div className="w-1 h-8 bg-primary-500 rounded-full" />
-                            </div>
-                            
-                            {/* Height resize handle */}
-                            <div
-                              className="absolute -bottom-1 left-0 right-0 h-3 opacity-0 group-hover:opacity-100 transition-opacity cursor-ns-resize flex items-center justify-center z-10"
-                              style={{ backgroundColor: 'transparent' }}
-                              onMouseDown={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                setResizingModuleHeight(module.id);
-                                const startY = e.clientY;
-                                const startHeight = module.position.height;
-                                
-                                const handleMouseMove = (e: MouseEvent) => {
-                                  e.preventDefault();
-                                  const diff = e.clientY - startY;
-                                  const newHeight = Math.max(60, startHeight + diff);
-                                  handleResize(row.id, module.id, undefined, newHeight);
-                                };
-                                
-                                const handleMouseUp = () => {
-                                  setResizingModuleHeight(null);
-                                  document.removeEventListener('mousemove', handleMouseMove);
-                                  document.removeEventListener('mouseup', handleMouseUp);
-                                };
-                                
-                                document.addEventListener('mousemove', handleMouseMove);
-                                document.addEventListener('mouseup', handleMouseUp);
-                              }}
-                            >
-                              <div className="h-1 w-8 bg-primary-500 rounded-full" />
-                            </div>
-                            
-                            {/* Module content */}
-                            <div className="h-full p-3 flex flex-col">
-                              <div className="flex items-center justify-between mb-2 flex-shrink-0">
-                                <div className="flex items-center space-x-2">
-                                  {editingModuleName === module.id ? (
-                                    <input
-                                      type="text"
-                                      className="text-xs px-2 py-1 border rounded"
-                                      value={(module as ExtendedWireframeModule).name || module.type}
-                                      onChange={(e) => {
-                                        updateModule(row.id, module.id, { name: e.target.value } as Partial<WireframeModule>);
-                                      }}
-                                      onBlur={() => setEditingModuleName(null)}
-                                      onKeyDown={(e) => {
-                                        if (e.key === 'Enter') {
-                                          setEditingModuleName(null);
-                                        }
-                                      }}
-                                      placeholder="Module name"
-                                      autoFocus
-                                    />
-                                  ) : (
-                                    <span 
-                                      className="text-xs text-gray-500 cursor-pointer hover:text-gray-700 flex items-center"
-                                      onClick={() => setEditingModuleName(module.id)}
-                                    >
-                                      {(module as ExtendedWireframeModule).name || module.type}
-                                      <Edit2 className="h-3 w-3 ml-1" />
-                                    </span>
-                                  )}
-                                </div>
-                                <div className="flex items-center space-x-1">
-                                  {/* Alignment buttons */}
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      updateModule(row.id, module.id, { alignment: 'left' });
-                                    }}
-                                    className={`p-1 rounded ${module.alignment === 'left' ? 'bg-gray-200' : 'hover:bg-gray-100'}`}
-                                    aria-label="Align left"
-                                  >
-                                    <AlignLeft className="h-3 w-3" />
-                                  </button>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      updateModule(row.id, module.id, { alignment: 'center' });
-                                    }}
-                                    className={`p-1 rounded ${module.alignment === 'center' ? 'bg-gray-200' : 'hover:bg-gray-100'}`}
-                                    aria-label="Align center"
-                                  >
-                                    <AlignCenter className="h-3 w-3" />
-                                  </button>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      updateModule(row.id, module.id, { alignment: 'right' });
-                                    }}
-                                    className={`p-1 rounded ${module.alignment === 'right' ? 'bg-gray-200' : 'hover:bg-gray-100'}`}
-                                    aria-label="Align right"
-                                  >
-                                    <AlignRight className="h-3 w-3" />
-                                  </button>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      deleteModule(row.id, module.id);
-                                    }}
-                                    className="p-1 text-red-500 hover:text-red-700"
-                                    aria-label="Delete module"
-                                  >
-                                    <Trash2 className="h-3 w-3" />
-                                  </button>
-                                </div>
-                              </div>
-                              
-                              {/* Module content preview */}
-                              <div className={`text-${module.alignment} flex-1 min-h-0 overflow-hidden`}>
-                                {module.type === 'text' && (
-                                  editingModule === module.id ? (
-                                    <div className="h-full flex flex-col">
-                                      {/* WYSIWYG Toolbar */}
-                                      <div className="flex items-center space-x-1 mb-2 p-2 bg-gray-100 rounded-t flex-wrap flex-shrink-0">
-                                        <button
-                                          onMouseDown={(e) => {
-                                            e.preventDefault();
-                                            document.execCommand('bold', false);
-                                          }}
-                                          className="p-1 rounded hover:bg-gray-200"
-                                          aria-label="Bold"
-                                        >
-                                          <Bold className="h-4 w-4" />
-                                        </button>
-                                        <button
-                                          onMouseDown={(e) => {
-                                            e.preventDefault();
-                                            document.execCommand('italic', false);
-                                          }}
-                                          className="p-1 rounded hover:bg-gray-200"
-                                          aria-label="Italic"
-                                        >
-                                          <Italic className="h-4 w-4" />
-                                        </button>
-                                        <button
-                                          onMouseDown={(e) => {
-                                            e.preventDefault();
-                                            document.execCommand('underline', false);
-                                          }}
-                                          className="p-1 rounded hover:bg-gray-200"
-                                          aria-label="Underline"
-                                        >
-                                          <Underline className="h-4 w-4" />
-                                        </button>
-                                        <div className="border-l mx-1 h-4" />
-                                        <button
-                                          onMouseDown={(e) => {
-                                            e.preventDefault();
-                                            document.execCommand('insertUnorderedList', false);
-                                          }}
-                                          className="p-1 rounded hover:bg-gray-200"
-                                          aria-label="Bullet list"
-                                          title="Bullet list"
-                                        >
-                                          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
-                                          </svg>
-                                        </button>
-                                        <button
-                                          onMouseDown={(e) => {
-                                            e.preventDefault();
-                                            document.execCommand('insertOrderedList', false);
-                                          }}
-                                          className="p-1 rounded hover:bg-gray-200"
-                                          aria-label="Numbered list"
-                                          title="Numbered list"
-                                        >
-                                          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
-                                          </svg>
-                                        </button>
-                                        <div className="border-l mx-1 h-4" />
-                                        <select
-                                          onMouseDown={(e) => e.preventDefault()}
-                                          onChange={(e) => {
-                                            e.preventDefault();
-                                            const value = e.target.value;
-                                            if (value) {
-                                              document.execCommand('formatBlock', false, value);
-                                            }
-                                          }}
-                                          className="text-xs px-2 py-1 border rounded"
-                                          defaultValue=""
-                                          title="Font size"
-                                        >
-                                          <option value="">Format</option>
-                                          <option value="h1">Heading 1</option>
-                                          <option value="h2">Heading 2</option>
-                                          <option value="h3">Heading 3</option>
-                                          <option value="p">Paragraph</option>
-                                          <option value="pre">Code</option>
-                                          <option value="blockquote">Quote</option>
-                                        </select>
-                                        <button
-                                          onMouseDown={(e) => {
-                                            e.preventDefault();
-                                            document.execCommand('createLink', false, prompt('Enter URL:') || '');
-                                          }}
-                                          className="p-1 rounded hover:bg-gray-200"
-                                          aria-label="Insert link"
-                                          title="Insert link"
-                                        >
-                                          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                                          </svg>
-                                        </button>
-                                        <div className="border-l mx-1 h-4" />
-                                        <button
-                                          onMouseDown={(e) => e.preventDefault()}
-                                          onClick={() => setHtmlMode({ ...htmlMode, [module.id]: !htmlMode[module.id] })}
-                                          className={`p-1 rounded ${htmlMode[module.id] ? 'bg-gray-300' : 'hover:bg-gray-200'}`}
-                                          aria-label="HTML mode"
-                                        >
-                                          <Code className="h-4 w-4" />
-                                        </button>
-                                      </div>
-                                      
-                                      {htmlMode[module.id] ? (
-                                        <textarea
-                                          className="flex-1 w-full resize-none border-0 focus:outline-none focus:ring-2 focus:ring-primary-500 p-2 rounded-b font-mono text-xs min-h-0"
-                                          value={(module.content as { text: string }).text}
-                                          onChange={(e) => {
-                                            updateModule(row.id, module.id, {
-                                              content: { 
-                                                ...(module.content as object),
-                                                text: e.target.value 
-                                              }
-                                            });
-                                          }}
-                                          onBlur={() => setEditingModule(null)}
-                                          placeholder="Enter HTML"
-                                          autoFocus
-                                        />
-                                      ) : (
-                                        <div
-                                          ref={(el) => {
-                                            if (el && el.innerHTML !== (module.content as { text: string }).text) {
-                                              el.innerHTML = (module.content as { text: string }).text;
-                                            }
-                                          }}
-                                          contentEditable
-                                          className="flex-1 w-full border-0 focus:outline-none focus:ring-2 focus:ring-primary-500 p-2 rounded-b overflow-auto wysiwyg-content min-h-0"
-                                          onInput={(e) => {
-                                            updateModule(row.id, module.id, {
-                                              content: { 
-                                                ...(module.content as object),
-                                                text: e.currentTarget.innerHTML 
-                                              }
-                                            });
-                                          }}
-                                          onBlur={() => {
-                                            setEditingModule(null);
-                                            setHtmlMode({ ...htmlMode, [module.id]: false });
-                                          }}
-                                          suppressContentEditableWarning={true}
-                                        />
-                                      )}
-                                    </div>
-                                  ) : (
-                                    <div 
-                                      className="h-full w-full cursor-text p-2 overflow-auto wysiwyg-content" 
-                                      style={{ fontSize: '14px', lineHeight: '1.4' }}
-                                      onDoubleClick={() => setEditingModule(module.id)}
-                                      dangerouslySetInnerHTML={{ __html: (module.content as { text: string }).text }}
-                                    />
-                                  )
-                                )}
-                                {module.type === 'video' && (
-                                  <div className="bg-gray-200 h-full w-full rounded flex items-center justify-center">
-                                    <Video className="h-8 w-8 text-gray-400" />
-                                  </div>
-                                )}
-                                {module.type === 'button' && (
-                                  <div className="flex items-center justify-center h-full w-full p-2">
-                                    {editingModule === module.id ? (
-                                      <input
-                                        type="text"
-                                        className="w-full px-4 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                                        value={(module.content as { text: string }).text}
-                                        onChange={(e) => {
-                                          updateModule(row.id, module.id, {
-                                            content: { 
-                                              ...(module.content as object),
-                                              text: e.target.value 
-                                            }
-                                          });
-                                        }}
-                                        onBlur={() => setEditingModule(null)}
-                                        onKeyDown={(e) => {
-                                          if (e.key === 'Enter') {
-                                            setEditingModule(null);
-                                          }
-                                        }}
-                                        placeholder="Button text"
-                                        autoFocus
-                                      />
-                                    ) : (
-                                      <button 
-                                        className="w-full h-full px-4 py-2 bg-primary-600 text-white rounded text-sm hover:bg-primary-700 min-h-[40px]"
-                                        onDoubleClick={(e) => {
-                                          e.stopPropagation();
-                                          setEditingModule(module.id);
-                                        }}
-                                      >
-                                        {(module.content as { text: string }).text}
-                                      </button>
-                                    )}
-                                  </div>
-                                )}
-                                {module.type === 'container' && (
-                                  <div className="h-full w-full rounded bg-gray-100 flex items-center justify-center relative overflow-hidden">
-                                    {/* X pattern background */}
-                                    <svg className="absolute inset-0 w-full h-full" preserveAspectRatio="none">
-                                      <line x1="0" y1="0" x2="100%" y2="100%" stroke="#d1d5db" strokeWidth="2" />
-                                      <line x1="100%" y1="0" x2="0" y2="100%" stroke="#d1d5db" strokeWidth="2" />
-                                    </svg>
-                                    {/* Placeholder text */}
-                                    <div className="relative z-10 p-4 text-center">
-                                      {editingModule === module.id ? (
-                                        <input
-                                          type="text"
-                                          className="w-full px-2 py-1 text-sm border rounded bg-white"
-                                          value={(module.content as { placeholder?: string }).placeholder || 'Image placeholder'}
-                                          onChange={(e) => {
-                                            updateModule(row.id, module.id, {
-                                              content: { 
-                                                ...(module.content as object),
-                                                placeholder: e.target.value 
-                                              }
-                                            });
-                                          }}
-                                          onBlur={() => setEditingModule(null)}
-                                          onKeyDown={(e) => {
-                                            if (e.key === 'Enter') {
-                                              setEditingModule(null);
-                                            }
-                                          }}
-                                          placeholder="Describe image"
-                                          autoFocus
-                                        />
-                                      ) : (
-                                        <span 
-                                          className="text-sm text-gray-600 cursor-pointer hover:text-gray-800"
-                                          onDoubleClick={(e) => {
-                                            e.stopPropagation();
-                                            setEditingModule(module.id);
-                                          }}
-                                        >
-                                          {(module.content as { placeholder?: string }).placeholder || 'Image placeholder'}
-                                        </span>
-                                      )}
-                                    </div>
-                                  </div>
-                                )}
-                                {module.type === 'header' && (
-                                  <div className="h-full w-full bg-gray-800 text-white p-4 rounded flex items-center justify-center">
-                                    <span className="text-sm font-semibold">{(module.content as { text: string }).text}</span>
-                                  </div>
-                                )}
-                                {module.type === 'footer' && (
-                                  <div className="h-full w-full bg-gray-800 text-white p-4 rounded flex items-center justify-center">
-                                    <span className="text-sm">{(module.content as { text: string }).text}</span>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+        <div className="flex-1 overflow-hidden">
+          <Tldraw 
+            persistenceKey={`powerframe-${wireframeId}`}
+            className="w-full h-full"
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            onMount={(editor: any) => {
+              setCurrentEditor(editor);
+            }}
+          />
         </div>
       </div>
-
-      {/* Product Selector Modal */}
-      {showProductSelector && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold">Select Products for Wireframe</h3>
-              <button
-                onClick={() => setShowProductSelector(false)}
-                className="text-gray-400 hover:text-gray-600"
-                title="Close"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            
-            <div className="mb-4">
-              <p className="text-sm text-gray-600">
-                Select products to feature in your wireframe. The first product will be the main product for PDP pages.
-              </p>
-            </div>
-            
-            <div className="space-y-2 mb-4">
-              {availableProducts.map((product) => {
-                const isSelected = selectedProducts.some(p => p.id === product.id);
-                const isMain = selectedProducts[0]?.id === product.id;
-                
-                return (
-                  <div
-                    key={product.id}
-                    className={`p-3 border rounded-lg cursor-pointer transition-colors ${
-                      isSelected ? 'border-primary-500 bg-primary-50' : 'border-gray-200 hover:border-gray-300'
-                    }`}
-                    onClick={() => {
-                      if (isSelected) {
-                        setSelectedProducts(selectedProducts.filter(p => p.id !== product.id));
-                      } else {
-                        setSelectedProducts([...selectedProducts, product]);
-                      }
-                    }}
-                  >
-                    <div className="flex items-start space-x-3">
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => {}}
-                        className="mt-1"
-                        aria-label={`Select ${product.name}`}
-                      />
-                      <div className="flex-1">
-                        <div className="flex items-center space-x-2">
-                          <h4 className="font-medium">{product.name}</h4>
-                          {isMain && (
-                            <span className="text-xs bg-primary-600 text-white px-2 py-1 rounded">Main Product</span>
-                          )}
-                        </div>
-                        {product.description && (
-                          <p className="text-sm text-gray-600 mt-1">{product.description}</p>
-                        )}
-                        <div className="flex items-center space-x-4 mt-2 text-sm text-gray-500">
-                          {product.price && (
-                            <span>${product.price} {product.currency || 'USD'}</span>
-                          )}
-                          {product.category && (
-                            <span>{product.category}</span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            
-            {availableProducts.length === 0 && (
-              <div className="text-center py-8 text-gray-500">
-                No products found for this brand. Add products in the brand settings.
-              </div>
-            )}
-            
-            <div className="flex justify-end space-x-2">
-              <button
-                onClick={() => setShowProductSelector(false)}
-                className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  setShowProductSelector(false);
-                  // Products are already selected in state
-                }}
-                className="px-4 py-2 bg-primary-600 text-white rounded hover:bg-primary-700"
-              >
-                Done
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 } 

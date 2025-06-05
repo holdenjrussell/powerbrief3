@@ -6,16 +6,21 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  experimental: {
-    // Allow large file uploads
-    serverComponentsExternalPackages: [],
-  },
-  // Configure API routes to handle large files
-  api: {
-    bodyParser: {
-      sizeLimit: '1gb',
-    },
-    responseLimit: false,
+  // Server external packages configuration
+  serverExternalPackages: [],
+  // Simple webpack config for tldraw client-side only
+  webpack: (config, { isServer }) => {
+    // Only apply client-side optimizations
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        path: false,
+        crypto: false,
+      };
+    }
+
+    return config;
   },
   // Add headers for FFmpeg support - modified to be less restrictive for media loading
   async headers() {
