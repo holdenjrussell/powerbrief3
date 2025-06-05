@@ -38,8 +38,7 @@ export async function PUT(req: NextRequest) {
           brief_batches!inner(
             brand_id,
             brands!inner(
-              user_id,
-              shared_users
+              user_id
             )
           )
         )
@@ -53,20 +52,29 @@ export async function PUT(req: NextRequest) {
     }
 
     // Check if user has permission to resolve comments
-    // Allow if user is:
-    // 1. The concept owner
-    // 2. The brand owner
-    // 3. A shared user on the brand
     const concept = existingComment.brief_concepts;
     const brand = concept.brief_batches.brands;
+    const brandId = concept.brief_batches.brand_id;
     
     const isConceptOwner = concept.user_id === user.id;
     const isBrandOwner = brand.user_id === user.id;
-    const isSharedUser = brand.shared_users && 
-      Array.isArray(brand.shared_users) && 
-      brand.shared_users.some((sharedUser: { user_id: string }) => sharedUser.user_id === user.id);
 
-    if (!isConceptOwner && !isBrandOwner && !isSharedUser) {
+    // Check if user has shared access to the brand
+    let hasSharedAccess = false;
+    if (!isConceptOwner && !isBrandOwner) {
+      const { data: brandShare } = await serviceSupabase
+        .from('brand_shares')
+        .select('role')
+        .eq('brand_id', brandId)
+        .eq('shared_with_user_id', user.id)
+        .eq('status', 'accepted')
+        .single();
+
+      // Allow if user has editor role on the brand (viewers can't resolve comments)
+      hasSharedAccess = brandShare && brandShare.role === 'editor';
+    }
+
+    if (!isConceptOwner && !isBrandOwner && !hasSharedAccess) {
       return NextResponse.json({ 
         error: 'Not authorized to resolve comments on this concept' 
       }, { status: 403 });
