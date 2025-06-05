@@ -20,6 +20,13 @@ const nextConfig = {
       };
     }
 
+    // Suppress specific webpack warnings including Supabase realtime warnings
+    config.ignoreWarnings = [
+      /Critical dependency: the request of a dependency is an expression/,
+      /Critical dependency.*@supabase\/realtime-js/,
+      /Module not found: Can't resolve.*realtime/,
+    ];
+
     return config;
   },
   // Add headers for FFmpeg support - modified to be less restrictive for media loading

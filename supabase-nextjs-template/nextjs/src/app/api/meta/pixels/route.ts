@@ -11,14 +11,11 @@ interface MetaPixel {
 }
 
 export async function GET(request: NextRequest) {
-  console.log('=== Meta Pixels API Called ===');
   try {
     const { searchParams } = new URL(request.url);
     const brandId = searchParams.get('brandId');
-    console.log('Requested brandId for pixels:', brandId);
 
     if (!brandId) {
-      console.log('No brandId provided for pixels');
       return NextResponse.json(
         { error: 'Brand ID is required' },
         { status: 400 }
@@ -41,7 +38,6 @@ export async function GET(request: NextRequest) {
     }
 
     if (!brand) {
-      console.log('Brand not found for pixels');
       return NextResponse.json(
         { error: 'Brand not found' },
         { status: 404 }
@@ -49,7 +45,6 @@ export async function GET(request: NextRequest) {
     }
 
     if (!brand.meta_access_token || !brand.meta_access_token_iv || !brand.meta_access_token_auth_tag) {
-      console.log('Brand found but Meta token components are missing for pixels');
       return NextResponse.json(
         { error: 'Brand not fully connected to Meta' },
         { status: 404 }
@@ -60,7 +55,6 @@ export async function GET(request: NextRequest) {
       const expirationDate = new Date(brand.meta_access_token_expires_at);
       const now = new Date();
       if (expirationDate <= now) {
-        console.log('Meta access token has expired for pixels');
         return NextResponse.json(
           { error: 'Meta access token has expired' },
           { status: 401 }
@@ -75,7 +69,6 @@ export async function GET(request: NextRequest) {
         iv: brand.meta_access_token_iv,
         authTag: brand.meta_access_token_auth_tag
       });
-      console.log('Token decryption successful for pixels, token length:', decryptedAccessToken.length);
     } catch (decryptionError) {
       console.error('Token decryption failed for pixels:', decryptionError);
       return NextResponse.json(
@@ -86,7 +79,6 @@ export async function GET(request: NextRequest) {
 
     // First, get ad accounts for this user
     const adAccountsApiUrl = `https://graph.facebook.com/v22.0/me/adaccounts?access_token=${decryptedAccessToken}&fields=id,account_id,name`;
-    console.log('Meta Ad Accounts API URL (token redacted):', adAccountsApiUrl.replace(decryptedAccessToken, '[REDACTED]'));
     
     const adAccountsResponse = await fetch(adAccountsApiUrl);
     
@@ -97,7 +89,6 @@ export async function GET(request: NextRequest) {
     }
     
     const adAccountsData = await adAccountsResponse.json();
-    console.log('Ad Accounts response structure:', JSON.stringify(adAccountsData, null, 2));
     
     if (!adAccountsData.data || !Array.isArray(adAccountsData.data)) {
         console.error('Unexpected ad accounts response structure:', adAccountsData);
@@ -108,11 +99,10 @@ export async function GET(request: NextRequest) {
     const allPixels: MetaPixel[] = [];
     const seenPixelIds = new Set<string>();
     
+    console.log(`[Pixels API] Fetching pixels from ${adAccountsData.data.length} ad accounts...`);
+    
     for (const acc of adAccountsData.data) {
-        console.log(`Processing pixels for ad account: ${acc.id} (${acc.name})`);
-        
         const pixelsApiUrl = `https://graph.facebook.com/v22.0/${acc.id}/adspixels?access_token=${decryptedAccessToken}&fields=id,name,creation_time,last_fired_time`;
-        console.log(`Fetching pixels for ad account: ${acc.name} (${acc.id})`);
         const pixelsResponse = await fetch(pixelsApiUrl);
 
         if (!pixelsResponse.ok) {
@@ -124,7 +114,6 @@ export async function GET(request: NextRequest) {
 
         const pixelsData = await pixelsResponse.json();
         const accountPixels: MetaPixel[] = pixelsData.data || [];
-        console.log(`Found ${accountPixels.length} pixels for account ${acc.id}`);
 
         // Only add pixels we haven't seen before to prevent duplicates
         accountPixels.forEach(pixel => {
@@ -135,7 +124,7 @@ export async function GET(request: NextRequest) {
         });
     }
 
-    console.log(`Total unique pixels found: ${allPixels.length}`);
+    console.log(`[Pixels API] Found ${allPixels.length} unique pixels across all accounts`);
     return NextResponse.json({
       success: true,
       pixels: allPixels

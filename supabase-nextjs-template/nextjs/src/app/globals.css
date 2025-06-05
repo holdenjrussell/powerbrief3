@@ -2,6 +2,9 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Import tldraw CSS for PowerFrame */
+@import '@tldraw/tldraw/tldraw.css';
+
 @layer utilities {
   .hide-scrollbar {
     -ms-overflow-style: none;  /* IE and Edge */

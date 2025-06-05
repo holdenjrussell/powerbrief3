@@ -9,18 +9,18 @@ import { useTldrawPersistence } from '@/hooks/useTldrawPersistence';
 
 // Dynamically import Tldraw to avoid SSR issues and prevent duplicate imports
 const TldrawComponent = dynamic(
-  () => import('@tldraw/tldraw').then((mod) => ({ 
-    default: mod.Tldraw,
-    toRichText: mod.toRichText
-  })),
+  async () => {
+    const tldrawModule = await import('@tldraw/tldraw');
+    return { 
+      default: tldrawModule.Tldraw,
+      toRichText: tldrawModule.toRichText
+    };
+  },
   { 
     ssr: false,
     loading: () => <div className="w-full h-full flex items-center justify-center bg-gray-100">Loading canvas...</div>
   }
 );
-
-// Import CSS
-import '@tldraw/tldraw/tldraw.css';
 
 export default function WireframeEditorPage() {
   const params = useParams();

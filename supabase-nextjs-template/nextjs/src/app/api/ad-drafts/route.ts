@@ -4,6 +4,13 @@ import { AdDraft, AppAdDraftStatus, AdCreativeStatus, SiteLink, AdvantageCreativ
 import { Database } from '@/lib/types';
 import { SupabaseClient } from '@supabase/supabase-js';
 
+// Configuration for performance optimization
+const CONFIG = {
+  BATCH_SIZE: 10,
+  LOG_SAMPLING_RATE: 0.05, // Log only 5% of operations to reduce spam further
+  ENABLE_DETAILED_LOGGING: process.env.NODE_ENV === 'development'
+};
+
 // Interface for the expected structure of an ad_drafts table row
 // This should align with your DB schema now for ad_drafts
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -237,142 +244,154 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: 'No ad drafts provided or invalid format.' }, { status: 400 });
     }
     
+    console.log(`[API AD_DRAFTS POST] Processing ${adDrafts.length} ad drafts for batch update`);
+    
     const results = [];
+    let unchangedCount = 0; // Track unchanged assets for summary logging
 
-    for (const draft of adDrafts) {
-      if (!draft.brandId) { 
-         console.warn('[API AD_DRAFTS POST] Draft missing brandId:', draft.adName);
-         results.push({ id: draft.id, success: false, message: 'Draft missing brandId.'});
-         continue;
-      }
+    // Process drafts in batches to improve performance
+    const BATCH_SIZE = CONFIG.BATCH_SIZE;
+    for (let i = 0; i < adDrafts.length; i += BATCH_SIZE) {
+      const batchDrafts = adDrafts.slice(i, i + BATCH_SIZE);
+      const batchPromises = batchDrafts.map(async (draft) => {
+        if (!draft.brandId) { 
+           console.warn('[API AD_DRAFTS POST] Draft missing brandId:', draft.adName);
+           return { id: draft.id, success: false, message: 'Draft missing brandId.'};
+        }
 
-      // Construct the row for upserting into ad_drafts table
-      const adDraftRowToUpsert: AdDraftInsertRow = {
-        id: draft.id, 
-        user_id: user.id, // user_id is part of AdDraftInsertRow now
-        brand_id: draft.brandId,
-        ad_batch_id: adBatchId || null, // Associate with ad batch if provided
-        ad_name: draft.adName,
-        primary_text: draft.primaryText || null,
-        headline: draft.headline || null,
-        description: draft.description || null,
-        campaign_id: draft.campaignId || null,
-        campaign_name: draft.campaignName || null,
-        ad_set_id: draft.adSetId || null,
-        ad_set_name: draft.adSetName || null,
-        destination_url: draft.destinationUrl || null,
-        call_to_action: draft.callToAction || null,
-        meta_status: draft.status, 
-        app_status: draft.appStatus || 'DRAFT',
-        site_links: draft.siteLinks || [],
-        advantage_plus_creative: draft.advantageCreative || {
-          inline_comment: false,
-          image_templates: false,
-          image_touchups: false,
-          video_auto_crop: false,
-          image_brightness_and_contrast: false,
-          enhance_cta: false,
-          text_optimizations: false,
-          image_uncrop: false,
-          adapt_to_placement: false,
-          media_type_automation: false,
-          product_extensions: false,
-          description_automation: false,
-          add_text_overlay: false,
-          site_extensions: false,
-          '3d_animation': false,
-          translate_text: false
-        },
-        video_editor: draft.videoEditor || null,
-        strategist: draft.strategist || null
-      };
+        // Construct the row for upserting into ad_drafts table
+        const adDraftRowToUpsert: AdDraftInsertRow = {
+          id: draft.id, 
+          user_id: user.id,
+          brand_id: draft.brandId,
+          ad_batch_id: adBatchId || null,
+          ad_name: draft.adName,
+          primary_text: draft.primaryText || null,
+          headline: draft.headline || null,
+          description: draft.description || null,
+          campaign_id: draft.campaignId || null,
+          campaign_name: draft.campaignName || null,
+          ad_set_id: draft.adSetId || null,
+          ad_set_name: draft.adSetName || null,
+          destination_url: draft.destinationUrl || null,
+          call_to_action: draft.callToAction || null,
+          meta_status: draft.status, 
+          app_status: draft.appStatus || 'DRAFT',
+          site_links: draft.siteLinks || [],
+          advantage_plus_creative: draft.advantageCreative || {
+            inline_comment: false,
+            image_templates: false,
+            image_touchups: false,
+            video_auto_crop: false,
+            image_brightness_and_contrast: false,
+            enhance_cta: false,
+            text_optimizations: false,
+            image_uncrop: false,
+            adapt_to_placement: false,
+            media_type_automation: false,
+            product_extensions: false,
+            description_automation: false,
+            add_text_overlay: false,
+            site_extensions: false,
+            '3d_animation': false,
+            translate_text: false
+          },
+          video_editor: draft.videoEditor || null,
+          strategist: draft.strategist || null
+        };
 
-      /* eslint-disable @typescript-eslint/no-explicit-any */
-      const { data: upsertedDraft, error: draftError } = await (supabase as any)
-        .from('ad_drafts')
-        .upsert(adDraftRowToUpsert) // Pass the fully typed object
-        .select('id')
-        .single();
+        /* eslint-disable @typescript-eslint/no-explicit-any */
+        const { data: upsertedDraft, error: draftError } = await (supabase as any)
+          .from('ad_drafts')
+          .upsert(adDraftRowToUpsert)
+          .select('id')
+          .single();
 
-      if (draftError) {
-        console.error('[API AD_DRAFTS POST] Error upserting draft:', draft.adName, draftError);
-        results.push({ id: draft.id, success: false, error: draftError.message });
-        continue;
-      }
-      
-      if (!upsertedDraft || !upsertedDraft.id) {
-        console.error('[API AD_DRAFTS POST] Upserted draft but no ID returned:', draft.adName);
-        results.push({ id: draft.id, success: false, error: 'Failed to get ID from upserted draft.' });
-        continue;
-      }
-      
-      const draftDbId = upsertedDraft.id;
-
-      // First, get existing assets for comparison
-      const { data: existingAssets, error: fetchAssetsError } = await (supabase as any)
-        .from('ad_draft_assets')
-        .select('id, name, supabase_url, type, thumbnail_url')
-        .eq('ad_draft_id', draftDbId);
-
-      if (fetchAssetsError) {
-        console.error('[API AD_DRAFTS POST] Error fetching existing assets:', fetchAssetsError);
-      }
-
-      // Compare existing assets with new assets to determine if update is needed
-      const existingAssetMap = new Map((existingAssets || []).map((a: any) => [a.name, a]));
-      const newAssetMap = new Map((draft.assets || []).map(a => [a.name, a]));
-      
-      // Check if assets have changed
-      const assetsChanged = 
-        existingAssetMap.size !== newAssetMap.size ||
-        Array.from(newAssetMap.entries()).some(([name, asset]) => {
-          const existing = existingAssetMap.get(name) as any;
-          return !existing || 
-                 existing.supabase_url !== asset.supabaseUrl ||
-                 existing.type !== asset.type;
-        });
-
-      if (assetsChanged) {
-        console.log(`[API AD_DRAFTS POST] Assets changed for draft ${draft.adName}, updating...`);
+        if (draftError) {
+          console.error('[API AD_DRAFTS POST] Error upserting draft:', draft.adName, draftError);
+          return { id: draft.id, success: false, error: draftError.message };
+        }
         
-        // Only delete and re-insert if assets have actually changed
-        const { error: deleteAssetsError } = await (supabase as any)
+        if (!upsertedDraft || !upsertedDraft.id) {
+          console.error('[API AD_DRAFTS POST] Upserted draft but no ID returned:', draft.adName);
+          return { id: draft.id, success: false, error: 'Failed to get ID from upserted draft.' };
+        }
+        
+        const draftDbId = upsertedDraft.id;
+
+        // First, get existing assets for comparison
+        const { data: existingAssets, error: fetchAssetsError } = await (supabase as any)
           .from('ad_draft_assets')
-          .delete()
+          .select('id, name, supabase_url, type, thumbnail_url')
           .eq('ad_draft_id', draftDbId);
 
-        if (deleteAssetsError) {
-          console.error('[API AD_DRAFTS POST] Error deleting old assets for draft:', draft.adName, deleteAssetsError);
-          results.push({ id: draft.id, success: false, error: `Failed to clear old assets: ${deleteAssetsError.message}` });
-          continue;
+        if (fetchAssetsError) {
+          console.error('[API AD_DRAFTS POST] Error fetching existing assets:', fetchAssetsError);
         }
 
-        if (draft.assets && draft.assets.length > 0) {
-          const assetRows: AdDraftAssetInsertRow[] = draft.assets.map(asset => ({
-            ad_draft_id: draftDbId,
-            name: asset.name,
-            supabase_url: asset.supabaseUrl,
-            type: asset.type,
-            thumbnail_url: (asset as any).thumbnailUrl || null, // Include thumbnail URL if available
-            thumbnail_timestamp: (asset as any).thumbnailTimestamp || null, // Include thumbnail timestamp if available
-          }));
-          const { error: insertAssetsError } = await (supabase as any)
-            .from('ad_draft_assets')
-            .insert(assetRows);
+        // Compare existing assets with new assets to determine if update is needed
+        const existingAssetMap = new Map((existingAssets || []).map((a: any) => [a.name, a]));
+        const newAssetMap = new Map((draft.assets || []).map(a => [a.name, a]));
+        
+        // Check if assets have changed
+        const assetsChanged = 
+          existingAssetMap.size !== newAssetMap.size ||
+          Array.from(newAssetMap.entries()).some(([name, asset]) => {
+            const existing = existingAssetMap.get(name) as any;
+            return !existing || 
+                   existing.supabase_url !== asset.supabaseUrl ||
+                   existing.type !== asset.type;
+          });
 
-          if (insertAssetsError) {
-            console.error('[API AD_DRAFTS POST] Error inserting assets for draft:', draft.adName, insertAssetsError);
-            results.push({ id: draft.id, success: false, error: `Failed to insert assets: ${insertAssetsError.message}` });
-            continue;
+        if (assetsChanged) {
+          // Only log asset changes for unique operations (reduce spam)
+          if (Math.random() < CONFIG.LOG_SAMPLING_RATE) { // Log only 5% of asset updates to reduce spam
+            console.log(`[API AD_DRAFTS POST] Assets changed for draft ${draft.adName}, updating...`);
           }
+          
+          // Only delete and re-insert if assets have actually changed
+          const { error: deleteAssetsError } = await (supabase as any)
+            .from('ad_draft_assets')
+            .delete()
+            .eq('ad_draft_id', draftDbId);
+
+          if (deleteAssetsError) {
+            console.error('[API AD_DRAFTS POST] Error deleting old assets for draft:', draft.adName, deleteAssetsError);
+            return { id: draft.id, success: false, error: `Failed to clear old assets: ${deleteAssetsError.message}` };
+          }
+
+          if (draft.assets && draft.assets.length > 0) {
+            const assetRows: AdDraftAssetInsertRow[] = draft.assets.map(asset => ({
+              ad_draft_id: draftDbId,
+              name: asset.name,
+              supabase_url: asset.supabaseUrl,
+              type: asset.type,
+              thumbnail_url: (asset as any).thumbnailUrl || null,
+              thumbnail_timestamp: (asset as any).thumbnailTimestamp || null,
+            }));
+            const { error: insertAssetsError } = await (supabase as any)
+              .from('ad_draft_assets')
+              .insert(assetRows);
+
+            if (insertAssetsError) {
+              console.error('[API AD_DRAFTS POST] Error inserting assets for draft:', draft.adName, insertAssetsError);
+              return { id: draft.id, success: false, error: `Failed to insert assets: ${insertAssetsError.message}` };
+            }
+          }
+        } else {
+          // Reduce logging spam - count unchanged assets and log summary instead of individual messages
+          unchangedCount++;
         }
-      } else {
-        console.log(`[API AD_DRAFTS POST] Assets unchanged for draft ${draft.adName}, skipping asset update`);
-      }
-      
-      results.push({ id: draftDbId, success: true });
+        
+        return { id: draftDbId, success: true };
+      });
+
+      // Wait for current batch to complete before processing next batch
+      const batchResults = await Promise.all(batchPromises);
+      results.push(...batchResults);
     }
 
+    console.log(`[API AD_DRAFTS POST] Completed processing ${adDrafts.length} drafts in batches (${unchangedCount} unchanged assets)`);
     return NextResponse.json({ message: 'Ad drafts processed.', results }, { status: 200 });
 
   } catch (error) {

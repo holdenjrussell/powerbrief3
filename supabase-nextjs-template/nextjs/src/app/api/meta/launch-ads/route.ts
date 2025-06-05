@@ -49,7 +49,13 @@ console.log(`[Launch API] Using Meta API version: ${META_API_VERSION}`);
 
 // Helper function to extract aspect ratio from filename as fallback
 const detectAspectRatioFromFilename = (filename: string): string | null => {
-  const identifiers = ['1x1', '9x16', '16x9', '4x5', '2x3', '3x2', '1:1', '9:16', '16:9', '4:5', '2:3', '3:2'];
+  const identifiers = [
+    // Common patterns with common separators
+    '1x1', '9x16', '16x9', '4x5', '5x4', '2x3', '3x2',
+    '1:1', '9:16', '16:9', '4:5', '5:4', '2:3', '3:2',
+    // Handle decimal ratios
+    '1.0x1.0', '9.0x16.0', '16.0x9.0', '4.0x5.0'
+  ];
   
   for (const id of identifiers) {
     const patternsToTest = [
@@ -58,17 +64,46 @@ const detectAspectRatioFromFilename = (filename: string): string | null => {
       ` - ${id}`,
       `:${id}`,
       `(${id})`,
-      `(${id}`
+      `(${id}`,
+      `.${id}`,
+      `[${id}]`,
+      ` ${id} `,
+      `_${id}_`,
+      `-${id}-`,
+      // Case insensitive patterns
+      `_${id.toUpperCase()}`,
+      `-${id.toUpperCase()}`,
+      ` - ${id.toUpperCase()}`,
     ];
     
     for (const pattern of patternsToTest) {
-      if (filename.includes(pattern)) {
-        return id;
+      if (filename.toLowerCase().includes(pattern.toLowerCase())) {
+        return id.replace('x', ':'); // Normalize to colon format
       }
     }
   }
   
   return null;
+};
+
+// Helper function to validate video dimensions and suggest missing aspect ratios
+const validateVideoForAspectRatio = (filename: string, aspectRatio: string | null): { isValid: boolean; suggestions: string[] } => {
+  const requiredAspectRatios = ['1:1', '9:16', '16:9', '4:5'];
+  const suggestions: string[] = [];
+  
+  if (!aspectRatio) {
+    suggestions.push('Consider adding aspect ratio to filename (e.g., video_9x16.mp4, video_16x9.mp4)');
+    suggestions.push('Required aspect ratios: ' + requiredAspectRatios.join(', '));
+    return { isValid: false, suggestions };
+  }
+  
+  const normalizedRatio = aspectRatio.replace('x', ':');
+  if (!requiredAspectRatios.includes(normalizedRatio)) {
+    suggestions.push(`Aspect ratio ${normalizedRatio} may not be optimal for Meta ads`);
+    suggestions.push('Recommended aspect ratios: ' + requiredAspectRatios.join(', '));
+  }
+  
+  return { isValid: true, suggestions };
 };
 
 // Helper function to check if a video is ready for use in ads
@@ -995,24 +1030,25 @@ export async function POST(req: NextRequest) {
       for (const asset of draft.assets) {
         console.log(`[Launch API]   - Asset to upload: ${asset.name} (Type: ${asset.type}, URL: ${asset.supabaseUrl})`);
         try {
-          const assetResponse = await fetch(asset.supabaseUrl);
-          console.log(`[Launch API]     Fetched asset from Supabase: status=${assetResponse.status}, contentType=${assetResponse.headers.get('content-type')}, contentLength=${assetResponse.headers.get('content-length')}`);
-          
-          if (!assetResponse.ok) {
-            throw new Error(`Failed to fetch asset ${asset.name} from Supabase: ${assetResponse.statusText}`);
-          }
-          const assetBlob = await assetResponse.blob();
-          console.log(`[Launch API]     Created blob: size=${assetBlob.size}, type=${assetBlob.type}`);
-          
-          // Validate the blob
-          if (assetBlob.size === 0) {
-            throw new Error(`Asset ${asset.name} is empty (0 bytes)`);
-          }
-
           // Ensure adAccountId has the proper format (remove extra 'act_' if it exists)
           const formattedAdAccountId = adAccountId.startsWith('act_') ? adAccountId.substring(4) : adAccountId;
           
           if (asset.type === 'image') {
+            // For images, we need to fetch and upload directly as Meta doesn't support image URL upload
+            const assetResponse = await fetch(asset.supabaseUrl);
+            console.log(`[Launch API]     Fetched asset from Supabase: status=${assetResponse.status}, contentType=${assetResponse.headers.get('content-type')}, contentLength=${assetResponse.headers.get('content-length')}`);
+            
+            if (!assetResponse.ok) {
+              throw new Error(`Failed to fetch asset ${asset.name} from Supabase: ${assetResponse.statusText}`);
+            }
+            const assetBlob = await assetResponse.blob();
+            console.log(`[Launch API]     Created blob: size=${assetBlob.size}, type=${assetBlob.type}`);
+            
+            // Validate the blob
+            if (assetBlob.size === 0) {
+              throw new Error(`Asset ${asset.name} is empty (0 bytes)`);
+            }
+
             // Use existing direct upload for images
             const formData = new FormData();
             formData.append('access_token', accessToken);
@@ -1081,8 +1117,52 @@ export async function POST(req: NextRequest) {
             updatedAssets.push({ ...asset, metaHash: imageHash });
 
           } else if (asset.type === 'video') {
-            // Validate video before upload
-            console.log(`[Launch API]     Validating video before upload...`);
+            console.log(`[Launch API]     Processing video: ${asset.name}`);
+            
+            // Check for aspect ratio in filename and validate
+            const detectedAspectRatio = detectAspectRatioFromFilename(asset.name);
+            const validation = validateVideoForAspectRatio(asset.name, detectedAspectRatio);
+            
+            if (!validation.isValid) {
+              console.warn(`[Launch API]     Video aspect ratio validation failed for ${asset.name}:`);
+              validation.suggestions.forEach(suggestion => {
+                console.warn(`[Launch API]       - ${suggestion}`);
+              });
+            }
+            
+            // Try URL upload first (more efficient - no need to download entire file)
+            console.log(`[Launch API]     Attempting URL upload for video: ${asset.name}`);
+            const urlUploadResult = await uploadVideoUsingFileUrl(
+              asset.supabaseUrl, 
+              asset.name, 
+              adAccountId, 
+              accessToken
+            );
+            
+            if (!urlUploadResult.error && urlUploadResult.videoId) {
+              console.log(`[Launch API]     URL upload succeeded for ${asset.name}. ID: ${urlUploadResult.videoId}`);
+              updatedAssets.push({ ...asset, metaVideoId: urlUploadResult.videoId });
+              continue;
+            }
+            
+            // URL upload failed, fall back to resumable upload
+            console.warn(`[Launch API]     URL upload failed for ${asset.name}: ${urlUploadResult.error}`);
+            console.log(`[Launch API]     Falling back to resumable upload (downloading file first)...`);
+            
+            // Now fetch the file for resumable upload
+            const assetResponse = await fetch(asset.supabaseUrl);
+            console.log(`[Launch API]     Fetched asset from Supabase: status=${assetResponse.status}, contentType=${assetResponse.headers.get('content-type')}, contentLength=${assetResponse.headers.get('content-length')}`);
+            
+            if (!assetResponse.ok) {
+              throw new Error(`Failed to fetch asset ${asset.name} from Supabase: ${assetResponse.statusText}`);
+            }
+            const assetBlob = await assetResponse.blob();
+            console.log(`[Launch API]     Created blob: size=${assetBlob.size}, type=${assetBlob.type}`);
+            
+            // Validate the blob
+            if (assetBlob.size === 0) {
+              throw new Error(`Asset ${asset.name} is empty (0 bytes)`);
+            }
             
             // Check file size (Meta recommends up to 10GB)
             const videoSizeMB = assetBlob.size / (1024 * 1024);
@@ -1099,7 +1179,6 @@ export async function POST(req: NextRequest) {
             }
             
             // Try to detect video dimensions from filename or metadata
-            // Common patterns: 1080x1920, 1200x1500, etc.
             const dimensionMatch = asset.name.match(/(\d{3,4})x(\d{3,4})/);
             if (dimensionMatch) {
               const width = parseInt(dimensionMatch[1]);
@@ -1117,40 +1196,19 @@ export async function POST(req: NextRequest) {
               }
             } else {
               console.warn(`[Launch API]     Could not detect video dimensions from filename. Meta requires minimum width of 1200px.`);
+              if (detectedAspectRatio) {
+                console.warn(`[Launch API]     Consider adding dimensions to filename (e.g., ${asset.name.replace('.mp4', '_1200x1920.mp4')})`);
+              }
             }
             
-            // Always use Resumable Upload API for videos - it supports larger files (up to 10GB)
-            // and is more reliable than direct upload which has size limitations that cause 413 errors
+            // Use resumable upload as fallback
             const { videoId, error } = await uploadVideoUsingResumableAPI(assetBlob, asset.name, adAccountId, accessToken);
             
-            // If resumable upload fails, try URL upload as fallback
-            if (error && asset.supabaseUrl) {
-              console.warn(`[Launch API]     Resumable upload failed: ${error}`);
-              console.log(`[Launch API]     Attempting URL upload as fallback...`);
-              
-              const urlUploadResult = await uploadVideoUsingFileUrl(
-                asset.supabaseUrl, 
-                asset.name, 
-                adAccountId, 
-                accessToken
-              );
-              
-              if (urlUploadResult.error) {
-                console.error(`[Launch API]     Both upload methods failed for ${asset.name}`);
-                console.error(`[Launch API]     - Resumable error: ${error}`);
-                console.error(`[Launch API]     - URL upload error: ${urlUploadResult.error}`);
-                updatedAssets.push({ ...asset, metaUploadError: `All upload methods failed: ${error}` });
-                continue;
-              }
-              
-              console.log(`[Launch API]     URL upload succeeded for ${asset.name}. ID: ${urlUploadResult.videoId}`);
-              updatedAssets.push({ ...asset, metaVideoId: urlUploadResult.videoId });
-              continue;
-            }
-            
             if (error) {
-              console.error(`[Launch API]     Failed to upload video ${asset.name}:`, error);
-              updatedAssets.push({ ...asset, metaUploadError: error });
+              console.error(`[Launch API]     Both upload methods failed for ${asset.name}`);
+              console.error(`[Launch API]     - URL upload error: ${urlUploadResult.error}`);
+              console.error(`[Launch API]     - Resumable upload error: ${error}`);
+              updatedAssets.push({ ...asset, metaUploadError: `All upload methods failed. URL: ${urlUploadResult.error}. Resumable: ${error}` });
               continue;
             }
 
@@ -1160,11 +1218,8 @@ export async function POST(req: NextRequest) {
               continue;
             }
 
-            console.log(`[Launch API]     Video ${asset.name} uploaded using Resumable API. ID: ${videoId}`);
-            // Videos uploaded via video_ads endpoint are ready immediately for ad use
-            // No status checking needed unlike regular video uploads
+            console.log(`[Launch API]     Video ${asset.name} uploaded using Resumable API (fallback). ID: ${videoId}`);
             updatedAssets.push({ ...asset, metaVideoId: videoId });
-
           } else {
             console.warn(`[Launch API]     Unsupported asset type: ${asset.type} for asset ${asset.name}`);
             updatedAssets.push({ ...asset, metaUploadError: 'Unsupported type' });

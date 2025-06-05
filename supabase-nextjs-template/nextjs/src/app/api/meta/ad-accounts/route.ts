@@ -3,15 +3,11 @@ import { createSSRClient } from '@/lib/supabase/server';
 import { decryptToken } from '@/lib/utils/tokenEncryption';
 
 export async function GET(request: NextRequest) {
-  console.log('=== Meta Ad Accounts API Called ===');
-  
   try {
     const { searchParams } = new URL(request.url);
     const brandId = searchParams.get('brandId');
-    console.log('Requested brandId:', brandId);
 
     if (!brandId) {
-      console.log('No brandId provided');
       return NextResponse.json(
         { error: 'Brand ID is required' },
         { status: 400 }
@@ -19,15 +15,12 @@ export async function GET(request: NextRequest) {
     }
 
     // Get brand and decrypt token
-    console.log('Fetching brand from database using createSSRClient...');
     const supabase = await createSSRClient();
     const { data: brand, error: brandError } = await supabase
       .from('brands')
       .select('id, name, meta_access_token, meta_access_token_iv, meta_access_token_auth_tag, meta_access_token_expires_at, meta_user_id')
       .eq('id', brandId)
       .single();
-    
-    console.log('Brand found:', brand ? 'YES' : 'NO');
     
     if (brandError) {
       console.error('Error fetching brand:', brandError);
@@ -38,23 +31,13 @@ export async function GET(request: NextRequest) {
     }
 
     if (!brand) {
-      console.log('Brand not found in database');
       return NextResponse.json(
         { error: 'Brand not found' },
         { status: 404 }
       );
     }
 
-    console.log('Brand details:', {
-      id: brand.id,
-      name: brand.name,
-      has_meta_access_token: !!brand.meta_access_token,
-      meta_user_id: brand.meta_user_id,
-      token_expires_at: brand.meta_access_token_expires_at
-    });
-
     if (!brand.meta_access_token) {
-      console.log('Brand found but no Meta access token');
       return NextResponse.json(
         { error: 'Brand not connected to Meta' },
         { status: 404 }
@@ -65,14 +48,8 @@ export async function GET(request: NextRequest) {
     if (brand.meta_access_token_expires_at) {
       const expirationDate = new Date(brand.meta_access_token_expires_at);
       const now = new Date();
-      console.log('Token expiration check:', {
-        expires_at: expirationDate.toISOString(),
-        now: now.toISOString(),
-        is_expired: expirationDate <= now
-      });
       
       if (expirationDate <= now) {
-        console.log('Meta access token has expired');
         return NextResponse.json(
           { error: 'Meta access token has expired' },
           { status: 401 }
@@ -81,22 +58,17 @@ export async function GET(request: NextRequest) {
     }
 
     // Decrypt the access token
-    console.log('Attempting to decrypt access token...');
     try {
       const decryptedAccessToken = decryptToken({
         encryptedToken: brand.meta_access_token,
         iv: brand.meta_access_token_iv!,
         authTag: brand.meta_access_token_auth_tag!
       });
-      console.log('Token decryption successful, token length:', decryptedAccessToken.length);
 
       // Fetch ad accounts from Meta Graph API
-      console.log('Making Meta API call...');
       const metaApiUrl = `https://graph.facebook.com/v22.0/me/adaccounts?access_token=${decryptedAccessToken}&fields=id,name,account_status,account_id,business_name,currency,timezone_name`;
-      console.log('Meta API URL (token redacted):', metaApiUrl.replace(decryptedAccessToken, '[REDACTED]'));
       
       const response = await fetch(metaApiUrl);
-      console.log('Meta API response status:', response.status);
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -108,7 +80,7 @@ export async function GET(request: NextRequest) {
       }
 
       const data = await response.json();
-      console.log('Meta API success, ad accounts count:', data.data?.length || 0);
+      console.log(`[Ad Accounts API] Retrieved ${data.data?.length || 0} ad accounts for brand ${brand.name}`);
       
       return NextResponse.json({
         success: true,
