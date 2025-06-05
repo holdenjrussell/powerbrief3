@@ -775,36 +775,30 @@ Check console for detailed error analysis.`);
             onMount={(editor: any) => {
               setCurrentEditor(editor);
               
-              // Ensure proper event listeners are set up for zoom/scroll
+              // Simplified and improved event handling for better zoom/scroll
               if (editor) {
-                // Force enable wheel events for zoom on Mac trackpad
                 const container = editor.getContainer();
                 if (container) {
-                  // Essential: Set touch-action to none for proper gesture handling
-                  container.style.touchAction = 'none';
+                  // Use a more permissive touch-action for better trackpad support
+                  container.style.touchAction = 'manipulation';
                   
-                  // Ensure wheel events work properly for zoom
+                  // Remove conflicting event listeners and let tldraw handle events naturally
+                  // Only add minimal intervention for Mac trackpad compatibility
                   container.addEventListener('wheel', (e) => {
-                    // For zoom gestures (pinch on trackpad), allow the default behavior
-                    // Only prevent default for regular scrolling if we're in a zoom context
-                    if (e.ctrlKey || e.metaKey) {
-                      // This is a zoom gesture, let tldraw handle it
-                      return;
+                    // Don't interfere with tldraw's native wheel handling
+                    // Just ensure the event propagates properly
+                    e.stopPropagation();
+                  }, { passive: true, capture: false });
+                  
+                  // Simplified gesture handling - only prevent browser zoom conflicts
+                  const handleGesture = (e: Event) => {
+                    // Only prevent default if it would conflict with browser zoom
+                    if (e.type === 'gesturestart') {
+                      e.preventDefault();
                     }
-                  }, { passive: true });
+                  };
                   
-                  // Add additional event listeners for better trackpad support
-                  container.addEventListener('gesturestart', (e) => {
-                    e.preventDefault();
-                  }, { passive: false });
-                  
-                  container.addEventListener('gesturechange', (e) => {
-                    e.preventDefault();
-                  }, { passive: false });
-                  
-                  container.addEventListener('gestureend', (e) => {
-                    e.preventDefault();
-                  }, { passive: false });
+                  container.addEventListener('gesturestart', handleGesture, { passive: false });
                 }
               }
             }}

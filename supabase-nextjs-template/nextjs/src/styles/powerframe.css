@@ -248,20 +248,33 @@
 .tl-container,
 .tl-canvas,
 .tl-svg-container {
-  touch-action: none !important;
+  touch-action: manipulation !important;
   user-select: none !important;
   -webkit-user-select: none !important;
   -webkit-touch-callout: none !important;
 }
 
-/* Ensure proper wheel event handling for zoom */
+/* Allow better trackpad interactions */
 .tl-container * {
-  touch-action: none !important;
+  touch-action: inherit !important;
 }
 
-/* Fix for Mac trackpad zoom gestures */
+/* Enhanced Mac trackpad support */
 @media (pointer: fine) {
   .tl-container {
     touch-action: pan-x pan-y pinch-zoom !important;
+    overflow: visible !important;
   }
+  
+  /* Ensure smooth scrolling on Mac */
+  .tl-canvas {
+    scroll-behavior: auto !important;
+    overflow: visible !important;
+  }
+}
+
+/* Ensure parent containers don't constrain tldraw */
+.tl-container {
+  position: relative !important;
+  overflow: visible !important;
 } 
