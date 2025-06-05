@@ -291,31 +291,12 @@ export default function SharedConceptPage({ params }: { params: ParamsType | Pro
       });
 
       if (response.ok) {
-        const data = await response.json();
-        const updatedComment: TimelineComment = {
-          id: data.comment.id,
-          timestamp: data.comment.timestamp_seconds,
-          comment: data.comment.comment_text,
-          author: data.comment.author_name,
-          created_at: data.comment.created_at,
-          updated_at: data.comment.updated_at,
-          parent_id: data.comment.parent_id,
-          user_id: data.comment.user_id,
-          revision_version: data.comment.revision_version || 1,
-          is_resolved: data.comment.is_resolved || false,
-          resolved_at: data.comment.resolved_at,
-          resolved_by: data.comment.resolved_by
-        };
-
-        setConceptComments(prev => {
-          const updated = { ...prev };
-          Object.keys(updated).forEach(conceptId => {
-            updated[conceptId] = updated[conceptId].map(c => 
-              c.id === commentId ? updatedComment : c
-            );
-          });
-          return updated;
-        });
+        // Instead of trying to update local state with potentially incomplete data,
+        // just refetch all comments for all concepts to ensure UI is up to date
+        const currentConceptIds = Object.keys(conceptComments);
+        for (const conceptId of currentConceptIds) {
+          await fetchConceptComments(conceptId);
+        }
 
         toast({
           title: isResolved ? "Comment Resolved" : "Comment Reopened",

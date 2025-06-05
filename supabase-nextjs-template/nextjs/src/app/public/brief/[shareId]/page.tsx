@@ -385,25 +385,13 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
       });
 
       if (response.ok) {
-        const data = await response.json();
-        setConceptComments(prev => {
-          const updated = { ...prev };
-          Object.keys(updated).forEach(conceptId => {
-            updated[conceptId] = updated[conceptId].map(c => 
-              c.id === commentId 
-                ? { 
-                    ...c, 
-                    is_resolved: data.comment.is_resolved,
-                    resolved_at: data.comment.resolved_at,
-                    resolved_by: data.comment.resolved_by,
-                    updated_at: data.comment.updated_at
-                }
-                : c
-            );
-          });
-          return updated;
-        });
-        
+        // Instead of trying to update local state with potentially incomplete data,
+        // just refetch all comments for all concepts to ensure UI is up to date
+        const currentConceptIds = Object.keys(conceptComments);
+        for (const conceptId of currentConceptIds) {
+          await fetchConceptComments(conceptId);
+        }
+
         toast({
           title: isResolved ? "Comment Resolved" : "Comment Reopened",
           description: isResolved ? "Comment has been marked as resolved." : "Comment has been reopened.",

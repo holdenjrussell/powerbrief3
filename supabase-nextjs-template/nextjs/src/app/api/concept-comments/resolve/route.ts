@@ -98,7 +98,9 @@ export async function PUT(req: NextRequest) {
       .from('concept_comments')
       .update(updateData)
       .eq('id', commentId)
-      .select()
+      .select(`
+        *
+      `)
       .single();
 
     if (updateError) {
