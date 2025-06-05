@@ -242,4 +242,26 @@
     padding: 6px 10px;
     font-size: 12px;
   }
+}
+
+/* Tldraw Canvas Touch/Scroll Support */
+.tl-container,
+.tl-canvas,
+.tl-svg-container {
+  touch-action: none !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  -webkit-touch-callout: none !important;
+}
+
+/* Ensure proper wheel event handling for zoom */
+.tl-container * {
+  touch-action: none !important;
+}
+
+/* Fix for Mac trackpad zoom gestures */
+@media (pointer: fine) {
+  .tl-container {
+    touch-action: pan-x pan-y pinch-zoom !important;
+  }
 } 

@@ -9,10 +9,7 @@ import { useTldrawPersistence } from '@/hooks/useTldrawPersistence';
 
 // Dynamically import Tldraw to avoid SSR issues and prevent duplicate imports
 const TldrawComponent = dynamic(
-  () => import('@tldraw/tldraw').then((mod) => ({ 
-    default: mod.Tldraw,
-    toRichText: mod.toRichText
-  })),
+  () => import('@tldraw/tldraw').then((mod) => mod.Tldraw),
   { 
     ssr: false,
     loading: () => <div className="w-full h-full flex items-center justify-center bg-gray-100">Loading canvas...</div>
@@ -21,6 +18,7 @@ const TldrawComponent = dynamic(
 
 // Import CSS
 import '@tldraw/tldraw/tldraw.css';
+import '@/styles/powerframe.css';
 
 export default function WireframeEditorPage() {
   const params = useParams();
@@ -776,6 +774,39 @@ Check console for detailed error analysis.`);
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onMount={(editor: any) => {
               setCurrentEditor(editor);
+              
+              // Ensure proper event listeners are set up for zoom/scroll
+              if (editor) {
+                // Force enable wheel events for zoom on Mac trackpad
+                const container = editor.getContainer();
+                if (container) {
+                  // Essential: Set touch-action to none for proper gesture handling
+                  container.style.touchAction = 'none';
+                  
+                  // Ensure wheel events work properly for zoom
+                  container.addEventListener('wheel', (e) => {
+                    // For zoom gestures (pinch on trackpad), allow the default behavior
+                    // Only prevent default for regular scrolling if we're in a zoom context
+                    if (e.ctrlKey || e.metaKey) {
+                      // This is a zoom gesture, let tldraw handle it
+                      return;
+                    }
+                  }, { passive: true });
+                  
+                  // Add additional event listeners for better trackpad support
+                  container.addEventListener('gesturestart', (e) => {
+                    e.preventDefault();
+                  }, { passive: false });
+                  
+                  container.addEventListener('gesturechange', (e) => {
+                    e.preventDefault();
+                  }, { passive: false });
+                  
+                  container.addEventListener('gestureend', (e) => {
+                    e.preventDefault();
+                  }, { passive: false });
+                }
+              }
             }}
           />
         </div>
