@@ -773,32 +773,45 @@ Check console for detailed error analysis.`);
             className="w-full h-full"
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onMount={(editor: any) => {
+              console.log('🎨 Tldraw editor mounted:', editor);
               setCurrentEditor(editor);
               
-              // Simplified and improved event handling for better zoom/scroll
+              // Debug: Log editor capabilities
               if (editor) {
+                console.log('🔍 Editor container:', editor.getContainer());
+                console.log('🔍 Editor viewport:', editor.getViewportScreenBounds());
+                
                 const container = editor.getContainer();
                 if (container) {
-                  // Use a more permissive touch-action for better trackpad support
-                  container.style.touchAction = 'manipulation';
+                  console.log('🔍 Container style before changes:', {
+                    touchAction: container.style.touchAction,
+                    overflow: container.style.overflow,
+                    position: container.style.position
+                  });
                   
-                  // Remove conflicting event listeners and let tldraw handle events naturally
-                  // Only add minimal intervention for Mac trackpad compatibility
+                  // Try minimal configuration first - just the essential touch-action
+                  container.style.touchAction = 'none';
+                  
+                  console.log('✅ Applied touch-action: none to container');
+                  
+                  // Test if wheel events are working
                   container.addEventListener('wheel', (e) => {
-                    // Don't interfere with tldraw's native wheel handling
-                    // Just ensure the event propagates properly
-                    e.stopPropagation();
-                  }, { passive: true, capture: false });
+                    console.log('🖱️ Wheel event detected:', {
+                      deltaX: e.deltaX,
+                      deltaY: e.deltaY,
+                      ctrlKey: e.ctrlKey,
+                      metaKey: e.metaKey
+                    });
+                  }, { passive: true });
                   
-                  // Simplified gesture handling - only prevent browser zoom conflicts
-                  const handleGesture = (e: Event) => {
-                    // Only prevent default if it would conflict with browser zoom
-                    if (e.type === 'gesturestart') {
-                      e.preventDefault();
-                    }
-                  };
+                  // Test if touch events are working
+                  container.addEventListener('touchstart', (e) => {
+                    console.log('👆 Touch start detected:', e.touches.length, 'touches');
+                  }, { passive: true });
                   
-                  container.addEventListener('gesturestart', handleGesture, { passive: false });
+                  container.addEventListener('touchmove', (e) => {
+                    console.log('👆 Touch move detected:', e.touches.length, 'touches');
+                  }, { passive: true });
                 }
               }
             }}

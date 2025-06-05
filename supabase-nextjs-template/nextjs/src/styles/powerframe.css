@@ -244,8 +244,16 @@
   }
 }
 
-/* Tldraw Canvas Touch/Scroll Support */
-.tl-container,
+/* Tldraw Canvas Touch/Scroll Support - DEBUGGING VERSION */
+.tl-container {
+  touch-action: none !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  -webkit-touch-callout: none !important;
+}
+
+/* Temporarily disable other tldraw styles for debugging */
+/*
 .tl-canvas,
 .tl-svg-container {
   touch-action: manipulation !important;
@@ -254,27 +262,24 @@
   -webkit-touch-callout: none !important;
 }
 
-/* Allow better trackpad interactions */
 .tl-container * {
   touch-action: inherit !important;
 }
 
-/* Enhanced Mac trackpad support */
 @media (pointer: fine) {
   .tl-container {
     touch-action: pan-x pan-y pinch-zoom !important;
     overflow: visible !important;
   }
   
-  /* Ensure smooth scrolling on Mac */
   .tl-canvas {
     scroll-behavior: auto !important;
     overflow: visible !important;
   }
 }
 
-/* Ensure parent containers don't constrain tldraw */
 .tl-container {
   position: relative !important;
   overflow: visible !important;
-} 
+}
+*/ 
