@@ -373,8 +373,8 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
   // Function to resolve a comment
   const handleResolveComment = async (commentId: string, isResolved: boolean) => {
     try {
-      const response = await fetch('/api/concept-comments', {
-        method: 'PATCH',
+      const response = await fetch('/api/concept-comments/resolve', {
+        method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -386,35 +386,34 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
 
       if (response.ok) {
         const data = await response.json();
-        const updatedComment: TimelineComment = {
-          id: data.comment.id,
-          timestamp: data.comment.timestamp_seconds,
-          comment: data.comment.comment_text,
-          author: data.comment.author_name,
-          created_at: data.comment.created_at,
-          updated_at: data.comment.updated_at,
-          parent_id: data.comment.parent_id,
-          user_id: data.comment.user_id,
-          revision_version: data.comment.revision_version || 1,
-          is_resolved: data.comment.is_resolved || false,
-          resolved_at: data.comment.resolved_at,
-          resolved_by: data.comment.resolved_by
-        };
-
         setConceptComments(prev => {
           const updated = { ...prev };
           Object.keys(updated).forEach(conceptId => {
             updated[conceptId] = updated[conceptId].map(c => 
-              c.id === commentId ? updatedComment : c
+              c.id === commentId 
+                ? { 
+                    ...c, 
+                    is_resolved: data.comment.is_resolved,
+                    resolved_at: data.comment.resolved_at,
+                    resolved_by: data.comment.resolved_by,
+                    updated_at: data.comment.updated_at
+                }
+                : c
             );
           });
           return updated;
+        });
+        
+        toast({
+          title: isResolved ? "Comment Resolved" : "Comment Reopened",
+          description: isResolved ? "Comment has been marked as resolved." : "Comment has been reopened.",
+          duration: 3000,
         });
       } else {
         console.error('Failed to resolve comment');
         toast({
           title: 'Error',
-          description: 'Failed to resolve comment. Please try again.',
+          description: 'Failed to update comment status. Please try again.',
           variant: 'destructive',
           duration: 3000,
         });
@@ -423,7 +422,7 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
       console.error('Error resolving comment:', error);
       toast({
         title: 'Error',
-        description: 'Failed to resolve comment. Please try again.',
+        description: 'Failed to update comment status. Please try again.',
         variant: 'destructive',
         duration: 3000,
       });

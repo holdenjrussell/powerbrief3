@@ -279,8 +279,8 @@ export default function SharedConceptPage({ params }: { params: ParamsType | Pro
   // Function to resolve a comment
   const handleResolveComment = async (commentId: string, isResolved: boolean) => {
     try {
-      const response = await fetch('/api/concept-comments', {
-        method: 'PATCH',
+      const response = await fetch('/api/concept-comments/resolve', {
+        method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -316,11 +316,17 @@ export default function SharedConceptPage({ params }: { params: ParamsType | Pro
           });
           return updated;
         });
+
+        toast({
+          title: isResolved ? "Comment Resolved" : "Comment Reopened",
+          description: isResolved ? "Comment has been marked as resolved." : "Comment has been reopened.",
+          duration: 3000,
+        });
       } else {
         console.error('Failed to resolve comment');
         toast({
           title: 'Error',
-          description: 'Failed to resolve comment. Please try again.',
+          description: 'Failed to update comment status. Please try again.',
           variant: 'destructive',
           duration: 3000,
         });
@@ -329,7 +335,7 @@ export default function SharedConceptPage({ params }: { params: ParamsType | Pro
       console.error('Error resolving comment:', error);
       toast({
         title: 'Error',
-        description: 'Failed to resolve comment. Please try again.',
+        description: 'Failed to update comment status. Please try again.',
         variant: 'destructive',
         duration: 3000,
       });
