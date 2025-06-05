@@ -85,16 +85,37 @@ export function useTldrawPersistence({
       const wireframe = await getWireframe(wireframeId);
       
       if (wireframe?.tldraw_data) {
-        // Use editor's built-in method to avoid deprecated API warnings
-        const snapshot = wireframe.tldraw_data as unknown as TLStoreSnapshot;
-        editor.store.loadSnapshot(snapshot);
-        lastSavedSnapshot.current = JSON.stringify(snapshot);
-        console.log('Tldraw data loaded successfully');
+        // Validate the snapshot data before loading
+        const snapshotData = wireframe.tldraw_data as unknown as TLStoreSnapshot;
+        
+        // Check if the snapshot has the required structure
+        if (!snapshotData || typeof snapshotData !== 'object') {
+          console.warn('Invalid tldraw snapshot data: not an object');
+          return;
+        }
+        
+        // Check for required tldraw snapshot properties
+        if (!('store' in snapshotData) && !('records' in snapshotData)) {
+          console.warn('Invalid tldraw snapshot data: missing store/records structure');
+          return;
+        }
+        
+        // Try to load the snapshot with error handling
+        try {
+          editor.store.loadSnapshot(snapshotData);
+          lastSavedSnapshot.current = JSON.stringify(snapshotData);
+          console.log('Tldraw data loaded successfully');
+        } catch (loadError) {
+          console.error('Failed to load snapshot into tldraw:', loadError);
+          console.log('Snapshot data that failed:', snapshotData);
+          // Don't throw - just continue with empty canvas
+        }
       } else {
         console.log('No existing tldraw data found');
       }
     } catch (error) {
       console.error('Failed to load tldraw data:', error);
+      // Don't throw the error - just log it and continue with empty canvas
     } finally {
       hasLoadedInitialData.current = true;
     }

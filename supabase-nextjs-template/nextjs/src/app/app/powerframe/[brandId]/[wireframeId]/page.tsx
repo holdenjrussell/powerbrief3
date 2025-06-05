@@ -588,6 +588,29 @@ Check console for detailed error analysis.`);
                 🎯 Fit
               </button>
               
+              <button
+                onClick={async () => {
+                  if (confirm('Clear all canvas data? This will reset your wireframe to empty.')) {
+                    try {
+                      console.log('🗑️ Clearing corrupted tldraw data...');
+                      await fetch(`/api/wireframes/${wireframeId}`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ tldraw_data: null })
+                      });
+                      window.location.reload();
+                    } catch (error) {
+                      console.error('Failed to clear data:', error);
+                      alert('Failed to clear data. Try refreshing the page.');
+                    }
+                  }
+                }}
+                className="inline-flex items-center space-x-1 px-2 py-1 text-xs bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors"
+                title="Clear corrupted canvas data"
+              >
+                🗑️ Reset
+              </button>
+              
               {/* Manual Save Button */}
               <button
                 onClick={handleManualSave}
