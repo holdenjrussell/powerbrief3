@@ -3,13 +3,16 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Sparkles, ChevronLeft, ChevronRight, Upload, X } from 'lucide-react';
+import { ArrowLeft, Sparkles, ChevronLeft, ChevronRight, Upload, X, Save, CheckCircle } from 'lucide-react';
 import dynamic from 'next/dynamic';
-import { toRichText } from '@tldraw/tldraw';
+import { useTldrawPersistence } from '@/hooks/useTldrawPersistence';
 
-// Dynamically import Tldraw to avoid SSR issues
-const Tldraw = dynamic(
-  () => import('@tldraw/tldraw').then((mod) => ({ default: mod.Tldraw })),
+// Dynamically import Tldraw to avoid SSR issues and prevent duplicate imports
+const TldrawComponent = dynamic(
+  () => import('@tldraw/tldraw').then((mod) => ({ 
+    default: mod.Tldraw,
+    toRichText: mod.toRichText
+  })),
   { 
     ssr: false,
     loading: () => <div className="w-full h-full flex items-center justify-center bg-gray-100">Loading canvas...</div>
@@ -33,10 +36,21 @@ export default function WireframeEditorPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [currentEditor, setCurrentEditor] = useState<any>(null);
   const [isClient, setIsClient] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [toRichTextFn, setToRichTextFn] = useState<any>(null);
   
   // Temporary debugging feature
   const [jsonInput, setJsonInput] = useState('');
   const [isLoadingJson, setIsLoadingJson] = useState(false);
+
+  // Custom persistence hook
+  const { saveNow, hasLoadedInitialData } = useTldrawPersistence({
+    wireframeId,
+    editor: currentEditor,
+    autoSaveIntervalMs: 3000 // Auto-save every 3 seconds
+  });
 
   // Valid tldraw colors - expanded list
   const VALID_COLORS = ['black', 'grey', 'white', 'blue', 'red', 'green', 'orange', 'yellow', 'light-violet', 'violet', 'light-blue', 'light-green', 'light-red', 'light-grey'];
@@ -85,20 +99,26 @@ export default function WireframeEditorPage() {
       // Check if shape has old 'text' property instead of 'richText'
       if (validatedShape.props.text !== undefined && validatedShape.props.richText === undefined) {
         console.warn(`DEFENSIVE FIX (TEXT): Shape ID ${validatedShape.id || 'N/A'} (type: text) has legacy 'text' property. Converting to 'richText'.`);
-        // Convert text to richText format
-        const textValue = String(validatedShape.props.text === null || typeof validatedShape.props.text === 'undefined' ? '' : validatedShape.props.text);
-        validatedShape.props.richText = toRichText(textValue);
-        delete validatedShape.props.text;
+        // Convert text to richText format using dynamically loaded function
+        if (toRichTextFn) {
+          const textValue = String(validatedShape.props.text === null || typeof validatedShape.props.text === 'undefined' ? '' : validatedShape.props.text);
+          validatedShape.props.richText = toRichTextFn(textValue);
+          delete validatedShape.props.text;
+        }
       }
       
       // Ensure props.richText exists and is in the correct format
       if (validatedShape.props.richText === undefined) {
         console.warn(`DEFENSIVE FIX (TEXT): Shape ID ${validatedShape.id || 'N/A'} (type: text) missing 'richText' property. Adding default.`);
-        validatedShape.props.richText = toRichText('');
+        if (toRichTextFn) {
+          validatedShape.props.richText = toRichTextFn('');
+        }
       } else if (typeof validatedShape.props.richText === 'string') {
         // If richText is a plain string, convert it to rich text format
         console.warn(`DEFENSIVE FIX (TEXT): Shape ID ${validatedShape.id || 'N/A'} (type: text) has plain string 'richText'. Converting to rich text format.`);
-        validatedShape.props.richText = toRichText(validatedShape.props.richText);
+        if (toRichTextFn) {
+          validatedShape.props.richText = toRichTextFn(validatedShape.props.richText);
+        }
       } else if (typeof validatedShape.props.richText === 'object' && validatedShape.props.richText !== null) {
         // richText is already an object (proper rich text format), leave it as is
         console.log(`DEFENSIVE CHECK (TEXT): Shape ID ${validatedShape.id || 'N/A'} (type: text) already has richText object format.`);
@@ -166,9 +186,13 @@ export default function WireframeEditorPage() {
     return validatedShape;
   };
 
-  // Ensure we're on the client side
+  // Ensure we're on the client side and load toRichText function
   useEffect(() => {
     setIsClient(true);
+    // Load toRichText function dynamically
+    import('@tldraw/tldraw').then((mod) => {
+      setToRichTextFn(() => mod.toRichText);
+    });
   }, []);
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -467,6 +491,22 @@ Check console for detailed error analysis.`);
     }
   };
 
+  // Manual save function
+  const handleManualSave = async () => {
+    if (!currentEditor || isSaving) return;
+    
+    setIsSaving(true);
+    try {
+      await saveNow();
+      setLastSaved(new Date());
+    } catch (error) {
+      console.error('Failed to save:', error);
+      alert('Failed to save wireframe. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   // Don't render anything until client-side
   if (!isClient) {
     return (
@@ -494,9 +534,53 @@ Check console for detailed error analysis.`);
             </Link>
             <div>
               <h1 className="text-xl font-semibold text-gray-900">AI Wireframe Canvas</h1>
-              <p className="text-sm text-gray-500">Wireframe ID: {wireframeId}</p>
+              <div className="flex items-center space-x-2">
+                <p className="text-sm text-gray-500">Wireframe ID: {wireframeId}</p>
+                {hasLoadedInitialData && (
+                  <div className="flex items-center space-x-1">
+                    <CheckCircle className="h-3 w-3 text-green-500" />
+                    <span className="text-xs text-green-600">Data loaded</span>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
+          
+          <div className="flex items-center space-x-3">
+            {/* Save Status */}
+            <div className="flex items-center space-x-2">
+              {lastSaved && (
+                <span className="text-xs text-gray-500">
+                  Last saved: {lastSaved.toLocaleTimeString()}
+                </span>
+              )}
+              
+              {/* Manual Save Button */}
+              <button
+                onClick={handleManualSave}
+                disabled={isSaving || !currentEditor}
+                className="inline-flex items-center space-x-1 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                title="Save wireframe to Supabase"
+              >
+                {isSaving ? (
+                  <>
+                    <div className="animate-spin rounded-full h-3 w-3 border border-white border-t-transparent"></div>
+                    <span>Saving...</span>
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-3 w-3" />
+                    <span>Save</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+        
+        {/* Auto-save indicator */}
+        <div className="mt-2 text-xs text-gray-400">
+          Auto-saves every 3 seconds • Design persisted to Supabase
         </div>
       </div>
 
@@ -687,8 +771,7 @@ Check console for detailed error analysis.`);
 
         {/* Canvas */}
         <div className="flex-1 overflow-hidden">
-          <Tldraw 
-            persistenceKey={`powerframe-${wireframeId}`}
+          <TldrawComponent 
             className="w-full h-full"
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onMount={(editor: any) => {

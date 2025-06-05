@@ -119,6 +119,7 @@ export interface Wireframe {
   system_instructions?: string;
   status: 'draft' | 'in_progress' | 'completed' | 'shared';
   share_settings?: ShareSettings;
+  tldraw_data?: Json; // Store complete tldraw document/store state
   created_at: string;
   updated_at: string;
 }
@@ -158,6 +159,10 @@ export interface CreateWireframeRequest {
 
 export interface UpdateWireframeStructureRequest {
   structure: WireframeStructure;
+}
+
+export interface UpdateWireframeTldrawDataRequest {
+  tldraw_data: Json;
 }
 
 export interface GenerateAIContentRequest {
@@ -203,6 +208,7 @@ export type DbWireframe = {
   system_instructions?: string;
   status: string;
   share_settings?: Json;
+  tldraw_data?: Json; // Store complete tldraw document/store state
   created_at: string;
   updated_at: string;
 };

@@ -7,6 +7,7 @@ import {
   CreatePageTypeRequest,
   CreateWireframeRequest,
   UpdateWireframeStructureRequest,
+  UpdateWireframeTldrawDataRequest,
   CreateShareRequest,
   DbWireframe,
   DbWireframeModule,
@@ -100,6 +101,7 @@ export async function getWireframes(brandId: string): Promise<Wireframe[]> {
     ai_generated_content: wireframe.ai_generated_content as unknown as AIGeneratedContent | undefined,
     status: wireframe.status as Wireframe['status'],
     share_settings: wireframe.share_settings as unknown as ShareSettings | undefined,
+    tldraw_data: wireframe.tldraw_data,
   }));
 }
 
@@ -124,6 +126,7 @@ export async function getWireframe(id: string): Promise<Wireframe | null> {
     ai_generated_content: data.ai_generated_content as unknown as AIGeneratedContent | undefined,
     status: data.status as Wireframe['status'],
     share_settings: data.share_settings as unknown as ShareSettings | undefined,
+    tldraw_data: data.tldraw_data,
   };
 }
 
@@ -150,6 +153,7 @@ export async function createWireframe(request: CreateWireframeRequest): Promise<
     structure: data.structure as unknown as WireframeStructure,
     status: data.status as Wireframe['status'],
     share_settings: data.share_settings as unknown as ShareSettings | undefined,
+    tldraw_data: data.tldraw_data,
   };
 }
 
@@ -172,6 +176,7 @@ export async function updateWireframe(id: string, updates: Partial<Wireframe>): 
     ai_generated_content: data.ai_generated_content as unknown as AIGeneratedContent | undefined,
     status: data.status as Wireframe['status'],
     share_settings: data.share_settings as unknown as ShareSettings | undefined,
+    tldraw_data: data.tldraw_data,
   };
 }
 
@@ -180,6 +185,13 @@ export async function updateWireframeStructure(
   request: UpdateWireframeStructureRequest
 ): Promise<Wireframe> {
   return updateWireframe(id, { structure: request.structure });
+}
+
+export async function updateWireframeTldrawData(
+  id: string,
+  request: UpdateWireframeTldrawDataRequest
+): Promise<Wireframe> {
+  return updateWireframe(id, { tldraw_data: request.tldraw_data });
 }
 
 export async function deleteWireframe(id: string): Promise<void> {
@@ -341,6 +353,7 @@ export async function getWireframeByShareId(shareId: string): Promise<Wireframe 
     ai_generated_content: wireframeData.ai_generated_content as unknown as AIGeneratedContent | undefined,
     status: wireframeData.status as Wireframe['status'],
     share_settings: wireframeData.share_settings as unknown as ShareSettings | undefined,
+    tldraw_data: wireframeData.tldraw_data,
   };
 }
 
