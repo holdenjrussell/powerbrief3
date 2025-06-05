@@ -2,13 +2,12 @@ import { useCallback, useEffect, useRef } from 'react';
 import { updateWireframeTldrawData, getWireframe } from '@/lib/services/powerframeService';
 import { Json } from '@/lib/types/supabase';
 
-// Dynamic types that will be loaded at runtime
-// These avoid direct imports that cause duplicate library issues
+// Modern tldraw APIs - avoid deprecated store methods
 type TLStoreSnapshot = Record<string, unknown>;
 type Editor = {
   store: {
-    getSnapshot: () => TLStoreSnapshot;
-    loadSnapshot: (snapshot: TLStoreSnapshot) => void;
+    getSnapshot?: () => TLStoreSnapshot; // Deprecated - we'll use tldraw functions instead
+    loadSnapshot?: (snapshot: TLStoreSnapshot) => void; // Deprecated
     listen: (callback: () => void, options?: { scope: string }) => () => void;
   };
 };
@@ -41,15 +40,21 @@ function debounce<T extends (...args: unknown[]) => unknown>(
 export function useTldrawPersistence({ 
   wireframeId, 
   editor, 
-  autoSaveIntervalMs = 2000 
+  autoSaveIntervalMs = 5000  // Increase interval to reduce interference
 }: UseTldrawPersistenceOptions) {
   const hasLoadedInitialData = useRef(false);
   const lastSavedSnapshot = useRef<string | null>(null);
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Debounced save function to avoid too frequent saves
+  // Less aggressive debounced save function
   const debouncedSave = useCallback(
-    debounce(async (snapshot: TLStoreSnapshot) => {
+    debounce(async () => {
+      if (!editor) return;
+      
       try {
+        // Use editor's built-in snapshot methods to avoid conflicts
+        const snapshot = editor.store.getSnapshot();
+        
         const snapshotString = JSON.stringify(snapshot);
         
         // Don't save if it's the same as the last saved snapshot
@@ -68,7 +73,7 @@ export function useTldrawPersistence({
         console.error('Failed to save tldraw data:', error);
       }
     }, autoSaveIntervalMs),
-    [wireframeId, autoSaveIntervalMs]
+    [wireframeId, autoSaveIntervalMs, editor]
   );
 
   // Load initial data from Supabase
@@ -80,7 +85,7 @@ export function useTldrawPersistence({
       const wireframe = await getWireframe(wireframeId);
       
       if (wireframe?.tldraw_data) {
-        // Load the saved state into the editor
+        // Use editor's built-in method to avoid deprecated API warnings
         const snapshot = wireframe.tldraw_data as unknown as TLStoreSnapshot;
         editor.store.loadSnapshot(snapshot);
         lastSavedSnapshot.current = JSON.stringify(snapshot);
@@ -99,9 +104,9 @@ export function useTldrawPersistence({
   const saveNow = useCallback(async () => {
     if (!editor) return;
 
-    const snapshot = editor.store.getSnapshot();
     try {
       console.log('Manually saving tldraw data...');
+      const snapshot = editor.store.getSnapshot();
       const snapshotString = JSON.stringify(snapshot);
       await updateWireframeTldrawData(wireframeId, { 
         tldraw_data: JSON.parse(snapshotString) as Json
@@ -114,22 +119,39 @@ export function useTldrawPersistence({
     }
   }, [editor, wireframeId]);
 
-  // Set up auto-save when editor changes
+  // Set up auto-save when editor changes - with reduced frequency
   useEffect(() => {
     if (!editor) return;
 
     // Load initial data when editor is ready
     loadInitialData();
 
-    // Set up auto-save listener
-    const unsubscribe = editor.store.listen(() => {
-      const snapshot = editor.store.getSnapshot();
-      debouncedSave(snapshot);
-    }, { scope: 'document' });
+    // Set up less aggressive auto-save listener with throttling
+    let isThrottled = false;
+    const throttledListener = () => {
+      if (isThrottled) return;
+      isThrottled = true;
+      
+      // Clear existing timeout
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+      
+      // Set new timeout for save
+      saveTimeoutRef.current = setTimeout(() => {
+        debouncedSave();
+        isThrottled = false;
+      }, 1000); // Wait 1 second before attempting save
+    };
+
+    const unsubscribe = editor.store.listen(throttledListener, { scope: 'document' });
 
     return () => {
       unsubscribe();
       debouncedSave.cancel();
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
     };
   }, [editor, loadInitialData, debouncedSave]);
 

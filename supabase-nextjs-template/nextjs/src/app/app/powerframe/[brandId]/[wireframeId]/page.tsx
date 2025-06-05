@@ -808,60 +808,19 @@ Check console for detailed error analysis.`);
             className="w-full h-full"
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onMount={(editor: any) => {
-              console.log('🎨 Tldraw editor mounted:', editor);
-              
               // Prevent multiple mounts
               if (currentEditor) {
-                console.log('⚠️ Editor already exists, skipping setup');
                 return;
               }
               
               setCurrentEditor(editor);
               
-              // Debug: Log editor capabilities
+              // Minimal setup - just ensure touch-action is correct
               if (editor) {
-                console.log('🔍 Editor container:', editor.getContainer());
-                console.log('🔍 Editor viewport:', editor.getViewportScreenBounds());
-                
                 const container = editor.getContainer();
                 if (container) {
-                  console.log('🔍 Container style before changes:', {
-                    touchAction: container.style.touchAction,
-                    overflow: container.style.overflow,
-                    position: container.style.position
-                  });
-                  
-                  // Apply minimal touch-action
+                  // Set touch-action for proper trackpad/touch support
                   container.style.touchAction = 'none';
-                  
-                  console.log('✅ Applied touch-action: none to container');
-                  
-                  // Enhanced wheel event logging to see what's happening
-                  container.addEventListener('wheel', (e) => {
-                    console.log('🖱️ Wheel event details:', {
-                      deltaX: e.deltaX,
-                      deltaY: e.deltaY,
-                      deltaZ: e.deltaZ,
-                      ctrlKey: e.ctrlKey,
-                      metaKey: e.metaKey,
-                      shiftKey: e.shiftKey,
-                      altKey: e.altKey,
-                      deltaMode: e.deltaMode,
-                      wheelDelta: (e as WheelEvent & { wheelDelta?: number }).wheelDelta,
-                      type: e.type
-                    });
-                    
-                    // Don't interfere with the event - let tldraw handle it
-                  }, { passive: true });
-                  
-                  // Test touch events
-                  container.addEventListener('touchstart', (e) => {
-                    console.log('👆 Touch start detected:', e.touches.length, 'touches');
-                  }, { passive: true });
-                  
-                  container.addEventListener('touchmove', (e) => {
-                    console.log('👆 Touch move detected:', e.touches.length, 'touches');
-                  }, { passive: true });
                 }
               }
             }}
