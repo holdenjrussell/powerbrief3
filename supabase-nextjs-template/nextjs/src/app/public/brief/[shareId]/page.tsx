@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { createSPAClient } from '@/lib/supabase/client';
 import { getProductsByBrand } from '@/lib/services/productService';
 import { Hook, Product } from '@/lib/types/powerbrief';
-import { Loader2, Eye, EyeOff, X } from 'lucide-react';
+import { Loader2, Eye, EyeOff, X, MessageCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,6 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import Link from 'next/link';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { TimelineComment, CommentModal } from '@/components/CommentModal';
+import { toast } from '@/components/ui/use-toast';
 
 interface BrandData {
   id: string;
@@ -78,6 +80,18 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState<string | null>(null);
   const [loginLoading, setLoginLoading] = useState(false);
+  
+  // Modal state for media viewing with comments
+  const [modalOpen, setModalOpen] = useState<boolean>(false);
+  const [modalMedia, setModalMedia] = useState<{
+    url: string;
+    type: 'image' | 'video';
+    name: string;
+    conceptId?: string;
+  } | null>(null);
+  
+  // Comments state
+  const [conceptComments, setConceptComments] = useState<Record<string, TimelineComment[]>>({});
   
   // Unwrap params using React.use()
   const unwrappedParams = React.use(params) as any;
@@ -183,6 +197,266 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
 
   // Check if any filters are active
   const hasActiveFilters = sortBy !== 'default' || filterByEditor !== 'all';
+
+  // Function to open media in modal
+  const openMediaModal = (url: string, type: 'image' | 'video', name: string, conceptId?: string) => {
+    setModalMedia({ url, type, name, conceptId });
+    setModalOpen(true);
+    
+    // Load comments for this concept if it's a video
+    if (type === 'video' && conceptId) {
+      fetchConceptComments(conceptId);
+    }
+  };
+
+  // Function to close modal
+  const closeModal = () => {
+    setModalOpen(false);
+    setModalMedia(null);
+  };
+
+  // Function to get comment count for video assets
+  const getCommentCount = (conceptId: string): number => {
+    const comments = conceptComments[conceptId] || [];
+    return comments.length;
+  };
+
+  // Function to fetch comments for a concept
+  const fetchConceptComments = async (conceptId: string) => {
+    try {
+      const response = await fetch(`/api/concept-comments?conceptId=${conceptId}`);
+      if (response.ok) {
+        const data = await response.json();
+        const comments: TimelineComment[] = data.comments.map((comment: any) => ({
+          id: comment.id,
+          timestamp: comment.timestamp_seconds,
+          comment: comment.comment_text,
+          author: comment.author_name,
+          created_at: comment.created_at,
+          updated_at: comment.updated_at,
+          parent_id: comment.parent_id,
+          user_id: comment.user_id,
+          revision_version: comment.revision_version || 1,
+          is_resolved: comment.is_resolved || false,
+          resolved_at: comment.resolved_at,
+          resolved_by: comment.resolved_by
+        }));
+        setConceptComments(prev => ({ ...prev, [conceptId]: comments }));
+      }
+    } catch (error) {
+      console.error('Error fetching comments:', error);
+    }
+  };
+
+  // Function to add a comment
+  const handleAddComment = async (conceptId: string, timestamp: number, comment: string, parentId?: string) => {
+    try {
+      const response = await fetch('/api/concept-comments', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          conceptId,
+          timestamp,
+          comment,
+          parentId
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const newComment: TimelineComment = {
+          id: data.comment.id,
+          timestamp: data.comment.timestamp_seconds,
+          comment: data.comment.comment_text,
+          author: data.comment.author_name,
+          created_at: data.comment.created_at,
+          updated_at: data.comment.updated_at,
+          parent_id: data.comment.parent_id,
+          user_id: data.comment.user_id,
+          revision_version: data.comment.revision_version || 1,
+          is_resolved: data.comment.is_resolved || false,
+          resolved_at: data.comment.resolved_at,
+          resolved_by: data.comment.resolved_by
+        };
+
+        setConceptComments(prev => {
+          const updated = { ...prev };
+          if (updated[conceptId]) {
+            updated[conceptId] = [...updated[conceptId], newComment];
+          } else {
+            updated[conceptId] = [newComment];
+          }
+          return updated;
+        });
+      } else {
+        console.error('Failed to add comment');
+        toast({
+          title: 'Error',
+          description: 'Failed to add comment. Please try again.',
+          variant: 'destructive',
+          duration: 3000,
+        });
+      }
+    } catch (error) {
+      console.error('Error adding comment:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to add comment. Please try again.',
+        variant: 'destructive',
+        duration: 3000,
+      });
+    }
+  };
+
+  // Function to edit a comment
+  const handleEditComment = async (commentId: string, comment: string) => {
+    try {
+      const response = await fetch('/api/concept-comments', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          commentId,
+          comment
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const updatedComment: TimelineComment = {
+          id: data.comment.id,
+          timestamp: data.comment.timestamp_seconds,
+          comment: data.comment.comment_text,
+          author: data.comment.author_name,
+          created_at: data.comment.created_at,
+          updated_at: data.comment.updated_at,
+          parent_id: data.comment.parent_id,
+          user_id: data.comment.user_id,
+          revision_version: data.comment.revision_version || 1,
+          is_resolved: data.comment.is_resolved || false,
+          resolved_at: data.comment.resolved_at,
+          resolved_by: data.comment.resolved_by
+        };
+
+        setConceptComments(prev => {
+          const updated = { ...prev };
+          Object.keys(updated).forEach(conceptId => {
+            updated[conceptId] = updated[conceptId].map(c => 
+              c.id === commentId ? updatedComment : c
+            );
+          });
+          return updated;
+        });
+      } else {
+        console.error('Failed to edit comment');
+        toast({
+          title: 'Error',
+          description: 'Failed to edit comment. Please try again.',
+          variant: 'destructive',
+          duration: 3000,
+        });
+      }
+    } catch (error) {
+      console.error('Error editing comment:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to edit comment. Please try again.',
+        variant: 'destructive',
+        duration: 3000,
+      });
+    }
+  };
+
+  // Function to resolve a comment
+  const handleResolveComment = async (commentId: string, isResolved: boolean) => {
+    try {
+      const response = await fetch('/api/concept-comments/resolve', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          commentId,
+          isResolved
+        }),
+      });
+
+      if (response.ok) {
+        // Instead of trying to update local state with potentially incomplete data,
+        // just refetch all comments for all concepts to ensure UI is up to date
+        const currentConceptIds = Object.keys(conceptComments);
+        for (const conceptId of currentConceptIds) {
+          await fetchConceptComments(conceptId);
+        }
+
+        toast({
+          title: isResolved ? "Comment Resolved" : "Comment Reopened",
+          description: isResolved ? "Comment has been marked as resolved." : "Comment has been reopened.",
+          duration: 3000,
+        });
+      } else {
+        console.error('Failed to resolve comment');
+        toast({
+          title: 'Error',
+          description: 'Failed to update comment status. Please try again.',
+          variant: 'destructive',
+          duration: 3000,
+        });
+      }
+    } catch (error) {
+      console.error('Error resolving comment:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to update comment status. Please try again.',
+        variant: 'destructive',
+        duration: 3000,
+      });
+    }
+  };
+
+  // Function to delete a comment
+  const handleDeleteComment = async (commentId: string) => {
+    try {
+      const response = await fetch('/api/concept-comments', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          commentId
+        }),
+      });
+
+      if (response.ok) {
+        setConceptComments(prev => {
+          const updated = { ...prev };
+          Object.keys(updated).forEach(conceptId => {
+            updated[conceptId] = updated[conceptId].filter(c => c.id !== commentId);
+          });
+          return updated;
+        });
+      } else {
+        console.error('Failed to delete comment');
+        toast({
+          title: 'Error',
+          description: 'Failed to delete comment. Please try again.',
+          variant: 'destructive',
+          duration: 3000,
+        });
+      }
+    } catch (error) {
+      console.error('Error deleting comment:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to delete comment. Please try again.',
+        variant: 'destructive',
+        duration: 3000,
+      });
+    }
+  };
 
   useEffect(() => {
     const fetchSharedBatch = async () => {
@@ -527,18 +801,42 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
                       {concept.media_url && (
                         <div className="h-[150px] bg-gray-100 rounded flex items-center justify-center">
                           {concept.media_type === 'video' ? (
-                            <video
-                              src={concept.media_url}
-                              controls
-                              crossOrigin="anonymous"
-                              className="h-full w-full object-contain"
-                            />
+                            <div className="relative w-full h-full">
+                              <div
+                                className="w-full h-full cursor-pointer hover:opacity-90 transition-opacity flex items-center justify-center"
+                                onClick={() => openMediaModal(concept.media_url!, 'video', concept.concept_title, concept.id)}
+                              >
+                                <video
+                                  src={concept.media_url}
+                                  crossOrigin="anonymous"
+                                  className="h-full w-full object-contain pointer-events-none"
+                                  muted
+                                />
+                                <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-30 rounded">
+                                  <div className="text-center text-white">
+                                    <div className="w-12 h-12 bg-white bg-opacity-20 rounded-full flex items-center justify-center mb-2 mx-auto">
+                                      <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+                                      </svg>
+                                    </div>
+                                    <p className="text-xs">Click to view with comments</p>
+                                    {getCommentCount(concept.id) > 0 && (
+                                      <div className="flex items-center justify-center mt-1">
+                                        <MessageCircle className="h-3 w-3 mr-1" />
+                                        <span className="text-xs">{getCommentCount(concept.id)} comments</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
                           ) : (
                             <img
                               src={concept.media_url}
                               alt="Concept media"
                               crossOrigin="anonymous"
-                              className="h-full w-full object-contain"
+                              className="h-full w-full object-contain cursor-pointer"
+                              onClick={() => openMediaModal(concept.media_url!, 'image', concept.concept_title, concept.id)}
                             />
                           )}
                         </div>
@@ -811,6 +1109,25 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
           )}
         </TabsContent>
       </Tabs>
+      
+      {/* Comment Modal */}
+      {modalMedia && (
+        <CommentModal
+          isOpen={modalOpen}
+          onClose={closeModal}
+          mediaUrl={modalMedia.url}
+          mediaType={modalMedia.type}
+          mediaName={modalMedia.name}
+          conceptId={modalMedia.conceptId}
+          existingComments={modalMedia.conceptId ? conceptComments[modalMedia.conceptId] || [] : []}
+          onAddComment={modalMedia.conceptId ? (timestamp, comment, parentId) => handleAddComment(modalMedia.conceptId!, timestamp, comment, parentId) : undefined}
+          onEditComment={handleEditComment}
+          onDeleteComment={handleDeleteComment}
+          onResolveComment={handleResolveComment}
+          currentRevision={1}
+          canResolveComments={true}
+        />
+      )}
     </div>
   );
 } 

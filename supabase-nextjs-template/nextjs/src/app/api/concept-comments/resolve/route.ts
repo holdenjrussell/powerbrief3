@@ -28,22 +28,53 @@ export async function PUT(req: NextRequest) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    // Get the existing comment and verify concept ownership
+    // Get the existing comment and verify access permissions
     const { data: existingComment, error: fetchError } = await serviceSupabase
       .from('concept_comments')
       .select(`
         *,
-        brief_concepts!inner(user_id)
+        brief_concepts!inner(
+          user_id,
+          brief_batches!inner(
+            brand_id,
+            brands!inner(
+              user_id
+            )
+          )
+        )
       `)
       .eq('id', commentId)
       .single();
 
     if (fetchError || !existingComment) {
+      console.error('Error fetching comment:', fetchError);
       return NextResponse.json({ error: 'Comment not found' }, { status: 404 });
     }
 
-    // Check if user owns the concept
-    if (existingComment.brief_concepts.user_id !== user.id) {
+    // Check if user has permission to resolve comments
+    const concept = existingComment.brief_concepts;
+    const brand = concept.brief_batches.brands;
+    const brandId = concept.brief_batches.brand_id;
+    
+    const isConceptOwner = concept.user_id === user.id;
+    const isBrandOwner = brand.user_id === user.id;
+
+    // Check if user has shared access to the brand
+    let hasSharedAccess = false;
+    if (!isConceptOwner && !isBrandOwner) {
+      const { data: brandShare } = await serviceSupabase
+        .from('brand_shares')
+        .select('role')
+        .eq('brand_id', brandId)
+        .eq('shared_with_user_id', user.id)
+        .eq('status', 'accepted')
+        .single();
+
+      // Allow if user has editor role on the brand (viewers can't resolve comments)
+      hasSharedAccess = brandShare && brandShare.role === 'editor';
+    }
+
+    if (!isConceptOwner && !isBrandOwner && !hasSharedAccess) {
       return NextResponse.json({ 
         error: 'Not authorized to resolve comments on this concept' 
       }, { status: 403 });
@@ -67,7 +98,9 @@ export async function PUT(req: NextRequest) {
       .from('concept_comments')
       .update(updateData)
       .eq('id', commentId)
-      .select()
+      .select(`
+        *
+      `)
       .single();
 
     if (updateError) {
