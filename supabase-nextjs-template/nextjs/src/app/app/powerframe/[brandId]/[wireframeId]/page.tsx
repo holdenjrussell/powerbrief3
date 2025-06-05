@@ -553,6 +553,41 @@ Check console for detailed error analysis.`);
                 </span>
               )}
               
+              {/* Debug Test Button */}
+              <button
+                onClick={() => {
+                  if (currentEditor) {
+                    console.log('🧪 Testing zoom programmatically...');
+                    console.log('🔍 Current zoom level:', currentEditor.getZoomLevel());
+                    currentEditor.zoomIn();
+                    console.log('✅ Zoom in command sent');
+                    setTimeout(() => {
+                      console.log('🔍 New zoom level:', currentEditor.getZoomLevel());
+                    }, 100);
+                  } else {
+                    console.log('❌ Editor not available');
+                  }
+                }}
+                className="inline-flex items-center space-x-1 px-2 py-1 text-xs bg-yellow-500 text-white rounded-md hover:bg-yellow-600 transition-colors"
+                title="Test zoom functionality"
+              >
+                🧪 Test Zoom
+              </button>
+              
+              <button
+                onClick={() => {
+                  if (currentEditor) {
+                    console.log('🧪 Testing zoom to fit...');
+                    currentEditor.zoomToFit();
+                    console.log('✅ Zoom to fit command sent');
+                  }
+                }}
+                className="inline-flex items-center space-x-1 px-2 py-1 text-xs bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors"
+                title="Test zoom to fit"
+              >
+                🎯 Fit
+              </button>
+              
               {/* Manual Save Button */}
               <button
                 onClick={handleManualSave}
@@ -774,6 +809,13 @@ Check console for detailed error analysis.`);
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onMount={(editor: any) => {
               console.log('🎨 Tldraw editor mounted:', editor);
+              
+              // Prevent multiple mounts
+              if (currentEditor) {
+                console.log('⚠️ Editor already exists, skipping setup');
+                return;
+              }
+              
               setCurrentEditor(editor);
               
               // Debug: Log editor capabilities
@@ -789,22 +831,30 @@ Check console for detailed error analysis.`);
                     position: container.style.position
                   });
                   
-                  // Try minimal configuration first - just the essential touch-action
+                  // Apply minimal touch-action
                   container.style.touchAction = 'none';
                   
                   console.log('✅ Applied touch-action: none to container');
                   
-                  // Test if wheel events are working
+                  // Enhanced wheel event logging to see what's happening
                   container.addEventListener('wheel', (e) => {
-                    console.log('🖱️ Wheel event detected:', {
+                    console.log('🖱️ Wheel event details:', {
                       deltaX: e.deltaX,
                       deltaY: e.deltaY,
+                      deltaZ: e.deltaZ,
                       ctrlKey: e.ctrlKey,
-                      metaKey: e.metaKey
+                      metaKey: e.metaKey,
+                      shiftKey: e.shiftKey,
+                      altKey: e.altKey,
+                      deltaMode: e.deltaMode,
+                      wheelDelta: (e as WheelEvent & { wheelDelta?: number }).wheelDelta,
+                      type: e.type
                     });
+                    
+                    // Don't interfere with the event - let tldraw handle it
                   }, { passive: true });
                   
-                  // Test if touch events are working
+                  // Test touch events
                   container.addEventListener('touchstart', (e) => {
                     console.log('👆 Touch start detected:', e.touches.length, 'touches');
                   }, { passive: true });
