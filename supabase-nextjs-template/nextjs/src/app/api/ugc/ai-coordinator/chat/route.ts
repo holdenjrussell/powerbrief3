@@ -6,12 +6,14 @@ export async function POST(request: NextRequest) {
   try {
     console.log('🤖 AI Chat: Starting request processing');
     
-    if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
-      console.error('🚨 Google AI API key not configured');
+    // Check API key with same pattern as other working AI endpoints
+    const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      console.error('🚨 Google AI API key not configured - checking GOOGLE_API_KEY or GEMINI_API_KEY');
       return NextResponse.json({ error: 'AI service not configured' }, { status: 500 });
     }
     
-    const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GENERATIVE_AI_API_KEY);
+    const genAI = new GoogleGenerativeAI(apiKey);
     const supabase = await createSSRClient();
     
     // Get user from session

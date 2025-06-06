@@ -55,6 +55,17 @@ interface EmailThread {
   unread_count: number;
 }
 
+interface EmailMessage {
+  id: string;
+  from_email: string;
+  to_email: string;
+  subject: string;
+  html_content: string;
+  text_content: string;
+  created_at: string;
+  status: string;
+}
+
 interface Creator {
   id: string;
   name: string;
@@ -73,6 +84,8 @@ export default function EmailInboxPage({ params }: { params: ParamsType | Promis
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterType>('all');
   const [selectedThread, setSelectedThread] = useState<string | null>(null);
+  const [threadMessages, setThreadMessages] = useState<EmailMessage[]>([]);
+  const [loadingMessages, setLoadingMessages] = useState(false);
   
   // New Message Modal State
   const [showNewMessageModal, setShowNewMessageModal] = useState(false);
@@ -142,6 +155,30 @@ export default function EmailInboxPage({ params }: { params: ParamsType | Promis
     } catch (err) {
       console.error('Failed to fetch creators:', err);
     }
+  };
+
+  const fetchThreadMessages = async (threadId: string) => {
+    try {
+      setLoadingMessages(true);
+      const response = await fetch(`/api/ugc/inbox/messages?threadId=${threadId}`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch thread messages');
+      }
+      
+      const data = await response.json();
+      setThreadMessages(data.messages || []);
+    } catch (err) {
+      console.error('Failed to fetch thread messages:', err);
+      setError('Failed to load messages');
+    } finally {
+      setLoadingMessages(false);
+    }
+  };
+
+  const handleThreadSelect = (threadId: string) => {
+    setSelectedThread(threadId);
+    fetchThreadMessages(threadId);
   };
 
   const handleSendNewMessage = async () => {
@@ -363,7 +400,7 @@ export default function EmailInboxPage({ params }: { params: ParamsType | Promis
               filteredThreads.map((thread) => (
                 <div
                   key={thread.id}
-                  onClick={() => setSelectedThread(thread.id)}
+                  onClick={() => handleThreadSelect(thread.id)}
                   className={`p-4 border-b cursor-pointer hover:bg-gray-50 ${
                     selectedThread === thread.id ? 'bg-blue-50 border-blue-200' : ''
                   }`}
@@ -445,11 +482,58 @@ export default function EmailInboxPage({ params }: { params: ParamsType | Promis
               
               {/* Messages */}
               <div className="flex-1 p-4 overflow-y-auto">
-                <div className="text-center text-gray-500 py-8">
-                  <MessageSquare className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-                  <p>Select a conversation to view messages</p>
-                  <p className="text-sm">Message details will appear here</p>
-                </div>
+                {loadingMessages ? (
+                  <div className="text-center text-gray-500 py-8">
+                    <Clock className="w-8 h-8 mx-auto mb-2 text-gray-300 animate-spin" />
+                    <p>Loading messages...</p>
+                  </div>
+                ) : threadMessages.length > 0 ? (
+                  <div className="space-y-4">
+                    {threadMessages.map((message) => (
+                      <div
+                        key={message.id}
+                        className={`p-4 rounded-lg max-w-[80%] ${
+                          message.from_email.includes('@mail.powerbrief.ai')
+                            ? 'bg-blue-100 ml-auto text-right'
+                            : 'bg-gray-100 mr-auto'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 mb-2 text-sm text-gray-600">
+                          <span className={`inline-block w-2 h-2 rounded-full ${
+                            message.from_email.includes('@mail.powerbrief.ai') 
+                              ? 'bg-blue-400' 
+                              : 'bg-green-400'
+                          }`}></span>
+                          <span>
+                            {message.from_email.includes('@mail.powerbrief.ai') ? 'You' : 'Creator'}
+                          </span>
+                          <span>•</span>
+                          <span>{formatDate(message.created_at)}</span>
+                        </div>
+                        
+                        {message.subject && (
+                          <div className="font-medium text-sm mb-2">
+                            {message.subject}
+                          </div>
+                        )}
+                        
+                        <div className="text-sm">
+                          {message.html_content ? (
+                            <div dangerouslySetInnerHTML={{ __html: message.html_content }} />
+                          ) : (
+                            <p className="whitespace-pre-wrap">{message.text_content}</p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center text-gray-500 py-8">
+                    <MessageSquare className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                    <p>No messages in this conversation</p>
+                    <p className="text-sm">Start the conversation by sending a message</p>
+                  </div>
+                )}
               </div>
               
               {/* Reply Box */}

@@ -318,8 +318,24 @@ export class UgcAiCoordinatorService {
     
     const supabase = await this.getSupabaseClient();
     
-    const coordinatorId = await this.getCoordinatorId(brand.id);
-    console.log('🔍 Using coordinator ID:', coordinatorId);
+    // Ensure coordinator exists - create if needed
+    console.log('🔍 Ensuring AI coordinator exists for brand:', brand.id);
+    if (!brand.user_id) {
+      console.error('❌ Brand missing user_id, cannot create coordinator');
+      return {
+        analysis: 'Cannot create AI coordinator - brand missing user_id',
+        recommendedActions: [{
+          type: 'follow_up',
+          priority: 'high',
+          description: 'Fix brand configuration - missing user_id',
+          reasoning: 'Brand must have user_id to create AI coordinator'
+        }]
+      };
+    }
+    
+    const coordinator = await this.getOrCreateCoordinator(brand.id, brand.user_id);
+    const coordinatorId = coordinator.id;
+    console.log('✅ Using coordinator ID:', coordinatorId);
 
     try {
       console.log('🧠 Preparing context for Gemini analysis...');
