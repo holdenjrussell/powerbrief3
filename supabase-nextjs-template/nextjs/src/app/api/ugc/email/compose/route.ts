@@ -125,7 +125,7 @@ export async function POST(request: NextRequest) {
       subject: subject,
       html_content: htmlContent,
       text_content: textContent,
-      status: 'pending'
+      status: 'draft'
     };
     
     console.log('📝 Creating email message with data:', messageData);
