@@ -1,6 +1,5 @@
-import { createSSRClient } from '@/lib/supabase/ssr';
-import { cookies } from 'next/headers';
-import { processPipeline } from './ugcAiCoordinator';
+import { createServerAdminClient } from '@/lib/supabase/serverAdminClient';
+import { UgcAiCoordinatorService } from './ugcAiCoordinator';
 
 interface EmailData {
   to: string;
@@ -30,11 +29,10 @@ export async function processCreatorEmailResponse({
   emailData,
 }: ProcessEmailResponse): Promise<ProcessResult> {
   try {
-    const cookieStore = cookies();
-    const supabase = createSSRClient(cookieStore);
+    const supabase = await createServerAdminClient();
 
     // 1. Find the brand by email identifier
-    const { data: brand, error: brandError } = await supabase
+    const { data: brand, error: brandError } = await (supabase as any)
       .from('brands')
       .select('*')
       .eq('email_identifier', brandIdentifier)
@@ -46,7 +44,7 @@ export async function processCreatorEmailResponse({
 
     // 2. Find or create creator by email
     const creatorEmail = extractEmailFromSender(emailData.from);
-    let { data: creator, error: creatorError } = await supabase
+    let { data: creator, error: creatorError } = await (supabase as any)
       .from('ugc_creators')
       .select('*')
       .eq('brand_id', brand.id)
@@ -55,7 +53,7 @@ export async function processCreatorEmailResponse({
 
     if (creatorError && creatorError.code === 'PGRST116') {
       // Creator doesn't exist, create new one
-      const { data: newCreator, error: createError } = await supabase
+      const { data: newCreator, error: createError } = await (supabase as any)
         .from('ugc_creators')
         .insert({
           brand_id: brand.id,
@@ -76,7 +74,7 @@ export async function processCreatorEmailResponse({
     }
 
     // 3. Find or create email thread
-    let { data: thread, error: threadError } = await supabase
+    let { data: thread, error: threadError } = await (supabase as any)
       .from('ugc_email_threads')
       .select('*')
       .eq('brand_id', brand.id)
@@ -86,7 +84,7 @@ export async function processCreatorEmailResponse({
 
     if (threadError && threadError.code === 'PGRST116') {
       // Thread doesn't exist, create new one
-      const { data: newThread, error: createThreadError } = await supabase
+      const { data: newThread, error: createThreadError } = await (supabase as any)
         .from('ugc_email_threads')
         .insert({
           brand_id: brand.id,
@@ -106,7 +104,7 @@ export async function processCreatorEmailResponse({
     }
 
     // 4. Store the incoming email message
-    const { error: messageError } = await supabase
+    const { error: messageError } = await (supabase as any)
       .from('ugc_email_messages')
       .insert({
         thread_id: thread.id,
@@ -130,7 +128,7 @@ export async function processCreatorEmailResponse({
     // 5. Update creator status based on email content
     const newStatus = analyzeEmailForStatus(emailData.text, emailData.subject);
     if (newStatus && newStatus !== creator.status) {
-      await supabase
+      await (supabase as any)
         .from('ugc_creators')
         .update({ 
           status: newStatus,
@@ -143,13 +141,14 @@ export async function processCreatorEmailResponse({
     console.log('🤖 Triggering AI analysis for creator response...');
     
     try {
-      const aiResult = await processPipeline(brand.id, brand.user_id, [creator.id]);
+      const coordinator = new UgcAiCoordinatorService();
+      const aiResult = await coordinator.processPipeline(brand.id);
       console.log('✅ AI analysis completed:', aiResult);
       
       return {
         success: true,
         threadId: thread.id,
-        actionsTaken: aiResult.success ? aiResult.results?.map(r => r.analysis) || [] : [],
+        actionsTaken: aiResult.summary ? [aiResult.summary] : [],
       };
     } catch (aiError) {
       console.error('⚠️ AI analysis failed, but email was stored:', aiError);
