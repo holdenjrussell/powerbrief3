@@ -1,5 +1,3 @@
-import { createSSRClient } from '@/lib/supabase/ssr';
-import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
 import { processCreatorEmailResponse } from '@/lib/services/ugcEmailResponseHandler';
 
@@ -57,23 +55,36 @@ export async function POST(request: NextRequest) {
 }
 
 function extractBrandIdentifierFromEmail(toEmail: string): string | null {
+  // First, extract the actual email address from potential "Display Name <email@domain.com>" format
+  let emailAddress = toEmail;
+  const angleMatch = toEmail.match(/<([^>]+)>/);
+  if (angleMatch) {
+    emailAddress = angleMatch[1];
+  }
+  
+  console.log('📧 Extracted email address:', emailAddress, 'from original:', toEmail);
+  
   // Handle emails to: brandidentifier@mail.powerbrief.ai
-  const mailSubdomainMatch = toEmail.match(/^([a-z0-9-]+)@mail\.powerbrief\.ai$/);
+  const mailSubdomainMatch = emailAddress.match(/^([a-z0-9-]+)@mail\.powerbrief\.ai$/);
   if (mailSubdomainMatch) {
+    console.log('✅ Found brand identifier:', mailSubdomainMatch[1]);
     return mailSubdomainMatch[1];
   }
 
   // Legacy: Handle plus addressing on mail subdomain: creators+brandname@mail.powerbrief.ai
-  const legacyMailMatch = toEmail.match(/creators\+([^@]+)@mail\.powerbrief\.ai/);
+  const legacyMailMatch = emailAddress.match(/creators\+([^@]+)@mail\.powerbrief\.ai/);
   if (legacyMailMatch) {
+    console.log('✅ Found legacy brand identifier (mail):', legacyMailMatch[1]);
     return legacyMailMatch[1];
   }
 
   // Legacy: Handle plus addressing on main domain: creators+brandname@powerbrief.ai
-  const legacyPlusMatch = toEmail.match(/creators\+([^@]+)@powerbrief\.ai/);
+  const legacyPlusMatch = emailAddress.match(/creators\+([^@]+)@powerbrief\.ai/);
   if (legacyPlusMatch) {
+    console.log('✅ Found legacy brand identifier (main):', legacyPlusMatch[1]);
     return legacyPlusMatch[1];
   }
 
+  console.log('❌ No brand identifier found for:', emailAddress);
   return null;
 } 
