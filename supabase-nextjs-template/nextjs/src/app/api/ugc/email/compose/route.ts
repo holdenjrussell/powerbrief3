@@ -4,26 +4,34 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('🚀 Email compose API started');
+    
     // First, verify user authentication with SSR client
     const ssrSupabase = await createSSRClient();
     const { data: { user }, error: authError } = await ssrSupabase.auth.getUser();
     
     if (authError || !user) {
+      console.log('❌ Authentication failed:', authError);
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    
+    console.log('✅ User authenticated:', user.id);
 
     // Now use admin client for database operations
     const supabase = await createServerAdminClient();
     
     const { creatorId, brandId, subject, htmlContent, textContent } = await request.json();
+    console.log('📝 Request payload:', { creatorId, brandId, subject, htmlContentLength: htmlContent?.length, textContentLength: textContent?.length });
 
     if (!creatorId || !brandId || !subject || !htmlContent) {
+      console.log('❌ Missing required fields');
       return NextResponse.json({ 
         error: 'Missing required fields: creatorId, brandId, subject, htmlContent' 
       }, { status: 400 });
     }
 
     // Get creator info
+    console.log('🔍 Looking up creator:', creatorId);
     const { data: creator, error: creatorError } = await supabase
       .from('ugc_creators')
       .select('name, email, brand_id')
@@ -31,14 +39,19 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (creatorError || !creator) {
+      console.log('❌ Creator lookup failed:', creatorError);
       return NextResponse.json({ error: 'Creator not found' }, { status: 404 });
     }
+    
+    console.log('✅ Creator found:', { name: creator.name, email: creator.email });
 
     if (!creator.email) {
+      console.log('❌ Creator email not available');
       return NextResponse.json({ error: 'Creator email not available' }, { status: 400 });
     }
 
     // Get brand info including email_identifier
+    console.log('🔍 Looking up brand:', brandId);
     const { data: brand, error: brandError } = await supabase
       .from('brands')
       .select('name, email_identifier')
@@ -46,13 +59,16 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (brandError || !brand) {
+      console.log('❌ Brand lookup failed:', brandError);
       return NextResponse.json({ error: 'Brand not found' }, { status: 404 });
     }
 
     // Type assertion to access email_identifier
     const brandWithEmailId = brand as any;
+    console.log('✅ Brand found:', { name: brandWithEmailId.name, email_identifier: brandWithEmailId.email_identifier });
     
     if (!brandWithEmailId.email_identifier) {
+      console.log('❌ Brand email identifier not configured');
       return NextResponse.json({ 
         error: 'Brand email identifier not configured. Please set up email settings in brand configuration.' 
       }, { status: 400 });
@@ -60,11 +76,13 @@ export async function POST(request: NextRequest) {
 
     // Generate from address
     const fromEmail = `${brandWithEmailId.email_identifier}@mail.powerbrief.ai`;
+    console.log('📧 Generated from email:', fromEmail);
 
     // Check if thread exists or create new one
     const threadSubject = subject;
     let threadId: string;
 
+    console.log('🔍 Looking for existing thread');
     const { data: existingThread } = await supabase
       .from('ugc_email_threads' as any)
       .select('id')
@@ -74,8 +92,10 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (existingThread) {
-      threadId = String(existingThread.id);
+      threadId = String((existingThread as any).id);
+      console.log('✅ Found existing thread:', threadId);
     } else {
+      console.log('📝 Creating new thread');
       // Create new thread
       const { data: newThread, error: threadError } = await supabase
         .from('ugc_email_threads' as any)
@@ -89,30 +109,39 @@ export async function POST(request: NextRequest) {
         .single();
 
       if (threadError || !newThread) {
+        console.log('❌ Thread creation failed:', threadError);
         return NextResponse.json({ error: 'Failed to create email thread' }, { status: 500 });
       }
 
-      threadId = String(newThread.id);
+      threadId = String((newThread as any).id);
+      console.log('✅ Created new thread:', threadId);
     }
 
     // Create email message record
+    const messageData = {
+      thread_id: threadId,
+      from_email: fromEmail,
+      to_email: creator.email,
+      subject: subject,
+      html_content: htmlContent,
+      text_content: textContent,
+      status: 'pending'
+    };
+    
+    console.log('📝 Creating email message with data:', messageData);
     const { data: emailMessage, error: messageError } = await supabase
       .from('ugc_email_messages' as any)
-      .insert({
-        thread_id: threadId,
-        from_email: fromEmail,
-        to_email: creator.email,
-        subject: subject,
-        html_content: htmlContent,
-        text_content: textContent,
-        status: 'pending'
-      })
+      .insert(messageData)
       .select('id')
       .single();
 
     if (messageError || !emailMessage) {
+      console.log('❌ Email message creation failed:', messageError);
+      console.log('📝 Message data that failed:', messageData);
       return NextResponse.json({ error: 'Failed to create email message' }, { status: 500 });
     }
+    
+    console.log('✅ Email message created:', (emailMessage as any).id);
 
     // Send email via SendGrid
     try {
