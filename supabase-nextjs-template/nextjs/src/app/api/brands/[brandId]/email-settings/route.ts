@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { createSSRClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(
@@ -6,7 +6,7 @@ export async function GET(
   { params }: { params: { brandId: string } }
 ) {
   try {
-    const supabase = createClient();
+    const supabase = await createSSRClient();
     
     // Get user from session
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -44,7 +44,7 @@ export async function PUT(
   { params }: { params: { brandId: string } }
 ) {
   try {
-    const supabase = createClient();
+    const supabase = await createSSRClient();
     
     // Get user from session
     const { data: { user }, error: authError } = await supabase.auth.getUser();
