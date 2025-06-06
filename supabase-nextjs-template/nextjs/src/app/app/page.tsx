@@ -66,8 +66,8 @@ export default function DashboardContent() {
                                 <Film className="h-4 w-4 text-primary-600" />
                             </div>
                             <div>
-                                <h3 className="font-medium">Ad Reviews</h3>
-                                <p className="text-sm text-gray-500">Review ad content</p>
+                                <h3 className="font-medium">Asset Reviews</h3>
+                                <p className="text-sm text-gray-500">Review creative content across all asset types</p>
                             </div>
                         </Link>
                         

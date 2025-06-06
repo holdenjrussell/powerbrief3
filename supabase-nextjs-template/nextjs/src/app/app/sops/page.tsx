@@ -62,9 +62,9 @@ const modules = [
     topics: ['Team Collaboration', 'Status Updates', 'Communication', 'Project Tracking']
   },
   {
-    id: 'ad-reviews',
-    title: 'Ad Reviews',
-    description: 'Comprehensive guide to the ad review process, feedback systems, and approval workflows.',
+    id: 'asset-reviews',
+    title: 'Asset Reviews',
+    description: 'Comprehensive guide to the asset review process, feedback systems, and approval workflows for all content types.',
     icon: Star,
     duration: '16 min',
     difficulty: 'Intermediate',

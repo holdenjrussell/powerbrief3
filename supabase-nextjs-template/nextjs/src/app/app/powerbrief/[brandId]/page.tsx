@@ -953,29 +953,13 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
                     </CardContent>
                 </Card>
                 
-                {/* AI System Instructions Column */}
+                {/* ElevenLabs Integration Column */}
                 <Card className="min-w-[420px] max-w-[420px] flex-shrink-0">
                     <CardHeader>
-                        <CardTitle>AI System Instructions</CardTitle>
-                        <CardDescription>Customize AI system instructions by content type</CardDescription>
+                        <CardTitle>ElevenLabs Integration</CardTitle>
+                        <CardDescription>Configure voice generation settings</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                        <div>
-                            <label className="block text-sm font-medium mb-1">System Instructions for Images</label>
-                            <MarkdownTextarea
-                                value={systemInstructionsImage}
-                                onChange={(value) => setSystemInstructionsImage(value)}
-                                placeholder="Enter system instructions for image generation..."
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium mb-1">System Instructions for Videos</label>
-                            <MarkdownTextarea
-                                value={systemInstructionsVideo}
-                                onChange={(value) => setSystemInstructionsVideo(value)}
-                                placeholder="Enter system instructions for video generation..."
-                            />
-                        </div>
                         <div>
                             <label className="block text-sm font-medium mb-1">ElevenLabs API Key</label>
                             <Input
@@ -987,6 +971,12 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
                             />
                             <p className="text-xs text-gray-500 mt-1">
                                 This key will be used for voice generation. If not provided, the system will use the default key.
+                            </p>
+                        </div>
+                        <div className="p-3 bg-blue-50 rounded-md">
+                            <p className="text-sm text-blue-800">
+                                <strong>System Instructions:</strong> Now use hard-coded, optimized prompts for each content type. 
+                                Each brief type (Ads, Email, SMS, etc.) comes with industry best practices built-in.
                             </p>
                         </div>
                     </CardContent>

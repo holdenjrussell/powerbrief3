@@ -3,7 +3,7 @@ import React from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Star, Clock, CheckCircle, AlertCircle, Info, Eye, MessageSquare, RefreshCw, CheckSquare } from 'lucide-react';
 
-export default function AdReviewsSOPPage() {
+export default function AssetReviewsSOPPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-4xl mx-auto py-6 px-4">
@@ -22,7 +22,7 @@ export default function AdReviewsSOPPage() {
               <Star className="h-8 w-8 text-primary-600" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Ad Reviews</h1>
+              <h1 className="text-3xl font-bold text-gray-900">Asset Reviews</h1>
               <div className="flex items-center mt-2 space-x-4 text-sm text-gray-600">
                 <div className="flex items-center">
                   <Clock className="h-4 w-4 mr-1" />
@@ -45,8 +45,8 @@ export default function AdReviewsSOPPage() {
                 <div className="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <Star className="h-8 w-8 text-primary-600" />
                 </div>
-                <p className="text-gray-600 font-medium">Ad Reviews Training Video</p>
-                <p className="text-gray-500 text-sm mt-1">Review process and quality standards</p>
+                <p className="text-gray-600 font-medium">Asset Reviews Training Video</p>
+                <p className="text-gray-500 text-sm mt-1">Review process and quality standards for all content types</p>
               </div>
             </div>
           </div>
@@ -55,14 +55,14 @@ export default function AdReviewsSOPPage() {
         {/* Content Section */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200">
           <div className="p-6">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Ad Review Process & Quality Standards</h2>
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">Asset Review Process & Quality Standards</h2>
             
             {/* Overview */}
             <section className="mb-8">
               <h3 className="text-xl font-semibold text-gray-900 mb-4">Overview</h3>
               <p className="text-gray-700 mb-4">
-                The ad review process is crucial for maintaining brand consistency, ensuring quality standards, and optimizing campaign performance. 
-                This module covers the complete review workflow, feedback systems, and approval processes in PowerBrief.
+                The asset review process is crucial for maintaining brand consistency, ensuring quality standards, and optimizing campaign performance across all content types. 
+                This module covers the complete review workflow, feedback systems, and approval processes in PowerBrief for ads, web assets, email campaigns, SMS, organic social content, and blog posts.
               </p>
               
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
@@ -85,7 +85,7 @@ export default function AdReviewsSOPPage() {
               <div className="space-y-3">
                 <div className="flex items-start">
                   <CheckCircle className="h-5 w-5 text-green-500 mt-0.5 mr-3 flex-shrink-0" />
-                  <span className="text-gray-700">Master the complete ad review workflow in PowerBrief</span>
+                  <span className="text-gray-700">Master the complete asset review workflow in PowerBrief</span>
                 </div>
                 <div className="flex items-start">
                   <CheckCircle className="h-5 w-5 text-green-500 mt-0.5 mr-3 flex-shrink-0" />
@@ -146,7 +146,7 @@ export default function AdReviewsSOPPage() {
                     <h4 className="text-lg font-medium text-gray-900">Content Submission</h4>
                   </div>
                   <ul className="space-y-2 ml-11 text-gray-700">
-                    <li>• Creative team submits ads through PowerBrief system</li>
+                    <li>• Creative team submits content through PowerBrief system</li>
                     <li>• Ensure all required assets and formats are included</li>
                     <li>• Tag relevant stakeholders and reviewers</li>
                     <li>• Set review deadlines and priority levels</li>
@@ -320,7 +320,7 @@ export default function AdReviewsSOPPage() {
             <section>
               <h3 className="text-xl font-semibold text-gray-900 mb-4">Summary</h3>
               <p className="text-gray-700 mb-4">
-                Effective ad review processes are essential for campaign success. By implementing structured workflows, 
+                Effective asset review processes are essential for campaign success across all content types. By implementing structured workflows, 
                 maintaining quality standards, and providing constructive feedback, you can ensure consistent, high-quality 
                 creative output that drives business results.
               </p>

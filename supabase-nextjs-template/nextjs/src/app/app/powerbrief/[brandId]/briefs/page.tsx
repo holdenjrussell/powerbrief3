@@ -150,26 +150,53 @@ export default function BriefsPage({ params }: { params: ParamsType | Promise<Pa
                     </Card>
                 ) : (
                     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                        {batches.map((batch) => (
-                            <Link href={`/app/powerbrief/${brand.id}/${batch.id}`} key={batch.id}>
-                                <Card className="cursor-pointer hover:shadow-md transition-shadow h-full">
-                                    <CardHeader>
-                                        <CardTitle className="flex items-center">
-                                            <Folder className="h-5 w-5 mr-2 text-primary-600" />
-                                            {batch.name}
-                                        </CardTitle>
-                                        <CardDescription>
-                                            Created: {new Date(batch.created_at).toLocaleDateString()}
-                                        </CardDescription>
-                                    </CardHeader>
-                                    <CardContent>
-                                        <div className="flex items-center justify-center h-20 bg-gray-50 rounded-md">
-                                            <Folder className="h-8 w-8 text-gray-400" />
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            </Link>
-                        ))}
+                        {batches.map((batch) => {
+                            // Determine the correct route based on content type
+                            const getConceptEditorRoute = (batch: BriefBatch) => {
+                                const baseRoute = `/app/powerbrief/${brand.id}/${batch.id}`;
+                                switch (batch.content_type) {
+                                    case 'email':
+                                        return `${baseRoute}/email`;
+                                    case 'sms':
+                                        return `${baseRoute}/sms`;
+                                    case 'web-assets':
+                                        return `${baseRoute}/web-assets`;
+                                    case 'organic-social':
+                                        return `${baseRoute}/organic-social`;
+                                    case 'blog':
+                                        return `${baseRoute}/blog`;
+                                    default:
+                                        // Default to generic editor for ads and unknown types
+                                        return baseRoute;
+                                }
+                            };
+
+                            return (
+                                <Link href={getConceptEditorRoute(batch)} key={batch.id}>
+                                    <Card className="cursor-pointer hover:shadow-md transition-shadow h-full">
+                                        <CardHeader>
+                                            <CardTitle className="flex items-center">
+                                                <Folder className="h-5 w-5 mr-2 text-primary-600" />
+                                                {batch.name}
+                                            </CardTitle>
+                                            <CardDescription>
+                                                Created: {new Date(batch.created_at).toLocaleDateString()}
+                                                {batch.content_type && (
+                                                    <span className="ml-2 px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">
+                                                        {batch.content_type.replace('-', ' ').replace('_', ' ').toUpperCase()}
+                                                    </span>
+                                                )}
+                                            </CardDescription>
+                                        </CardHeader>
+                                        <CardContent>
+                                            <div className="flex items-center justify-center h-20 bg-gray-50 rounded-md">
+                                                <Folder className="h-8 w-8 text-gray-400" />
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+                                </Link>
+                            );
+                        })}
                     </div>
                 )}
             </div>

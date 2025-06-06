@@ -96,9 +96,366 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
     const [filterMediaType, setFilterMediaType] = useState<string>('all');
     const [sortBy, setSortBy] = useState<string>('default');
 
+    // Content type detection
+    const [contentType, setContentType] = useState<string>('ads');
+
+    // Hard-coded system instructions for different content types
+    const SYSTEM_INSTRUCTIONS = {
+        ads: {
+            image: `You are an expert advertising strategist and direct response copywriter.
+
+Given the brand context (positioning, target audience, competitors), concept prompt, and image (if provided), analyze the ad and generate a concise, image-based creative brief. Your goal is to recreate the image as closely as possible with a focus on matching the word count, tone, structure, placement, and visual composition.
+
+The "description" is NOT a creative description—it is a set of specific, visual instructions for a designer. It should include:
+• The reworded or matched headline and any subtext
+• Text length and positioning
+• Shot type or framing (e.g. close-up of product, lifestyle background, text placement)
+• Any graphic or layout cues (font treatment, overlay placement, etc.)
+
+Reword lightly only if the prompt asks for it—otherwise, mimic the image precisely.
+
+Only generate a cta if the prompt explicitly asks for it.
+
+IMPORTANT: Your response MUST be valid JSON and nothing else. Format:
+
+{
+"description": "Designer-facing instructions based on the image (tone, layout, copy length, shot composition)",
+"cta": "Only include if explicitly requested in the prompt"
+}
+
+Only return that JSON structure. No preamble or explanations.`,
+            video: `You are an expert advertising strategist and copywriter specializing in direct response marketing.
+Given the brand context (positioning, target audience, competitors), concept prompt, and video content (if provided), generate ad creative components that specifically relate to the video content. DO NOT EVER use another brand than specified in brand name: [Insert Brand name here]
+
+IMPORTANT: Your response MUST be valid JSON and nothing else. Format:
+{
+  "text_hook_options": ["Hook 1 with emojis 🎯", "Hook 2 with emojis 💪", "Hook 3 with emojis ✨"],
+  "spoken_hook_options": ["Verbal hook 1 to be spoken", "Verbal hook 2 to be spoken", "Verbal hook 3 to be spoken"],
+  "body_content_structured_scenes": [
+    {
+      "scene_title": "Scene 1 (optional)",
+      "script": "Script content for this scene",
+      "visuals": "Visual description for this scene"
+    }
+  ],
+  "cta_script": "Call to action script",
+  "cta_text_overlay": "Text overlay for the CTA"
+}
+
+NOTES:
+- text_hook_options: Array of text hooks with emojis suitable for social media captions (TikTok titles, Instagram reel titles)
+- spoken_hook_options: Array of verbal hooks meant to be spoken in videos
+- Each hook should be a separate string in the array
+- Generate exactly the number of hooks requested
+
+Important that we automatically ensure the content is optimized for the specific platform and campaign type.`
+        },
+        'web-assets': {
+            default: `You are an expert web content strategist and conversion optimization specialist.
+
+Given the brand context (positioning, target audience, competitors) and concept prompt, generate comprehensive web asset specifications optimized for maximum engagement and conversion.
+
+IMPORTANT: Your response MUST be valid JSON and nothing else. Format:
+
+{
+  "asset_type": "banner|landing_page|infographic|promo|gif",
+  "primary_headline": "Main headline that captures attention",
+  "secondary_headline": "Supporting headline or subheader",
+  "body_copy": "Main content text optimized for the asset type",
+  "cta_primary": "Primary call-to-action text",
+  "cta_secondary": "Secondary CTA if applicable",
+  "visual_elements": [
+    {
+      "element_type": "hero_image|icon|illustration|chart",
+      "description": "Specific visual requirements",
+      "placement": "Where this element should be positioned"
+    }
+  ],
+  "design_specifications": {
+    "dimensions": "Recommended dimensions for the asset",
+    "color_scheme": "Color palette guidance",
+    "typography": "Font and text hierarchy recommendations",
+    "layout_style": "Overall design approach"
+  },
+  "conversion_elements": [
+    "Trust indicators (testimonials, reviews, logos)",
+    "Social proof elements",
+    "Urgency/scarcity indicators if applicable"
+  ]
+}
+
+Focus on conversion optimization, user experience, and brand consistency.`
+        },
+        email: {
+            default: `You are an expert email marketing strategist and multimodal AI assistant specializing in high-converting campaigns and automated flows. Your goal is to take a user's high-level goal AND their visual inspiration to generate a structured, effective email brief for a graphic designer. You specialize in direct-to-consumer e-commerce and Klaviyo.
+
+**Input Analysis Priority:**
+
+1. **Visual Analysis (HIGHEST PRIORITY - Multimodal Analysis):**
+   - If images are provided via Files API, perform deep visual analysis
+   - Identify mood & vibe: luxurious, playful, minimalist, urgent, natural, technical
+   - Extract color palette: primary, secondary, accent colors and their tones
+   - Analyze typography style: serif/sans-serif, bold/light, modern/classic
+   - Study layout & composition: dense/spacious, symmetrical/asymmetrical, whitespace usage
+   - Examine image style: dark/moody, bright/airy, product-focused, lifestyle shots
+   - Note design elements: patterns, textures, icons, graphics, borders
+   - Assess brand aesthetic: premium, approachable, edgy, clean, organic
+
+2. **Textual Analysis:**
+   - Analyze the Primary Goal & Core Message provided by the user
+   - Consider Brief Type (Campaign or Flow) and specific details
+   - Factor in brand context and target audience
+
+**Generation Requirements:**
+
+Generate structured email brief components that seamlessly blend visual inspiration with strategic email marketing:
+
+IMPORTANT: Your response MUST be valid JSON and nothing else. Format:
+
+{
+  "campaign_type": "promotional|welcome_series|nurture|cart_abandonment|re_engagement",
+  "inbox_presence": {
+    "subject_line_variations": [
+      {
+        "subject": "Subject line 1 (tone matched to visual mood - if visuals are elegant/luxurious, use sophisticated language; if bright/playful, use energetic language)",
+        "preheader": "Preheader text that complements subject",
+        "tone_rationale": "Brief explanation of tone choice based on visual inspiration analysis"
+      },
+      {
+        "subject": "Subject line 2 (alternative approach but consistent visual mood)",
+        "preheader": "Alternative preheader text",
+        "tone_rationale": "Rationale for this variation"
+      }
+    ]
+  },
+  "email_storyboard": [
+    {
+      "section_type": "hero_image|text_block|product_grid|cta_button|spacer",
+      "content": {
+        "headline": "Copy for this section",
+        "body_text": "Supporting copy if applicable",
+        "cta_text": "Button text if applicable"
+      },
+      "visual_direction": "Specific visual recommendations based on uploaded inspiration. Include color palette from analysis (e.g., 'Use warm terracotta primary from inspiration with cream accents'), typography style (e.g., 'Modern sans-serif, bold weight matching inspiration aesthetic'), layout approach (e.g., 'Spacious layout with generous whitespace like inspiration images'), and image treatment (e.g., 'Bright, airy product photography style matching inspiration mood'). Be specific about how each element should reflect the visual inspiration."
+    }
+  ],
+  "primary_cta": {
+    "button_text": "Action-oriented button text",
+    "destination_url_placeholder": "Where this should link (e.g., 'Product landing page')",
+    "visual_recommendation": "Button design suggestions based on inspiration analysis (colors extracted from uploaded images, shape and styling that matches inspiration aesthetic, hover effects that align with brand mood from visuals)"
+  },
+  "design_notes": {
+    "overall_aesthetic": "Summary of the visual direction based on comprehensive analysis of uploaded inspiration (mood, style, sophistication level)",
+    "color_palette": "Specific colors extracted from inspiration images with hex codes if discernible (e.g., 'Primary: Deep forest green #2B4A3F, Secondary: Warm cream #F7F3E9, Accent: Rose gold #E8B4A0')",
+    "typography_style": "Font recommendations based on visual analysis (specific font families or styles that match inspiration, weight and character)",
+    "layout_approach": "Spacing, grid, and composition recommendations directly informed by inspiration layout analysis",
+    "mobile_optimization": "Mobile-specific design considerations that maintain inspiration aesthetic on smaller screens"
+  },
+  "personalization_elements": [
+    "Dynamic content areas based on customer data (product recommendations, location-based offers)",
+    "Segmentation opportunities for different customer types",
+    "Behavioral triggers to incorporate (browse abandonment, purchase history)"
+  ]
+}
+
+**Critical Requirements:**
+- Always prioritize and reference uploaded inspiration images in your visual recommendations
+- Create a direct connection between analyzed visual elements and generated content
+- Align copy tone with visual mood (sophisticated visuals = elevated language, playful visuals = energetic copy)
+- Provide specific, actionable design direction that a designer can immediately implement
+- Extract and specify color palettes, typography styles, and layout approaches from visual analysis
+- Focus on e-commerce conversion optimization while maintaining visual inspiration alignment
+- Generate 2-3 subject line variations with different approaches but consistent visual mood alignment
+- Ensure all recommendations work cohesively to create a unified email experience
+
+Focus on deliverability, engagement metrics, conversion optimization, and seamless integration of visual inspiration with strategic email marketing best practices.`
+        },
+        sms: {
+            default: `You are an expert SMS marketing strategist specializing in high-converting mobile campaigns and automated messaging flows.
+
+Given the brand context (positioning, target audience, competitors) and concept prompt, generate comprehensive SMS campaign specifications optimized for mobile engagement and conversion within character limits.
+
+IMPORTANT: Your response MUST be valid JSON and nothing else. Format:
+
+{
+  "campaign_type": "promotional|welcome|abandoned_cart|flash_sale|appointment_reminder|customer_service",
+  "message_options": [
+    {
+      "message": "SMS message 1 (under 160 characters)",
+      "character_count": 45,
+      "tone": "direct|friendly|urgent|professional"
+    },
+    {
+      "message": "SMS message 2 (under 160 characters)", 
+      "character_count": 52,
+      "tone": "direct|friendly|urgent|professional"
+    },
+    {
+      "message": "SMS message 3 (under 160 characters)",
+      "character_count": 38,
+      "tone": "direct|friendly|urgent|professional"
+    }
+  ],
+  "link_strategy": {
+    "link_placement": "Where to place links for maximum impact",
+    "link_text": "How to present links (full URL vs branded short link)",
+    "landing_page_optimization": "Landing page requirements for SMS traffic"
+  },
+  "timing_recommendations": {
+    "optimal_send_times": "Best times to send based on audience",
+    "frequency_caps": "How often to message to avoid fatigue",
+    "timezone_considerations": "Geographic timing optimization"
+  },
+  "compliance_notes": [
+    "TCPA compliance requirements",
+    "Opt-out mechanisms", 
+    "Required disclaimers or legal text"
+  ],
+  "personalization_options": [
+    "Name personalization opportunities",
+    "Location-based customization",
+    "Purchase history integration"
+  ],
+  "follow_up_sequence": [
+    {
+      "timing": "Time delay for follow-up",
+      "message": "Follow-up message content",
+      "condition": "When to send this follow-up"
+    }
+  ]
+}
+
+Focus on compliance, engagement within character limits, and mobile-first user experience.`
+        },
+        'organic-social': {
+            default: `You are an expert organic social media strategist specializing in platform-specific content that drives engagement and builds authentic community.
+
+Given the brand context (positioning, target audience, competitors) and concept prompt, generate comprehensive social media content specifications optimized for organic reach and authentic engagement.
+
+IMPORTANT: Your response MUST be valid JSON and nothing else. Format:
+
+{
+  "platform_focus": "instagram|tiktok|facebook|linkedin|twitter|pinterest|youtube_shorts",
+  "content_type": "image_post|video_post|carousel|story|reel|live_stream",
+  "caption_options": [
+    {
+      "caption": "Caption 1 with appropriate hashtags and emojis",
+      "tone": "educational|entertaining|inspirational|behind_scenes",
+      "character_count": 150
+    },
+    {
+      "caption": "Caption 2 with appropriate hashtags and emojis", 
+      "tone": "educational|entertaining|inspirational|behind_scenes",
+      "character_count": 180
+    }
+  ],
+  "hashtag_strategy": {
+    "branded_hashtags": ["Brand-specific hashtags"],
+    "community_hashtags": ["Community and niche hashtags"],
+    "trending_hashtags": ["Current trending hashtags to consider"],
+    "hashtag_count": "Optimal number for the platform"
+  },
+  "visual_content": {
+    "image_style": "Photography style and aesthetic requirements",
+    "video_specifications": "Video format, length, and style requirements",
+    "graphic_elements": "Text overlays, graphics, or design elements",
+    "brand_consistency": "Brand guideline adherence requirements"
+  },
+  "engagement_strategy": {
+    "cta_in_caption": "Specific call-to-action for engagement",
+    "story_elements": "How to encourage shares and saves",
+    "community_building": "Ways to foster community interaction"
+  },
+  "posting_optimization": {
+    "optimal_posting_times": "Best times for the target audience",
+    "content_series_potential": "How this fits into a content series",
+    "cross_platform_adaptation": "How to adapt for other platforms"
+  },
+  "analytics_focus": [
+    "Key metrics to track for this content type",
+    "Engagement indicators to monitor",
+    "Content performance optimization strategies"
+  ]
+}
+
+Focus on authentic engagement, platform-specific optimization, and community building.`
+        },
+        blog: {
+            default: `You are an expert content strategist and SEO copywriter specializing in blog content that ranks well and drives meaningful engagement.
+
+Given the brand context (positioning, target audience, competitors) and concept prompt, generate comprehensive blog content specifications optimized for search visibility, reader engagement, and conversion.
+
+IMPORTANT: Your response MUST be valid JSON and nothing else. Format:
+
+{
+  "content_type": "how_to_guide|listicle|case_study|opinion_piece|news_analysis|comparison|ultimate_guide",
+  "seo_elements": {
+    "primary_keyword": "Main target keyword",
+    "secondary_keywords": ["Supporting keywords for content optimization"],
+    "title_options": [
+      "SEO-optimized title option 1",
+      "SEO-optimized title option 2", 
+      "SEO-optimized title option 3"
+    ],
+    "meta_description": "160-character meta description optimized for CTR",
+    "target_word_count": "1500-3000"
+  },
+  "content_structure": {
+    "introduction": "Hook and value proposition for readers",
+    "main_sections": [
+      {
+        "heading": "H2 section heading",
+        "key_points": ["Main points to cover in this section"],
+        "supporting_content": "Examples, data, or case studies to include"
+      }
+    ],
+    "conclusion": "Summary and clear next steps for readers"
+  },
+  "engagement_elements": {
+    "visual_content": [
+      "Featured image requirements",
+      "In-content visuals (charts, screenshots, infographics)",
+      "Video content opportunities"
+    ],
+    "interactive_elements": [
+      "Calls-to-action throughout the content",
+      "Lead magnets or content upgrades",
+      "Social sharing optimization"
+    ]
+  },
+  "internal_linking": {
+    "target_pages": ["Relevant internal pages to link to"],
+    "anchor_text_suggestions": ["Natural anchor text options"],
+    "linking_strategy": "How to distribute internal links effectively"
+  },
+  "conversion_optimization": {
+    "primary_cta": "Main conversion goal for this content",
+    "lead_magnets": "Content upgrades or free resources to offer",
+    "email_capture": "Newsletter signup strategy and placement"
+  },
+  "content_promotion": {
+    "social_media_angles": ["How to promote on different social platforms"],
+    "email_newsletter": "How to feature in email marketing",
+    "repurposing_opportunities": ["Ways to repurpose this content"]
+  }
+}
+
+Focus on search optimization, reader value, and conversion potential.`
+        }
+    };
+
     // Extract params using React.use()
     const unwrappedParams = params instanceof Promise ? React.use(params) : params;
     const { brandId, batchId } = unwrappedParams;
+
+    // Detect content type from URL params
+    useEffect(() => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlContentType = urlParams.get('content_type');
+        if (urlContentType) {
+            setContentType(urlContentType);
+        }
+    }, []);
 
     // Helper function to parse hooks from string format
     const parseHooksFromString = (hooksString: string): Hook[] => {
@@ -906,13 +1263,34 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                 prev.map(c => c.id === conceptId ? updatedConceptWithHooks : c)
             );
             
+            // Get the appropriate system instructions based on content type and media type
+            let systemInstructions = '';
+            
+            // Use hard-coded system instructions based on content type
+            if (contentType === 'ads') {
+                if (conceptWithSavedPrompt.media_type === 'image') {
+                    systemInstructions = SYSTEM_INSTRUCTIONS.ads.image;
+                } else {
+                    systemInstructions = SYSTEM_INSTRUCTIONS.ads.video;
+                }
+            } else {
+                // For other content types, use the default instruction
+                const contentInstructions = SYSTEM_INSTRUCTIONS[contentType as keyof typeof SYSTEM_INSTRUCTIONS];
+                if (contentInstructions && 'default' in contentInstructions) {
+                    systemInstructions = contentInstructions.default;
+                } else {
+                    // Fallback to ads if content type not found
+                    systemInstructions = conceptWithSavedPrompt.media_type === 'image' ? SYSTEM_INSTRUCTIONS.ads.image : SYSTEM_INSTRUCTIONS.ads.video;
+                }
+            }
+            
             const request: AiBriefingRequest = {
                 brandContext: {
                     brand_info_data: JSON.stringify(brand.brand_info_data),
                     target_audience_data: JSON.stringify(brand.target_audience_data),
                     competition_data: JSON.stringify(brand.competition_data),
-                    system_instructions_image: brand.system_instructions_image,
-                    system_instructions_video: brand.system_instructions_video,
+                    system_instructions_image: systemInstructions, // Use hard-coded instructions
+                    system_instructions_video: systemInstructions, // Use hard-coded instructions  
                     product_info: productInfo
                 },
                 conceptSpecificPrompt: currentPromptValue, 
@@ -1146,13 +1524,34 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
                     
                     console.log(`Using hook type: ${hookType}, hook count: ${hookCount} for concept ${concept.id}`);
                     
+                    // Get the appropriate system instructions based on content type and media type
+                    let systemInstructions = '';
+                    
+                    // Use hard-coded system instructions based on content type
+                    if (contentType === 'ads') {
+                        if (concept.media_type === 'image') {
+                            systemInstructions = SYSTEM_INSTRUCTIONS.ads.image;
+                        } else {
+                            systemInstructions = SYSTEM_INSTRUCTIONS.ads.video;
+                        }
+                    } else {
+                        // For other content types, use the default instruction
+                        const contentInstructions = SYSTEM_INSTRUCTIONS[contentType as keyof typeof SYSTEM_INSTRUCTIONS];
+                        if (contentInstructions && 'default' in contentInstructions) {
+                            systemInstructions = contentInstructions.default;
+                        } else {
+                            // Fallback to ads if content type not found
+                            systemInstructions = concept.media_type === 'image' ? SYSTEM_INSTRUCTIONS.ads.image : SYSTEM_INSTRUCTIONS.ads.video;
+                        }
+                    }
+                    
                     const request: AiBriefingRequest = {
                         brandContext: {
                             brand_info_data: JSON.stringify(brand.brand_info_data),
                             target_audience_data: JSON.stringify(brand.target_audience_data),
                             competition_data: JSON.stringify(brand.competition_data),
-                            system_instructions_image: brand.system_instructions_image,
-                            system_instructions_video: brand.system_instructions_video,
+                            system_instructions_image: systemInstructions, // Use hard-coded instructions
+                            system_instructions_video: systemInstructions, // Use hard-coded instructions  
                             product_info: productInfo
                         },
                         conceptSpecificPrompt: currentPromptValue,
@@ -1522,14 +1921,35 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
             }
         }
         
+        // Get the appropriate system instructions based on content type and media type
+        let systemInstructions = '';
+        
+        // Use hard-coded system instructions based on content type
+        if (contentType === 'ads') {
+            if (mediaType === 'image') {
+                systemInstructions = SYSTEM_INSTRUCTIONS.ads.image;
+            } else {
+                systemInstructions = SYSTEM_INSTRUCTIONS.ads.video;
+            }
+        } else {
+            // For other content types, use the default instruction
+            const contentInstructions = SYSTEM_INSTRUCTIONS[contentType as keyof typeof SYSTEM_INSTRUCTIONS];
+            if (contentInstructions && 'default' in contentInstructions) {
+                systemInstructions = contentInstructions.default;
+            } else {
+                // Fallback to ads if content type not found
+                systemInstructions = mediaType === 'image' ? SYSTEM_INSTRUCTIONS.ads.image : SYSTEM_INSTRUCTIONS.ads.video;
+            }
+        }
+        
         // Construct the request object that would be sent to the API
         const request: AiBriefingRequest = {
             brandContext: {
                 brand_info_data: JSON.stringify(brand.brand_info_data),
                 target_audience_data: JSON.stringify(brand.target_audience_data),
                 competition_data: JSON.stringify(brand.competition_data),
-                system_instructions_image: brand.system_instructions_image,
-                system_instructions_video: brand.system_instructions_video,
+                system_instructions_image: systemInstructions, // Use hard-coded instructions
+                system_instructions_video: systemInstructions, // Use hard-coded instructions  
                 product_info: productInfo
             },
             conceptSpecificPrompt: customPrompt, // Use the local value
@@ -1611,57 +2031,30 @@ allowing it to properly analyze images and videos. This is just a text represent
 `;
         }
         
-        // Get the appropriate system instructions based on media type
+        // Get the appropriate system instructions based on content type and media type
         let systemPrompt = '';
         
-        // Check if brand-specific system instructions are provided
-        if (request.brandContext.system_instructions_image && request.media?.type === 'image') {
-            systemPrompt = request.brandContext.system_instructions_image;
-        } else if (request.brandContext.system_instructions_video && request.media?.type === 'video') {
-            systemPrompt = request.brandContext.system_instructions_video;
-        } else {
-            // Fallback to default system prompt if no custom instructions are available
+        // Use hard-coded system instructions based on content type
+        if (contentType === 'ads') {
             if (request.media?.type === 'image') {
-                systemPrompt = `You are an expert advertising strategist and copywriter specializing in direct response marketing.
-
-Given the brand context (positioning, target audience, competitors), concept prompt, and image (if provided), analyze the ad and generate a short, punchy image ad brief containing only the description and call to action (CTA). The description should highlight the key emotional or functional benefit in a compelling way that matches the visual. The CTA should clearly tell the viewer what to do next.
-
-IMPORTANT: Your response MUST be valid JSON and nothing else. Format:
-
-{
-  "description": "description of the image, details for how to interpret will be given in the prompt",
-  "cta": "if needed, based on the content of the prompt and image as well"
-}
-
-Only return that JSON structure and no other text.`;
+                systemPrompt = SYSTEM_INSTRUCTIONS.ads.image;
             } else {
-                systemPrompt = `You are an expert advertising strategist and copywriter specializing in direct response marketing. 
-Given the brand context (positioning, target audience, competitors), concept prompt, and video content (if provided), generate ad creative components that specifically relate to the video content.
-
-IMPORTANT: Your response MUST be valid JSON and nothing else. Format:
-{
-  "caption_hook_options": "A string with multiple options for caption hooks (with emojis)",
-  "spoken_hook_options": "A string with multiple options for verbal/spoken hooks",
-  "body_content_structured_scenes": [
-    { 
-      "scene_title": "Scene 1 (optional)", 
-      "script": "Script content for this scene", 
-      "visuals": "Visual description for this scene" 
-    },
-    // Add more scenes as needed
-  ],
-  "cta_script": "Call to action script",
-  "cta_text_overlay": "Text overlay for the CTA"
-}`;
+                systemPrompt = SYSTEM_INSTRUCTIONS.ads.video;
+            }
+        } else {
+            // For other content types, use the default instruction
+            const contentInstructions = SYSTEM_INSTRUCTIONS[contentType as keyof typeof SYSTEM_INSTRUCTIONS];
+            if (contentInstructions && 'default' in contentInstructions) {
+                systemPrompt = contentInstructions.default;
+            } else {
+                // Fallback to ads if content type not found
+                systemPrompt = request.media?.type === 'image' ? SYSTEM_INSTRUCTIONS.ads.image : SYSTEM_INSTRUCTIONS.ads.video;
             }
         }
         
         // Add explanation about system instructions for clarity in debug view
-        if (request.brandContext.system_instructions_image || request.brandContext.system_instructions_video) {
-            // Add a note about which system instructions were used
-            const usedInstructions = request.media?.type === 'image' ? 'image' : request.media?.type === 'video' ? 'video' : 'default';
-            systemPrompt = `/* Using ${usedInstructions} system instructions */\n\n` + systemPrompt;
-        }
+        const usedInstructions = `${contentType} (hard-coded optimized)`;
+        systemPrompt = `/* Using ${usedInstructions} system instructions */\n\n` + systemPrompt;
 
         const userPrompt = `${enhancedCustomPrompt ? `${enhancedCustomPrompt}\n\n` : ''}${hookInstructions}
 BRAND CONTEXT:
