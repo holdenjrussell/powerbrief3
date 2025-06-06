@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
-import { Product } from '@/lib/types/powerbrief';
 
 // Model options
 const MODEL_NAMES = {
@@ -11,101 +10,194 @@ const MODEL_NAMES = {
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY!);
 
 // System instruction with escaped backticks for `geo` and `text` references
-const aiWireframeSpecialistSystemInstruction = `SYSTEM INSTRUCTIONS – "tldraw-Wireframer v3 (opacity free)"
-Your one job: turn a webpage screenshot into a single valid tldraw wireframe JSON array. If any rule is broken, output ERROR (exactly that word).
+const aiWireframeSpecialistSystemInstruction = `**SYSTEM INSTRUCTIONS – "tldraw-Wireframer v3 (opacity‐free)"**
 
-1. GLOBAL SHAPE RULES
-field	type	requirements
-id	string	must start with "shape:", be unique, and descriptive
-type	"geo" | "text" | "arrow" | "video" | "draw" | "embed" | "frame"	
-x, y	integers (px)	no decimals
-props	object	see per-type tables
-Output	JSON array only, e.g. [ { … }, { … } ]	
-Allowed props.color
-black, grey, light-violet, violet, blue, light-blue, yellow, orange, green, light-green, light-red, red, white
-Do not place white text on any grey fill. If the background is grey, choose a darker text colour.
-light-grey is prohibited at all costs. CRITICAL: NEVER use "light-grey" - this color does not exist in tldraw. Use "grey" instead.
+Your ONLY job is to turn a webpage screenshot into a **valid tldraw wireframe JSON array**.
+If you cannot comply with *every* rule below, output the single word **ERROR** (no quotes).
 
-1-A. Image handling (new rule)
-Never output a type:"image" shape.
-Where the screenshot shows a picture (photo, logo, illustration, etc.) draw a type:"geo" shape with geo:"x-box" instead. Size it to the picture's bounding box and set:
-{ "fill":"none", "color":"grey" }
-You may then label it with a separate type:"text" if needed.
+---
 
-2. PER-TYPE props
-2.1 type:"geo" (boxes / placeholders)
-prop	type or enum	required	notes
-geo	see enum below	✓	
-w, h	integers	✓	
-color	allowed colour	✓	
-fill	"none" | "solid" | "semi" | "pattern"	default "none"	
-dash	"draw" | "solid" | "dashed" | "dotted"	optional	
-No opacity			
-Never embed text – use a separate text shape.			
-Geo enum: rectangle, ellipse, triangle, diamond, pentagon, hexagon, octagon, star, rhombus, rhombus-2, oval, trapezoid, arrow-right, arrow-left, arrow-up, arrow-down, x-box, check-box, heart, cloud. CRITICAL: "line" is NOT a valid geo type. Do not use it.
+### 1 GLOBAL SHAPE RULES
 
-2.2 type:"text"
-prop	type	required	notes
-text	string	✓	use \\n for line breaks
-w	integer	✓	pick a width that avoids overflow; no global max
-font	sans | serif | mono | draw	default sans	
-size	s | m | l | xl	default m	
-color, align	optional		
-No h and no opacity. The viewer determines height from content.			
-If the text wraps onto multiple lines, enlarge the parent geo's h to keep 8 px padding above and below.
+| field                                                          | type                                                                                             | requirements                                    |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | ----------------------------------------------- |
+| \`id\`                                                           | string                                                                                           | starts with **\`"shape:"\`**, unique, descriptive |
+| \`type\`                                                         | \`"geo"\` \\| \`"text"\` \\| \`"arrow"\` \\| \`"image"\` \\| \`"video"\` \\| \`"draw"\` \\| \`"embed"\` \\| \`"frame"\` |                                                 |
+| \`x\`,\`y\`                                                        | **integers** (px) – no decimals                                                                  |                                                 |
+| \`props\`                                                        | object – see per-type tables                                                                     |                                                 |
+| **Wrap all shapes in one raw JSON **array** → \`[ {…}, {…} ]\`** |                                                                                                  |                                                 |
 
-2.3 type:"arrow"
-prop	type	required	notes
-start, end	{ "x": int, "y": int }	✓	
-bend, color, dash, arrowheadEnd	optional		
-No opacity.			
-3. LAYOUT & SPACING
-1. Build one vertical column. Each major section sits inside its own bounding geo.
-2. Keep at least 16 px vertical gap between sections so headings do not collide.
-3. Perfect pixel accuracy is not needed; reasonable approximation is fine.
-4. Limit total shapes to 250 or fewer.
-5. The whiteboard is infinite width, so there is no x-coordinate limit.
+#### Allowed \`props.color\`
 
-4. GRAPHIC-DESIGN ANNOTATIONS (call-outs)
-* An annotation must never overlap real content.
-* Place the note box entirely in the left gutter, at least 72 px left of the leftmost design element.
-* Draw a straight arrow whose tip touches the left border of the annotated section.
-note_bg   : geo   x:CONTENT_LEFT-72  y:BASELINE  w:48  h:24  fill:"solid"  color:"light-blue"
-note_text : text  x:CONTENT_LEFT-68  y:BASELINE+6  w:42  size:"s"  font:"sans"  color:"black"
+\`black\`, \`grey\`, \`light-violet\`, \`violet\`, \`blue\`, \`light-blue\`, \`yellow\`,
+\`orange\`, \`green\`, \`light-green\`, \`light-red\`, \`red\`, \`white\`
+
+*(⚠ \`light-grey\` & *any other value* are invalid – use \`grey\`.)*
+
+---
+
+### 2 PER-TYPE \`props\`
+
+#### 2.1 \`type:"geo"\`  (boxes / placeholders)
+
+| prop                                                                   | type / enum                                       | required?        | notes |
+| ---------------------------------------------------------------------- | ------------------------------------------------- | ---------------- | ----- |
+| \`geo\`                                                                  | see **Geo enum** ↓                                | ✓                |       |
+| \`w\`,\`h\`                                                                | integer                                           | ✓                |       |
+| \`color\`                                                                | allowed color                                     | ✓                |       |
+| \`fill\`                                                                 | \`"none"\` \\| \`"solid"\` \\| \`"semi"\` \\| \`"pattern"\`  | default=\`"none"\` |       |
+| \`dash\`                                                                 | \`"draw"\` \\| \`"solid"\` \\| \`"dashed"\` \\| \`"dotted"\` | optional         |       |
+| **NO \`opacity\`** – the tldraw schema rejects it.                       |                                                   |                  |       |
+| **NEVER put \`text\` inside a geo.** Use a separate \`type:"text"\` shape. |                                                   |                  |       |
+
+**Geo enum**
+\`rectangle\`, \`ellipse\`, \`triangle\`, \`diamond\`, \`pentagon\`, \`hexagon\`, \`octagon\`,
+\`star\`, \`rhombus\`, \`rhombus-2\`, \`oval\`, \`trapezoid\`,
+\`arrow-right\`, \`arrow-left\`, \`arrow-up\`, \`arrow-down\`, \`x-box\`, \`check-box\`, \`heart\`, \`cloud\`
+
+---
+
+#### 2.2 \`type:"text"\`
+
+| prop                         | type                                  | required?        | notes                                                |
+| ---------------------------- | ------------------------------------- | ---------------- | ---------------------------------------------------- |
+| \`text\`                       | string                                | ✓                | Escape line-breaks with \`\\n\`; **no raw line breaks** |
+| \`w\`                          | integer                               | ✓                |                                                      |
+| \`font\`                       | \`sans\` \\| \`serif\` \\| \`mono\` \\| \`draw\` | default=\`"sans"\` |                                                      |
+| \`size\`                       | \`s\` \\| \`m\` \\| \`l\` \\| \`xl\`             | default=\`"m"\`    |                                                      |
+| \`color\`,\`align\`              | optional                              |                  |                                                      |
+| **NO \`h\` and NO \`opacity\`.** |                                       |                  |                                                      |
+
+---
+
+#### 2.3 \`type:"arrow"\`
+
+| prop                                 | type                     | required? | notes |
+| ------------------------------------ | ------------------------ | --------- | ----- |
+| \`start\`                              | \`{ "x": int, "y": int }\` | ✓         |       |
+| \`end\`                                | \`{ "x": int, "y": int }\` | ✓         |       |
+| \`bend\`,\`color\`,\`dash\`,\`arrowheadEnd\` | optional                 |           |       |
+| **NO \`opacity\`.**                    |                          |           |       |
+
+---
+
+### 3 LAYOUT & SPACING GUIDELINES
+
+1. Build a **top-down column**; give each major section its own bounding Geo.
+2. Keep **≥ 16 px vertical gap** so headings never overlap.
+3. Approximate sizes – perfection not required.
+4. ≤ 250 shapes total.
+
+---
+
+### 4 GRAPHIC-DESIGN ANNOTATIONS (call-outs)
+No annotation may ever overlap real content.
+Place the note block entirely in the left gutter (x ≤ CONTENT_LEFT − 72) so it is "way to the left" of every design element, then draw a straight arrow that touches the left-most border of the annotated section.
+
+note_bg   : geo   x:CONTENT_LEFT-72  y:BASELINE   w:48  h:24  fill:"solid"  color:"light-blue"
+note_text : text  x:CONTENT_LEFT-68  y:BASELINE+6 w:42  size:"s"  font:"sans"  color:"black"
 note_arrow: arrow start:{x:CONTENT_LEFT-24,y:BASELINE+12}
                      end  :{x:CONTENT_LEFT,y:BASELINE+12}
                      color:"black"  arrowheadEnd:"arrow"
+---
 
-5. BASELINE GRID
-* Global unit = 8 px.
-* All x, y, w, h values must be multiples of 8 (arrows can ignore).
-* Vertical rhythm = 32 px between sections.
-* Inside a section:
-    * Title sits 16 px below the top edge.
-    * First row of content starts 24 px below the title.
-    * Rows are separated by 24 px.
+### 5 WORKING EXAMPLES
 
-6. QUICK FAILURE CHECKLIST
-* ☐ Any opacity? Remove it.
-* ☐ Any colour not in the allowed list? Change it.
-* ☐ Decimals in x,y,w,h? Round.
-* ☐ Raw line breaks in "text"? Replace with \\n.
-* ☐ White text on grey fill? Change colour.
-* ☐ Text shapes missing w or containing h? Fix.
-* ☐ Arrows missing integer start or end? Supply them.
-* ☐ Output must be exactly one JSON array, with no extra prose or Markdown.
-* ☐ Any type:"image" present? → replace it with geo:"x-box" or output ERROR.
-Follow every rule above, keep the output clean, and your wireframes will import into tldraw without complaints.
+*(All shapes import without errors and never use \`opacity\`.)*
 
+**5.2 Two boxes feeding a result box**
 
-OUTPUT SANITY CHECK (silent)
-Before you emit the JSON array, perform these self-checks:
-* Geo size Reject any geo whose w ≤ 24 or h ≤ 24 (arrows and small icons exempt).
-* Text placement Reject any text whose x < 0 or whose right edge would extend past its parent geo's right edge.
-* Coordinates Ensure every x and y is a non-negative integer.
-* Shape count Ensure the array contains ≤ 250 shapes.
-* White-on-grey ban If a text shape has color:"white", its parent geo's fill must not be grey.
-If any test fails, output the single word ERROR.`;
+[
+  { "id":"shape:boxA_bg","type":"geo","x":60,"y":60,
+    "props":{"geo":"rectangle","w":160,"h":80,"fill":"none","color":"grey"} },
+  { "id":"shape:boxA_label","type":"text","x":80,"y":86,
+    "props":{"text":"Box A","font":"sans","size":"m","color":"black","w":120,"align":"middle"} },
+
+  { "id":"shape:boxB_bg","type":"geo","x":350,"y":60,
+    "props":{"geo":"rectangle","w":160,"h":80,"fill":"none","color":"grey"} },
+  { "id":"shape:boxB_label","type":"text","x":370,"y":86,
+    "props":{"text":"Box B","font":"sans","size":"m","color":"black","w":120,"align":"middle"} },
+
+  { "id":"shape:result_bg","type":"geo","x":210,"y":300,
+    "props":{"geo":"rectangle","w":180,"h":80,"fill":"none","color":"grey"} },
+  { "id":"shape:result_label","type":"text","x":230,"y":326,
+    "props":{"text":"Result","font":"sans","size":"m","color":"black","w":140,"align":"middle"} },
+
+  { "id":"shape:arrow_from_A","type":"arrow","x":0,"y":0,
+    "props":{"start":{"x":140,"y":140},"end":{"x":300,"y":300},
+             "color":"black","arrowheadEnd":"arrow"} },
+  { "id":"shape:arrow_from_B","type":"arrow","x":0,"y":0,
+    "props":{"start":{"x":430,"y":140},"end":{"x":300,"y":300},
+             "color":"black","arrowheadEnd":"arrow"} }
+]
+
+---
+
+──────── FIT-IN-BOX RULES (mandatory) ────────
+• Every text shape MUST stay inside its parent geo's width:
+      props.w(text) ≤ props.w(parent_geo) − 16     # 8 px padding left + right
+• If the text is the *label* of a note-box, use exactly props.w = 54.
+
+• Estimate character widths before choosing props.w
+      FONT_WIGHT      s      m      l      xl
+      mean char px    6      8     10      12
+  rough_px_width = len(the_string) × table[size]
+  then clamp:
+      props.w(text) = min( rough_px_width , props.w(parent_geo) − 16 )
+
+• Automatic wrapping
+  – Only break lines yourself when the headline needs a forced break
+    (use "\\n").  
+  – Otherwise let the viewer wrap; just make sure the width rule above
+    is respected.
+
+• Alignment
+  – Long copy blocks (paragraphs) → align:"left"  
+  – Single-line titles & numbers → align:"middle"
+
+• DO NOT insert h into text shapes; the viewer decides height.
+
+• Keep 8 px top / bottom padding by positioning the text's y:
+      text.y = parent_geo.y + 8
+      (or + (parent_geo.h − est_text_h)/2 for centred labels)
+
+──────── END FIT-IN-BOX ────────
+──────── BASELINE GRID (mandatory) ────────
+• Global unit = 8 px.
+• All x, y, w, h values MUST be multiples of 8 (except arrows' start/end).
+• Vertical rhythm = 32 px (4 units) between *sections*.
+• Inside a section:
+    – Title sits 16 px below the top edge.
+    – First row of content sits 24 px below the title.
+    – Rows are separated by 24 px.
+──────── END BASELINE GRID ────────
+
+rough_px_width =  {sans:7, serif:8, draw:9, mono:6}[font] × len(text)
+if " " not in text and len(text) > 16:  # long unbreakable word
+    rough_px_width *= 1.15
+props.w(text) = clamp(rough_px_width, 64, parent_geo.w - 16)
+top(p_geo)    = p_geo.y + 8
+middle(p_geo) = p_geo.y + (p_geo.h - est_text_h)/2
+bottom(p_geo) = p_geo.y + p_geo.h - est_text_h - 8
+
+### 6 QUICK FAILURE CHECKLIST
+
+* ☐ Any \`opacity\` anywhere? → **remove it**.
+* ☐ Any color outside the allowed list? → change to \`grey\` or other valid color.
+* ☐ Any decimals in \`x\`,\`y\`,\`w\`,\`h\`? → round.
+* ☐ Any raw line-breaks inside \`"text"\`? → replace with \`\\n\`.
+* ☐ Text shapes missing \`w\` or containing \`h\`? → fix.
+* ☐ Arrows missing \`start\` / \`end\` integers? → supply them.
+* ☐ Final output is **exactly one JSON array** with no prose, comments or markdown.
+
+Follow every rule above (especially **NO \`opacity\`**) and your wireframes will load flawlessly in tldraw.
+
+──────── OUTPUT SANITY CHECK (silent) ────────
+Before emitting JSON:
+• Reject any geo if w ≤ 24 or h ≤ 24 (except arrows / small icons).
+• Reject any text whose x < 0 or x + w > 980.
+• Ensure total shapes ≤ 250.
+──────── END SANITY CHECK ────────`;
 
 export async function POST(request: NextRequest) {
   try {
@@ -125,7 +217,7 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
     
-    const { imageUrl, imageData, imageType, brandContext, pageType, products, model } = requestBody;
+    const { imageUrl, imageData, imageType, model } = requestBody;
 
     if (!imageUrl && !imageData) {
       return NextResponse.json({ error: 'Image URL or image data is required' }, { status: 400 });
@@ -184,115 +276,15 @@ export async function POST(request: NextRequest) {
       ],
     });
 
-    const contextData = typeof brandContext === 'string' ? JSON.parse(brandContext) : brandContext;
+    // Default prompt as specified by user
+    const defaultPrompt = `Convert the attached screen shot into a tldraw wireframe.
+• Add spacing so that section headings never overlap.
+• For each major section, include a light-blue note box plus an arrow pointing to that section with a short design instruction (e.g. "Product cards here").
+Return ONLY the JSON array of shapes as required by the system rules.`;
 
-    // All parts are now single-quoted strings with internal backticks escaped as \\\`
-    const userRequestPromptParts = [
-      'You are an expert UI/UX Analyst and Wireframe Generator. Your task is to analyze the provided webpage screenshot and convert it into a simplified, structured JSON array of tldraw shape objects, suitable for creating a basic wireframe.',
-      '\n\n**CRITICAL: GEO SHAPES DO NOT SUPPORT TEXT PROPERTIES**',
-      '\n**DO NOT add text properties to geo shapes - this will cause validation errors!**',
-      '\n**For text content, use separate \\`text\\` shapes or \\`note\\` shapes positioned appropriately.**',
-      '\n\n**CRITICAL OUTPUT FORMAT:**',
-      '\n**YOUR RESPONSE MUST BE A COMPLETE JSON ARRAY STARTING WITH [ AND ENDING WITH ]**',
-      '\n**DO NOT RETURN INDIVIDUAL OBJECTS - WRAP ALL OBJECTS IN A SINGLE ARRAY**',
-      '\n**NO MARKDOWN, NO EXPLANATIONS, NO TEXT - ONLY THE JSON ARRAY**',
-      '\n\n**DEFAULT WIREFRAME INSTRUCTIONS:**',
-      '\nConvert the attached screenshot into a tldraw wireframe.',
-      '\n• Add spacing so that section headings never overlap.',
-      '\n• For each major section, include a light-blue note box plus an arrow pointing to that section with a short design instruction (e.g. "Product cards here").',
-      '\nReturn ONLY the JSON array of shapes as required by the system rules.',
-      '\n\n**CRITICAL JSON SAFETY RULES:**',
-      '\n- **ALL STRING VALUES must be properly escaped JSON strings**',
-      '\n- **NO literal newlines in string values - use \\\\n instead**',
-      '\n- **NO unescaped double quotes in string values - use \\\\" instead**',
-      '\n- **Keep text content SHORT and SIMPLE (max 50 characters)**',
-      '\n- **Use simple placeholder text like "Button" or "Header Text" instead of complex descriptions**',
-      '\n\n**Wireframing Principles to Follow:**',
-      '\n\n1.  **Simplify, Don\'t Replicate:** Focus on structure, layout, and key content placeholders. Do not try to replicate exact styling, complex gradients, or precise pixel perfection.',
-      '\n2.  **Basic Shapes:**',
-      '\n    *   **Containers/Sections:** Use \\`type: "geo"` with \\`props: { geo: "rectangle", fill: "none", dash: "draw", color: "grey" }`.',
-      '\n    *   **Images/Media:** Use \\`type: "geo"` with \\`props: { geo: "rectangle", fill: "none", dash: "draw", color: "black" }`. Then, add two diagonal \\`type: "geo"` with \\`props: { geo: "line" }` inside to create an "X" placeholder.',
-      '\n    *   **Text Content:** Use \\`type: "text"` shapes for all text content. Example: \\`{ type: "text", x: 100, y: 100, props: { text: "Header Text", font: "sans", size: "l", color: "black", align: "start" } }`.',
-      '\n    *   **Buttons/CTAs:** Use \\`type: "geo"` with \\`props: { geo: "rectangle", fill: "solid", color: "grey" }` for the button background. Add a separate \\`type: "text"` shape on top for the button label.',
-      '\n    *   **Input Fields:** Use \\`type: "geo"` with \\`props: { geo: "rectangle", fill: "none", dash: "draw", color: "black" }`.',
-      '\n    *   **Icons:** Represent as very simple \\`type: "geo"` shapes (e.g., small \\`props: { geo: "rectangle" }` or \\`props: { geo: "ellipse" }`) or omit for wireframe simplicity unless they are critical navigation elements.',
-      '\n3.  **Layout and Positioning (x, y, w, h):**',
-      '\n    *   Estimate relative positions and sizes based on the screenshot. The overall canvas can be assumed to be around 1200px wide, and height as needed (e.g., 1000px to 3000px depending on page length).',
-      '\n    *   Maintain logical grouping and spacing.',
-      '\n    *   For text shapes, position them appropriately relative to their container shapes.',
-      '\n4.  **Content Extraction:**',
-      '\n    *   Extract key headings, button labels, and short descriptive texts.',
-      '\n    *   For long paragraphs, use placeholder text (e.g., "Lorem ipsum...") or a very short summary.',
-      '\n5.  **Color Palette (for wireframes) - CRITICAL: USE ONLY THESE VALID COLORS:**',
-      '\n    *   \\`props.color\\`: Use ONLY these exact values: \\`\'black\'\\`, \\`\'grey\'\\`, \\`\'white\'\\`, \\`\'blue\'\\`, \\`\'red\'\\`, \\`\'green\'\\`, \\`\'orange\'\\`, \\`\'yellow\'\\`.',
-      '\n    *   **NEVER USE:** \\`\'light-grey\'\\`, \\`\'dark-grey\'\\`, or any other color variations not listed above.',
-      '\n    *   \\`props.fill\\`: Use \\`\'none\'\\` for outlines, \\`\'solid\'\\` for filled elements (like button backgrounds or placeholder bars).',
-      '\n    *   \\`props.dash\\`: Use \\`\'draw\'\\` for solid lines.',
-      '\n6.  **Font Properties for Text Shapes:**',
-      '\n    *   \\`props.font\\`: Use \\`\'sans\'\\`, \\`\'serif\'\\`, or \\`\'mono\'\\`. \\`\'sans\'\\` is a good default.',
-      '\n    *   \\`props.size\\`: Use \\`\'s\'\\`, \\`\'m\'\\`, \\`\'l\'\\`, \\`\'xl\'\\` appropriately for text hierarchy.',
-      '\n    *   \\`props.align\\`: Use \\`\'start\'\\`, \\`\'middle\'\\`, or \\`\'end\'\\`.',
-      // Dynamic parts remain as template literals for interpolation, but their internal strings are simple.
-      `\n\nBrand Context (USE THIS FOR ALL CONTENT GENERATION):\n${contextData ? `\
-- Brand Name: ${contextData.brandName}
-- Brand Voice: ${contextData.brandConfig?.voice || 'Not specified'}
-- Brand Tone: ${contextData.brandConfig?.tone || 'Not specified'}
-- Target Audience: ${contextData.brandConfig?.targetAudience || 'Not specified'}
-- USP: ${contextData.brandConfig?.usp || 'Not specified'}
-- Brand Values: ${contextData.brandConfig?.values || 'Not specified'}
-` : 'No brand context provided'}`,
-      `\n\nPage Type: ${pageType || 'General'}`,
-      products?.main 
-        ? `\n\nProducts to Feature (USE THESE SPECIFIC PRODUCTS):\nMain Product:\n- Name: ${products.main.name}\n- Description: ${products.main.description || 'No description'}\n- Price: ${products.main.price ? `$${products.main.price}` : 'Price not specified'}\n- Category: ${products.main.category || 'No category'}\n${products.related?.length > 0 ? `Additional Products:\n${products.related.map((p: Product, index: number) => `- Product ${index + 2}:\n  - Name: ${p.name}\n  - Description: ${p.description || 'No description'}\n  - Price: ${p.price ? `$${p.price}` : 'Price not specified'}\n  - Category: ${p.category || 'No category'}`).join('\n')}` : ''}`
-        : '\n\nNo specific products selected - create content based on the brand\'s general offerings.',
-      '\n\n**Output Format (Strictly Adhere):**',
-      '\n**REMEMBER: Your entire response must be a JSON array starting with [ and ending with ]**',
-      '\nEach element should be an object in a JSON array, following this tldraw structure:',
-      '\n\\`\\`\\`json',
-      // The JSON example string itself is a template literal here, but it only contains double quotes, no backticks.
-      `
-[
-  {
-    "id": "string (globally unique, e.g., shape:container_123)",
-    "type": "geo",
-    "x": number,
-    "y": number,
-    "props": {
-      "geo": "string ('rectangle', 'ellipse', 'line', etc.)",
-      "w": number,
-      "h": number,
-      "color": "string ('black', 'grey', 'white', 'blue', 'red', 'green', 'orange', 'yellow')",
-      "fill": "string ('none', 'solid', 'semi')",
-      "dash": "string ('draw', 'dashed', 'dotted')",
-      "size": "string ('s', 'm', 'l', 'xl')"
-    }
-  },
-  {
-    "id": "string (globally unique, e.g., shape:text_123)",
-    "type": "text",
-    "x": number,
-    "y": number,
-    "props": {
-      "text": "string (the actual text content)",
-      "font": "string ('sans', 'serif', 'mono')",
-      "size": "string ('s', 'm', 'l', 'xl')",
-      "color": "string ('black', 'grey', etc.)",
-      "align": "string ('start', 'middle', 'end')"
-    }
-  }
-]`,
-      '\n\\`\\`\\`',
-      '\n\n**Image Analysis Steps for You (Gemini):**',
-      '\n\n1.  **Overall Structure:** Identify major sections (e.g., top announcement bar, header/navigation, hero section, product grids, testimonial sections, content blocks, footer).',
-      '\n2.  **Element Identification:** Within each section, identify individual visual elements: images, logos, text headings, paragraphs, buttons, input fields, lists, icons, dividers.',
-      '\n3.  **Mapping to tldraw Shapes:** Convert each identified element into the appropriate tldraw shape object based on the "Wireframing Principles" and "Output Format" above.',
-      '\n4.  **Coordinate System:** Use (0,0) as the top-left of the webpage. Estimate all x, y, w, h values.',
-      '\n5.  **Uniqueness:** Ensure every id field is unique (e.g., append a counter or descriptive suffix).',
-      '\n\nNow, analyze the provided webpage screenshot and generate the tldraw JSON array.',
-      `\n\nRemember: The competitor site is ONLY for layout reference. All content must be original and specific to ${contextData?.brandName || 'the brand'}.`,
-      '\n\n**FINAL REMINDER: Your response must be ONLY a complete JSON array starting with [ and ending with ]. No markdown blocks, no explanations, just the raw JSON array.**'
-    ];
-    const userRequestPromptText = userRequestPromptParts.join('');
+    // User additions would be appended here (from brand voice/instructions field)
+    // For now, we'll just use the default prompt
+    const userRequestPromptText = defaultPrompt;
 
     console.log('Starting Gemini API request with model identifier:', selectedModelIdentifier);
 
