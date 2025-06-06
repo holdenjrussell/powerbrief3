@@ -7,31 +7,6 @@ export type Json =
   | Json[]
 
 export type Database = {
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          operationName?: string
-          query?: string
-          variables?: Json
-          extensions?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
       ad_batches: {
@@ -2379,6 +2354,8 @@ export type Database = {
       ugc_email_messages: {
         Row: {
           created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
           from_email: string
           html_content: string
           id: string
@@ -2394,6 +2371,8 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           from_email: string
           html_content: string
           id?: string
@@ -2409,6 +2388,8 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           from_email?: string
           html_content?: string
           id?: string
@@ -2611,27 +2592,39 @@ export type Database = {
       ugc_email_threads: {
         Row: {
           brand_id: string
+          close_reason: string | null
+          closed_at: string | null
+          closed_by: string | null
           created_at: string
           creator_id: string
           id: string
+          is_primary: boolean | null
           status: string | null
           thread_subject: string
           updated_at: string
         }
         Insert: {
           brand_id: string
+          close_reason?: string | null
+          closed_at?: string | null
+          closed_by?: string | null
           created_at?: string
           creator_id: string
           id?: string
+          is_primary?: boolean | null
           status?: string | null
           thread_subject: string
           updated_at?: string
         }
         Update: {
           brand_id?: string
+          close_reason?: string | null
+          closed_at?: string | null
+          closed_by?: string | null
           created_at?: string
           creator_id?: string
           id?: string
+          is_primary?: boolean | null
           status?: string | null
           thread_subject?: string
           updated_at?: string
@@ -2649,6 +2642,126 @@ export type Database = {
             columns: ["creator_id"]
             isOneToOne: false
             referencedRelation: "ugc_creators"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ugc_form_field_options: {
+        Row: {
+          created_at: string
+          display_order: number | null
+          field_name: string
+          form_config_id: string
+          id: string
+          is_active: boolean | null
+          option_label: string
+          option_value: string
+        }
+        Insert: {
+          created_at?: string
+          display_order?: number | null
+          field_name: string
+          form_config_id: string
+          id?: string
+          is_active?: boolean | null
+          option_label: string
+          option_value: string
+        }
+        Update: {
+          created_at?: string
+          display_order?: number | null
+          field_name?: string
+          form_config_id?: string
+          id?: string
+          is_active?: boolean | null
+          option_label?: string
+          option_value?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ugc_form_field_options_form_config_id_fkey"
+            columns: ["form_config_id"]
+            isOneToOne: false
+            referencedRelation: "ugc_onboarding_form_configs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ugc_form_submissions: {
+        Row: {
+          brand_id: string
+          created_at: string
+          creator_id: string | null
+          form_config_id: string
+          id: string
+          review_notes: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          submission_data: Json
+          submitted_ip: string | null
+          updated_at: string
+          user_agent: string | null
+          utm_campaign: string | null
+          utm_medium: string | null
+          utm_source: string | null
+        }
+        Insert: {
+          brand_id: string
+          created_at?: string
+          creator_id?: string | null
+          form_config_id: string
+          id?: string
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          submission_data?: Json
+          submitted_ip?: string | null
+          updated_at?: string
+          user_agent?: string | null
+          utm_campaign?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+        }
+        Update: {
+          brand_id?: string
+          created_at?: string
+          creator_id?: string | null
+          form_config_id?: string
+          id?: string
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          submission_data?: Json
+          submitted_ip?: string | null
+          updated_at?: string
+          user_agent?: string | null
+          utm_campaign?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ugc_form_submissions_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ugc_form_submissions_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "ugc_creators"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ugc_form_submissions_form_config_id_fkey"
+            columns: ["form_config_id"]
+            isOneToOne: false
+            referencedRelation: "ugc_onboarding_form_configs"
             referencedColumns: ["id"]
           },
         ]
@@ -2935,6 +3048,80 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "ugc_message_templates_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ugc_onboarding_form_configs: {
+        Row: {
+          auto_assign_status: string | null
+          brand_id: string
+          branding: Json | null
+          collect_address: boolean | null
+          collect_demographics: boolean | null
+          collect_portfolio: boolean | null
+          collect_social_handles: boolean | null
+          created_at: string
+          custom_fields: Json | null
+          description: string | null
+          form_name: string
+          id: string
+          is_active: boolean | null
+          is_public: boolean | null
+          notification_emails: string[] | null
+          requires_approval: boolean | null
+          success_message: string | null
+          updated_at: string
+          welcome_message: string | null
+        }
+        Insert: {
+          auto_assign_status?: string | null
+          brand_id: string
+          branding?: Json | null
+          collect_address?: boolean | null
+          collect_demographics?: boolean | null
+          collect_portfolio?: boolean | null
+          collect_social_handles?: boolean | null
+          created_at?: string
+          custom_fields?: Json | null
+          description?: string | null
+          form_name?: string
+          id?: string
+          is_active?: boolean | null
+          is_public?: boolean | null
+          notification_emails?: string[] | null
+          requires_approval?: boolean | null
+          success_message?: string | null
+          updated_at?: string
+          welcome_message?: string | null
+        }
+        Update: {
+          auto_assign_status?: string | null
+          brand_id?: string
+          branding?: Json | null
+          collect_address?: boolean | null
+          collect_demographics?: boolean | null
+          collect_portfolio?: boolean | null
+          collect_social_handles?: boolean | null
+          created_at?: string
+          custom_fields?: Json | null
+          description?: string | null
+          form_name?: string
+          id?: string
+          is_active?: boolean | null
+          is_public?: boolean | null
+          notification_emails?: string[] | null
+          requires_approval?: boolean | null
+          success_message?: string | null
+          updated_at?: string
+          welcome_message?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ugc_onboarding_form_configs_brand_id_fkey"
             columns: ["brand_id"]
             isOneToOne: false
             referencedRelation: "brands"
@@ -3569,6 +3756,10 @@ export type Database = {
           policy_definition: string
         }[]
       }
+      close_email_thread: {
+        Args: { p_thread_id: string; p_user_id: string; p_reason?: string }
+        Returns: boolean
+      }
       create_account: {
         Args: { slug?: string; name?: string }
         Returns: Json
@@ -3588,6 +3779,10 @@ export type Database = {
       current_user_account_role: {
         Args: { account_id: string }
         Returns: Json
+      }
+      delete_email_message: {
+        Args: { p_message_id: string; p_user_id: string }
+        Returns: boolean
       }
       delete_invitation: {
         Args: { invitation_id: string }
@@ -3672,6 +3867,10 @@ export type Database = {
           urgent: boolean
         }[]
       }
+      get_or_create_primary_email_thread: {
+        Args: { p_creator_id: string; p_brand_id: string; p_subject?: string }
+        Returns: string
+      }
       get_personal_account: {
         Args: Record<PropertyKey, never>
         Returns: Json
@@ -3710,6 +3909,10 @@ export type Database = {
       lookup_invitation: {
         Args: { lookup_invitation_token: string }
         Returns: Json
+      }
+      normalize_email_subject: {
+        Args: { subject: string }
+        Returns: string
       }
       remove_account_member: {
         Args: { account_id: string; user_id: string }
@@ -3854,9 +4057,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {},
   },
