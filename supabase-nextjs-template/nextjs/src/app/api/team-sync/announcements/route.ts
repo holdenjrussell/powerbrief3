@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
+import { cookies } from 'next/headers';
 import { createClient } from '@/utils/supabase/server';
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const supabase = await createClient();
     
@@ -10,19 +12,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { searchParams } = new URL(request.url);
-    const brandId = searchParams.get('brandId');
-
-    let query = supabase
+    const { data: announcements, error } = await supabase
       .from('announcements')
-      .select('*');
-
-    // Filter by brand if brandId is provided
-    if (brandId) {
-      query = query.eq('brand_id', brandId);
-    }
-
-    const { data: announcements, error } = await query
+      .select('*')
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -39,7 +31,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient();
+    const supabase = createRouteHandlerClient({ cookies });
     
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
@@ -47,34 +39,21 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { title, content, priority = 'normal', brand_id } = body;
+    const { title, content, priority = 'normal' } = body;
 
     if (!title || !content) {
       return NextResponse.json({ error: 'Title and content are required' }, { status: 400 });
     }
 
-    const insertData: {
-      user_id: string;
-      title: string;
-      content: string;
-      priority: string;
-      brand_id?: string;
-    } = {
-      user_id: session.user.id,
-      title,
-      content,
-      priority
-    };
-
-    // Add brand_id if provided
-    if (brand_id) {
-      insertData.brand_id = brand_id;
-    }
-
     const { data: announcement, error } = await supabase
       .from('announcements')
-      .insert(insertData)
-      .select()
+      .insert({
+        user_id: session.user.id,
+        title,
+        content,
+        priority
+      })
+      .select('*')
       .single();
 
     if (error) {
@@ -90,7 +69,7 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const supabase = await createClient();
+    const supabase = createRouteHandlerClient({ cookies });
     
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
@@ -98,36 +77,28 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { id, title, content, priority, brand_id } = body;
+    const { id, title, content, priority } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'Announcement ID is required' }, { status: 400 });
     }
 
     const updateData: {
+      updated_at: string;
       title?: string;
       content?: string;
       priority?: string;
-      updated_at: string;
-      brand_id?: string;
-    } = { 
-      title, 
-      content, 
-      priority, 
-      updated_at: new Date().toISOString() 
-    };
-
-    // Add brand_id if provided
-    if (brand_id !== undefined) {
-      updateData.brand_id = brand_id;
-    }
+    } = { updated_at: new Date().toISOString() };
+    
+    if (title !== undefined) updateData.title = title;
+    if (content !== undefined) updateData.content = content;
+    if (priority !== undefined) updateData.priority = priority;
 
     const { data: announcement, error } = await supabase
       .from('announcements')
       .update(updateData)
       .eq('id', id)
-      .eq('user_id', session.user.id)
-      .select()
+      .select('*')
       .single();
 
     if (error) {
@@ -143,7 +114,7 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const supabase = await createClient();
+    const supabase = createRouteHandlerClient({ cookies });
     
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {

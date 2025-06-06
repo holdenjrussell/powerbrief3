@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
+import { cookies } from 'next/headers';
 import { createClient } from '@/utils/supabase/server';
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const supabase = await createClient();
     
@@ -10,20 +12,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { searchParams } = new URL(request.url);
-    const brandId = searchParams.get('brandId');
-
-    let query = supabase
+    const { data: issues, error } = await supabase
       .from('issues')
       .select('*')
-      .eq('user_id', user.id);
-
-    // Filter by brand if brandId is provided
-    if (brandId) {
-      query = query.eq('brand_id', brandId);
-    }
-
-    const { data: issues, error } = await query
       .order('priority_order', { ascending: true });
 
     if (error) {
@@ -40,7 +31,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient();
+    const supabase = createRouteHandlerClient({ cookies });
     
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
@@ -48,40 +39,22 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { title, description, issue_type = 'short_term', assignee_id, priority_order = 0, brand_id } = body;
+    const { title, description, issue_type = 'short_term', assignee_id, priority_order = 0 } = body;
 
     if (!title) {
       return NextResponse.json({ error: 'Title is required' }, { status: 400 });
     }
 
-    // Convert empty string assignee_id to null for UUID field
-    const processedAssigneeId = (assignee_id === '' || assignee_id === undefined || assignee_id === null) ? null : assignee_id;
-
-    const insertData: {
-      user_id: string;
-      title: string;
-      description?: string;
-      issue_type: string;
-      assignee_id: string | null;
-      priority_order: number;
-      brand_id?: string;
-    } = {
-      user_id: session.user.id,
-      title,
-      description,
-      issue_type,
-      assignee_id: processedAssigneeId,
-      priority_order
-    };
-
-    // Add brand_id if provided
-    if (brand_id) {
-      insertData.brand_id = brand_id;
-    }
-
     const { data: issue, error } = await supabase
       .from('issues')
-      .insert(insertData)
+      .insert({
+        user_id: session.user.id,
+        title,
+        description,
+        issue_type,
+        assignee_id,
+        priority_order
+      })
       .select('*')
       .single();
 
@@ -98,7 +71,7 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const supabase = await createClient();
+    const supabase = createRouteHandlerClient({ cookies });
     
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
@@ -106,7 +79,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { id, title, description, issue_type, status, assignee_id, priority_order, brand_id } = body;
+    const { id, title, description, issue_type, status, assignee_id, priority_order } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'Issue ID is required' }, { status: 400 });
@@ -120,17 +93,14 @@ export async function PUT(request: NextRequest) {
       status?: 'open' | 'in_progress' | 'resolved';
       assignee_id?: string | null;
       priority_order?: number;
-      brand_id?: string;
     } = { updated_at: new Date().toISOString() };
 
     if (title !== undefined) updateData.title = title;
     if (description !== undefined) updateData.description = description;
     if (issue_type !== undefined) updateData.issue_type = issue_type;
     if (status !== undefined) updateData.status = status;
-    // Convert empty string assignee_id to null for UUID field
-    if (assignee_id !== undefined) updateData.assignee_id = (assignee_id === '' || assignee_id === null) ? null : assignee_id;
+    if (assignee_id !== undefined) updateData.assignee_id = assignee_id;
     if (priority_order !== undefined) updateData.priority_order = priority_order;
-    if (brand_id !== undefined) updateData.brand_id = brand_id;
 
     const { data: issue, error } = await supabase
       .from('issues')
@@ -152,7 +122,7 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const supabase = await createClient();
+    const supabase = createRouteHandlerClient({ cookies });
     
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {

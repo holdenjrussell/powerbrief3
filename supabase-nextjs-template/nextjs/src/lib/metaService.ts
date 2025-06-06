@@ -1,7 +1,7 @@
-import type { NewMetric } from '@/app/app/scorecard/page';
+import type { NewMetric, FormulaItem } from '@/app/app/scorecard/page';
 
 interface FetchedPeriodData {
-  [metricId: string]: number; // Store metrics as numbers after parsing
+  [baseMetaMetricId: string]: number; // Store base Meta metrics as numbers after parsing
 }
 
 export interface FetchMetaInsightsResult {
@@ -19,30 +19,12 @@ function formatDate(date: Date): string {
   return date.toISOString().split('T')[0];
 }
 
-// Map our metric IDs to the Meta API format expected by the existing endpoint
-function mapMetricIdToApiFormat(metricId: string): string {
-  const metricMapping: Record<string, string> = {
-    'spend': 'spend',
-    'impressions': 'impressions', 
-    'link_clicks': 'link_click',
-    'cpc': 'cpc',
-    'cpm': 'cpm',
-    'ctr': 'ctr',
-    'purchase_roas': 'website_purchase_roas',
-    'revenue': 'website_purchase_revenue',
-    'purchases': 'purchases',
-    'video_thruplay_watched_actions': 'video_thruplay_watched_actions',
-    'video_3s_watched_actions': 'video_3_sec_watched_actions',
-    'reach': 'reach',
-    'frequency': 'frequency',
-    'cpp': 'cpc', // Cost per purchase maps to cpc for now
-  };
-  
-  return metricMapping[metricId] || metricId;
-}
+// // Map our metric IDs to the Meta API format expected by the existing endpoint - THIS MAPPING IS NOW DONE IN BACKEND IF NEEDED
+// function mapMetricIdToApiFormat(metricId: string): string { ... }
 
 /**
  * Fetches insights data from the Meta API via existing scorecard API routes for a given metric configuration and date ranges.
+ * This version sends all required base metrics in one call to the backend.
  *
  * @param metricConfig The configuration of the scorecard metric.
  * @param dateRanges An array of date ranges for which to fetch data.
@@ -57,99 +39,83 @@ export async function fetchMetaInsights(
   const results: FetchMetaInsightsResult = {};
 
   if (metricConfig.dataSource !== 'live_meta') {
-    // Should not happen if called correctly, but as a safeguard
     for (const range of dateRanges) {
       results[range.label] = { error: 'Metric is not configured for Live Meta data.' };
     }
     return results;
   }
 
-  const metaMetricIdsToFetch: string[] = [];
+  const baseMetaMetricKeys: string[] = [];
   if (metricConfig.formula && metricConfig.formula.length > 0) {
     metricConfig.formula.forEach(item => {
       if (item.type === 'metric' && item.value) {
-        if (!metaMetricIdsToFetch.includes(item.value)) {
-          metaMetricIdsToFetch.push(item.value);
+        if (!baseMetaMetricKeys.includes(item.value)) {
+          baseMetaMetricKeys.push(item.value);
         }
       }
     });
   }
 
-  if (metaMetricIdsToFetch.length === 0) {
+  if (baseMetaMetricKeys.length === 0) {
     for (const range of dateRanges) {
       results[range.label] = { error: 'No Meta metrics specified in the formula to fetch.' };
     }
     return results;
   }
 
+  // Prepare the relevant parts of metricConfig to send to the backend
+  const metricConfigPayload = {
+    formula: metricConfig.formula, // Send formula for backend to know which metrics are involved
+    campaignNameFilters: metricConfig.campaignNameFilters,
+    adSetNameFilters: metricConfig.adSetNameFilters,
+    adNameFilters: metricConfig.adNameFilters,
+    periodInterval: metricConfig.periodInterval, // Though backend gets specific date range, this might be useful context
+    // baseMetaMetricKeys: baseMetaMetricKeys, // Sending this explicitly
+  };
+
   // Process each date range
   for (const dateRange of dateRanges) {
     try {
-      const aggregatedData: FetchedPeriodData = {};
-      let hasError = false;
-      let errorMessage = '';
+      const requestPayload = {
+        brandId,
+        metricConfigPayload, // Contains filters, formula (for base keys)
+        baseMetaMetricKeys, // Explicitly send base keys to fetch
+        dateRange: {
+          start: formatDate(dateRange.start),
+          end: formatDate(dateRange.end),
+        },
+      };
 
-      // Fetch each metric individually since the existing API expects one metric at a time
-      for (const metricId of metaMetricIdsToFetch) {
-        try {
-          const mappedMetricId = mapMetricIdToApiFormat(metricId);
-          
-          const requestPayload = {
-            metricId: mappedMetricId,
-            brandId,
-            timePeriod: metricConfig.periodInterval || 'weekly',
-            dateRange: {
-              start: formatDate(dateRange.start),
-              end: formatDate(dateRange.end),
-            },
-            campaignFilters: metricConfig.campaignNameFilters || []
-          };
+      const response = await fetch('/api/scorecard/meta-insights', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify(requestPayload),
+      });
 
-          const response = await fetch('/api/scorecard/meta-insights', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            credentials: 'include',
-            body: JSON.stringify(requestPayload),
-          });
+      const responseData = await response.json();
 
-          const responseData = await response.json();
-
-          if (!response.ok || responseData.error) {
-            console.error(`Error fetching metric ${metricId}:`, responseData.error);
-            hasError = true;
-            errorMessage = `Failed to fetch ${metricId}: ${responseData.error || response.statusText}`;
-            break; // Stop processing other metrics for this period if one fails
-          }
-
-          if (responseData.success && responseData.data && typeof responseData.data.value === 'number') {
-            aggregatedData[metricId] = responseData.data.value;
-          } else {
-            // If no data returned, set to 0
-            aggregatedData[metricId] = 0;
-          }
-        } catch (metricError) {
-          console.error(`Error fetching metric ${metricId}:`, metricError);
-          hasError = true;
-          errorMessage = `Failed to fetch ${metricId}: ${metricError instanceof Error ? metricError.message : 'Unknown error'}`;
-          break;
-        }
-      }
-
-      if (hasError) {
+      if (!response.ok || responseData.error) {
+        console.error(`Error fetching Meta data for period ${dateRange.label}:`, responseData.error, responseData.details);
         results[dateRange.label] = { 
-          error: errorMessage,
-          details: 'One or more metrics failed to load'
+          error: `Failed to fetch data: ${responseData.error || response.statusText}`,
+          details: responseData.details || 'Error response from backend.'
         };
+      } else if (responseData.success && responseData.data) {
+        // Assuming responseData.data is already in FetchedPeriodData format: { spend: 100, impressions: 1000 }
+        results[dateRange.label] = responseData.data as FetchedPeriodData;
       } else {
-        results[dateRange.label] = aggregatedData;
+        results[dateRange.label] = { 
+          error: 'Received unexpected data structure from backend.',
+          details: JSON.stringify(responseData)
+        };
       }
-
     } catch (error: unknown) {
       console.error(`Failed to fetch Meta insights for period ${dateRange.label}:`, error);
       results[dateRange.label] = { 
-        error: 'Failed to fetch data', 
+        error: 'Failed to make request to backend', 
         details: error instanceof Error ? error.message : String(error) 
       };
     }
@@ -179,7 +145,7 @@ async function example() {
     goalValue: 200,
     trailingCalculation: 'average',
     allowManualOverride: false,
-    campaignNameFilters: [{id: '1', name: 'Campaign Name Contains', condition: 'contains', value: 'Summer Sale'}],
+    campaignNameFilters: [{id: '1', name: 'Campaign Name Contains', operator: 'contains', value: 'Summer Sale', case_sensitive: false}], // Corrected operator
     adSetNameFilters: [],
     adNameFilters: [],
   };
