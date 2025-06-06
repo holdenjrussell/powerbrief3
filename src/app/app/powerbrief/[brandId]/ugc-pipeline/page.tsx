@@ -425,117 +425,177 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
         <TabsContent value="script">
           <Card>
             <CardHeader>
-              <CardTitle>Script Creation Tool</CardTitle>
-              <CardDescription>Create and manage UGC scripts with advanced features</CardDescription>
+              <CardTitle>Script Management</CardTitle>
+              <CardDescription>Create and manage UGC scripts for your creators</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-6">
-                <Tabs defaultValue="generator" className="w-full">
-                  <TabsList className="grid w-full grid-cols-4">
-                    <TabsTrigger value="generator">Script Generator</TabsTrigger>
-                    <TabsTrigger value="templates">Templates</TabsTrigger>
-                    <TabsTrigger value="instructions">Instructions</TabsTrigger>
-                    <TabsTrigger value="review">Review</TabsTrigger>
-                  </TabsList>
+                {/* Script Creation Section */}
+                <div className="bg-gradient-to-r from-blue-50 to-purple-50 p-6 rounded-lg border">
+                  <h3 className="text-lg font-semibold mb-2">Create New UGC Script</h3>
+                  <p className="text-gray-600 mb-4">
+                    Select a creator to create a detailed UGC script with AI assistance, custom prompts, and reference videos.
+                  </p>
                   
-                  <TabsContent value="generator" className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <Label htmlFor="script-title">Script Title</Label>
-                        <Input id="script-title" placeholder="Enter script title..." />
-                      </div>
-                      <div>
-                        <Label htmlFor="creator-select">Assign to Creator</Label>
-                        <Select>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select creator" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {creators.map((creator) => (
-                              <SelectItem key={creator.id} value={creator.id}>
-                                {creator.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                  {creators.length > 0 ? (
+                    <div className="flex flex-col sm:flex-row gap-4">
+                      <Select 
+                        onValueChange={(creatorId) => {
+                          if (creatorId) {
+                            router.push(`/app/powerbrief/${brandId}/ugc-pipeline/creators/${creatorId}/new-script`);
+                          }
+                        }}
+                      >
+                        <SelectTrigger className="sm:w-64">
+                          <SelectValue placeholder="Select creator for new script" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {creators.map((creator) => (
+                            <SelectItem key={creator.id} value={creator.id}>
+                              <div className="flex items-center gap-2">
+                                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                {creator.name || creator.email}
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      
+                      <div className="flex gap-2">
+                        <Button
+                          onClick={() => {
+                            if (creators.length === 1) {
+                              router.push(`/app/powerbrief/${brandId}/ugc-pipeline/creators/${creators[0].id}/new-script`);
+                            }
+                          }}
+                          disabled={creators.length !== 1}
+                          className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+                        >
+                          <Sparkles className="h-4 w-4 mr-2" />
+                          Create Script
+                        </Button>
                       </div>
                     </div>
-                    
-                    <div>
-                      <Label htmlFor="script-description">Script Description</Label>
-                      <Textarea 
-                        id="script-description" 
-                        placeholder="Describe what this script should accomplish..."
-                        rows={4}
-                      />
-                    </div>
-                    
-                    <div className="flex gap-2">
-                      <Button>
-                        <Sparkles className="h-4 w-4 mr-2" />
-                        Generate with AI
-                      </Button>
-                      <Button variant="outline">
+                  ) : (
+                    <div className="text-center py-8">
+                      <Users className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                      <p className="text-gray-600 mb-4">No creators available</p>
+                      <p className="text-sm text-gray-500 mb-4">
+                        Add creators to your pipeline to start creating scripts
+                      </p>
+                      <Button
+                        onClick={() => setShowNewCreatorDialog(true)}
+                        variant="outline"
+                      >
                         <Plus className="h-4 w-4 mr-2" />
-                        Create Manually
+                        Add Creator
                       </Button>
                     </div>
-                  </TabsContent>
+                  )}
+                </div>
+
+                {/* Existing Scripts Overview */}
+                <div>
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-semibold">Recent Scripts</h3>
+                    <Link href={`/app/powerbrief/${brandId}/ugc-pipeline?tab=concept`}>
+                      <Button variant="outline" size="sm">
+                        View All Scripts
+                      </Button>
+                    </Link>
+                  </div>
                   
-                  <TabsContent value="templates" className="space-y-4">
+                  {scripts.length > 0 ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {/* Template cards would go here */}
-                      <Card className="p-4">
-                        <h3 className="font-medium mb-2">Product Unboxing</h3>
-                        <p className="text-sm text-gray-600 mb-3">Standard unboxing script template</p>
-                        <Button size="sm" variant="outline" className="w-full">Use Template</Button>
-                      </Card>
-                      <Card className="p-4">
-                        <h3 className="font-medium mb-2">Before & After</h3>
-                        <p className="text-sm text-gray-600 mb-3">Transformation showcase template</p>
-                        <Button size="sm" variant="outline" className="w-full">Use Template</Button>
-                      </Card>
-                      <Card className="p-4">
-                        <h3 className="font-medium mb-2">Tutorial Style</h3>
-                        <p className="text-sm text-gray-600 mb-3">Educational content template</p>
-                        <Button size="sm" variant="outline" className="w-full">Use Template</Button>
-                      </Card>
+                      {scripts.slice(0, 6).map((script) => (
+                        <Card key={script.id} className="p-4 hover:shadow-md transition-shadow">
+                          <div className="flex justify-between items-start mb-2">
+                            <h4 className="font-medium truncate">{script.title}</h4>
+                            <Badge 
+                              variant={script.status === 'approved' ? 'default' : 'secondary'}
+                              className="text-xs"
+                            >
+                              {script.status}
+                            </Badge>
+                          </div>
+                          <p className="text-sm text-gray-600 mb-3">
+                            Creator: {creators.find(c => c.id === script.creator_id)?.name || 'Unknown'}
+                          </p>
+                          <div className="flex gap-2">
+                            <Link href={`/app/powerbrief/${brandId}/ugc-pipeline/scripts/${script.id}`}>
+                              <Button size="sm" variant="outline" className="flex-1">
+                                <FileText className="h-3 w-3 mr-1" />
+                                View
+                              </Button>
+                            </Link>
+                            <Link href={`/app/powerbrief/${brandId}/ugc-pipeline/scripts/${script.id}/edit`}>
+                              <Button size="sm" variant="outline">
+                                <Edit className="h-3 w-3" />
+                              </Button>
+                            </Link>
+                          </div>
+                        </Card>
+                      ))}
                     </div>
-                  </TabsContent>
-                  
-                  <TabsContent value="instructions" className="space-y-4">
-                    <div>
-                      <Label htmlFor="filming-notes">Filming Instructions</Label>
-                      <Textarea 
-                        id="filming-notes" 
-                        placeholder="Specific filming instructions for this script..."
-                        rows={6}
-                        value={filmingInstructions}
-                        onChange={(e) => setFilmingInstructions(e.target.value)}
-                      />
+                  ) : (
+                    <div className="text-center py-12 text-gray-500">
+                      <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                      <p>No scripts created yet</p>
+                      <p className="text-sm">Create your first script to get started</p>
                     </div>
-                    
-                    <div>
-                      <Label htmlFor="additional-notes">Additional Notes</Label>
-                      <Textarea 
-                        id="additional-notes" 
-                        placeholder="Any additional notes or requirements..."
-                        rows={4}
-                      />
-                    </div>
-                  </TabsContent>
-                  
-                  <TabsContent value="review" className="space-y-4">
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <h3 className="font-medium mb-2">Script Preview</h3>
-                      <p className="text-sm text-gray-600">Review your script before sending to creator</p>
-                      <div className="mt-4 space-y-2">
-                        <Button>Send to Creator</Button>
-                        <Button variant="outline">Save as Draft</Button>
+                  )}
+                </div>
+
+                {/* Script Templates */}
+                <div>
+                  <h3 className="text-lg font-semibold mb-4">Script Templates</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <Card className="p-4 hover:shadow-md transition-shadow cursor-pointer border-dashed">
+                      <div className="text-center">
+                        <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mx-auto mb-3">
+                          <Sparkles className="h-6 w-6 text-blue-600" />
+                        </div>
+                        <h4 className="font-medium mb-2">Product Unboxing</h4>
+                        <p className="text-sm text-gray-600 mb-3">
+                          Standard template for unboxing and first impressions
+                        </p>
+                        <Badge variant="outline" className="text-xs">
+                          Template
+                        </Badge>
                       </div>
-                    </div>
-                  </TabsContent>
-                </Tabs>
+                    </Card>
+                    
+                    <Card className="p-4 hover:shadow-md transition-shadow cursor-pointer border-dashed">
+                      <div className="text-center">
+                        <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mx-auto mb-3">
+                          <Zap className="h-6 w-6 text-green-600" />
+                        </div>
+                        <h4 className="font-medium mb-2">Before & After</h4>
+                        <p className="text-sm text-gray-600 mb-3">
+                          Showcase transformation and results
+                        </p>
+                        <Badge variant="outline" className="text-xs">
+                          Template
+                        </Badge>
+                      </div>
+                    </Card>
+                    
+                    <Card className="p-4 hover:shadow-md transition-shadow cursor-pointer border-dashed">
+                      <div className="text-center">
+                        <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mx-auto mb-3">
+                          <FileText className="h-6 w-6 text-purple-600" />
+                        </div>
+                        <h4 className="font-medium mb-2">Tutorial Style</h4>
+                        <p className="text-sm text-gray-600 mb-3">
+                          Educational content and how-to guides
+                        </p>
+                        <Badge variant="outline" className="text-xs">
+                          Template
+                        </Badge>
+                      </div>
+                    </Card>
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>
