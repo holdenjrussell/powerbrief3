@@ -4,7 +4,10 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('🤖 AI Chat: Starting request processing');
+    
     if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
+      console.error('🚨 Google AI API key not configured');
       return NextResponse.json({ error: 'AI service not configured' }, { status: 500 });
     }
     
@@ -14,86 +17,157 @@ export async function POST(request: NextRequest) {
     // Get user from session
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
+      console.error('🚨 Authentication failed:', authError);
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { brandId, brandName, message } = await request.json();
+    const body = await request.json();
+    console.log('🤖 AI Chat: Request body received:', { brandId: body.brandId, messageLength: body.message?.length });
+    
+    const { brandId, brandName, message } = body;
 
     if (!brandId || !message) {
+      console.error('🚨 Missing required fields:', { brandId: !!brandId, message: !!message });
       return NextResponse.json({ 
         error: 'Brand ID and message are required' 
       }, { status: 400 });
     }
 
-    // Fetch comprehensive UGC pipeline data
+    // Initialize default values for safety
+    let creators: unknown[] = [];
+    let scripts: unknown[] = [];
+    let emailThreads: unknown[] = [];
+    let aiActions: unknown[] = [];
+    let emailSequences: unknown[] = [];
+    let brandSettings: unknown = null;
+
+    // Fetch comprehensive UGC pipeline data with individual error handling
     console.log('🤖 AI Chat: Fetching comprehensive pipeline data for', brandName);
 
-    // 1. Get detailed creator information
-    const { data: creators, error: creatorsError } = await supabase
-      .from('ugc_creators')
-      .select(`
-        id, name, status, email, platforms, content_types, products,
-        contract_status, per_script_fee, product_shipped, product_shipment_status,
-        contacted_by, created_at, updated_at
-      `)
-      .eq('brand_id', brandId)
-      .order('updated_at', { ascending: false });
+    // 1. Get detailed creator information - with error handling
+    try {
+      const { data, error } = await supabase
+        .from('ugc_creators')
+        .select(`
+          id, name, status, email, platforms, content_types, products,
+          contract_status, per_script_fee, product_shipped, product_shipment_status,
+          contacted_by, created_at, updated_at
+        `)
+        .eq('brand_id', brandId)
+        .order('updated_at', { ascending: false });
+      
+      if (error) {
+        console.error('Error fetching creators:', error);
+      } else {
+        creators = data || [];
+        console.log('✅ Fetched creators:', creators.length);
+      }
+    } catch (error) {
+      console.error('🚨 Critical error fetching creators:', error);
+    }
 
-    // 2. Get all UGC scripts with concept statuses
-    const { data: scripts, error: scriptsError } = await supabase
-      .from('ugc_creator_scripts')
-      .select(`
-        id, creator_id, title, concept_status, 
-        script_content, filming_instructions, created_at, updated_at
-      `)
-      .eq('brand_id', brandId)
-      .order('updated_at', { ascending: false });
+    // 2. Get all UGC scripts with concept statuses - with error handling
+    try {
+      const { data, error } = await supabase
+        .from('ugc_creator_scripts')
+        .select(`
+          id, creator_id, title, concept_status, 
+          script_content, filming_instructions, created_at, updated_at
+        `)
+        .eq('brand_id', brandId)
+        .order('updated_at', { ascending: false });
+      
+      if (error) {
+        console.error('Error fetching scripts:', error);
+      } else {
+        scripts = data || [];
+        console.log('✅ Fetched scripts:', scripts.length);
+      }
+    } catch (error) {
+      console.error('🚨 Critical error fetching scripts:', error);
+    }
 
-    // 3. Get email thread summary
-    const { data: emailThreads, error: emailError } = await supabase
-      .from('ugc_email_threads')
-      .select(`
-        id, creator_id, thread_subject, status, created_at, updated_at
-      `)
-      .eq('brand_id', brandId)
-      .order('updated_at', { ascending: false })
-      .limit(20);
+    // 3. Get email thread summary - with error handling
+    try {
+      const { data, error } = await supabase
+        .from('ugc_email_threads')
+        .select(`
+          id, creator_id, thread_subject, status, created_at, updated_at
+        `)
+        .eq('brand_id', brandId)
+        .order('updated_at', { ascending: false })
+        .limit(20);
+      
+      if (error) {
+        console.error('Error fetching email threads:', error);
+      } else {
+        emailThreads = data || [];
+        console.log('✅ Fetched email threads:', emailThreads.length);
+      }
+    } catch (error) {
+      console.error('🚨 Critical error fetching email threads:', error);
+    }
 
-    // 4. Get AI coordinator actions and recommendations
-    const { data: aiActions, error: aiActionsError } = await supabase
-      .from('ugc_ai_coordinator_actions')
-      .select(`
-        id, action_type, action_data, creator_id, created_at
-      `)
-      .eq('brand_id', brandId)
-      .order('created_at', { ascending: false })
-      .limit(20);
+    // 4. Get AI coordinator actions and recommendations - with error handling
+    try {
+      const { data, error } = await supabase
+        .from('ugc_ai_coordinator_actions')
+        .select(`
+          id, action_type, action_data, creator_id, created_at
+        `)
+        .eq('brand_id', brandId)
+        .order('created_at', { ascending: false })
+        .limit(20);
+      
+      if (error) {
+        console.error('Error fetching AI actions:', error);
+      } else {
+        aiActions = data || [];
+        console.log('✅ Fetched AI actions:', aiActions.length);
+      }
+    } catch (error) {
+      console.error('🚨 Critical error fetching AI actions:', error);
+    }
 
-    // 5. Get email sequences
-    const { data: emailSequences, error: sequencesError } = await supabase
-      .from('ugc_email_sequences')
-      .select('*')
-      .eq('brand_id', brandId)
-      .order('step_order');
+    // 5. Get email sequences - with error handling
+    try {
+      const { data, error } = await supabase
+        .from('ugc_email_sequences')
+        .select('*')
+        .eq('brand_id', brandId)
+        .order('step_order');
+      
+      if (error) {
+        console.error('Error fetching email sequences:', error);
+      } else {
+        emailSequences = data || [];
+        console.log('✅ Fetched email sequences:', emailSequences.length);
+      }
+    } catch (error) {
+      console.error('🚨 Critical error fetching email sequences:', error);
+    }
 
-    // 6. Get brand UGC settings
-    const { data: brandSettings, error: brandError } = await supabase
-      .from('brands')
-      .select(`
-        name, email_identifier, 
-        ugc_company_description, ugc_guide_description, 
-        ugc_filming_instructions, ugc_default_system_instructions
-      `)
-      .eq('id', brandId)
-      .single();
-
-    // Log any errors but continue
-    if (creatorsError) console.error('Error fetching creators:', creatorsError);
-    if (scriptsError) console.error('Error fetching scripts:', scriptsError);
-    if (emailError) console.error('Error fetching emails:', emailError);
-    if (aiActionsError) console.error('Error fetching AI actions:', aiActionsError);
-    if (sequencesError) console.error('Error fetching sequences:', sequencesError);
-    if (brandError) console.error('Error fetching brand settings:', brandError);
+    // 6. Get brand UGC settings - with error handling
+    try {
+      const { data, error } = await supabase
+        .from('brands')
+        .select(`
+          name, email_identifier, 
+          ugc_company_description, ugc_guide_description, 
+          ugc_filming_instructions, ugc_default_system_instructions
+        `)
+        .eq('id', brandId)
+        .single();
+      
+      if (error) {
+        console.error('Error fetching brand settings:', error);
+      } else {
+        brandSettings = data;
+        console.log('✅ Fetched brand settings');
+      }
+    } catch (error) {
+      console.error('🚨 Critical error fetching brand settings:', error);
+    }
 
     // Process and analyze the data
     const totalCreators = creators?.length || 0;
