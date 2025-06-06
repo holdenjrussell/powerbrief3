@@ -41,6 +41,8 @@ import {
 import { UgcCreator, UgcCreatorScript, UGC_CREATOR_SCRIPT_CONCEPT_STATUSES, UGC_CREATOR_ONBOARDING_STATUSES } from '@/lib/types/ugcCreator';
 import { CreatorCard, ScriptCard, CreatorForm } from '@/components/ugc-creator';
 import UgcAiCoordinatorPanel from '@/components/ugc-coordinator/UgcAiCoordinatorPanel';
+import EmailTemplateGenerator from '@/components/ugc/EmailTemplateGenerator';
+import AiChatAssistant from '@/components/ugc/AiChatAssistant';
 import { Brand } from '@/lib/types/powerbrief';
 import { useRouter } from 'next/navigation';
 
@@ -61,7 +63,7 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
   const [brand, setBrand] = useState<Brand | null>(null);
   const [creators, setCreators] = useState<UgcCreator[]>([]);
   const [scripts, setScripts] = useState<UgcCreatorScript[]>([]);
-  const [activeView, setActiveView] = useState<'concept' | 'script' | 'creator' | 'settings' | 'ai-agent' | 'inbox'>('concept');
+  const [activeView, setActiveView] = useState<'concept' | 'script' | 'creator' | 'settings' | 'ai-agent' | 'inbox' | 'templates'>('concept');
   const [activeStatus, setActiveStatus] = useState<string>(UGC_CREATOR_SCRIPT_CONCEPT_STATUSES[0]);
   
   // Dialog state
@@ -271,7 +273,7 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
     }
   };
 
-  const handleViewChange = (view: 'concept' | 'script' | 'creator' | 'settings' | 'ai-agent' | 'inbox') => {
+  const handleViewChange = (view: 'concept' | 'script' | 'creator' | 'settings' | 'ai-agent' | 'inbox' | 'templates') => {
     if (view === 'inbox') {
       // Redirect to the dedicated inbox page
       router.push(`/app/powerbrief/${brandId}/ugc-pipeline/inbox`);
@@ -357,11 +359,15 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
         </Alert>
       )}
       
-      <Tabs value={activeView} onValueChange={(v: string) => handleViewChange(v as 'concept' | 'script' | 'creator' | 'settings' | 'ai-agent' | 'inbox')}>
+      <Tabs value={activeView} onValueChange={(v: string) => handleViewChange(v as 'concept' | 'script' | 'creator' | 'settings' | 'ai-agent' | 'inbox' | 'templates')}>
         <TabsList className="mb-4">
           <TabsTrigger value="concept">Concept View</TabsTrigger>
           <TabsTrigger value="script">Script Creation</TabsTrigger>
           <TabsTrigger value="creator">Creator View</TabsTrigger>
+          <TabsTrigger value="templates">
+            <Sparkles className="h-4 w-4 mr-2" />
+            Email Templates
+          </TabsTrigger>
           <TabsTrigger value="ai-agent">
             <Bot className="h-4 w-4 mr-2" />
             AI UGC Agent
@@ -666,6 +672,15 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
           </Card>
         </TabsContent>
 
+        <TabsContent value="templates">
+          {brand && (
+            <EmailTemplateGenerator 
+              brandId={brand.id}
+              brandName={brand.name}
+            />
+          )}
+        </TabsContent>
+
         <TabsContent value="ai-agent">
           {brand && (
             <UgcAiCoordinatorPanel 
@@ -773,6 +788,15 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Floating AI Chat Assistant */}
+      {brand && (
+        <AiChatAssistant 
+          brandId={brand.id}
+          brandName={brand.name}
+          creators={creators.map(c => ({ id: c.id, name: c.name || c.email || 'Unknown', status: c.status }))}
+        />
+      )}
     </div>
   );
 } 

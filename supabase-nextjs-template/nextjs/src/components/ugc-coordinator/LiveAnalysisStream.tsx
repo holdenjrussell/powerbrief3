@@ -45,9 +45,9 @@ export default function LiveAnalysisStream({ brandId, triggerElement }: LiveAnal
   const [isOpen, setIsOpen] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const [events, setEvents] = useState<StreamEvent[]>([]);
-  const [eventSource, setEventSource] = useState<EventSource | null>(null);
   const eventsEndRef = useRef<HTMLDivElement>(null);
   const eventIdCounter = useRef(0);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const scrollToBottom = () => {
     eventsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -57,70 +57,128 @@ export default function LiveAnalysisStream({ brandId, triggerElement }: LiveAnal
     scrollToBottom();
   }, [events]);
 
+  // Cleanup on unmount or when dialog closes
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+    };
+  }, []);
+
+  // Cleanup when dialog closes
+  useEffect(() => {
+    if (!isOpen && isStreaming) {
+      stopStream();
+    }
+  }, [isOpen, isStreaming]);
+
   const startStream = async () => {
     try {
       setIsStreaming(true);
       setEvents([]);
 
-      // Start the streaming analysis
+      // Create abort controller for cleanup
+      const abortController = new AbortController();
+      abortControllerRef.current = abortController;
+
+      // Start the streaming analysis with proper SSE handling
       const response = await fetch('/api/ugc/ai-coordinator/analyze-stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ brandId })
+        body: JSON.stringify({ brandId }),
+        signal: abortController.signal
       });
 
       if (!response.ok) {
-        throw new Error('Failed to start analysis stream');
+        throw new Error(`Failed to start analysis stream: ${response.status} ${response.statusText}`);
       }
 
-      // Set up EventSource for SSE
-      const eventSourceUrl = `/api/ugc/ai-coordinator/analyze-stream`;
-      const es = new EventSource(eventSourceUrl);
-      setEventSource(es);
+      if (!response.body) {
+        throw new Error('No response body received');
+      }
 
-      es.onopen = () => {
-        addEvent('connection', { message: 'Connected to analysis stream' });
-      };
+      // Read the streaming response
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
 
-      // Handle different event types
-      const eventTypes = [
-        'started', 'step', 'batch_start', 'batch_complete', 'creator_start', 
-        'creator_complete', 'creator_error', 'analysis_start', 'analysis_skip',
-        'context_prep', 'scripts_loaded', 'actions_loaded', 'prompt_ready',
-        'gemini_call', 'api_attempt', 'api_success', 'api_retry', 'rate_limit_wait',
-        'retry_delay', 'response_received', 'parse_success', 'parse_error',
-        'analysis_result', 'analysis_logged', 'analysis_error', 'delay',
-        'summary', 'completed', 'error', 'done'
-      ];
+      addEvent('connection', { message: 'Connected to analysis stream' });
 
-      eventTypes.forEach(eventType => {
-        es.addEventListener(eventType, (event) => {
-          try {
-            const data = JSON.parse(event.data);
-            addEvent(eventType, data);
-          } catch (error) {
-            console.error('Failed to parse event data:', error);
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          
+          if (done) {
+            addEvent('connection', { message: 'Stream ended' });
+            break;
           }
-        });
-      });
 
-      es.onerror = (error) => {
-        console.error('EventSource error:', error);
-        addEvent('error', { message: 'Stream connection error' });
+          // Decode the chunk
+          const chunk = decoder.decode(value, { stream: true });
+          
+          // Parse SSE events from the chunk
+          const events = chunk.split('\n\n').filter(event => event.trim());
+          
+          for (const eventData of events) {
+            if (eventData.trim()) {
+              try {
+                // Parse SSE format: "event: type\ndata: {...}"
+                const lines = eventData.trim().split('\n');
+                let eventType = 'message';
+                let data = '';
+                
+                for (const line of lines) {
+                  if (line.startsWith('event: ')) {
+                    eventType = line.substring(7);
+                  } else if (line.startsWith('data: ')) {
+                    data = line.substring(6);
+                  }
+                }
+                
+                if (data) {
+                  const parsedData = JSON.parse(data);
+                  addEvent(eventType, parsedData);
+                }
+              } catch (parseError) {
+                console.warn('Failed to parse SSE event:', eventData, parseError);
+              }
+            }
+          }
+        }
+      } catch (streamError) {
+        console.error('Stream reading error:', streamError);
+        
+        // Don't show error if the stream was aborted
+        if (streamError instanceof Error && streamError.name === 'AbortError') {
+          addEvent('connection', { message: 'Stream reading cancelled' });
+        } else {
+          addEvent('error', { message: `Stream error: ${streamError instanceof Error ? streamError.message : 'Unknown error'}` });
+        }
+      } finally {
+        reader.releaseLock();
         setIsStreaming(false);
-      };
+      }
 
     } catch (error) {
       console.error('Failed to start stream:', error);
-      addEvent('error', { message: error instanceof Error ? error.message : 'Failed to start stream' });
+      
+      // Don't show error if the request was aborted (user stopped the stream)
+      if (error instanceof Error && error.name === 'AbortError') {
+        addEvent('connection', { message: 'Stream cancelled by user' });
+      } else {
+        addEvent('error', { message: `Failed to start stream: ${error instanceof Error ? error.message : 'Unknown error'}` });
+      }
+      
       setIsStreaming(false);
+      abortControllerRef.current = null;
     }
   };
 
   const stopStream = () => {
-    if (eventSource) {
-      eventSource.close();
-      setEventSource(null);
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
     }
     setIsStreaming(false);
     addEvent('stopped', { message: 'Stream stopped by user' });
