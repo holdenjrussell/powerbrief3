@@ -6,77 +6,23 @@ import { Json } from '@/lib/types/supabase';
 type TLStoreSnapshot = Record<string, unknown>;
 type Editor = {
   store: {
-    getSnapshot?: () => TLStoreSnapshot; // Deprecated - we'll use tldraw functions instead
-    loadSnapshot?: (snapshot: TLStoreSnapshot) => void; // Deprecated
-    listen: (callback: () => void, options?: { scope: string }) => () => void;
+    getSnapshot?: () => TLStoreSnapshot;
+    loadSnapshot?: (snapshot: TLStoreSnapshot) => void;
   };
 };
 
 interface UseTldrawPersistenceOptions {
   wireframeId: string;
   editor: Editor | null;
-  autoSaveIntervalMs?: number;
-}
-
-// Custom debounce function
-function debounce<T extends (...args: unknown[]) => unknown>(
-  func: T,
-  wait: number
-): T & { cancel: () => void } {
-  let timeout: NodeJS.Timeout | null = null;
-  
-  const debounced = (...args: Parameters<T>) => {
-    if (timeout) clearTimeout(timeout);
-    timeout = setTimeout(() => func(...args), wait);
-  };
-  
-  debounced.cancel = () => {
-    if (timeout) clearTimeout(timeout);
-  };
-  
-  return debounced as T & { cancel: () => void };
 }
 
 export function useTldrawPersistence({ 
   wireframeId, 
-  editor, 
-  autoSaveIntervalMs = 10000  // Much longer interval - 10 seconds
+  editor
 }: UseTldrawPersistenceOptions) {
   const hasLoadedInitialData = useRef(false);
-  const lastSavedSnapshot = useRef<string | null>(null);
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Much less aggressive debounced save function
-  const debouncedSave = useCallback(
-    debounce(async () => {
-      if (!editor) return;
-      
-      try {
-        // Use editor's built-in snapshot methods to avoid conflicts
-        const snapshot = editor.store.getSnapshot();
-        
-        const snapshotString = JSON.stringify(snapshot);
-        
-        // Don't save if it's the same as the last saved snapshot
-        if (lastSavedSnapshot.current === snapshotString) {
-          return;
-        }
-
-        console.log('Saving tldraw data to Supabase...');
-        await updateWireframeTldrawData(wireframeId, { 
-          tldraw_data: JSON.parse(snapshotString) as Json
-        });
-        
-        lastSavedSnapshot.current = snapshotString;
-        console.log('Tldraw data saved successfully');
-      } catch (error) {
-        console.error('Failed to save tldraw data:', error);
-      }
-    }, autoSaveIntervalMs),
-    [wireframeId, autoSaveIntervalMs, editor]
-  );
-
-  // Load initial data from Supabase
+  // Load initial data from Supabase (one-time only)
   const loadInitialData = useCallback(async () => {
     if (!editor || hasLoadedInitialData.current) return;
 
@@ -100,8 +46,7 @@ export function useTldrawPersistence({
         // Try to load the snapshot with error handling
         try {
           editor.store.loadSnapshot(snapshotData);
-          lastSavedSnapshot.current = JSON.stringify(snapshotData);
-          console.log('Tldraw data loaded successfully');
+          console.log('Tldraw data loaded successfully - now using local persistence');
         } catch (loadError) {
           console.error('Failed to load snapshot into tldraw:', loadError);
           console.log('Snapshot data that failed:', snapshotData);
@@ -109,7 +54,7 @@ export function useTldrawPersistence({
           console.log('Continuing with empty canvas due to load error');
         }
       } else {
-        console.log('No existing tldraw data found');
+        console.log('No existing tldraw data found - starting with empty canvas');
       }
     } catch (error) {
       console.error('Failed to load tldraw data:', error);
@@ -119,60 +64,34 @@ export function useTldrawPersistence({
     }
   }, [editor, wireframeId]);
 
-  // Manual save function for immediate saves
+  // Manual save function for explicit saves
   const saveNow = useCallback(async () => {
     if (!editor) return;
 
     try {
-      console.log('Manually saving tldraw data...');
+      console.log('Manually saving tldraw data to Supabase...');
       const snapshot = editor.store.getSnapshot();
       const snapshotString = JSON.stringify(snapshot);
       await updateWireframeTldrawData(wireframeId, { 
         tldraw_data: JSON.parse(snapshotString) as Json
       });
-      lastSavedSnapshot.current = snapshotString;
-      console.log('Manual save completed');
+      console.log('Manual save to Supabase completed');
     } catch (error) {
       console.error('Failed to manually save tldraw data:', error);
       throw error;
     }
   }, [editor, wireframeId]);
 
-  // Set up auto-save when editor changes - with much reduced frequency
+  // Load initial data when editor is ready (no auto-save listeners)
   useEffect(() => {
     if (!editor) return;
 
-    // Load initial data when editor is ready
+    // Only load initial data - no auto-save
     loadInitialData();
-
-    // Much less aggressive auto-save listener - only listen occasionally
-    let isThrottled = false;
-    const throttledListener = () => {
-      if (isThrottled) return;
-      isThrottled = true;
-      
-      // Clear existing timeout
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current);
-      }
-      
-      // Much longer timeout to avoid interfering with user interactions
-      saveTimeoutRef.current = setTimeout(() => {
-        debouncedSave();
-        isThrottled = false;
-      }, 5000); // Wait 5 seconds before attempting save (much longer)
-    };
-
-    const unsubscribe = editor.store.listen(throttledListener, { scope: 'document' });
-
-    return () => {
-      unsubscribe();
-      debouncedSave.cancel();
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current);
-      }
-    };
-  }, [editor, loadInitialData, debouncedSave]);
+    
+    // Let tldraw handle its own local persistence from here
+    console.log('Tldraw persistence initialized - using local storage only. Save to Supabase manually.');
+  }, [editor, loadInitialData]);
 
   return {
     saveNow,

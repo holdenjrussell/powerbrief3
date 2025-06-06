@@ -43,11 +43,10 @@ export default function WireframeEditorPage() {
   const [jsonInput, setJsonInput] = useState('');
   const [isLoadingJson, setIsLoadingJson] = useState(false);
 
-  // Custom persistence hook
+  // Custom persistence hook - manual save only
   const { saveNow, hasLoadedInitialData } = useTldrawPersistence({
     wireframeId,
-    editor: currentEditor,
-    autoSaveIntervalMs: 10000 // Auto-save every 10 seconds (less aggressive)
+    editor: currentEditor
   });
 
   // Valid tldraw colors - expanded list
@@ -636,7 +635,7 @@ Check console for detailed error analysis.`);
         
         {/* Auto-save indicator */}
         <div className="mt-2 text-xs text-gray-400">
-          Auto-saves every 10 seconds • Design persisted to Supabase
+          Manual save only • Changes saved locally • Click save to persist to Supabase
         </div>
       </div>
 
