@@ -838,12 +838,18 @@ Check console for detailed error analysis.`);
               
               setCurrentEditor(editor);
               
-              // Minimal setup - just ensure touch-action is correct
+              // Setup for better trackpad support - allow horizontal scroll
               if (editor) {
                 const container = editor.getContainer();
                 if (container) {
-                  // Set touch-action for proper trackpad/touch support
-                  container.style.touchAction = 'none';
+                  // Use 'manipulation' instead of 'none' to allow scrolling in all directions
+                  // while still preventing default touch behaviors that conflict with drawing
+                  container.style.touchAction = 'manipulation';
+                  
+                  // Ensure the container can handle overflow properly
+                  container.style.overflow = 'visible';
+                  
+                  console.log('🎯 Container setup complete - touchAction: manipulation, overflow: visible');
                 }
               }
             }}

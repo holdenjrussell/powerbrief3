@@ -244,42 +244,37 @@
   }
 }
 
-/* Tldraw Canvas Touch/Scroll Support - DEBUGGING VERSION */
+/* Tldraw Canvas Touch/Scroll Support - Updated for Better Trackpad Support */
 .tl-container {
-  touch-action: none !important;
+  touch-action: manipulation !important;
   user-select: none !important;
   -webkit-user-select: none !important;
   -webkit-touch-callout: none !important;
+  overflow: visible !important;
+  position: relative !important;
 }
 
-/* Temporarily disable other tldraw styles for debugging */
-/*
 .tl-canvas,
 .tl-svg-container {
   touch-action: manipulation !important;
   user-select: none !important;
   -webkit-user-select: none !important;
   -webkit-touch-callout: none !important;
+  overflow: visible !important;
 }
 
-.tl-container * {
-  touch-action: inherit !important;
-}
-
+/* Enhanced trackpad support for all pointer types */
 @media (pointer: fine) {
   .tl-container {
-    touch-action: pan-x pan-y pinch-zoom !important;
-    overflow: visible !important;
+    touch-action: manipulation !important;
   }
   
   .tl-canvas {
     scroll-behavior: auto !important;
-    overflow: visible !important;
   }
 }
 
-.tl-container {
-  position: relative !important;
-  overflow: visible !important;
-}
-*/ 
+/* Allow all children to inherit manipulation touch-action */
+.tl-container * {
+  touch-action: inherit !important;
+} 
