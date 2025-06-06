@@ -113,7 +113,7 @@ export async function processCreatorEmailResponse({
         subject: emailData.subject,
         html_content: emailData.html || '',
         text_content: emailData.text || '',
-        status: 'received',
+        status: 'delivered',
         variables_used: {
           original_headers: emailData.headers,
           attachments: emailData.attachments,

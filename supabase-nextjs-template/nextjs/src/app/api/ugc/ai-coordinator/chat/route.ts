@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { brandId, brandName, message, context } = await request.json();
+    const { brandId, brandName, message } = await request.json();
 
     if (!brandId || !message) {
       return NextResponse.json({ 
@@ -25,63 +25,232 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Get additional context about the brand and creators
+    // Fetch comprehensive UGC pipeline data
+    console.log('🤖 AI Chat: Fetching comprehensive pipeline data for', brandName);
+
+    // 1. Get detailed creator information
     const { data: creators, error: creatorsError } = await supabase
       .from('ugc_creators')
-      .select('id, name, status, email')
-      .eq('brand_id', brandId);
+      .select(`
+        id, name, status, email, platforms, content_types, products,
+        contract_status, per_script_fee, product_shipped, product_shipment_status,
+        contacted_by, created_at, updated_at
+      `)
+      .eq('brand_id', brandId)
+      .order('updated_at', { ascending: false });
 
-    if (creatorsError) {
-      console.error('Error fetching creators:', creatorsError);
-    }
+    // 2. Get all UGC scripts with concept statuses
+    const { data: scripts, error: scriptsError } = await supabase
+      .from('ugc_creator_scripts')
+      .select(`
+        id, creator_id, title, concept_status, 
+        script_content, filming_instructions, created_at, updated_at
+      `)
+      .eq('brand_id', brandId)
+      .order('updated_at', { ascending: false });
+
+    // 3. Get email thread summary
+    const { data: emailThreads, error: emailError } = await supabase
+      .from('ugc_email_threads')
+      .select(`
+        id, creator_id, thread_subject, status, created_at, updated_at
+      `)
+      .eq('brand_id', brandId)
+      .order('updated_at', { ascending: false })
+      .limit(20);
+
+    // 4. Get AI coordinator actions and recommendations
+    const { data: aiActions, error: aiActionsError } = await supabase
+      .from('ugc_ai_coordinator_actions')
+      .select(`
+        id, action_type, action_data, creator_id, created_at
+      `)
+      .eq('brand_id', brandId)
+      .order('created_at', { ascending: false })
+      .limit(20);
+
+    // 5. Get email sequences
+    const { data: emailSequences, error: sequencesError } = await supabase
+      .from('ugc_email_sequences')
+      .select('*')
+      .eq('brand_id', brandId)
+      .order('step_order');
+
+    // 6. Get brand UGC settings
+    const { data: brandSettings, error: brandError } = await supabase
+      .from('brands')
+      .select(`
+        name, email_identifier, 
+        ugc_company_description, ugc_guide_description, 
+        ugc_filming_instructions, ugc_default_system_instructions
+      `)
+      .eq('id', brandId)
+      .single();
+
+    // Log any errors but continue
+    if (creatorsError) console.error('Error fetching creators:', creatorsError);
+    if (scriptsError) console.error('Error fetching scripts:', scriptsError);
+    if (emailError) console.error('Error fetching emails:', emailError);
+    if (aiActionsError) console.error('Error fetching AI actions:', aiActionsError);
+    if (sequencesError) console.error('Error fetching sequences:', sequencesError);
+    if (brandError) console.error('Error fetching brand settings:', brandError);
+
+    // Process and analyze the data
+    const totalCreators = creators?.length || 0;
+    const activeCreators = creators?.filter(c => c.status !== 'Rejected' && c.status !== 'Completed').length || 0;
+    
+    // Concept pipeline analysis
+    const conceptStatuses = scripts?.reduce((acc, script) => {
+      acc[script.concept_status] = (acc[script.concept_status] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>) || {};
+
+    // Creator status distribution
+    const creatorStatuses = creators?.reduce((acc, creator) => {
+      acc[creator.status] = (acc[creator.status] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>) || {};
+
+    // Recent activity summary
+    const recentEmails = emailThreads?.slice(0, 10) || [];
+    const recentAiActions = aiActions?.slice(0, 10) || [];
+    const recentScripts = scripts?.slice(0, 10) || [];
+
+    // Email performance
+    const emailStats = {
+      total: emailThreads?.length || 0,
+      sent: emailThreads?.filter(e => e.status === 'sent').length || 0,
+      delivered: emailThreads?.filter(e => e.status === 'delivered').length || 0,
+      opened: emailThreads?.filter(e => e.status === 'opened').length || 0,
+      failed: emailThreads?.filter(e => e.status === 'failed').length || 0
+    };
 
     const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-preview-05-20' });
 
     const systemPrompt = `
-You are an AI assistant specializing in UGC (User Generated Content) creator pipeline management for ${brandName}. 
+You are an expert AI assistant for UGC (User Generated Content) pipeline management for ${brandName}. You have comprehensive access to all pipeline data and can provide intelligent insights and actionable recommendations.
 
-You are helpful, knowledgeable, and proactive. You can assist with:
-- Analyzing creator performance and pipeline status
-- Generating email templates and sequences
-- Providing strategic recommendations
-- Answering questions about creator management
-- Suggesting follow-up actions and improvements
+=== YOUR CAPABILITIES ===
+You are essentially a human-level UGC pipeline manager with access to:
+• Complete creator database and status tracking
+• Full concept pipeline and script management
+• Email automation and communication history  
+• AI coordinator actions and recommendations
+• Performance analytics and trend analysis
+• Brand settings and configuration data
 
-CURRENT CONTEXT:
-- Brand: ${brandName}
-- Total Creators: ${context?.totalCreators || creators?.length || 0}
-- User's recent context: ${context?.recentMessages?.map((m: { role: string; content: string }) => `${m.role}: ${m.content}`).join('\n') || 'No recent messages'}
+=== CURRENT PIPELINE STATUS ===
 
-CREATOR STATUS OVERVIEW:
-${creators?.map(c => `- ${c.name}: ${c.status}`).join('\n') || 'No creators found'}
+**CREATOR OVERVIEW:**
+• Total Creators: ${totalCreators}
+• Active in Pipeline: ${activeCreators}
+• Creator Status Distribution: ${Object.entries(creatorStatuses).map(([status, count]) => `${status}: ${count}`).join(', ')}
 
-GUIDELINES:
-- Be conversational and friendly, like a knowledgeable assistant
-- Provide actionable insights and specific recommendations
-- When suggesting actions, be specific about next steps
-- If asked about specific creators, reference them by name
-- Keep responses concise but informative
-- If you don't have enough information, ask clarifying questions
-- Suggest concrete actions the user can take
+**CONCEPT PIPELINE:**
+• Total Scripts: ${scripts?.length || 0}
+• Concept Status Distribution: ${Object.entries(conceptStatuses).map(([status, count]) => `${status}: ${count}`).join(', ')}
 
-USER MESSAGE: ${message}
+**EMAIL AUTOMATION:**
+• Total Messages: ${emailStats.total}
+• Delivery Rate: ${emailStats.total > 0 ? Math.round((emailStats.delivered / emailStats.total) * 100) : 0}%
+• Open Rate: ${emailStats.total > 0 ? Math.round((emailStats.opened / emailStats.total) * 100) : 0}%
+• Recent Email Activity: ${recentEmails.length} messages in last batch
 
-Respond as the AI assistant, providing helpful guidance based on the context above.
+**AI COORDINATOR ACTIVITY:**
+• Recent Actions: ${recentAiActions.length} recommendations
+• Active Sequences: ${emailSequences?.length || 0}
+
+=== DETAILED DATA ACCESS ===
+
+**CREATORS:**
+${creators?.map(creator => `
+• ${creator.name || creator.email} (${creator.status})
+  - Platforms: ${Array.isArray(creator.platforms) ? creator.platforms.join(', ') : 'Not specified'}
+  - Content Types: ${Array.isArray(creator.content_types) ? creator.content_types.join(', ') : 'Not specified'}
+  - Contract: ${creator.contract_status}
+  - Fee: $${creator.per_script_fee || 0}/script
+  - Product Shipped: ${creator.product_shipped ? 'Yes' : 'No'}
+  - Last Updated: ${new Date(creator.updated_at).toLocaleDateString()}
+`).join('') || 'No creators found'}
+
+**RECENT SCRIPTS:**
+${recentScripts.map(script => `
+• "${script.title}" - ${script.concept_status}
+  - Creator: ${script.creator_id}
+  - Updated: ${new Date(script.updated_at).toLocaleDateString()}
+`).join('') || 'No scripts found'}
+
+**RECENT EMAIL ACTIVITY:**
+${recentEmails.map(thread => `
+• ${thread.thread_subject} (${thread.status})
+  - Creator: ${thread.creator_id}
+  - Messages: ${thread.id}
+  - Last Updated: ${new Date(thread.updated_at).toLocaleDateString()}
+`).join('') || 'No recent emails'}
+
+**RECENT AI RECOMMENDATIONS:**
+${recentAiActions.map(action => `
+• ${action.action_type} - ${action.creator_id}
+  - Date: ${new Date(action.created_at).toLocaleDateString()}
+`).join('') || 'No recent AI actions'}
+
+**BRAND CONFIGURATION:**
+• Company Description: ${brandSettings?.ugc_company_description ? 'Configured' : 'Not set'}
+• Filming Instructions: ${brandSettings?.ugc_filming_instructions ? 'Configured' : 'Not set'}  
+• AI System Instructions: ${brandSettings?.ugc_default_system_instructions ? 'Configured' : 'Not set'}
+• Email Domain: ${brandSettings?.email_identifier || 'Not configured'}
+
+=== YOUR INTELLIGENCE LEVEL ===
+You should respond as an expert UGC pipeline manager who:
+• Understands the entire creator journey from outreach to content delivery
+• Can identify bottlenecks, opportunities, and optimization strategies
+• Provides specific, actionable recommendations with next steps
+• Asks intelligent follow-up questions when needed
+• Can suggest email templates, sequence improvements, and process automation
+• Understands creator psychology and relationship management
+• Can analyze trends and predict pipeline outcomes
+
+=== RESPONSE GUIDELINES ===
+• Be conversational but professional
+• Provide specific data-driven insights
+• Suggest concrete next steps and actions
+• Reference specific creators, scripts, or emails when relevant
+• Ask clarifying questions if you need more context
+• Always think holistically about the entire pipeline
+• Prioritize high-impact recommendations
+
+USER MESSAGE: "${message}"
+
+Analyze the current pipeline state and provide intelligent guidance based on all available data.
 `;
 
+    console.log('🤖 AI Chat: Generating response with comprehensive context');
+    
     const result = await model.generateContent(systemPrompt);
     const response = await result.response;
     const aiResponse = response.text();
 
     return NextResponse.json({
       success: true,
-      response: aiResponse
+      response: aiResponse,
+      context: {
+        totalCreators,
+        activeCreators,
+        totalScripts: scripts?.length || 0,
+        totalEmails: emailThreads?.length || 0,
+        recentActivity: {
+          scripts: recentScripts.length,
+          emails: recentEmails.length,
+          aiActions: recentAiActions.length
+        }
+      }
     });
 
   } catch (error) {
-    console.error('AI Chat error:', error);
+    console.error('AI Chat comprehensive error:', error);
     return NextResponse.json({ 
-      error: 'Failed to process chat message' 
+      error: 'Failed to process chat message',
+      details: error instanceof Error ? error.message : 'Unknown error'
     }, { status: 500 });
   }
 } 

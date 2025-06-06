@@ -98,7 +98,7 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
   const [defaultSystemInstructions, setDefaultSystemInstructions] = useState('');
   const [systemInstructions, setSystemInstructions] = useState('');
   const [savingSettings, setSavingSettings] = useState(false);
-  
+
   // Reference video state
   const [referenceVideo, setReferenceVideo] = useState<File | null>(null);
   const [referenceVideoUrl, setReferenceVideoUrl] = useState<string>('');
@@ -164,7 +164,7 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
     };
 
     if (brandId) {
-      fetchBrandData();
+    fetchBrandData();
     }
   }, [user?.id, brandId, activeView, activeStatus, systemInstructions]);
 
@@ -421,14 +421,14 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
                     {scripts
                       .filter(script => script.concept_status === activeStatus)
                       .map((script) => (
-                        <ScriptCard
-                          key={script.id}
-                          script={script}
-                          brandId={brandId}
+                      <ScriptCard 
+                        key={script.id} 
+                        script={script}
+                        brandId={brandId}
                           showActionButtons={false}
                           creators={creators}
-                        />
-                      ))}
+                      />
+                    ))}
                     
                     {scripts.filter(script => script.concept_status === activeStatus).length === 0 && (
                       <div className="col-span-full text-center py-12 text-gray-500">
@@ -453,17 +453,17 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
             <CardContent>
               <div className="space-y-6">
                 {/* Creator System Instructions */}
-                <div>
+                  <div>
                   <Label htmlFor="system-instructions">Creator System Instructions</Label>
                   <p className="text-sm text-gray-600 mb-2">
                     Provide specific instructions that will guide the AI when creating scripts for this brand.
                   </p>
-                  <Textarea
+                    <Textarea
                     id="system-instructions"
                     value={systemInstructions}
                     onChange={(e) => setSystemInstructions(e.target.value)}
                     placeholder={defaultSystemInstructions || "Enter system instructions for script generation..."}
-                    className="mt-1"
+                      className="mt-1"
                     rows={6}
                   />
                   <div className="mt-2 flex items-center justify-between">
@@ -478,34 +478,34 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
                     >
                       Use Default
                     </Button>
+                    </div>
                   </div>
-                </div>
-
+                  
                 {/* Reference Video Upload */}
                 <div className="border rounded-lg p-6">
                   <div className="flex items-center justify-between mb-4">
-                    <div>
+                  <div>
                       <h3 className="text-lg font-medium">Reference Video</h3>
                       <p className="text-sm text-gray-600">Upload a reference video to guide content creation</p>
                     </div>
-                    <input
-                      ref={videoInputRef}
-                      type="file"
-                      accept="video/*"
-                      onChange={handleFileChange}
-                      className="hidden"
-                      title="Upload reference video"
-                    />
-                    <Button
+                          <input
+                            ref={videoInputRef}
+                            type="file"
+                            accept="video/*"
+                            onChange={handleFileChange}
+                            className="hidden"
+                            title="Upload reference video"
+                          />
+                            <Button
                       variant="outline"
                       onClick={() => videoInputRef.current?.click()}
                       disabled={!!referenceVideo}
                     >
                       <Upload className="h-4 w-4 mr-2" />
                       Upload Video
-                    </Button>
-                  </div>
-                  
+                            </Button>
+                          </div>
+                          
                   {referenceVideo ? (
                     <div className="space-y-4">
                       <div className="flex items-center justify-between bg-gray-50 rounded-lg p-4">
@@ -520,82 +520,82 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
                             </p>
                           </div>
                         </div>
-                        <Button
-                          variant="outline"
-                          size="sm"
+                    <Button
+                      variant="outline"
+                        size="sm"
                           onClick={handleRemoveVideo}
-                        >
+                      >
                           <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                      
+                      </Button>
+                    </div>
+                    
                       {referenceVideoUrl && (
-                        <div className="space-y-4">
+                    <div className="space-y-4">
                           <video
                             src={referenceVideoUrl}
                             controls
                             className="w-full max-w-md mx-auto rounded-lg"
                           />
                           
-                          <div>
+                            <div>
                             <Label htmlFor="video-notes">Video Notes</Label>
-                            <Textarea
+                              <Textarea
                               id="video-notes"
                               value={referenceVideoNotes}
                               onChange={(e) => setReferenceVideoNotes(e.target.value)}
                               placeholder="Add notes about what aspects of this video should be referenced..."
-                              className="mt-1"
-                              rows={3}
-                            />
-                          </div>
-                        </div>
+                                className="mt-1"
+                                rows={3}
+                              />
+                            </div>
+                            </div>
                       )}
-                    </div>
-                  ) : (
+                        </div>
+                      ) : (
                     <div className="text-center py-8 text-gray-500">
                       <Upload className="h-12 w-12 mx-auto mb-4 opacity-50" />
                       <p>No reference video uploaded</p>
                       <p className="text-sm">Upload a video to provide visual guidance for script creation</p>
-                    </div>
-                  )}
-                </div>
-
+                        </div>
+                      )}
+                  </div>
+                  
                 {/* Company Description */}
-                <div>
-                  <Label htmlFor="company-description">About the Company</Label>
-                  <Textarea
-                    id="company-description"
-                    value={companyDescription}
-                    onChange={(e) => setCompanyDescription(e.target.value)}
+                  <div>
+                    <Label htmlFor="company-description">About the Company</Label>
+                    <Textarea
+                      id="company-description"
+                      value={companyDescription}
+                      onChange={(e) => setCompanyDescription(e.target.value)}
                     placeholder="Describe your company, products, and brand identity"
-                    className="mt-1"
-                    rows={4}
-                  />
-                </div>
-                
-                <div>
-                  <Label htmlFor="guide-description">About the Guide</Label>
-                  <Textarea
-                    id="guide-description"
-                    value={guideDescription}
-                    onChange={(e) => setGuideDescription(e.target.value)}
-                    placeholder="Overview of what the creator will be filming and the goals of the content"
-                    className="mt-1"
-                    rows={4}
-                  />
-                </div>
-                
-                <div>
-                  <Label htmlFor="filming-instructions">Filming Instructions</Label>
-                  <Textarea
-                    id="filming-instructions"
-                    value={filmingInstructions}
-                    onChange={(e) => setFilmingInstructions(e.target.value)}
-                    placeholder="Detailed technical and performance guidance for filming"
-                    className="mt-1"
-                    rows={5}
-                  />
-                </div>
+                      className="mt-1"
+                      rows={4}
+                    />
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="guide-description">About the Guide</Label>
+                    <Textarea
+                      id="guide-description"
+                      value={guideDescription}
+                      onChange={(e) => setGuideDescription(e.target.value)}
+                      placeholder="Overview of what the creator will be filming and the goals of the content"
+                      className="mt-1"
+                      rows={4}
+                    />
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="filming-instructions">Filming Instructions</Label>
+                    <Textarea
+                      id="filming-instructions"
+                      value={filmingInstructions}
+                      onChange={(e) => setFilmingInstructions(e.target.value)}
+                      placeholder="Detailed technical and performance guidance for filming"
+                      className="mt-1"
+                      rows={5}
+                    />
+                  </div>
               </div>
             </CardContent>
           </Card>
@@ -613,7 +613,7 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
                   <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
                 </div>
               ) : (
-                <div className="space-y-6">
+              <div className="space-y-6">
                   {/* Creator Filter/Sort Options */}
                   <div className="flex space-x-4 mb-6">
                     <Select>
@@ -624,7 +624,7 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
                         <SelectItem value="all">All Statuses</SelectItem>
                         {UGC_CREATOR_ONBOARDING_STATUSES.map((status) => (
                           <SelectItem key={status} value={status}>
-                            {status}
+                        {status}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -663,9 +663,9 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
                         <Sparkles className="h-12 w-12 mx-auto mb-4 opacity-50" />
                         <p>No creators found</p>
                         <p className="text-sm">Add creators to start building your UGC pipeline</p>
-                      </div>
-                    )}
                   </div>
+                )}
+              </div>
                 </div>
               )}
             </CardContent>
@@ -766,29 +766,29 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
                   </p>
                 </div>
                 
-                <Button 
-                  onClick={handleSaveSettings}
-                  disabled={savingSettings}
+                  <Button
+                    onClick={handleSaveSettings}
+                    disabled={savingSettings}
                   className="w-full"
-                >
-                  {savingSettings ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      <Save className="h-4 w-4 mr-2" />
-                      Save Settings
-                    </>
-                  )}
-                </Button>
+                  >
+                    {savingSettings ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="h-4 w-4 mr-2" />
+                        Save Settings
+                      </>
+                    )}
+                  </Button>
               </div>
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
-
+      
       {/* Floating AI Chat Assistant */}
       {brand && (
         <AiChatAssistant 
