@@ -18,6 +18,7 @@ import MetaAssetsSelector from '@/components/MetaAssetsSelector';
 import SlackIntegrationCard from '@/components/SlackIntegrationCard';
 import MetaTokenManager from '@/components/MetaTokenManager';
 import BrandSharingManager from '@/components/BrandSharingManager';
+import BrandEmailSettings from '@/components/brand/BrandEmailSettings';
 
 // Helper to unwrap params safely
 type ParamsType = { brandId: string };
@@ -1461,6 +1462,20 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
                         isOwner={brand.user_id === user?.id}
                     />
                 </div>
+                
+                {/* Email Configuration Column */}
+                <Card className="min-w-[420px] max-w-[420px] flex-shrink-0">
+                    <CardHeader>
+                        <CardTitle>Creator Communications</CardTitle>
+                        <CardDescription>Configure email settings for creator communications.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <BrandEmailSettings
+                            brandId={brand.id}
+                            brandName={brand.name}
+                        />
+                    </CardContent>
+                </Card>
             </div>
             
             {/* Delete Brand Dialog */}

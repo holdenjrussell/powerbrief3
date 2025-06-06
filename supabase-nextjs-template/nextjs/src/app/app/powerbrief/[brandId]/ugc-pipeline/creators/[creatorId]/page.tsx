@@ -43,6 +43,7 @@ import {
 } from '@/lib/types/ugcCreator';
 import { ScriptCard } from '@/components/ugc-creator';
 import { Brand } from '@/lib/types/powerbrief';
+import CreatorEmailThreads from '@/components/ugc/CreatorEmailThreads';
 
 // Helper to unwrap params safely
 type ParamsType = { brandId: string; creatorId: string };
@@ -308,6 +309,7 @@ export default function CreatorDetailPage({ params }: { params: ParamsType | Pro
         <TabsList className="mb-6">
           <TabsTrigger value="info">Creator Info</TabsTrigger>
           <TabsTrigger value="scripts">Scripts ({scripts.length})</TabsTrigger>
+          <TabsTrigger value="communications">Communications</TabsTrigger>
         </TabsList>
         
         <TabsContent value="info">
@@ -588,6 +590,10 @@ export default function CreatorDetailPage({ params }: { params: ParamsType | Pro
               </CardContent>
             </Card>
           )}
+        </TabsContent>
+        
+        <TabsContent value="communications">
+          <CreatorEmailThreads creatorId={creatorId} brandId={brandId} />
         </TabsContent>
       </Tabs>
     </div>

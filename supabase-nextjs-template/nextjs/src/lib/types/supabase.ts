@@ -329,6 +329,100 @@ export type Database = {
           },
         ]
       }
+      announcements: {
+        Row: {
+          brand_id: string | null
+          content: string
+          created_at: string
+          id: string
+          priority: string | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          brand_id?: string | null
+          content: string
+          created_at?: string
+          id?: string
+          priority?: string | null
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          brand_id?: string | null
+          content?: string
+          created_at?: string
+          id?: string
+          priority?: string | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "announcements_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      brand_shares: {
+        Row: {
+          accepted_at: string | null
+          brand_id: string
+          created_at: string
+          expires_at: string | null
+          id: string
+          invitation_token: string | null
+          role: string
+          shared_by_user_id: string
+          shared_with_email: string
+          shared_with_user_id: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          brand_id: string
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          invitation_token?: string | null
+          role?: string
+          shared_by_user_id: string
+          shared_with_email: string
+          shared_with_user_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          accepted_at?: string | null
+          brand_id?: string
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          invitation_token?: string | null
+          role?: string
+          shared_by_user_id?: string
+          shared_with_email?: string
+          shared_with_user_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "brand_shares_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       brands: {
         Row: {
           ad_account_id: string | null
@@ -345,6 +439,7 @@ export type Database = {
           dos_and_donts: Json | null
           editing_resources: Json | null
           elevenlabs_api_key: string | null
+          email_identifier: string | null
           id: string
           meta_access_token: string | null
           meta_access_token_auth_tag: string | null
@@ -401,6 +496,7 @@ export type Database = {
           dos_and_donts?: Json | null
           editing_resources?: Json | null
           elevenlabs_api_key?: string | null
+          email_identifier?: string | null
           id?: string
           meta_access_token?: string | null
           meta_access_token_auth_tag?: string | null
@@ -457,6 +553,7 @@ export type Database = {
           dos_and_donts?: Json | null
           editing_resources?: Json | null
           elevenlabs_api_key?: string | null
+          email_identifier?: string | null
           id?: string
           meta_access_token?: string | null
           meta_access_token_auth_tag?: string | null
@@ -898,6 +995,92 @@ export type Database = {
           },
         ]
       }
+      issue_todos: {
+        Row: {
+          created_at: string
+          id: string
+          issue_id: string
+          todo_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          issue_id: string
+          todo_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          issue_id?: string
+          todo_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "issue_todos_issue_id_fkey"
+            columns: ["issue_id"]
+            isOneToOne: false
+            referencedRelation: "issues"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "issue_todos_todo_id_fkey"
+            columns: ["todo_id"]
+            isOneToOne: false
+            referencedRelation: "todos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      issues: {
+        Row: {
+          assignee_id: string | null
+          brand_id: string | null
+          created_at: string
+          description: string | null
+          id: string
+          issue_type: string | null
+          priority_order: number | null
+          status: string | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          assignee_id?: string | null
+          brand_id?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          issue_type?: string | null
+          priority_order?: number | null
+          status?: string | null
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          assignee_id?: string | null
+          brand_id?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          issue_type?: string | null
+          priority_order?: number | null
+          status?: string | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "issues_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organization_members: {
         Row: {
           created_at: string
@@ -1071,6 +1254,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          email: string | null
+          full_name: string | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id: string
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       scorecard_manual_data: {
         Row: {
@@ -1360,6 +1570,42 @@ export type Database = {
           },
         ]
       }
+      todo_issues: {
+        Row: {
+          created_at: string
+          id: string
+          issue_id: string
+          todo_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          issue_id: string
+          todo_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          issue_id?: string
+          todo_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "todo_issues_issue_id_fkey"
+            columns: ["issue_id"]
+            isOneToOne: false
+            referencedRelation: "issues"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "todo_issues_todo_id_fkey"
+            columns: ["todo_id"]
+            isOneToOne: false
+            referencedRelation: "todos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       todo_list: {
         Row: {
           created_at: string
@@ -1392,6 +1638,173 @@ export type Database = {
           urgent?: boolean
         }
         Relationships: []
+      }
+      todos: {
+        Row: {
+          assignee_id: string | null
+          brand_id: string | null
+          completed: boolean | null
+          created_at: string
+          description: string | null
+          due_date: string | null
+          id: string
+          priority: string | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          assignee_id?: string | null
+          brand_id?: string | null
+          completed?: boolean | null
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          priority?: string | null
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          assignee_id?: string | null
+          brand_id?: string | null
+          completed?: boolean | null
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          priority?: string | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "todos_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ugc_ai_coordinator: {
+        Row: {
+          brand_id: string
+          created_at: string
+          email_automation_enabled: boolean | null
+          enabled: boolean | null
+          id: string
+          last_activity_at: string | null
+          model_config: Json | null
+          name: string
+          settings: Json | null
+          slack_notifications_enabled: boolean | null
+          system_prompt: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          brand_id: string
+          created_at?: string
+          email_automation_enabled?: boolean | null
+          enabled?: boolean | null
+          id?: string
+          last_activity_at?: string | null
+          model_config?: Json | null
+          name?: string
+          settings?: Json | null
+          slack_notifications_enabled?: boolean | null
+          system_prompt?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          brand_id?: string
+          created_at?: string
+          email_automation_enabled?: boolean | null
+          enabled?: boolean | null
+          id?: string
+          last_activity_at?: string | null
+          model_config?: Json | null
+          name?: string
+          settings?: Json | null
+          slack_notifications_enabled?: boolean | null
+          system_prompt?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ugc_ai_coordinator_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ugc_ai_coordinator_actions: {
+        Row: {
+          action_data: Json | null
+          action_type: string
+          ai_reasoning: string | null
+          coordinator_id: string
+          created_at: string
+          creator_id: string | null
+          error_message: string | null
+          id: string
+          script_id: string | null
+          success: boolean | null
+        }
+        Insert: {
+          action_data?: Json | null
+          action_type: string
+          ai_reasoning?: string | null
+          coordinator_id: string
+          created_at?: string
+          creator_id?: string | null
+          error_message?: string | null
+          id?: string
+          script_id?: string | null
+          success?: boolean | null
+        }
+        Update: {
+          action_data?: Json | null
+          action_type?: string
+          ai_reasoning?: string | null
+          coordinator_id?: string
+          created_at?: string
+          creator_id?: string | null
+          error_message?: string | null
+          id?: string
+          script_id?: string | null
+          success?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ugc_ai_coordinator_actions_coordinator_id_fkey"
+            columns: ["coordinator_id"]
+            isOneToOne: false
+            referencedRelation: "ugc_ai_coordinator"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ugc_ai_coordinator_actions_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "ugc_creators"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ugc_ai_coordinator_actions_script_id_fkey"
+            columns: ["script_id"]
+            isOneToOne: false
+            referencedRelation: "ugc_creator_scripts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       ugc_creator_scripts: {
         Row: {
@@ -1659,6 +2072,170 @@ export type Database = {
           },
         ]
       }
+      ugc_email_messages: {
+        Row: {
+          created_at: string
+          from_email: string
+          html_content: string
+          id: string
+          message_id: string | null
+          sent_at: string | null
+          status: string | null
+          subject: string
+          template_id: string | null
+          text_content: string
+          thread_id: string
+          to_email: string
+          variables_used: Json | null
+        }
+        Insert: {
+          created_at?: string
+          from_email: string
+          html_content: string
+          id?: string
+          message_id?: string | null
+          sent_at?: string | null
+          status?: string | null
+          subject: string
+          template_id?: string | null
+          text_content: string
+          thread_id: string
+          to_email: string
+          variables_used?: Json | null
+        }
+        Update: {
+          created_at?: string
+          from_email?: string
+          html_content?: string
+          id?: string
+          message_id?: string | null
+          sent_at?: string | null
+          status?: string | null
+          subject?: string
+          template_id?: string | null
+          text_content?: string
+          thread_id?: string
+          to_email?: string
+          variables_used?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ugc_email_messages_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "ugc_email_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ugc_email_messages_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "ugc_email_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ugc_email_templates: {
+        Row: {
+          brand_id: string
+          created_at: string
+          enabled: boolean | null
+          html_content: string
+          id: string
+          name: string
+          pipeline_stage: string
+          subject: string
+          text_content: string
+          trigger_status: string | null
+          updated_at: string
+          user_id: string
+          variables: string[] | null
+        }
+        Insert: {
+          brand_id: string
+          created_at?: string
+          enabled?: boolean | null
+          html_content: string
+          id?: string
+          name: string
+          pipeline_stage: string
+          subject: string
+          text_content: string
+          trigger_status?: string | null
+          updated_at?: string
+          user_id: string
+          variables?: string[] | null
+        }
+        Update: {
+          brand_id?: string
+          created_at?: string
+          enabled?: boolean | null
+          html_content?: string
+          id?: string
+          name?: string
+          pipeline_stage?: string
+          subject?: string
+          text_content?: string
+          trigger_status?: string | null
+          updated_at?: string
+          user_id?: string
+          variables?: string[] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ugc_email_templates_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ugc_email_threads: {
+        Row: {
+          brand_id: string
+          created_at: string
+          creator_id: string
+          id: string
+          status: string | null
+          thread_subject: string
+          updated_at: string
+        }
+        Insert: {
+          brand_id: string
+          created_at?: string
+          creator_id: string
+          id?: string
+          status?: string | null
+          thread_subject: string
+          updated_at?: string
+        }
+        Update: {
+          brand_id?: string
+          created_at?: string
+          creator_id?: string
+          id?: string
+          status?: string | null
+          thread_subject?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ugc_email_threads_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ugc_email_threads_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "ugc_creators"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ugc_script_shares: {
         Row: {
           brand_id: string
@@ -1809,6 +2386,7 @@ export type Database = {
           status: string | null
           structure: Json
           system_instructions: string | null
+          tldraw_data: Json | null
           updated_at: string | null
           user_id: string
         }
@@ -1825,6 +2403,7 @@ export type Database = {
           status?: string | null
           structure?: Json
           system_instructions?: string | null
+          tldraw_data?: Json | null
           updated_at?: string | null
           user_id: string
         }
@@ -1841,6 +2420,7 @@ export type Database = {
           status?: string | null
           structure?: Json
           system_instructions?: string | null
+          tldraw_data?: Json | null
           updated_at?: string | null
           user_id?: string
         }
@@ -1893,9 +2473,17 @@ export type Database = {
       }
     }
     Functions: {
+      accept_brand_share_invitation: {
+        Args: { p_invitation_token: string }
+        Returns: Json
+      }
       accept_invitation: {
         Args: { lookup_invitation_token: string }
         Returns: Json
+      }
+      can_user_edit_brand: {
+        Args: { p_brand_id: string; p_user_id?: string }
+        Returns: boolean
       }
       check_rls_policies: {
         Args: { table_name: string }
@@ -1976,6 +2564,19 @@ export type Database = {
           notes: string
         }[]
       }
+      get_brand_shared_users: {
+        Args: { p_brand_id: string }
+        Returns: {
+          share_id: string
+          user_id: string
+          email: string
+          full_name: string
+          role: string
+          status: string
+          shared_at: string
+          accepted_at: string
+        }[]
+      }
       get_my_todo_list: {
         Args: {
           page_num: number
@@ -1997,6 +2598,18 @@ export type Database = {
       get_personal_account: {
         Args: Record<PropertyKey, never>
         Returns: Json
+      }
+      get_user_accessible_brands: {
+        Args: { p_user_id?: string }
+        Returns: {
+          id: string
+          name: string
+          user_id: string
+          access_type: string
+          role: string
+          created_at: string
+          updated_at: string
+        }[]
       }
       get_user_organizations: {
         Args: { user_id_param: string }
