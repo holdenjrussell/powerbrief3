@@ -244,9 +244,9 @@
   }
 }
 
-/* Tldraw Canvas Touch/Scroll Support - Updated for Better Trackpad Support */
+/* Tldraw Canvas Touch/Scroll Support - Updated for Mouse Wheel + Trackpad Support */
 .tl-container {
-  touch-action: manipulation !important;
+  touch-action: pan-x pan-y pinch-zoom !important;
   user-select: none !important;
   -webkit-user-select: none !important;
   -webkit-touch-callout: none !important;
@@ -256,17 +256,17 @@
 
 .tl-canvas,
 .tl-svg-container {
-  touch-action: manipulation !important;
+  touch-action: pan-x pan-y pinch-zoom !important;
   user-select: none !important;
   -webkit-user-select: none !important;
   -webkit-touch-callout: none !important;
   overflow: visible !important;
 }
 
-/* Enhanced trackpad support for all pointer types */
+/* Enhanced support for all pointer types - mouse wheel + trackpad */
 @media (pointer: fine) {
   .tl-container {
-    touch-action: manipulation !important;
+    touch-action: pan-x pan-y pinch-zoom !important;
   }
   
   .tl-canvas {
@@ -274,7 +274,7 @@
   }
 }
 
-/* Allow all children to inherit manipulation touch-action */
+/* Allow all children to inherit pan and zoom touch-action */
 .tl-container * {
   touch-action: inherit !important;
 } 

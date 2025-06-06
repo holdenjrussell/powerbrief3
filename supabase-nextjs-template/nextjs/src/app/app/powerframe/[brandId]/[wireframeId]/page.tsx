@@ -838,18 +838,18 @@ Check console for detailed error analysis.`);
               
               setCurrentEditor(editor);
               
-              // Setup for better trackpad support - allow horizontal scroll
+              // Setup for better trackpad support - allow horizontal scroll and mouse wheel
               if (editor) {
                 const container = editor.getContainer();
                 if (container) {
-                  // Use 'manipulation' instead of 'none' to allow scrolling in all directions
-                  // while still preventing default touch behaviors that conflict with drawing
-                  container.style.touchAction = 'manipulation';
+                  // Use 'pan-x pan-y pinch-zoom' to allow mouse wheel AND trackpad scrolling
+                  // pan-x: horizontal trackpad scrolling, pan-y: vertical scrolling, pinch-zoom: trackpad zoom
+                  container.style.touchAction = 'pan-x pan-y pinch-zoom';
                   
                   // Ensure the container can handle overflow properly
                   container.style.overflow = 'visible';
                   
-                  console.log('🎯 Container setup complete - touchAction: manipulation, overflow: visible');
+                  console.log('🎯 Container setup complete - touchAction: pan-x pan-y pinch-zoom, overflow: visible');
                 }
               }
             }}
