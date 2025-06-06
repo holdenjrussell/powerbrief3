@@ -1,47 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   GoogleGenAI,
-  HarmCategory,
-  HarmBlockThreshold,
   createUserContent,
   createPartFromUri,
 } from "@google/genai";
-import { Ratelimit } from "@upstash/ratelimit";
-import { kv } from "@vercel/kv";
 import { ImageAsset } from "../../../../lib/validators/imageAssetValidator";
-// import { GEMINI_SAFETY_SETTINGS, generationConfig } from "@/lib/config"; // Defined inline
 
 // Added these imports for file handling
 import { promises as fs } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-
-// Define generationConfig and safetySettings inline as they might be from a commented out import
-const generationConfig = {
-  temperature: 0.7,
-  topK: 1,
-  topP: 1,
-  maxOutputTokens: 8192,
-};
-
-const safetySettings = [
-  {
-    category: HarmCategory.HARM_CATEGORY_HARASSMENT,
-    threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-  },
-  {
-    category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-    threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-  },
-  {
-    category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-    threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-  },
-  {
-    category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-    threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-  },
-];
 
 export async function POST(req: NextRequest) {
   const {
@@ -66,24 +34,33 @@ export async function POST(req: NextRequest) {
     additionalInstructions: string;
   } = await req.json();
 
-  if (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) {
-    const ratelimit = new Ratelimit({
-      redis: kv,
-      limiter: Ratelimit.slidingWindow(100, "10 s"),
-    });
+  // Optional rate limiting - only if environment variables are set
+  try {
+    if (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) {
+      // Dynamic import to avoid build errors if packages aren't installed
+      const { Ratelimit } = await import("@upstash/ratelimit");
+      const { kv } = await import("@vercel/kv");
+      
+      const ratelimit = new Ratelimit({
+        redis: kv,
+        limiter: Ratelimit.slidingWindow(100, "10 s"),
+      });
 
-    const { success, limit, reset, remaining } = await ratelimit.limit(
-      `ratelimit_${req.ip ?? "127.0.0.1"}`
-    );
+      const clientIP = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || '127.0.0.1';
+      const { success } = await ratelimit.limit(`ratelimit_${clientIP}`);
 
-    if (!success) {
-      return NextResponse.json(
-        { error: "Rate limit exceeded" },
-        { status: 429 }
-      );
+      if (!success) {
+        return NextResponse.json(
+          { error: "Rate limit exceeded" },
+          { status: 429 }
+        );
+      }
+    } else {
+      console.log("Rate limiting disabled - KV environment variables not set");
     }
-  } else {
-    console.log("KV_REST_API_URL and KV_REST_API_TOKEN not set, skipping rate limiting");
+  } catch (error) {
+    console.log("Rate limiting unavailable:", error);
+    // Continue without rate limiting if packages aren't available
   }
 
   if (!process.env.GEMINI_API_KEY) {
@@ -101,7 +78,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const processedAssetParts = await Promise.all(
-      assets.map(async (asset): Promise<any> => {
+      assets.map(async (asset): Promise<unknown> => {
         if (asset.type.startsWith("image/")) {
           const buffer = await asset.arrayBuffer();
           return {
@@ -112,7 +89,7 @@ export async function POST(req: NextRequest) {
           };
         } else if (asset.type.startsWith("video/")) {
           let tempFilePath: string | null = null;
-          let uploadedFile: any = null;
+          let uploadedFile: unknown = null;
           try {
             const buffer = Buffer.from(await asset.arrayBuffer());
             const safeAssetName = asset.name.replace(/[^a-zA-Z0-9._-]/g, '_');
@@ -127,28 +104,31 @@ export async function POST(req: NextRequest) {
             });
             console.log(`Uploaded file ${asset.name}, response:`, uploadedFile);
 
-            if (!uploadedFile.uri) {
+            const fileResult = uploadedFile as { uri?: string; mimeType?: string; name?: string };
+            if (!fileResult.uri) {
               console.error("File URI not found after upload:", uploadedFile);
               throw new Error(`Failed to obtain URI for uploaded video: ${asset.name}.`);
             }
 
-            console.log(`Using URI for video ${asset.name}: ${uploadedFile.uri}`);
-            return createPartFromUri(uploadedFile.uri, uploadedFile.mimeType);
+            console.log(`Using URI for video ${asset.name}: ${fileResult.uri}`);
+            return createPartFromUri(fileResult.uri, fileResult.mimeType || asset.type);
 
-          } catch (uploadError: any) {
-            console.error(`Error uploading video ${asset.name} to File API:`, uploadError);
+          } catch (uploadError: unknown) {
+            const error = uploadError as Error;
+            console.error(`Error uploading video ${asset.name} to File API:`, error);
             
             // Try to delete the file from Google's storage if an error occurs after upload
-            if (uploadedFile && uploadedFile.name) {
+            const fileResult = uploadedFile as { name?: string };
+            if (uploadedFile && fileResult.name) {
               try {
-                console.log(`Attempting to delete partially uploaded file: ${uploadedFile.name}`);
-                await ai.files.delete({ name: uploadedFile.name });
-                console.log(`Successfully deleted file ${uploadedFile.name} from Google Cloud.`);
+                console.log(`Attempting to delete partially uploaded file: ${fileResult.name}`);
+                await ai.files.delete({ name: fileResult.name });
+                console.log(`Successfully deleted file ${fileResult.name} from Google Cloud.`);
               } catch (deleteError) {
-                console.error(`Failed to delete file ${uploadedFile.name}:`, deleteError);
+                console.error(`Failed to delete file ${fileResult.name}:`, deleteError);
               }
             }
-            throw new Error(`Processing video ${asset.name} failed: ${uploadError.message || uploadError}`);
+            throw new Error(`Processing video ${asset.name} failed: ${error.message || error}`);
           } finally {
             if (tempFilePath) {
               try {
@@ -188,14 +168,15 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ generatedCopy: response.text });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const err = error as Error & { errorDetails?: unknown; status?: number };
     console.error(`Error generating copy for asset ${assets.map(a => a.name).join(', ')}:`, error);
     return NextResponse.json(
       {
-        error: `Error generating copy: ${error.message || "Unknown error"}`,
-        ...(error.errorDetails && { details: error.errorDetails }),
+        error: `Error generating copy: ${err.message || "Unknown error"}`,
+        ...(err.errorDetails && { details: err.errorDetails }),
       },
-      { status: error.status || 500 }
+      { status: err.status || 500 }
     );
   }
 } 
