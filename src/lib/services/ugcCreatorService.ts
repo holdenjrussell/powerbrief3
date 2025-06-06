@@ -227,4 +227,42 @@ export async function createUgcCreatorScript(script: Omit<UgcCreatorScript, 'id'
     script_content: data.script_content as UgcCreatorScript['script_content'],
     b_roll_shot_list: data.b_roll_shot_list as string[] || []
   };
+}
+
+// Brand UGC Settings Services
+export interface UgcBrandFields {
+  ugc_company_description?: string | null;
+  ugc_guide_description?: string | null;
+  ugc_filming_instructions?: string | null;
+  ugc_default_system_instructions?: string | null;
+}
+
+export async function getBrandUgcFields(brandId: string): Promise<UgcBrandFields | null> {
+  const { data, error } = await supabase
+    .from('brands')
+    .select('ugc_company_description, ugc_guide_description, ugc_filming_instructions, ugc_default_system_instructions')
+    .eq('id', brandId)
+    .single();
+
+  if (error) {
+    console.error('Error fetching brand UGC fields:', error);
+    throw error;
+  }
+
+  return data || null;
+}
+
+export async function updateBrandUgcFields(brandId: string, fields: UgcBrandFields): Promise<void> {
+  const { error } = await supabase
+    .from('brands')
+    .update({
+      ...fields,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', brandId);
+
+  if (error) {
+    console.error('Error updating brand UGC fields:', error);
+    throw error;
+  }
 } 

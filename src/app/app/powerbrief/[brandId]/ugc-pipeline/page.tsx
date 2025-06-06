@@ -30,7 +30,7 @@ import {
   Badge,
   Input
 } from "@/components/ui";
-import { Plus, Loader2, Save, Settings2, X, Sparkles, Upload, Bot, Mail, Edit, Users, Zap, FileText, Inbox } from "lucide-react";
+import { Plus, Loader2, Save, Settings2, X, Sparkles, Upload, Bot, Mail, Edit, Users, Zap, FileText, Inbox, Eye, CheckCircle, AlertCircle, Video, Mic, BookOpen, Package, Heart, Coffee } from "lucide-react";
 import { useAuth } from '@/hooks/useAuth';
 import { getBrandById } from '@/lib/services/powerbriefService';
 import { 
@@ -425,178 +425,498 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
         <TabsContent value="script">
           <Card>
             <CardHeader>
-              <CardTitle>Script Management</CardTitle>
-              <CardDescription>Create and manage UGC scripts for your creators</CardDescription>
+              <CardTitle>Script Creation Tool</CardTitle>
+              <CardDescription>Create and manage UGC scripts with AI assistance, templates, and detailed instructions</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-6">
-                {/* Script Creation Section */}
-                <div className="bg-gradient-to-r from-blue-50 to-purple-50 p-6 rounded-lg border">
-                  <h3 className="text-lg font-semibold mb-2">Create New UGC Script</h3>
-                  <p className="text-gray-600 mb-4">
-                    Select a creator to create a detailed UGC script with AI assistance, custom prompts, and reference videos.
-                  </p>
-                  
-                  {creators.length > 0 ? (
-                    <div className="flex flex-col sm:flex-row gap-4">
-                      <Select 
-                        onValueChange={(creatorId) => {
-                          if (creatorId) {
-                            router.push(`/app/powerbrief/${brandId}/ugc-pipeline/creators/${creatorId}/new-script`);
-                          }
-                        }}
-                      >
-                        <SelectTrigger className="sm:w-64">
-                          <SelectValue placeholder="Select creator for new script" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {creators.map((creator) => (
-                            <SelectItem key={creator.id} value={creator.id}>
-                              <div className="flex items-center gap-2">
-                                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                                {creator.name || creator.email}
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+              <Tabs defaultValue="generator" className="w-full">
+                <TabsList className="grid w-full grid-cols-4">
+                  <TabsTrigger value="generator" className="flex items-center gap-2">
+                    <Sparkles className="h-4 w-4" />
+                    Generator
+                  </TabsTrigger>
+                  <TabsTrigger value="templates" className="flex items-center gap-2">
+                    <FileText className="h-4 w-4" />
+                    Templates
+                  </TabsTrigger>
+                  <TabsTrigger value="instructions" className="flex items-center gap-2">
+                    <Settings2 className="h-4 w-4" />
+                    Instructions
+                  </TabsTrigger>
+                  <TabsTrigger value="review" className="flex items-center gap-2">
+                    <Eye className="h-4 w-4" />
+                    Review
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="generator" className="mt-6">
+                  <div className="space-y-6">
+                    {/* AI Script Generator */}
+                    <div className="bg-gradient-to-r from-purple-50 to-blue-50 p-6 rounded-lg border">
+                      <h3 className="text-lg font-semibold mb-2 flex items-center gap-2">
+                        <Sparkles className="h-5 w-5 text-purple-600" />
+                        AI-Powered Script Generation
+                      </h3>
+                      <p className="text-gray-600 mb-4">
+                        Generate engaging UGC scripts using AI with creator assignment and custom prompts.
+                      </p>
+                      
+                      {creators.length > 0 ? (
+                        <div className="space-y-4">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <Label htmlFor="creator-select">Select Creator</Label>
+                              <Select>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Choose a creator" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {creators.map((creator) => (
+                                    <SelectItem key={creator.id} value={creator.id}>
+                                      <div className="flex items-center gap-2">
+                                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                        {creator.name || creator.email}
+                                      </div>
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            
+                            <div>
+                              <Label htmlFor="script-type">Script Type</Label>
+                              <Select>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select script type" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="unboxing">Product Unboxing</SelectItem>
+                                  <SelectItem value="before-after">Before & After</SelectItem>
+                                  <SelectItem value="tutorial">Tutorial Style</SelectItem>
+                                  <SelectItem value="testimonial">Testimonial</SelectItem>
+                                  <SelectItem value="lifestyle">Lifestyle Integration</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                          
+                          <div>
+                            <Label htmlFor="custom-prompt">Custom AI Prompt</Label>
+                            <Textarea
+                              id="custom-prompt"
+                              placeholder="Enter specific instructions for the AI to customize the script generation..."
+                              rows={3}
+                            />
+                          </div>
+                          
+                          <Button className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700">
+                            <Sparkles className="h-4 w-4 mr-2" />
+                            Generate AI Script
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="text-center py-8">
+                          <Users className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                          <p className="text-gray-600 mb-4">No creators available</p>
+                          <Button onClick={() => setShowNewCreatorDialog(true)} variant="outline">
+                            <Plus className="h-4 w-4 mr-2" />
+                            Add Creator First
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Manual Script Creation */}
+                    <div className="border rounded-lg p-6">
+                      <h3 className="text-lg font-semibold mb-2">Manual Script Creation</h3>
+                      <p className="text-gray-600 mb-4">Create a script manually with full control over content and structure.</p>
                       
                       <div className="flex gap-2">
-                        <Button
+                        <Button 
+                          variant="outline" 
                           onClick={() => {
-                            if (creators.length === 1) {
+                            if (creators.length > 0) {
                               router.push(`/app/powerbrief/${brandId}/ugc-pipeline/creators/${creators[0].id}/new-script`);
                             }
                           }}
-                          disabled={creators.length !== 1}
-                          className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+                          disabled={creators.length === 0}
                         >
-                          <Sparkles className="h-4 w-4 mr-2" />
-                          Create Script
+                          <Edit className="h-4 w-4 mr-2" />
+                          Create Manual Script
                         </Button>
                       </div>
                     </div>
-                  ) : (
-                    <div className="text-center py-8">
-                      <Users className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-                      <p className="text-gray-600 mb-4">No creators available</p>
-                      <p className="text-sm text-gray-500 mb-4">
-                        Add creators to your pipeline to start creating scripts
-                      </p>
-                      <Button
-                        onClick={() => setShowNewCreatorDialog(true)}
-                        variant="outline"
-                      >
-                        <Plus className="h-4 w-4 mr-2" />
-                        Add Creator
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="templates" className="mt-6">
+                  <div className="space-y-6">
+                    <div>
+                      <h3 className="text-lg font-semibold mb-2">Pre-Built Script Templates</h3>
+                      <p className="text-gray-600 mb-6">Choose from professionally crafted templates to jumpstart your script creation.</p>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      <Card className="p-6 hover:shadow-lg transition-shadow cursor-pointer border-2 border-dashed border-blue-200 hover:border-blue-400">
+                        <div className="text-center">
+                          <div className="w-16 h-16 bg-blue-100 rounded-lg flex items-center justify-center mx-auto mb-4">
+                            <Package className="h-8 w-8 text-blue-600" />
+                          </div>
+                          <h4 className="font-semibold mb-2">Product Unboxing</h4>
+                          <p className="text-sm text-gray-600 mb-4">
+                            Perfect for showcasing product packaging, first impressions, and initial reactions.
+                          </p>
+                          <Badge variant="outline" className="mb-3">
+                            <Sparkles className="h-3 w-3 mr-1" />
+                            AI Enhanced
+                          </Badge>
+                          <div className="space-y-2">
+                            <Button size="sm" className="w-full">Use Template</Button>
+                            <Button size="sm" variant="outline" className="w-full">Preview</Button>
+                          </div>
+                        </div>
+                      </Card>
+                      
+                      <Card className="p-6 hover:shadow-lg transition-shadow cursor-pointer border-2 border-dashed border-green-200 hover:border-green-400">
+                        <div className="text-center">
+                          <div className="w-16 h-16 bg-green-100 rounded-lg flex items-center justify-center mx-auto mb-4">
+                            <Zap className="h-8 w-8 text-green-600" />
+                          </div>
+                          <h4 className="font-semibold mb-2">Before & After</h4>
+                          <p className="text-sm text-gray-600 mb-4">
+                            Demonstrate transformation and results with compelling before/after storytelling.
+                          </p>
+                          <Badge variant="outline" className="mb-3">
+                            <Sparkles className="h-3 w-3 mr-1" />
+                            AI Enhanced
+                          </Badge>
+                          <div className="space-y-2">
+                            <Button size="sm" className="w-full">Use Template</Button>
+                            <Button size="sm" variant="outline" className="w-full">Preview</Button>
+                          </div>
+                        </div>
+                      </Card>
+                      
+                      <Card className="p-6 hover:shadow-lg transition-shadow cursor-pointer border-2 border-dashed border-purple-200 hover:border-purple-400">
+                        <div className="text-center">
+                          <div className="w-16 h-16 bg-purple-100 rounded-lg flex items-center justify-center mx-auto mb-4">
+                            <BookOpen className="h-8 w-8 text-purple-600" />
+                          </div>
+                          <h4 className="font-semibold mb-2">Tutorial Style</h4>
+                          <p className="text-sm text-gray-600 mb-4">
+                            Educational content and step-by-step how-to guides for product usage.
+                          </p>
+                          <Badge variant="outline" className="mb-3">
+                            <Sparkles className="h-3 w-3 mr-1" />
+                            AI Enhanced
+                          </Badge>
+                          <div className="space-y-2">
+                            <Button size="sm" className="w-full">Use Template</Button>
+                            <Button size="sm" variant="outline" className="w-full">Preview</Button>
+                          </div>
+                        </div>
+                      </Card>
+                      
+                      <Card className="p-6 hover:shadow-lg transition-shadow cursor-pointer border-2 border-dashed border-orange-200 hover:border-orange-400">
+                        <div className="text-center">
+                          <div className="w-16 h-16 bg-orange-100 rounded-lg flex items-center justify-center mx-auto mb-4">
+                            <Heart className="h-8 w-8 text-orange-600" />
+                          </div>
+                          <h4 className="font-semibold mb-2">Testimonial</h4>
+                          <p className="text-sm text-gray-600 mb-4">
+                            Authentic customer experiences and product testimonials that build trust.
+                          </p>
+                          <Badge variant="outline" className="mb-3">
+                            <Sparkles className="h-3 w-3 mr-1" />
+                            AI Enhanced
+                          </Badge>
+                          <div className="space-y-2">
+                            <Button size="sm" className="w-full">Use Template</Button>
+                            <Button size="sm" variant="outline" className="w-full">Preview</Button>
+                          </div>
+                        </div>
+                      </Card>
+                      
+                      <Card className="p-6 hover:shadow-lg transition-shadow cursor-pointer border-2 border-dashed border-pink-200 hover:border-pink-400">
+                        <div className="text-center">
+                          <div className="w-16 h-16 bg-pink-100 rounded-lg flex items-center justify-center mx-auto mb-4">
+                            <Coffee className="h-8 w-8 text-pink-600" />
+                          </div>
+                          <h4 className="font-semibold mb-2">Lifestyle Integration</h4>
+                          <p className="text-sm text-gray-600 mb-4">
+                            Show how the product fits naturally into daily life and routines.
+                          </p>
+                          <Badge variant="outline" className="mb-3">
+                            <Sparkles className="h-3 w-3 mr-1" />
+                            AI Enhanced
+                          </Badge>
+                          <div className="space-y-2">
+                            <Button size="sm" className="w-full">Use Template</Button>
+                            <Button size="sm" variant="outline" className="w-full">Preview</Button>
+                          </div>
+                        </div>
+                      </Card>
+                      
+                      <Card className="p-6 hover:shadow-lg transition-shadow cursor-pointer border-2 border-dashed border-gray-200 hover:border-gray-400">
+                        <div className="text-center">
+                          <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center mx-auto mb-4">
+                            <Plus className="h-8 w-8 text-gray-600" />
+                          </div>
+                          <h4 className="font-semibold mb-2">Custom Template</h4>
+                          <p className="text-sm text-gray-600 mb-4">
+                            Create your own template from scratch with full customization.
+                          </p>
+                          <Badge variant="secondary" className="mb-3">
+                            Custom
+                          </Badge>
+                          <div className="space-y-2">
+                            <Button size="sm" variant="outline" className="w-full">Create Template</Button>
+                          </div>
+                        </div>
+                      </Card>
+                    </div>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="instructions" className="mt-6">
+                  <div className="space-y-6">
+                    <div>
+                      <h3 className="text-lg font-semibold mb-2">Filming Instructions & Guidelines</h3>
+                      <p className="text-gray-600 mb-6">Set up comprehensive filming instructions and additional notes for creators.</p>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      <Card className="p-6">
+                        <h4 className="font-semibold mb-4 flex items-center gap-2">
+                          <Video className="h-5 w-5 text-blue-600" />
+                          Technical Specifications
+                        </h4>
+                        <div className="space-y-4">
+                          <div>
+                            <Label htmlFor="video-quality">Video Quality</Label>
+                            <Select>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select quality" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="1080p">1080p HD</SelectItem>
+                                <SelectItem value="4k">4K Ultra HD</SelectItem>
+                                <SelectItem value="720p">720p HD</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          
+                          <div>
+                            <Label htmlFor="frame-rate">Frame Rate</Label>
+                            <Select>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select frame rate" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="30fps">30 FPS</SelectItem>
+                                <SelectItem value="60fps">60 FPS</SelectItem>
+                                <SelectItem value="24fps">24 FPS</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          
+                          <div>
+                            <Label htmlFor="orientation">Video Orientation</Label>
+                            <Select>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select orientation" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="vertical">Vertical (9:16)</SelectItem>
+                                <SelectItem value="horizontal">Horizontal (16:9)</SelectItem>
+                                <SelectItem value="square">Square (1:1)</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                      </Card>
+                      
+                      <Card className="p-6">
+                        <h4 className="font-semibold mb-4 flex items-center gap-2">
+                          <Mic className="h-5 w-5 text-green-600" />
+                          Audio Guidelines
+                        </h4>
+                        <div className="space-y-4">
+                          <div className="flex items-center space-x-2">
+                            <input type="checkbox" id="clear-audio" className="rounded" />
+                            <Label htmlFor="clear-audio">Clear, crisp audio quality</Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <input type="checkbox" id="no-background-noise" className="rounded" />
+                            <Label htmlFor="no-background-noise">Minimal background noise</Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <input type="checkbox" id="voice-over" className="rounded" />
+                            <Label htmlFor="voice-over">Natural voice-over preferred</Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <input type="checkbox" id="music" className="rounded" />
+                            <Label htmlFor="music">Background music allowed</Label>
+                          </div>
+                        </div>
+                      </Card>
+                    </div>
+                    
+                    <Card className="p-6">
+                      <h4 className="font-semibold mb-4 flex items-center gap-2">
+                        <FileText className="h-5 w-5 text-purple-600" />
+                        Additional Instructions
+                      </h4>
+                      <div className="space-y-4">
+                        <div>
+                          <Label htmlFor="brand-guidelines">Brand Guidelines</Label>
+                          <Textarea
+                            id="brand-guidelines"
+                            placeholder="Enter specific brand guidelines and requirements..."
+                            rows={3}
+                          />
+                        </div>
+                        
+                        <div>
+                          <Label htmlFor="do-donts">Do's and Don'ts</Label>
+                          <Textarea
+                            id="do-donts"
+                            placeholder="List what creators should and shouldn't do..."
+                            rows={3}
+                          />
+                        </div>
+                        
+                        <div>
+                          <Label htmlFor="special-notes">Special Notes</Label>
+                          <Textarea
+                            id="special-notes"
+                            placeholder="Any additional notes or special requirements..."
+                            rows={3}
+                          />
+                        </div>
+                      </div>
+                    </Card>
+                    
+                    <div className="flex justify-end">
+                      <Button>
+                        <Save className="h-4 w-4 mr-2" />
+                        Save Instructions
                       </Button>
                     </div>
-                  )}
-                </div>
-
-                {/* Existing Scripts Overview */}
-                <div>
-                  <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-semibold">Recent Scripts</h3>
-                    <Link href={`/app/powerbrief/${brandId}/ugc-pipeline?tab=concept`}>
-                      <Button variant="outline" size="sm">
-                        View All Scripts
-                      </Button>
-                    </Link>
                   </div>
-                  
-                  {scripts.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {scripts.slice(0, 6).map((script) => (
-                        <Card key={script.id} className="p-4 hover:shadow-md transition-shadow">
-                          <div className="flex justify-between items-start mb-2">
-                            <h4 className="font-medium truncate">{script.title}</h4>
-                            <Badge 
-                              variant={script.status === 'approved' ? 'default' : 'secondary'}
-                              className="text-xs"
-                            >
-                              {script.status}
-                            </Badge>
+                </TabsContent>
+
+                <TabsContent value="review" className="mt-6">
+                  <div className="space-y-6">
+                    <div>
+                      <h3 className="text-lg font-semibold mb-2">Script Preview & Review</h3>
+                      <p className="text-gray-600 mb-6">Review your script before sending it to creators. Make final adjustments and approve for distribution.</p>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                      <div className="lg:col-span-2">
+                        <Card className="p-6">
+                          <h4 className="font-semibold mb-4">Script Preview</h4>
+                          <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                            <p className="text-sm text-gray-600 mb-2">No script selected for preview</p>
+                            <p className="text-xs text-gray-500">Create or select a script to see the preview here.</p>
                           </div>
-                          <p className="text-sm text-gray-600 mb-3">
-                            Creator: {creators.find(c => c.id === script.creator_id)?.name || 'Unknown'}
-                          </p>
-                          <div className="flex gap-2">
-                            <Link href={`/app/powerbrief/${brandId}/ugc-pipeline/scripts/${script.id}`}>
-                              <Button size="sm" variant="outline" className="flex-1">
-                                <FileText className="h-3 w-3 mr-1" />
-                                View
-                              </Button>
-                            </Link>
-                            <Link href={`/app/powerbrief/${brandId}/ugc-pipeline/scripts/${script.id}/edit`}>
-                              <Button size="sm" variant="outline">
-                                <Edit className="h-3 w-3" />
-                              </Button>
-                            </Link>
+                          
+                          <div className="space-y-4">
+                            <div>
+                              <Label className="text-sm font-medium">Scene Start</Label>
+                              <div className="bg-white border rounded p-3 text-sm">
+                                <em>Scene start content will appear here...</em>
+                              </div>
+                            </div>
+                            
+                            <div>
+                              <Label className="text-sm font-medium">Main Content</Label>
+                              <div className="bg-white border rounded p-3 text-sm">
+                                <em>Main script content will appear here...</em>
+                              </div>
+                            </div>
+                            
+                            <div>
+                              <Label className="text-sm font-medium">Scene End</Label>
+                              <div className="bg-white border rounded p-3 text-sm">
+                                <em>Scene end content will appear here...</em>
+                              </div>
+                            </div>
                           </div>
                         </Card>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-12 text-gray-500">
-                      <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                      <p>No scripts created yet</p>
-                      <p className="text-sm">Create your first script to get started</p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Script Templates */}
-                <div>
-                  <h3 className="text-lg font-semibold mb-4">Script Templates</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    <Card className="p-4 hover:shadow-md transition-shadow cursor-pointer border-dashed">
-                      <div className="text-center">
-                        <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mx-auto mb-3">
-                          <Sparkles className="h-6 w-6 text-blue-600" />
-                        </div>
-                        <h4 className="font-medium mb-2">Product Unboxing</h4>
-                        <p className="text-sm text-gray-600 mb-3">
-                          Standard template for unboxing and first impressions
-                        </p>
-                        <Badge variant="outline" className="text-xs">
-                          Template
-                        </Badge>
                       </div>
-                    </Card>
-                    
-                    <Card className="p-4 hover:shadow-md transition-shadow cursor-pointer border-dashed">
-                      <div className="text-center">
-                        <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mx-auto mb-3">
-                          <Zap className="h-6 w-6 text-green-600" />
-                        </div>
-                        <h4 className="font-medium mb-2">Before & After</h4>
-                        <p className="text-sm text-gray-600 mb-3">
-                          Showcase transformation and results
-                        </p>
-                        <Badge variant="outline" className="text-xs">
-                          Template
-                        </Badge>
+                      
+                      <div>
+                        <Card className="p-6">
+                          <h4 className="font-semibold mb-4">Review Actions</h4>
+                          <div className="space-y-4">
+                            <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                              <div className="flex items-center gap-2 mb-2">
+                                <AlertCircle className="h-4 w-4 text-yellow-600" />
+                                <span className="text-sm font-medium text-yellow-800">Pending Review</span>
+                              </div>
+                              <p className="text-xs text-yellow-700">Script is ready for review and approval.</p>
+                            </div>
+                            
+                            <div className="space-y-2">
+                              <Button className="w-full bg-green-600 hover:bg-green-700">
+                                <CheckCircle className="h-4 w-4 mr-2" />
+                                Approve & Send
+                              </Button>
+                              <Button variant="outline" className="w-full">
+                                <Edit className="h-4 w-4 mr-2" />
+                                Request Changes
+                              </Button>
+                              <Button variant="outline" className="w-full">
+                                <Eye className="h-4 w-4 mr-2" />
+                                Preview Public View
+                              </Button>
+                            </div>
+                            
+                            <div className="pt-4 border-t">
+                              <Label className="text-sm font-medium">Reviewer Notes</Label>
+                              <Textarea
+                                placeholder="Add notes for the creator..."
+                                rows={3}
+                                className="mt-2"
+                              />
+                            </div>
+                          </div>
+                        </Card>
                       </div>
-                    </Card>
+                    </div>
                     
-                    <Card className="p-4 hover:shadow-md transition-shadow cursor-pointer border-dashed">
-                      <div className="text-center">
-                        <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mx-auto mb-3">
-                          <FileText className="h-6 w-6 text-purple-600" />
-                        </div>
-                        <h4 className="font-medium mb-2">Tutorial Style</h4>
-                        <p className="text-sm text-gray-600 mb-3">
-                          Educational content and how-to guides
-                        </p>
-                        <Badge variant="outline" className="text-xs">
-                          Template
-                        </Badge>
+                    <Card className="p-6">
+                      <h4 className="font-semibold mb-4">Recent Scripts</h4>
+                      <div className="space-y-3">
+                        {scripts.length > 0 ? (
+                          scripts.slice(0, 3).map((script) => (
+                            <div key={script.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
+                              <div>
+                                <h5 className="font-medium">{script.title}</h5>
+                                <p className="text-sm text-gray-600">
+                                  Creator: {creators.find(c => c.id === script.creator_id)?.name || 'Unknown'}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Badge variant={script.status === 'approved' ? 'default' : 'secondary'}>
+                                  {script.status}
+                                </Badge>
+                                <Button size="sm" variant="outline">
+                                  Review
+                                </Button>
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-sm text-gray-500 text-center py-8">No scripts available for review</p>
+                        )}
                       </div>
                     </Card>
                   </div>
-                </div>
-              </div>
+                </TabsContent>
+              </Tabs>
             </CardContent>
           </Card>
         </TabsContent>
