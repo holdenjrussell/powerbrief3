@@ -163,10 +163,9 @@ export default function EmailInboxPage({ params }: { params: ParamsType | Promis
         body: JSON.stringify({
           brandId,
           creatorId: newMessageCreatorId,
-          creatorEmail: selectedCreator.email,
           subject: newMessageSubject.trim(),
-          content: newMessageContent.trim(),
-          type: 'manual'
+          htmlContent: newMessageContent.trim(),
+          textContent: newMessageContent.trim().replace(/<[^>]*>/g, ''), // Strip HTML for text version
         })
       });
 
