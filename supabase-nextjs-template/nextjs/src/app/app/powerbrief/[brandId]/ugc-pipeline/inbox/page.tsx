@@ -199,7 +199,7 @@ export default function EmailInboxPage({ params }: { params: ParamsType | Promis
         body: JSON.stringify({
           brandId,
           creatorId: selectedThreadData.creator_id,
-          subject: `Re: ${selectedThreadData.thread_subject}`,
+          subject: selectedThreadData.thread_subject,
           htmlContent: replyMessage.trim(),
           textContent: replyMessage.trim().replace(/<[^>]*>/g, ''), // Strip HTML for text version
         })
@@ -572,6 +572,16 @@ export default function EmailInboxPage({ params }: { params: ParamsType | Promis
                             <p className="whitespace-pre-wrap">{message.text_content}</p>
                           )}
                         </div>
+                        
+                        {/* Debug info - temporarily show what's in the message */}
+                        {process.env.NODE_ENV === 'development' && (
+                          <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs">
+                            <strong>Debug:</strong><br/>
+                            <strong>Subject:</strong> {message.subject}<br/>
+                            <strong>HTML:</strong> {message.html_content?.substring(0, 100)}...<br/>
+                            <strong>Text:</strong> {message.text_content?.substring(0, 100)}...
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
