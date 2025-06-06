@@ -82,108 +82,6 @@ export default function WireframeEditorPage() {
     return 'black';
   };
 
-  // Function to validate and fix shape properties
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const validateShape = (shape: any): any => {
-    const validatedShape = { ...shape }; // Shallow copy for modification
-    
-    // Ensure props object exists
-    if (!validatedShape.props) {
-      validatedShape.props = {};
-    }
-
-    // Handle text shapes
-    if (validatedShape.type === 'text') {
-      // Check if shape has old 'text' property instead of 'richText'
-      if (validatedShape.props.text !== undefined && validatedShape.props.richText === undefined) {
-        console.warn(`DEFENSIVE FIX (TEXT): Shape ID ${validatedShape.id || 'N/A'} (type: text) has legacy 'text' property. Converting to 'richText'.`);
-        // Convert text to richText format using dynamically loaded function
-        if (toRichTextFn) {
-          const textValue = String(validatedShape.props.text === null || typeof validatedShape.props.text === 'undefined' ? '' : validatedShape.props.text);
-          validatedShape.props.richText = toRichTextFn(textValue);
-          delete validatedShape.props.text;
-        }
-      }
-      
-      // Ensure props.richText exists and is in the correct format
-      if (validatedShape.props.richText === undefined) {
-        console.warn(`DEFENSIVE FIX (TEXT): Shape ID ${validatedShape.id || 'N/A'} (type: text) missing 'richText' property. Adding default.`);
-        if (toRichTextFn) {
-          validatedShape.props.richText = toRichTextFn('');
-        }
-      } else if (typeof validatedShape.props.richText === 'string') {
-        // If richText is a plain string, convert it to rich text format
-        console.warn(`DEFENSIVE FIX (TEXT): Shape ID ${validatedShape.id || 'N/A'} (type: text) has plain string 'richText'. Converting to rich text format.`);
-        if (toRichTextFn) {
-          validatedShape.props.richText = toRichTextFn(validatedShape.props.richText);
-        }
-      } else if (typeof validatedShape.props.richText === 'object' && validatedShape.props.richText !== null) {
-        // richText is already an object (proper rich text format), leave it as is
-        console.log(`DEFENSIVE CHECK (TEXT): Shape ID ${validatedShape.id || 'N/A'} (type: text) already has richText object format.`);
-      }
-      
-      // Ensure font property exists and is valid
-      if (!validatedShape.props.font || !['sans', 'serif', 'mono', 'draw'].includes(validatedShape.props.font)) {
-        console.warn(`DEFENSIVE FIX (TEXT): Shape ID ${validatedShape.id || 'N/A'} (type: text) missing or invalid 'font'. Value: ${validatedShape.props.font}. Adding default 'sans'.`);
-        validatedShape.props.font = 'sans';
-      }
-      
-      // Ensure size property exists and is valid
-      if (!validatedShape.props.size || !['s', 'm', 'l', 'xl'].includes(validatedShape.props.size)) {
-        console.warn(`DEFENSIVE FIX (TEXT): Shape ID ${validatedShape.id || 'N/A'} (type: text) missing or invalid 'size'. Value: ${validatedShape.props.size}. Setting to default 'm'.`);
-        validatedShape.props.size = 'm';
-      }
-      
-      // Remove align property as it's not valid for text shapes in this TLDraw version
-      if (validatedShape.props.align !== undefined) {
-        console.warn(`DEFENSIVE FIX (TEXT): Shape ID ${validatedShape.id || 'N/A'} (type: text) has invalid 'align' property. Removing it.`);
-        delete validatedShape.props.align;
-      }
-      
-      // Add autoSize property if not present
-      if (typeof validatedShape.props.autoSize === 'undefined') {
-        validatedShape.props.autoSize = true; // Default to auto-sizing
-      }
-      
-      // If w is provided, ensure it's a positive number
-      if (validatedShape.props.w !== undefined) {
-        if (typeof validatedShape.props.w !== 'number' || validatedShape.props.w <= 0) {
-          console.warn(`DEFENSIVE FIX (TEXT): Shape ID ${validatedShape.id || 'N/A'} (type: text) has invalid 'w'. Value: ${validatedShape.props.w}. Removing it.`);
-          delete validatedShape.props.w;
-        }
-      }
-      
-      // Validate color
-      if (validatedShape.props.color) {
-        validatedShape.props.color = validateColor(validatedShape.props.color);
-      }
-    }
-    
-    // For geo shapes, handle text property (geo shapes CAN have text with font)
-    if (validatedShape.type === 'geo' && validatedShape.props?.text) {
-      // Ensure font property exists when text is present
-      if (!validatedShape.props.font) {
-        console.warn(`DEFENSIVE FIX (GEO): Shape ID ${validatedShape.id || 'N/A'} (type: geo) has text but missing font property. Adding default 'sans'.`);
-        validatedShape.props.font = 'sans';
-      }
-    }
-    
-    // Validate color property if it exists for any shape type
-    if (validatedShape.props?.color) {
-      validatedShape.props.color = validateColor(validatedShape.props.color);
-    }
-    
-    // Validate size property for geo shapes
-    if (validatedShape.type === 'geo' && validatedShape.props?.size) {
-       if (!['s', 'm', 'l', 'xl'].includes(validatedShape.props.size)) {
-        console.warn(`DEFENSIVE FIX (GEO_SIZE): Shape ID ${validatedShape.id || 'N/A'} (type: geo) has invalid 'size'. Value: ${validatedShape.props.size}. Setting to default 'm'.`);
-        validatedShape.props.size = 'm';
-       }
-    }
-    
-    return validatedShape;
-  };
-
   // Ensure we're on the client side and load toRichText function
   useEffect(() => {
     setIsClient(true);
@@ -348,144 +246,57 @@ export default function WireframeEditorPage() {
     }
   };
 
-  // Extract the common shape processing logic
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const processAndCreateShapes = async (extractedModules: any[]) => {
-    console.log('Extracted modules from input:', JSON.stringify(extractedModules, null, 2));
+  // Extract the common shape processing logic - simplified to avoid interference
+  const processAndCreateShapes = async (extractedModules: unknown[]) => {
+    console.log('Processing shapes...', extractedModules.length, 'shapes');
       
-    // Validate and ensure all shapes have proper IDs
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const processedShapes: any[] = [];
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    extractedModules.forEach((shape: any, index: number) => {
-      console.log(`Processing shape ${index}:`, JSON.stringify(shape, null, 2));
-      const validatedShape = validateShape(shape);
-      console.log(`Validated shape ${index}:`, JSON.stringify(validatedShape, null, 2));
+    // Minimal processing - just ensure basic shape structure and pass through
+    const processedShapes: unknown[] = [];
+    
+    extractedModules.forEach((shape: unknown) => {
+      // Type assertion for basic shape properties
+      const shapeObj = shape as Record<string, unknown>;
       
-      // Add the validated shape with an ID
-      processedShapes.push({
-        ...validatedShape,
-        id: validatedShape.id || currentEditor.createShapeId()
-      });
+      // Only fix critical issues without extensive validation
+      const processedShape = {
+        ...shapeObj,
+        id: shapeObj.id || currentEditor.createShapeId(),
+        x: Math.round((shapeObj.x as number) || 0),
+        y: Math.round((shapeObj.y as number) || 0),
+      };
+      
+      // Quick fix for the most common color issue - work on original object
+      if (shapeObj.props && typeof shapeObj.props === 'object') {
+        const props = shapeObj.props as Record<string, unknown>;
+        if (props.color === 'light-grey') {
+          props.color = 'grey';
+        }
+      }
+      
+      processedShapes.push(processedShape);
     });
     
-    const validatedShapes = processedShapes;
-    
-    if (validatedShapes.length > 0 && isClient) {
-      // Clear existing shapes
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const existingShapeIds = currentEditor.getCurrentPageShapes().map((s: any) => s.id);
-      if (existingShapeIds.length > 0) {
-        currentEditor.deleteShapes(existingShapeIds);
-      }
-      
-      // Log the validated shapes for debugging
-      console.log('=== VALIDATED SHAPES BEFORE CREATION ===');
-      console.log(JSON.stringify(validatedShapes, null, 2));
-      console.log('=== END VALIDATED SHAPES ===');
-      
-      // Create shapes directly from input
+    if (processedShapes.length > 0 && isClient && currentEditor) {
       try {
-        // Try batch creation first
-        currentEditor.createShapes(validatedShapes);
+        // Clear existing shapes
+        const existingShapeIds = currentEditor.getCurrentPageShapes().map((s: unknown) => (s as Record<string, unknown>).id);
+        if (existingShapeIds.length > 0) {
+          currentEditor.deleteShapes(existingShapeIds);
+        }
+        
+        // Create shapes in batch - simple approach
+        currentEditor.createShapes(processedShapes);
         currentEditor.zoomToFit();
-        alert(`Generated ${validatedShapes.length} wireframe elements!`);
-      } catch (batchError) {
-        console.error('Error creating shapes in batch:', batchError);
-        console.error('Attempting to create shapes one by one to isolate the problem...');
         
-        // Try creating shapes one by one to isolate the problematic shape
-        let successCount = 0;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const failedShapes: Array<{index: number, shape: any, error: any}> = [];
+        console.log(`✅ Created ${processedShapes.length} shapes successfully`);
+        alert(`Generated ${processedShapes.length} wireframe elements!`);
         
-        for (let i = 0; i < validatedShapes.length; i++) {
-          const shape = validatedShapes[i];
-          try {
-            console.log(`Attempting to create shape ${i + 1}/${validatedShapes.length}:`, JSON.stringify(shape, null, 2));
-            currentEditor.createShapes([shape]);
-            successCount++;
-          } catch (singleShapeError) {
-            console.error(`Failed to create shape at index ${i}:`, singleShapeError);
-            console.error('Problematic shape data:', JSON.stringify(shape, null, 2));
-            
-            // Store the failed shape info
-            failedShapes.push({
-              index: i,
-              shape: shape,
-              error: singleShapeError
-            });
-            
-            // Log specific details about text shapes
-            if (shape.type === 'text') {
-              console.error('Text shape debug info:');
-              console.error('- props.richText type:', typeof shape.props?.richText);
-              console.error('- props.richText value:', shape.props?.richText);
-              console.error('- props.richText length:', shape.props?.richText?.length);
-              console.error('- props.font:', shape.props?.font);
-              console.error('- props.size:', shape.props?.size);
-              console.error('- props.color:', shape.props?.color);
-              console.error('- All props keys:', Object.keys(shape.props || {}));
-              
-              // Check for unusual characters in richText if it's a string
-              if (typeof shape.props?.richText === 'string') {
-                const charCodes = [];
-                for (let j = 0; j < shape.props.richText.length; j++) {
-                  charCodes.push(shape.props.richText.charCodeAt(j));
-                }
-                console.error('- Character codes in richText:', charCodes);
-              }
-            }
-            
-            // Continue to next shape instead of breaking
-            console.log(`Continuing to next shape...`);
-          }
-        }
-        
-        // Show comprehensive summary
-        if (successCount > 0) {
-          currentEditor.zoomToFit();
-        }
-        
-        // Create detailed error summary
-        console.log('\n=== SHAPE CREATION SUMMARY ===');
-        console.log(`✅ Successfully created: ${successCount}/${validatedShapes.length} shapes`);
-        console.log(`❌ Failed to create: ${failedShapes.length}/${validatedShapes.length} shapes`);
-        
-        if (failedShapes.length > 0) {
-          console.log('\n=== FAILED SHAPES DETAILS ===');
-          failedShapes.forEach(({index, shape, error}) => {
-            console.log(`\nShape ${index + 1} (ID: ${shape.id || 'N/A'}):`);
-            console.log(`- Type: ${shape.type}`);
-            console.log(`- Error: ${error.message}`);
-            console.log(`- Shape data:`, JSON.stringify(shape, null, 2));
-          });
-          
-          // Create summary for alert
-          const errorTypes = failedShapes.reduce((acc, {error}) => {
-            const errorMsg = error.message || 'Unknown error';
-            acc[errorMsg] = (acc[errorMsg] || 0) + 1;
-            return acc;
-          }, {} as Record<string, number>);
-          
-          const errorSummary = Object.entries(errorTypes)
-            .map(([error, count]) => `• ${error} (${count}x)`)
-            .join('\n');
-          
-          alert(`Shape Creation Results:
-✅ Success: ${successCount}/${validatedShapes.length}
-❌ Failed: ${failedShapes.length}/${validatedShapes.length}
-
-Common Errors:
-${errorSummary}
-
-Check console for detailed error analysis.`);
-        } else {
-          alert(`All ${successCount} shapes created successfully!`);
-        }
+      } catch (error) {
+        console.error('Error creating shapes:', error);
+        alert(`Failed to create some shapes. Check console for details.`);
       }
     } else {
-      alert('No shapes were generated. Please try different input.');
+      alert('No valid shapes to create.');
     }
   };
 
@@ -838,18 +649,18 @@ Check console for detailed error analysis.`);
               
               setCurrentEditor(editor);
               
-              // Setup for better trackpad support - allow horizontal scroll and mouse wheel
+              // Setup for better trackpad support - allow all scrolling directions
               if (editor) {
                 const container = editor.getContainer();
                 if (container) {
-                  // Use 'pan-x pan-y pinch-zoom' to allow mouse wheel AND trackpad scrolling
-                  // pan-x: horizontal trackpad scrolling, pan-y: vertical scrolling, pinch-zoom: trackpad zoom
-                  container.style.touchAction = 'pan-x pan-y pinch-zoom';
+                  // Use 'auto' to allow all native scrolling behaviors
+                  // This lets tldraw handle its own event management without interference
+                  container.style.touchAction = 'auto';
                   
                   // Ensure the container can handle overflow properly
                   container.style.overflow = 'visible';
                   
-                  console.log('🎯 Container setup complete - touchAction: pan-x pan-y pinch-zoom, overflow: visible');
+                  console.log('🎯 Container setup complete - touchAction: auto, overflow: visible');
                 }
               }
             }}
