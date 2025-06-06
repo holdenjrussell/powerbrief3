@@ -1,12 +1,14 @@
+import { createServerAdminClient } from '@/lib/supabase/serverAdminClient';
 import { createSSRClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createSSRClient();
+    // Use SSR client for user authentication
+    const supabaseSSR = await createSSRClient();
     
     // Get user from session
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const { data: { user }, error: authError } = await supabaseSSR.auth.getUser();
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -28,6 +30,9 @@ export async function GET(request: NextRequest) {
     if (cleanIdentifier.length < 3 || cleanIdentifier.length > 50) {
       return NextResponse.json({ available: false, reason: 'Invalid length' });
     }
+
+    // Use admin client for database operations
+    const supabase = await createServerAdminClient();
 
     // Check if identifier is already taken
     const { data: existingBrand, error: checkError } = await supabase
