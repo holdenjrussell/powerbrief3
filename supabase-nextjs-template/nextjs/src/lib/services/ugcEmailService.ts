@@ -1,5 +1,6 @@
+import { createSPAClient } from '@/lib/supabase/client';
+import { createServerAdminClient } from '@/lib/supabase/serverAdminClient';
 import sgMail from '@sendgrid/mail';
-import { createSSRClient } from '@/lib/supabase/server';
 import { UgcCreator } from '@/lib/types/ugcCreator';
 import { Brand } from '@/lib/types/powerbrief';
 
@@ -25,8 +26,11 @@ export interface EmailThread {
   creator_id: string;
   brand_id: string;
   thread_subject: string;
-  emails: EmailMessage[];
   status: 'active' | 'completed' | 'paused';
+  is_primary: boolean;
+  closed_at?: string;
+  closed_by?: string;
+  close_reason?: string;
   created_at: string;
   updated_at: string;
 }
@@ -44,6 +48,8 @@ export interface EmailMessage {
   status: 'draft' | 'sent' | 'delivered' | 'opened' | 'clicked' | 'failed';
   template_id?: string;
   variables_used?: Record<string, string | number>;
+  deleted_at?: string;
+  deleted_by?: string;
   created_at: string;
 }
 
@@ -232,342 +238,176 @@ export const DEFAULT_EMAIL_TEMPLATES: Omit<EmailTemplate, 'id' | 'created_at' | 
 
 export class UgcEmailService {
   constructor() {
-    // Remove Supabase initialization from constructor
+    if (process.env.SENDGRID_API_KEY) {
+      sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+    }
   }
 
+  // Get Supabase client (server-side)
   private async getSupabaseClient() {
-    return await createSSRClient();
+    try {
+      return await createServerAdminClient();
+    } catch {
+      // Fallback to SPA client if server client fails
+      return createSPAClient();
+    }
   }
 
-  // Email validation - check if creator has email
-  async validateCreatorEmail(creator: UgcCreator): Promise<{ valid: boolean; message: string }> {
-    if (!creator.email || creator.email.trim() === '') {
-      return {
-        valid: false,
-        message: 'Creator profile flagged: No email address'
-      };
-    }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(creator.email)) {
-      return {
-        valid: false,
-        message: 'Creator profile flagged: Invalid email format'
-      };
-    }
-
-    return {
-      valid: true,
-      message: 'Email valid'
-    };
-  }
-
-  // Get or create email thread for creator
-  async getOrCreateEmailThread(
+  // Get or create primary email thread for creator-brand pair
+  async getPrimaryEmailThread(
     creatorId: string,
     brandId: string,
-    subject: string
-  ): Promise<EmailThread> {
+    subject?: string
+  ): Promise<{ threadId: string; isNew: boolean }> {
     const supabase = await this.getSupabaseClient();
 
-    // Try to find existing active thread - using any until TS server refreshes
-    const { data: existingThread } = await (supabase as any)
-      .from('ugc_email_threads')
-      .select('*')
-      .eq('creator_id', creatorId)
-      .eq('brand_id', brandId)
-      .eq('status', 'active')
-      .single();
+    try {
+      // Use the database function to get or create primary thread
+      const { data, error } = await supabase.rpc('get_or_create_primary_email_thread', {
+        p_creator_id: creatorId,
+        p_brand_id: brandId,
+        p_subject: subject || null
+      });
 
-    if (existingThread) {
-      return existingThread as EmailThread;
+      if (error) {
+        console.error('Error getting primary thread:', error);
+        throw new Error(`Failed to get primary thread: ${error.message}`);
+      }
+
+      // Check if this is a newly created thread by looking for recent creation
+      const { data: threadData } = await supabase
+        .from('ugc_email_threads')
+        .select('created_at')
+        .eq('id', data)
+        .single();
+
+      const isNew = threadData ? 
+        (Date.now() - new Date(threadData.created_at).getTime()) < 1000 : 
+        false;
+
+      return { threadId: data, isNew };
+    } catch (error) {
+      console.error('Failed to get primary thread:', error);
+      throw error;
     }
+  }
 
-    // Create new thread
-    const { data: newThread, error } = await (supabase as any)
-      .from('ugc_email_threads')
-      .insert({
-        creator_id: creatorId,
-        brand_id: brandId,
-        thread_subject: subject,
-        status: 'active'
-      })
-      .select()
+  // Close email thread
+  async closeEmailThread(
+    threadId: string, 
+    userId: string, 
+    reason?: string
+  ): Promise<boolean> {
+    const supabase = await this.getSupabaseClient();
+
+    try {
+      const { data, error } = await supabase.rpc('close_email_thread', {
+        p_thread_id: threadId,
+        p_user_id: userId,
+        p_reason: reason || null
+      });
+
+      if (error) {
+        console.error('Error closing thread:', error);
+        throw new Error(`Failed to close thread: ${error.message}`);
+      }
+
+      return data === true;
+    } catch (error) {
+      console.error('Failed to close thread:', error);
+      return false;
+    }
+  }
+
+  // Soft delete email message
+  async deleteEmailMessage(messageId: string, userId: string): Promise<boolean> {
+    const supabase = await this.getSupabaseClient();
+
+    try {
+      const { data, error } = await supabase.rpc('delete_email_message', {
+        p_message_id: messageId,
+        p_user_id: userId
+      });
+
+      if (error) {
+        console.error('Error deleting message:', error);
+        throw new Error(`Failed to delete message: ${error.message}`);
+      }
+
+      return data === true;
+    } catch (error) {
+      console.error('Failed to delete message:', error);
+      return false;
+    }
+  }
+
+  // Get email template
+  async getTemplate(templateId: string, brandId: string): Promise<EmailTemplate | null> {
+    const supabase = await this.getSupabaseClient();
+
+    const { data, error } = await supabase
+      .from('ugc_email_templates')
+      .select('*')
+      .eq('id', templateId)
+      .eq('brand_id', brandId)
+      .eq('enabled', true)
       .single();
 
     if (error) {
-      throw new Error(`Failed to create email thread: ${error.message}`);
+      console.error('Error fetching template:', error);
+      return null;
     }
 
-    return newThread as EmailThread;
+    return data as EmailTemplate;
   }
 
-  // Send email with template
-  async sendTemplatedEmail({
-    templateId,
-    creatorId,
-    brandId,
-    variables = {},
-    customSubject,
-    customContent
-  }: {
-    templateId?: string;
-    creatorId: string;
-    brandId: string;
-    variables?: Record<string, string | number>;
-    customSubject?: string;
-    customContent?: { html: string; text: string };
-  }): Promise<{ success: boolean; messageId?: string; error?: string }> {
-    try {
-      const supabase = await this.getSupabaseClient();
+  // Replace variables in content
+  private replaceVariables(content: string, variables: Record<string, string | number>): string {
+    let result = content;
+    
+    Object.entries(variables).forEach(([key, value]) => {
+      const regex = new RegExp(`\\{${key}\\}`, 'g');
+      result = result.replace(regex, String(value));
+    });
+    
+    return result;
+  }
 
-      // Get creator and brand details
-      const [creatorResult, brandResult] = await Promise.all([
-        supabase.from('ugc_creators').select('*').eq('id', creatorId).single(),
-        supabase.from('brands').select('*').eq('id', brandId).single()
-      ]);
+  // Get creator and brand data
+  private async getCreatorAndBrand(creatorId: string, brandId: string): Promise<{
+    creator: UgcCreator;
+    brand: Brand;
+  }> {
+    const supabase = await this.getSupabaseClient();
 
-      if (creatorResult.error || brandResult.error) {
-        throw new Error('Failed to fetch creator or brand details');
-      }
+    const [creatorResult, brandResult] = await Promise.all([
+      supabase
+        .from('ugc_creators')
+        .select('id, name, email, brand_id')
+        .eq('id', creatorId)
+        .single(),
+      supabase
+        .from('brands')
+        .select('id, name, email_identifier')
+        .eq('id', brandId)
+        .single()
+    ]);
 
-      const creator: UgcCreator = {
-        ...creatorResult.data,
-        products: Array.isArray(creatorResult.data.products) 
-          ? creatorResult.data.products as string[]
-          : JSON.parse(creatorResult.data.products as string || '[]'),
-        content_types: Array.isArray(creatorResult.data.content_types)
-          ? creatorResult.data.content_types as string[]
-          : JSON.parse(creatorResult.data.content_types as string || '[]'),
-        platforms: Array.isArray(creatorResult.data.platforms)
-          ? creatorResult.data.platforms as string[]
-          : JSON.parse(creatorResult.data.platforms as string || '[]')
-      };
-
-      const brand: Brand = {
-        ...brandResult.data,
-        brand_info_data: typeof brandResult.data.brand_info_data === 'string' 
-          ? JSON.parse(brandResult.data.brand_info_data) 
-          : brandResult.data.brand_info_data || {},
-        target_audience_data: typeof brandResult.data.target_audience_data === 'string'
-          ? JSON.parse(brandResult.data.target_audience_data)
-          : brandResult.data.target_audience_data || {},
-        competition_data: typeof brandResult.data.competition_data === 'string'
-          ? JSON.parse(brandResult.data.competition_data)
-          : brandResult.data.competition_data || {},
-        editing_resources: Array.isArray(brandResult.data.editing_resources)
-          ? brandResult.data.editing_resources
-          : JSON.parse(brandResult.data.editing_resources as string || '[]'),
-        dos_and_donts: typeof brandResult.data.dos_and_donts === 'string'
-          ? JSON.parse(brandResult.data.dos_and_donts)
-          : brandResult.data.dos_and_donts || {},
-        resource_logins: Array.isArray(brandResult.data.resource_logins)
-          ? brandResult.data.resource_logins
-          : JSON.parse(brandResult.data.resource_logins as string || '[]')
-      };
-
-      // Validate creator email
-      const emailValidation = await this.validateCreatorEmail(creator);
-      if (!emailValidation.valid) {
-        return {
-          success: false,
-          error: emailValidation.message
-        };
-      }
-
-      let emailSubject: string;
-      let htmlContent: string;
-      let textContent: string;
-
-      if (customSubject && customContent) {
-        // Use custom content
-        emailSubject = customSubject;
-        htmlContent = customContent.html;
-        textContent = customContent.text;
-      } else if (templateId) {
-        // Get template - using any until TS server refreshes
-        const { data: template, error: templateError } = await (supabase as any)
-          .from('ugc_email_templates')
-          .select('*')
-          .eq('id', templateId)
-          .single();
-
-        if (templateError || !template) {
-          throw new Error('Email template not found');
-        }
-
-        emailSubject = template.subject;
-        htmlContent = template.html_content;
-        textContent = template.text_content;
-      } else {
-        throw new Error('Either templateId or custom content must be provided');
-      }
-
-      // Replace variables in content
-      const allVariables = {
-        CREATOR_NAME: creator.name,
-        CREATOR_EMAIL: creator.email,
-        BRAND_NAME: brand.name,
-        SENDER_NAME: 'The Grounding Co Team', // This could be configurable
-        ...variables
-      };
-
-      // Replace variables in content
-      for (const [key, value] of Object.entries(allVariables)) {
-        const placeholder = `{{${key}}}`;
-        emailSubject = emailSubject.replace(new RegExp(placeholder, 'g'), String(value));
-        htmlContent = htmlContent.replace(new RegExp(placeholder, 'g'), String(value));
-        textContent = textContent.replace(new RegExp(placeholder, 'g'), String(value));
-      }
-
-      // Send email via SendGrid
-      const msg = {
-        to: creator.email!,
-        from: {
-          email: process.env.SENDGRID_FROM_EMAIL!,
-          name: 'The Grounding Co'
-        },
-        subject: emailSubject,
-        html: htmlContent,
-        text: textContent
-      };
-
-      const sendResponse = await sgMail.send(msg);
-      const messageId = sendResponse[0].headers['x-message-id'];
-
-      // Get or create email thread
-      const thread = await this.getOrCreateEmailThread(
-        creatorId,
-        brandId,
-        emailSubject
-      );
-
-      // Store email record - using any until TS server refreshes
-      await (supabase as any)
-        .from('ugc_email_messages')
-        .insert({
-          thread_id: thread.id,
-          message_id: messageId,
-          from_email: process.env.SENDGRID_FROM_EMAIL!,
-          to_email: creator.email!,
-          subject: emailSubject,
-          html_content: htmlContent,
-          text_content: textContent,
-          status: 'sent',
-          template_id: templateId,
-          variables_used: allVariables,
-          sent_at: new Date().toISOString()
-        });
-
-      return {
-        success: true,
-        messageId
-      };
-
-    } catch (error) {
-      console.error('Failed to send templated email:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
-      };
+    if (creatorResult.error) {
+      throw new Error(`Creator not found: ${creatorResult.error.message}`);
     }
-  }
 
-  // Trigger automation based on status change
-  async triggerAutomation(
-    creatorId: string,
-    brandId: string,
-    newStatus: string,
-    pipelineStage: 'onboarding' | 'script_pipeline',
-    additionalVariables: Record<string, string | number> = {}
-  ): Promise<{ success: boolean; emailsSent: number; errors: string[] }> {
-    try {
-      const supabase = await this.getSupabaseClient();
-
-      // Find templates that should trigger for this status - using any until TS server refreshes
-      const { data: templates, error } = await (supabase as any)
-        .from('ugc_email_templates')
-        .select('*')
-        .eq('trigger_status', newStatus)
-        .eq('pipeline_stage', pipelineStage)
-        .eq('enabled', true);
-
-      if (error) {
-        throw new Error(`Failed to fetch templates: ${error.message}`);
-      }
-
-      if (!templates || templates.length === 0) {
-        return {
-          success: true,
-          emailsSent: 0,
-          errors: []
-        };
-      }
-
-      const results = [];
-      const errors = [];
-
-      for (const template of templates) {
-        const result = await this.sendTemplatedEmail({
-          templateId: template.id,
-          creatorId,
-          brandId,
-          variables: additionalVariables
-        });
-
-        if (result.success) {
-          results.push(result);
-        } else {
-          errors.push(`Template ${template.name}: ${result.error}`);
-        }
-      }
-
-      return {
-        success: errors.length === 0,
-        emailsSent: results.length,
-        errors
-      };
-
-    } catch (error) {
-      console.error('Failed to trigger automation:', error);
-      return {
-        success: false,
-        emailsSent: 0,
-        errors: [error instanceof Error ? error.message : 'Unknown error']
-      };
+    if (brandResult.error) {
+      throw new Error(`Brand not found: ${brandResult.error.message}`);
     }
-  }
-
-  // Generate email approval/rejection links for scripts
-  generateScriptActionLinks(scriptId: string, baseUrl: string) {
-    const approveToken = Buffer.from(`approve:${scriptId}:${Date.now()}`).toString('base64');
-    const rejectToken = Buffer.from(`reject:${scriptId}:${Date.now()}`).toString('base64');
 
     return {
-      approveLink: `${baseUrl}/api/ugc/script-response?token=${approveToken}`,
-      rejectLink: `${baseUrl}/api/ugc/script-response?token=${rejectToken}`
+      creator: creatorResult.data as UgcCreator,
+      brand: brandResult.data as Brand
     };
   }
 
-  // Update generateBrandReplyToAddress method to use email_identifier from database
-  async generateBrandReplyToAddress(brandId: string): Promise<string> {
-    const supabase = await this.getSupabaseClient();
-    
-    // Get brand's email identifier
-    const { data: brand, error } = await supabase
-      .from('brands')
-      .select('email_identifier')
-      .eq('id', brandId)
-      .single();
-
-    if (error || !brand?.email_identifier) {
-      throw new Error(`Brand email identifier not found for brand ${brandId}. Please set up email identifier in brand settings.`);
-    }
-    
-    return `${brand.email_identifier}@mail.powerbrief.ai`;
-  }
-
-  // Update sendEmail method to include proper reply-to
+  // Main send email function with improved threading
   async sendEmail({
     templateId,
     creatorId,
@@ -575,6 +415,7 @@ export class UgcEmailService {
     variables = {},
     customSubject,
     customContent,
+    replyToThreadId
   }: {
     templateId?: string;
     creatorId: string;
@@ -582,41 +423,38 @@ export class UgcEmailService {
     variables?: Record<string, string | number>;
     customSubject?: string;
     customContent?: { html: string; text: string };
-  }): Promise<{ success: boolean; messageId?: string; error?: string; threadId?: string }> {
+    replyToThreadId?: string;
+  }): Promise<{ 
+    success: boolean; 
+    messageId?: string; 
+    error?: string; 
+    threadId?: string;
+  }> {
     try {
       const supabase = await this.getSupabaseClient();
       
-      // Get creator and brand info
-      const { data: creator } = await supabase
-        .from('ugc_creators')
-        .select('*')
-        .eq('id', creatorId)
-        .single();
-
-      const { data: brand } = await supabase
-        .from('brands')
-        .select('*')
-        .eq('id', brandId)
-        .single();
-
-      if (!creator || !brand) {
-        return { success: false, error: 'Creator or brand not found' };
-      }
+      // Get creator and brand data
+      const { creator, brand } = await this.getCreatorAndBrand(creatorId, brandId);
 
       if (!creator.email) {
         return { success: false, error: 'Creator email not available' };
       }
 
-      // Generate brand-specific reply-to address
-      const replyToAddress = await this.generateBrandReplyToAddress(brandId);
+      if (!brand.email_identifier) {
+        return { 
+          success: false, 
+          error: 'Brand email identifier not configured. Please set up email settings.' 
+        };
+      }
 
+      // Prepare email content
       let subject: string;
       let htmlContent: string;
       let textContent: string;
-      let templateUsed: string | null = null;
+      let templateUsed: string | undefined;
 
       if (customContent) {
-        subject = customSubject || 'Update from ' + brand.name;
+        subject = customSubject || `Update from ${brand.name}`;
         htmlContent = customContent.html;
         textContent = customContent.text;
       } else if (templateId) {
@@ -626,41 +464,40 @@ export class UgcEmailService {
         }
 
         templateUsed = template.id;
-        subject = customSubject || this.replaceVariables(template.subject, variables);
-        htmlContent = this.replaceVariables(template.html_content, variables);
-        textContent = this.replaceVariables(template.text_content, variables);
+        
+        // Enhance variables with brand and creator data
+        const allVariables = {
+          creator_name: creator.name,
+          creator_email: creator.email,
+          brand_name: brand.name,
+          current_date: new Date().toLocaleDateString(),
+          ...variables
+        };
+
+        subject = customSubject || this.replaceVariables(template.subject, allVariables);
+        htmlContent = this.replaceVariables(template.htmlContent, allVariables);
+        textContent = this.replaceVariables(template.textContent, allVariables);
       } else {
         return { success: false, error: 'No content or template provided' };
       }
 
-      // Create or find email thread
-      let { data: thread } = await supabase
-        .from('ugc_email_threads')
-        .select('*')
-        .eq('brand_id', brandId)
-        .eq('creator_id', creatorId)
-        .eq('thread_subject', subject)
-        .single();
-
-      if (!thread) {
-        const { data: newThread } = await supabase
-          .from('ugc_email_threads')
-          .insert({
-            brand_id: brandId,
-            creator_id: creatorId,
-            thread_subject: subject,
-            status: 'active',
-          })
-          .select()
-          .single();
-        thread = newThread;
+      // Get or create email thread
+      let threadId: string;
+      
+      if (replyToThreadId) {
+        // Replying to specific thread
+        threadId = replyToThreadId;
+      } else {
+        // Get primary thread for this creator-brand pair
+        const threadResult = await this.getPrimaryEmailThread(creatorId, brandId, subject);
+        threadId = threadResult.threadId;
       }
 
-      if (!thread) {
-        return { success: false, error: 'Failed to create email thread' };
-      }
+      // Generate email addresses
+      const fromEmail = `${brand.email_identifier}@mail.powerbrief.ai`;
+      const replyToEmail = fromEmail;
 
-      // Send email with brand-specific reply-to
+      // Send email with SendGrid
       const msg = {
         to: creator.email,
         from: {
@@ -668,7 +505,7 @@ export class UgcEmailService {
           name: brand.name
         },
         replyTo: {
-          email: replyToAddress,
+          email: replyToEmail,
           name: `${brand.name} Creator Team`
         },
         subject,
@@ -677,71 +514,264 @@ export class UgcEmailService {
         headers: {
           'X-Brand-ID': brandId,
           'X-Creator-ID': creatorId,
-          'X-Thread-ID': thread.id,
+          'X-Thread-ID': threadId,
+          'X-Brand-Identifier': brand.email_identifier
         }
       };
 
+      if (!process.env.SENDGRID_API_KEY) {
+        console.warn('SendGrid API key not configured - email would be sent in production');
+        // Store as draft in development
+        await supabase
+          .from('ugc_email_messages')
+          .insert({
+            thread_id: threadId,
+            from_email: fromEmail,
+            to_email: creator.email,
+            subject,
+            html_content: htmlContent,
+            text_content: textContent,
+            status: 'draft',
+            template_id: templateUsed,
+            variables_used: variables,
+          });
+
+        return { 
+          success: true, 
+          messageId: 'dev-mode-' + Date.now(),
+          threadId 
+        };
+      }
+
       const response = await sgMail.send(msg);
+      const messageId = response[0].headers['x-message-id'];
       
-      // Store the sent message in the thread
-      const { data: message } = await supabase
+      // Store the sent message
+      await supabase
         .from('ugc_email_messages')
         .insert({
-          thread_id: thread.id,
+          thread_id: threadId,
           template_id: templateUsed,
-          from_email: 'noreply@powerbrief.ai',
+          from_email: fromEmail,
           to_email: creator.email,
           subject,
           html_content: htmlContent,
           text_content: textContent,
           status: 'sent',
           sent_at: new Date().toISOString(),
-          message_id: response[0].headers['x-message-id'],
+          message_id: messageId,
           variables_used: variables,
-        })
-        .select()
-        .single();
+        });
 
       console.log('✅ Email sent successfully:', {
         to: creator.email,
         subject,
-        messageId: response[0].headers['x-message-id'],
-        replyTo: replyToAddress,
-        threadId: thread.id,
+        messageId,
+        replyTo: replyToEmail,
+        threadId,
       });
 
       return { 
         success: true, 
-        messageId: response[0].headers['x-message-id'],
-        threadId: thread.id,
+        messageId,
+        threadId,
       };
 
     } catch (error) {
       console.error('❌ Failed to send email:', error);
-      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Unknown error' 
+      };
+    }
+  }
+
+  // Send workflow automation email using templates with variable substitution
+  async sendWorkflowEmail({
+    templateId,
+    creatorId,
+    brandId,
+    variables = {},
+    triggerEvent
+  }: {
+    templateId: string;
+    creatorId: string;
+    brandId: string;
+    variables?: Record<string, string | number>;
+    triggerEvent?: string;
+  }): Promise<{ 
+    success: boolean; 
+    messageId?: string; 
+    error?: string; 
+    threadId?: string;
+  }> {
+    return this.sendEmail({
+      templateId,
+      creatorId,
+      brandId,
+      variables: {
+        ...variables,
+        trigger_event: triggerEvent || 'workflow_automation'
+      }
+    });
+  }
+
+  // Get all email threads for a creator
+  async getCreatorEmailThreads(creatorId: string, brandId: string): Promise<EmailThread[]> {
+    const supabase = await this.getSupabaseClient();
+
+    const { data, error } = await supabase
+      .from('ugc_email_threads')
+      .select(`
+        *,
+        messages:ugc_email_messages!inner(*)
+      `)
+      .eq('creator_id', creatorId)
+      .eq('brand_id', brandId)
+      .order('updated_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching creator threads:', error);
+      return [];
+    }
+
+    return (data || []) as EmailThread[];
+  }
+
+  // Get thread messages with pagination
+  async getThreadMessages(
+    threadId: string, 
+    includeDeleted = false,
+    limit = 50,
+    offset = 0
+  ): Promise<EmailMessage[]> {
+    const supabase = await this.getSupabaseClient();
+
+    let query = supabase
+      .from('ugc_email_messages')
+      .select('*')
+      .eq('thread_id', threadId)
+      .order('created_at', { ascending: true })
+      .range(offset, offset + limit - 1);
+
+    if (!includeDeleted) {
+      query = query.is('deleted_at', null);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('Error fetching thread messages:', error);
+      return [];
+    }
+
+    return (data || []) as EmailMessage[];
+  }
+
+  // Restore deleted message
+  async restoreEmailMessage(messageId: string): Promise<boolean> {
+    const supabase = await this.getSupabaseClient();
+
+    try {
+      const { error } = await supabase
+        .from('ugc_email_messages')
+        .update({ 
+          deleted_at: null, 
+          deleted_by: null 
+        })
+        .eq('id', messageId)
+        .not('deleted_at', 'is', null);
+
+      return !error;
+    } catch (error) {
+      console.error('Failed to restore message:', error);
+      return false;
+    }
+  }
+
+  // Get email analytics for a brand
+  async getEmailAnalytics(brandId: string, days = 30): Promise<{
+    totalSent: number;
+    totalDelivered: number;
+    totalOpened: number;
+    totalClicked: number;
+    activeThreads: number;
+    topTemplates: Array<{ templateId: string; name: string; count: number }>;
+  }> {
+    const supabase = await this.getSupabaseClient();
+    const sinceDate = new Date();
+    sinceDate.setDate(sinceDate.getDate() - days);
+
+    try {
+      // Get message stats
+      const { data: messageStats } = await supabase
+        .from('ugc_email_messages')
+        .select('status, template_id')
+        .gte('created_at', sinceDate.toISOString())
+        .in('thread_id', 
+          supabase
+            .from('ugc_email_threads')
+            .select('id')
+            .eq('brand_id', brandId)
+        );
+
+      const totalSent = messageStats?.filter(m => m.status === 'sent').length || 0;
+      const totalDelivered = messageStats?.filter(m => m.status === 'delivered').length || 0;
+      const totalOpened = messageStats?.filter(m => m.status === 'opened').length || 0;
+      const totalClicked = messageStats?.filter(m => m.status === 'clicked').length || 0;
+
+      // Get active threads count
+      const { count: activeThreads } = await supabase
+        .from('ugc_email_threads')
+        .select('*', { count: 'exact', head: true })
+        .eq('brand_id', brandId)
+        .eq('status', 'active');
+
+      // Get top templates
+      const templateCounts = messageStats?.reduce((acc, msg) => {
+        if (msg.template_id) {
+          acc[msg.template_id] = (acc[msg.template_id] || 0) + 1;
+        }
+        return acc;
+      }, {} as Record<string, number>) || {};
+
+      const { data: templates } = await supabase
+        .from('ugc_email_templates')
+        .select('id, name')
+        .eq('brand_id', brandId)
+        .in('id', Object.keys(templateCounts));
+
+      const topTemplates = (templates || [])
+        .map(t => ({
+          templateId: t.id,
+          name: t.name,
+          count: templateCounts[t.id] || 0
+        }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 5);
+
+      return {
+        totalSent,
+        totalDelivered,
+        totalOpened,
+        totalClicked,
+        activeThreads: activeThreads || 0,
+        topTemplates
+      };
+
+    } catch (error) {
+      console.error('Failed to get email analytics:', error);
+      return {
+        totalSent: 0,
+        totalDelivered: 0,
+        totalOpened: 0,
+        totalClicked: 0,
+        activeThreads: 0,
+        topTemplates: []
+      };
     }
   }
 }
 
-// Create a function to get the service instance when needed
-export function getUgcEmailService(): UgcEmailService {
-  return new UgcEmailService();
-}
-
-// For backward compatibility, export a lazy-loaded service
-export const ugcEmailService = {
-  validateCreatorEmail: (...args: Parameters<UgcEmailService['validateCreatorEmail']>) => 
-    getUgcEmailService().validateCreatorEmail(...args),
-  getOrCreateEmailThread: (...args: Parameters<UgcEmailService['getOrCreateEmailThread']>) => 
-    getUgcEmailService().getOrCreateEmailThread(...args),
-  sendTemplatedEmail: (...args: Parameters<UgcEmailService['sendTemplatedEmail']>) => 
-    getUgcEmailService().sendTemplatedEmail(...args),
-  triggerAutomation: (...args: Parameters<UgcEmailService['triggerAutomation']>) => 
-    getUgcEmailService().triggerAutomation(...args),
-  generateScriptActionLinks: (...args: Parameters<UgcEmailService['generateScriptActionLinks']>) => 
-    getUgcEmailService().generateScriptActionLinks(...args),
-  generateBrandReplyToAddress: (...args: Parameters<UgcEmailService['generateBrandReplyToAddress']>) => 
-    getUgcEmailService().generateBrandReplyToAddress(...args),
-  sendEmail: (...args: Parameters<UgcEmailService['sendEmail']>) => 
-    getUgcEmailService().sendEmail(...args)
-}; 
+// Export singleton instance
+export const ugcEmailService = new UgcEmailService(); 
