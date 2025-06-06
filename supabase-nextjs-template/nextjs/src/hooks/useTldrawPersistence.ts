@@ -40,13 +40,13 @@ function debounce<T extends (...args: unknown[]) => unknown>(
 export function useTldrawPersistence({ 
   wireframeId, 
   editor, 
-  autoSaveIntervalMs = 5000  // Increase interval to reduce interference
+  autoSaveIntervalMs = 10000  // Much longer interval - 10 seconds
 }: UseTldrawPersistenceOptions) {
   const hasLoadedInitialData = useRef(false);
   const lastSavedSnapshot = useRef<string | null>(null);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Less aggressive debounced save function
+  // Much less aggressive debounced save function
   const debouncedSave = useCallback(
     debounce(async () => {
       if (!editor) return;
@@ -138,14 +138,14 @@ export function useTldrawPersistence({
     }
   }, [editor, wireframeId]);
 
-  // Set up auto-save when editor changes - with reduced frequency
+  // Set up auto-save when editor changes - with much reduced frequency
   useEffect(() => {
     if (!editor) return;
 
     // Load initial data when editor is ready
     loadInitialData();
 
-    // Set up less aggressive auto-save listener with throttling
+    // Much less aggressive auto-save listener - only listen occasionally
     let isThrottled = false;
     const throttledListener = () => {
       if (isThrottled) return;
@@ -156,11 +156,11 @@ export function useTldrawPersistence({
         clearTimeout(saveTimeoutRef.current);
       }
       
-      // Set new timeout for save
+      // Much longer timeout to avoid interfering with user interactions
       saveTimeoutRef.current = setTimeout(() => {
         debouncedSave();
         isThrottled = false;
-      }, 1000); // Wait 1 second before attempting save
+      }, 5000); // Wait 5 seconds before attempting save (much longer)
     };
 
     const unsubscribe = editor.store.listen(throttledListener, { scope: 'document' });

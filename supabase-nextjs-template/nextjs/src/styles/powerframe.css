@@ -244,7 +244,7 @@
   }
 }
 
-/* Tldraw Canvas Touch/Scroll Support - Let tldraw handle its own events */
+/* Tldraw Canvas Touch/Scroll Support - Permissive for All Scrolling */
 .tl-container {
   touch-action: auto !important;
   user-select: none !important;
@@ -263,7 +263,7 @@
   overflow: visible !important;
 }
 
-/* Let tldraw handle all input types naturally */
+/* Enhanced support for all pointer types - allow all scroll directions */
 @media (pointer: fine) {
   .tl-container {
     touch-action: auto !important;
