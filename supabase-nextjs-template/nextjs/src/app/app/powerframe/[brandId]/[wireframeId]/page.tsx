@@ -81,6 +81,18 @@ export default function WireframeEditorPage() {
     return () => clearInterval(backupSaveInterval);
   }, [currentEditor, saveNow]);
 
+  // Cleanup navigation event listener on unmount
+  useEffect(() => {
+    return () => {
+      if (currentEditor) {
+        const container = currentEditor.getContainer();
+        if (container && (container as HTMLElement & { _cleanupNavigation?: () => void })._cleanupNavigation) {
+          (container as HTMLElement & { _cleanupNavigation?: () => void })._cleanupNavigation?.();
+        }
+      }
+    };
+  }, [currentEditor]);
+
   // Valid tldraw colors - expanded list
   const VALID_COLORS = ['black', 'grey', 'white', 'blue', 'red', 'green', 'orange', 'yellow', 'light-violet', 'violet', 'light-blue', 'light-green', 'light-red', 'light-grey'];
   
@@ -869,8 +881,30 @@ Check console for detailed error analysis.`);
               
               setCurrentEditor(editor);
               
-              // Let tldraw handle all events natively - no interference
-              console.log('🎯 Editor mounted - letting tldraw handle all events natively');
+              // Prevent Chrome's back/forward navigation on horizontal scroll
+              if (editor) {
+                const container = editor.getContainer();
+                if (container) {
+                  // Prevent browser back/forward on horizontal scroll/swipe
+                  const preventNavigation = (e: WheelEvent) => {
+                    // Only prevent default for horizontal scrolling to stop browser navigation
+                    if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+                      e.preventDefault();
+                    }
+                  };
+
+                  // Add wheel event listener to prevent horizontal navigation
+                  container.addEventListener('wheel', preventNavigation, { passive: false });
+                  
+                  // Store the cleanup function
+                  (container as HTMLElement & { _cleanupNavigation?: () => void })._cleanupNavigation = () => {
+                    container.removeEventListener('wheel', preventNavigation);
+                  };
+                }
+              }
+              
+              // Let tldraw handle all other events natively
+              console.log('🎯 Editor mounted - preventing Chrome navigation, letting tldraw handle scroll events');
             }}
           />
         </div>
