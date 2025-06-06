@@ -7,20 +7,24 @@ import { ArrowLeft, Sparkles, ChevronLeft, ChevronRight, Upload, X, Save, CheckC
 import dynamic from 'next/dynamic';
 import { useTldrawPersistence } from '@/hooks/useTldrawPersistence';
 
-// Dynamically import Tldraw to avoid SSR issues and prevent duplicate imports
+// Dynamically import both Tldraw component and toRichText function together to avoid multiple instances
 const TldrawComponent = dynamic(
-  async () => {
-    const tldrawModule = await import('@tldraw/tldraw');
-    return { 
-      default: tldrawModule.Tldraw,
-      toRichText: tldrawModule.toRichText
-    };
-  },
+  () => import('@tldraw/tldraw').then((mod) => {
+    // Store the toRichText function when tldraw loads to avoid duplicate imports
+    if (typeof window !== 'undefined') {
+      (window as Window & { __tldrawToRichText?: typeof mod.toRichText }).__tldrawToRichText = mod.toRichText;
+    }
+    return mod.Tldraw;
+  }),
   { 
     ssr: false,
     loading: () => <div className="w-full h-full flex items-center justify-center bg-gray-100">Loading canvas...</div>
   }
 );
+
+// Import CSS
+import '@tldraw/tldraw/tldraw.css';
+import '@/styles/powerframe.css';
 
 export default function WireframeEditorPage() {
   const params = useParams();
@@ -45,12 +49,43 @@ export default function WireframeEditorPage() {
   const [jsonInput, setJsonInput] = useState('');
   const [isLoadingJson, setIsLoadingJson] = useState(false);
 
-  // Custom persistence hook
+  // Custom persistence hook - NO AUTO-SAVE
   const { saveNow, hasLoadedInitialData } = useTldrawPersistence({
     wireframeId,
-    editor: currentEditor,
-    autoSaveIntervalMs: 3000 // Auto-save every 3 seconds
+    editor: currentEditor
   });
+
+  // Add save on page unload
+  useEffect(() => {
+    const handleBeforeUnload = async () => {
+      if (currentEditor) {
+        try {
+          await saveNow();
+        } catch (error) {
+          console.error('Failed to save on page unload:', error);
+        }
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [currentEditor, saveNow]);
+
+  // Very infrequent backup save (every 5 minutes) as safety net
+  useEffect(() => {
+    if (!currentEditor) return;
+
+    const backupSaveInterval = setInterval(async () => {
+      try {
+        console.log('Performing backup save...');
+        await saveNow();
+      } catch (error) {
+        console.error('Backup save failed:', error);
+      }
+    }, 5 * 60 * 1000); // 5 minutes
+
+    return () => clearInterval(backupSaveInterval);
+  }, [currentEditor, saveNow]);
 
   // Valid tldraw colors - expanded list
   const VALID_COLORS = ['black', 'grey', 'white', 'blue', 'red', 'green', 'orange', 'yellow', 'light-violet', 'violet', 'light-blue', 'light-green', 'light-red', 'light-grey'];
@@ -186,13 +221,23 @@ export default function WireframeEditorPage() {
     return validatedShape;
   };
 
-  // Ensure we're on the client side and load toRichText function
+  // Ensure we're on the client side and get toRichText function from stored reference
   useEffect(() => {
     setIsClient(true);
-    // Load toRichText function dynamically
-    import('@tldraw/tldraw').then((mod) => {
-      setToRichTextFn(() => mod.toRichText);
-    });
+    
+    // Get toRichText function from the stored reference to avoid duplicate imports
+    const checkForTldrawFunction = () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const tldrawWindow = window as Window & { __tldrawToRichText?: (text: string) => any };
+      if (tldrawWindow.__tldrawToRichText) {
+        setToRichTextFn(() => tldrawWindow.__tldrawToRichText);
+      } else {
+        // If not available yet, check again in 100ms
+        setTimeout(checkForTldrawFunction, 100);
+      }
+    };
+    
+    checkForTldrawFunction();
   }, []);
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -555,6 +600,64 @@ Check console for detailed error analysis.`);
                 </span>
               )}
               
+              {/* Debug Test Button */}
+              <button
+                onClick={() => {
+                  if (currentEditor) {
+                    console.log('🧪 Testing zoom programmatically...');
+                    console.log('🔍 Current zoom level:', currentEditor.getZoomLevel());
+                    currentEditor.zoomIn();
+                    console.log('✅ Zoom in command sent');
+                    setTimeout(() => {
+                      console.log('🔍 New zoom level:', currentEditor.getZoomLevel());
+                    }, 100);
+                  } else {
+                    console.log('❌ Editor not available');
+                  }
+                }}
+                className="inline-flex items-center space-x-1 px-2 py-1 text-xs bg-yellow-500 text-white rounded-md hover:bg-yellow-600 transition-colors"
+                title="Test zoom functionality"
+              >
+                🧪 Test Zoom
+              </button>
+              
+              <button
+                onClick={() => {
+                  if (currentEditor) {
+                    console.log('🧪 Testing zoom to fit...');
+                    currentEditor.zoomToFit();
+                    console.log('✅ Zoom to fit command sent');
+                  }
+                }}
+                className="inline-flex items-center space-x-1 px-2 py-1 text-xs bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors"
+                title="Test zoom to fit"
+              >
+                🎯 Fit
+              </button>
+              
+              <button
+                onClick={async () => {
+                  if (confirm('Clear all canvas data? This will reset your wireframe to empty.')) {
+                    try {
+                      console.log('🗑️ Clearing corrupted tldraw data...');
+                      await fetch(`/api/wireframes/${wireframeId}`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ tldraw_data: null })
+                      });
+                      window.location.reload();
+                    } catch (error) {
+                      console.error('Failed to clear data:', error);
+                      alert('Failed to clear data. Try refreshing the page.');
+                    }
+                  }
+                }}
+                className="inline-flex items-center space-x-1 px-2 py-1 text-xs bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors"
+                title="Clear corrupted canvas data"
+              >
+                🗑️ Reset
+              </button>
+              
               {/* Manual Save Button */}
               <button
                 onClick={handleManualSave}
@@ -578,9 +681,9 @@ Check console for detailed error analysis.`);
           </div>
         </div>
         
-        {/* Auto-save indicator */}
+        {/* Save indicator */}
         <div className="mt-2 text-xs text-gray-400">
-          Auto-saves every 3 seconds • Design persisted to Supabase
+          Manual save • Backup save every 5 min • Saves on page exit
         </div>
       </div>
 
@@ -770,12 +873,26 @@ Check console for detailed error analysis.`);
         </div>
 
         {/* Canvas */}
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 overflow-hidden" style={{ touchAction: 'none' }}>
           <TldrawComponent 
             className="w-full h-full"
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onMount={(editor: any) => {
+              // Prevent multiple mounts
+              if (currentEditor) {
+                return;
+              }
+              
               setCurrentEditor(editor);
+              
+              // Let tldraw handle ALL events natively - no custom event handling
+              console.log('🎯 Editor mounted - letting tldraw handle all events natively');
+              
+              // Ensure the editor container has proper touch handling
+              const editorContainer = editor.getContainer();
+              if (editorContainer) {
+                editorContainer.style.touchAction = 'none';
+              }
             }}
           />
         </div>
