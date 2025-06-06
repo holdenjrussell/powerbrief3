@@ -114,7 +114,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             ],
         },
         { 
-            name: 'Ad Reviews', 
+            name: 'Asset Reviews', 
             href: '/app/reviews', 
             icon: Film,
             badge: pendingReviewsCount > 0 ? pendingReviewsCount : null

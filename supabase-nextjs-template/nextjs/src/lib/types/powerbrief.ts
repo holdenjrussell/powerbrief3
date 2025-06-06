@@ -123,6 +123,7 @@ export interface BriefBatch {
   name: string;
   brand_id: string;
   user_id: string;
+  content_type?: string; // Content type for the batch (ads, email, sms, etc.)
   created_at: string;
   status?: string | null;
   shared_with?: string[] | null;
@@ -222,10 +223,11 @@ export interface AiBriefingRequest {
     cta_text_overlay?: string;
     description?: string;
   };
-  media: {
+  media?: {
     url: string;
     type: string;
   };
+  inspirationFiles?: string[]; // Array of file URLs for multimodal analysis
   desiredOutputFields: string[];
   hookOptions?: {
     type: 'text' | 'verbal' | 'both';
@@ -267,6 +269,7 @@ export type DbBriefBatch = {
   name: string;
   brand_id: string;
   user_id: string;
+  content_type?: string; // Content type for the batch (ads, email, sms, etc.)
   created_at: string;
   status?: string | null;
   shared_with?: string[] | null;

@@ -1,12 +1,13 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useGlobal } from '@/lib/context/GlobalContext';
 import { useBrand } from '@/lib/context/BrandContext';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, ExternalLink, CheckCircle, Upload, AlertTriangle, ChevronDown, ChevronUp, Filter, SortAsc, X, MessageCircle, Plus, Building2 } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Loader2, ExternalLink, CheckCircle, Upload, AlertTriangle, ChevronDown, ChevronUp, Filter, SortAsc, MessageCircle, Plus, Building2, Zap, Mail, MessageSquare, Share2, PenTool } from 'lucide-react';
 import { createSPAClient } from '@/lib/supabase/client';
 import { UploadedAssetGroup } from '@/lib/types/powerbrief';
 import Link from 'next/link';
@@ -27,10 +28,12 @@ interface ConceptForReview {
     asset_upload_status?: string;
     updated_at: string;
     revision_count?: number;
+    content_type?: string;
     brief_batches?: {
         id: string;
         name: string;
         brand_id: string;
+        content_type?: string;
         brands: {
             id: string;
             name: string;
@@ -50,6 +53,9 @@ export default function ReviewsPage() {
     const [reviewing, setReviewing] = useState<Record<string, boolean>>({});
     const [reviewerNotes, setReviewerNotes] = useState<Record<string, string>>({});
     const [showUploadedAssets, setShowUploadedAssets] = useState<boolean>(false);
+    
+    // Content type filter state
+    const [activeContentType, setActiveContentType] = useState<string>('all');
     
     // Filter and sort states for uploaded assets
     const [assetFilter, setAssetFilter] = useState<string>('all');
@@ -360,6 +366,7 @@ export default function ReviewsPage() {
                             id,
                             name,
                             brand_id,
+                            content_type,
                             brands:brand_id (
                                 id,
                                 name
@@ -389,6 +396,7 @@ export default function ReviewsPage() {
                             id,
                             name,
                             brand_id,
+                            content_type,
                             brands:brand_id (
                                 id,
                                 name
@@ -1078,8 +1086,50 @@ export default function ReviewsPage() {
 
     // Get current revision for a concept
     const getCurrentRevision = (conceptId: string): number => {
-        const concept = [...pendingReviews, ...approvedConcepts].find(c => c.id === conceptId);
-        return concept?.revision_count || 1;
+        const comments = conceptComments[conceptId] || [];
+        return Math.max(...comments.map(c => c.revision_version || 1), 1);
+    };
+
+    // Content type filtering helpers
+    const getContentTypeConfig = (contentType: string) => {
+        const configs = {
+            ads: { title: 'Ads', icon: Zap, color: 'text-orange-600' },
+            'web-assets': { title: 'Web Assets', icon: Share2, color: 'text-blue-600' },
+            email: { title: 'Email', icon: Mail, color: 'text-green-600' },
+            sms: { title: 'SMS', icon: MessageSquare, color: 'text-purple-600' },
+            'organic-social': { title: 'Organic Social', icon: Share2, color: 'text-pink-600' },
+            blog: { title: 'Blog', icon: PenTool, color: 'text-indigo-600' }
+        };
+        return configs[contentType as keyof typeof configs] || configs.ads;
+    };
+    
+    const filterConceptsByContentType = (concepts: ConceptForReview[]) => {
+        if (activeContentType === 'all') {
+            return concepts;
+        }
+        return concepts.filter(concept => {
+            const contentType = concept.brief_batches?.content_type || 'ads';
+            return contentType === activeContentType;
+        });
+    };
+    
+    const getContentTypeAction = (contentType: string) => {
+        switch (contentType) {
+            case 'ads':
+                return 'Send to Ad Uploader';
+            case 'web-assets':
+                return 'Export for Web';
+            case 'email':
+                return 'Export for Email';
+            case 'sms':
+                return 'Export for SMS';
+            case 'organic-social':
+                return 'Export for Social';
+            case 'blog':
+                return 'Export for Blog';
+            default:
+                return 'Export Assets';
+        }
     };
 
     if (loading || brandsLoading) {
@@ -1109,7 +1159,7 @@ export default function ReviewsPage() {
     return (
         <div className="space-y-6 p-6">
             <div className="flex justify-between items-center">
-                <h1 className="text-2xl font-bold">Ad Review Queue - {selectedBrand.name}</h1>
+                <h1 className="text-2xl font-bold">Asset Review Queue - {selectedBrand.name}</h1>
             </div>
             
             {error && (
@@ -1118,168 +1168,206 @@ export default function ReviewsPage() {
                 </Alert>
             )}
             
-            {pendingReviews.length === 0 ? (
-                <Card>
-                    <CardContent className="p-8 text-center text-gray-500">
-                        <CheckCircle className="h-16 w-16 mx-auto mb-4 text-gray-400" />
-                        <h3 className="text-lg font-medium text-gray-900 mb-2">No videos pending review</h3>
-                        <p className="max-w-md mx-auto">
-                            All videos have been reviewed. Check back later for new submissions.
-                        </p>
-                    </CardContent>
-                </Card>
-            ) : (
-                <div className="space-y-6">
-                    {pendingReviews.map((concept) => (
-                        <Card key={concept.id} className="overflow-hidden">
-                            <CardHeader>
-                                <CardTitle>
-                                    {concept.concept_title} 
-                                    <span className="ml-2 text-sm font-normal text-gray-500">
-                                        (Brand: {concept.brief_batches.brands.name} - Batch: {concept.brief_batches.name})
-                                    </span>
-                                </CardTitle>
-                                <CardDescription>
-                                    Submitted for review: {new Date(concept.updated_at).toLocaleString()}
-                                </CardDescription>
-                            </CardHeader>
-                            <CardContent className="space-y-4">
-                                {/* Video Editor */}
-                                {concept.video_editor && (
-                                    <div>
-                                        <span className="text-sm font-medium">Editor: </span>
-                                        <span className="text-sm">{concept.video_editor}</span>
-                                    </div>
-                                )}
-                                
-                                {/* Display uploaded assets if available */}
-                                {concept.uploaded_assets && concept.uploaded_assets.length > 0 && (
-                                    <div>
-                                        <span className="text-sm font-medium mb-2 block">Uploaded Assets:</span>
-                                        <div className="space-y-3">
-                                            {(concept.uploaded_assets as UploadedAssetGroup[]).map((group, groupIndex) => (
-                                                <div key={groupIndex} className="border rounded-lg p-3">
-                                                    <h4 className="font-medium text-gray-900 mb-2 text-sm">{group.baseName}</h4>
-                                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                                                        {group.assets.slice(0, 4).map((asset, assetIndex) => (
-                                                            <div key={assetIndex} className="relative">
-                                                                {asset.type === 'image' ? (
-                                                                    <img
-                                                                        src={asset.supabaseUrl}
-                                                                        alt={asset.name}
-                                                                        className="w-full h-20 object-cover rounded border cursor-pointer hover:opacity-80"
-                                                                        onClick={() => openMediaModal(asset.supabaseUrl, 'image', asset.name, concept.id)}
-                                                                    />
-                                                                ) : (
-                                                                    <video
-                                                                        src={asset.supabaseUrl}
-                                                                        className="w-full h-20 object-cover rounded border cursor-pointer hover:opacity-80"
-                                                                        onClick={() => openMediaModal(asset.supabaseUrl, 'video', asset.name, concept.id)}
-                                                                    />
-                                                                )}
-                                                                <div className="absolute bottom-1 left-1 bg-black bg-opacity-75 text-white text-xs px-1 rounded">
-                                                                    {asset.aspectRatio}
-                                                                </div>
-                                                                {/* Comment count badge for videos */}
-                                                                {asset.type === 'video' && (
-                                                                    <div 
-                                                                        className="absolute top-1 right-1 bg-blue-600 text-white text-xs px-1.5 py-0.5 rounded-full flex items-center space-x-1 shadow-lg"
-                                                                        title={`${getCommentCount(concept.id)} comments`}
-                                                                    >
-                                                                        <MessageCircle className="h-3 w-3" />
-                                                                        <span>{getCommentCount(concept.id)}</span>
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                    {group.assets.length > 4 && (
-                                                        <p className="text-xs text-gray-500 mt-1">
-                                                            +{group.assets.length - 4} more files
-                                                        </p>
-                                                    )}
-                                                    <p className="text-xs text-gray-500 mt-1">
-                                                        Aspect ratios: {group.aspectRatios.join(', ')}
-                                                    </p>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-                                
-                                {/* Frame.io Link - only show if no uploaded assets */}
-                                {concept.review_link && !concept.uploaded_assets && (
-                                    <div>
-                                        <span className="text-sm font-medium">Review Link: </span>
-                                        <a 
-                                            href={concept.review_link} 
-                                            target="_blank" 
-                                            rel="noopener noreferrer"
-                                            className="text-blue-600 hover:underline inline-flex items-center"
-                                        >
-                                            {concept.review_link.substring(0, 50)}
-                                            {concept.review_link.length > 50 ? '...' : ''}
-                                            <ExternalLink className="h-3 w-3 ml-1" />
-                                        </a>
-                                    </div>
-                                )}
-                                
-                                {/* Reviewer Notes */}
-                                <div className="mt-4">
-                                    <Label htmlFor={`notes-${concept.id}`}>Review Notes</Label>
-                                    <Textarea
-                                        id={`notes-${concept.id}`}
-                                        placeholder="Add your feedback or notes for the video editor..."
-                                        value={reviewerNotes[concept.id] || ''}
-                                        onChange={(e) => setReviewerNotes(prev => ({ ...prev, [concept.id]: e.target.value }))}
-                                        className="mt-1"
-                                    />
-                                </div>
-                                
-                                {/* Review Buttons */}
-                                <div className="flex space-x-2">
-                                    <Button
-                                        onClick={() => handleApprove(concept.id)}
-                                        disabled={reviewing[concept.id]}
-                                        className="bg-green-600 hover:bg-green-700 text-white flex-1"
-                                    >
-                                        {reviewing[concept.id] ? (
-                                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                        ) : (
-                                            <CheckCircle className="h-4 w-4 mr-2" />
-                                        )}
-                                        Approve
-                                    </Button>
-                                    
-                                    <Button
-                                        onClick={() => handleRequestRevisions(concept.id)}
-                                        disabled={reviewing[concept.id]}
-                                        variant="outline"
-                                        className="border-amber-300 text-amber-700 hover:bg-amber-50 flex-1"
-                                    >
-                                        {reviewing[concept.id] ? (
-                                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                        ) : (
-                                            <AlertTriangle className="h-4 w-4 mr-2" />
-                                        )}
-                                        Request Revisions
-                                    </Button>
-                                </div>
-                                
-                                {/* Link to view full concept */}
-                                <div className="mt-2">
-                                    <Link
-                                        href={`/app/powerbrief/${concept.brief_batches.brand_id}/${concept.brief_batch_id}`}
-                                        className="text-sm text-blue-600 hover:underline"
-                                    >
-                                        View in PowerBrief →
-                                    </Link>
-                                </div>
+            {/* Content Type Tabs */}
+            <Tabs value={activeContentType} onValueChange={setActiveContentType} className="w-full">
+                <TabsList className="grid w-full grid-cols-7">
+                    <TabsTrigger value="all" className="flex items-center gap-2">
+                        <Building2 className="h-4 w-4" />
+                        All Assets
+                    </TabsTrigger>
+                    <TabsTrigger value="ads" className="flex items-center gap-2">
+                        <Zap className="h-4 w-4" />
+                        Ads
+                    </TabsTrigger>
+                    <TabsTrigger value="web-assets" className="flex items-center gap-2">
+                        <Share2 className="h-4 w-4" />
+                        Web Assets
+                    </TabsTrigger>
+                    <TabsTrigger value="email" className="flex items-center gap-2">
+                        <Mail className="h-4 w-4" />
+                        Email
+                    </TabsTrigger>
+                    <TabsTrigger value="sms" className="flex items-center gap-2">
+                        <MessageSquare className="h-4 w-4" />
+                        SMS
+                    </TabsTrigger>
+                    <TabsTrigger value="organic-social" className="flex items-center gap-2">
+                        <Share2 className="h-4 w-4" />
+                        Organic Social
+                    </TabsTrigger>
+                    <TabsTrigger value="blog" className="flex items-center gap-2">
+                        <PenTool className="h-4 w-4" />
+                        Blog
+                    </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value={activeContentType} className="mt-6">
+                    {filterConceptsByContentType(pendingReviews).length === 0 ? (
+                        <Card>
+                            <CardContent className="p-8 text-center text-gray-500">
+                                <CheckCircle className="h-16 w-16 mx-auto mb-4 text-gray-400" />
+                                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                                    No {activeContentType === 'all' ? 'assets' : getContentTypeConfig(activeContentType).title.toLowerCase()} pending review
+                                </h3>
+                                <p className="max-w-md mx-auto">
+                                    All content has been reviewed. Check back later for new submissions.
+                                </p>
                             </CardContent>
                         </Card>
-                    ))}
-                </div>
-            )}
+                    ) : (
+                        <div className="space-y-6">
+                            {filterConceptsByContentType(pendingReviews).map((concept) => (
+                                <Card key={concept.id} className="overflow-hidden">
+                                    <CardHeader>
+                                        <CardTitle>
+                                            {concept.concept_title} 
+                                            <span className="ml-2 text-sm font-normal text-gray-500">
+                                                (Brand: {concept.brief_batches.brands.name} - Batch: {concept.brief_batches.name})
+                                            </span>
+                                        </CardTitle>
+                                        <CardDescription>
+                                            Submitted for review: {new Date(concept.updated_at).toLocaleString()}
+                                        </CardDescription>
+                                    </CardHeader>
+                                    <CardContent className="space-y-4">
+                                        {/* Video Editor */}
+                                        {concept.video_editor && (
+                                            <div>
+                                                <span className="text-sm font-medium">Editor: </span>
+                                                <span className="text-sm">{concept.video_editor}</span>
+                                            </div>
+                                        )}
+                                        
+                                        {/* Display uploaded assets if available */}
+                                        {concept.uploaded_assets && concept.uploaded_assets.length > 0 && (
+                                            <div>
+                                                <span className="text-sm font-medium mb-2 block">Uploaded Assets:</span>
+                                                <div className="space-y-3">
+                                                    {(concept.uploaded_assets as UploadedAssetGroup[]).map((group, groupIndex) => (
+                                                        <div key={groupIndex} className="border rounded-lg p-3">
+                                                            <h4 className="font-medium text-gray-900 mb-2 text-sm">{group.baseName}</h4>
+                                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                                                {group.assets.slice(0, 4).map((asset, assetIndex) => (
+                                                                    <div key={assetIndex} className="relative">
+                                                                        {asset.type === 'image' ? (
+                                                                            <img
+                                                                                src={asset.supabaseUrl}
+                                                                                alt={asset.name}
+                                                                                className="w-full h-20 object-cover rounded border cursor-pointer hover:opacity-80"
+                                                                                onClick={() => openMediaModal(asset.supabaseUrl, 'image', asset.name, concept.id)}
+                                                                            />
+                                                                        ) : (
+                                                                            <video
+                                                                                src={asset.supabaseUrl}
+                                                                                className="w-full h-20 object-cover rounded border cursor-pointer hover:opacity-80"
+                                                                                onClick={() => openMediaModal(asset.supabaseUrl, 'video', asset.name, concept.id)}
+                                                                            />
+                                                                        )}
+                                                                        <div className="absolute bottom-1 left-1 bg-black bg-opacity-75 text-white text-xs px-1 rounded">
+                                                                            {asset.aspectRatio}
+                                                                        </div>
+                                                                        {/* Comment count badge for videos */}
+                                                                        {asset.type === 'video' && (
+                                                                            <div 
+                                                                                className="absolute top-1 right-1 bg-blue-600 text-white text-xs px-1.5 py-0.5 rounded-full flex items-center space-x-1 shadow-lg"
+                                                                                title={`${getCommentCount(concept.id)} comments`}
+                                                                            >
+                                                                                <MessageCircle className="h-3 w-3" />
+                                                                                <span>{getCommentCount(concept.id)}</span>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                            {group.assets.length > 4 && (
+                                                                <p className="text-xs text-gray-500 mt-1">
+                                                                    +{group.assets.length - 4} more files
+                                                                </p>
+                                                            )}
+                                                            <p className="text-xs text-gray-500 mt-1">
+                                                                Aspect ratios: {group.aspectRatios.join(', ')}
+                                                            </p>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                        
+                                        {/* Frame.io Link - only show if no uploaded assets */}
+                                        {concept.review_link && !concept.uploaded_assets && (
+                                            <div>
+                                                <span className="text-sm font-medium">Review Link: </span>
+                                                <a 
+                                                    href={concept.review_link} 
+                                                    target="_blank" 
+                                                    rel="noopener noreferrer"
+                                                    className="text-blue-600 hover:underline inline-flex items-center"
+                                                >
+                                                    {concept.review_link.substring(0, 50)}
+                                                    {concept.review_link.length > 50 ? '...' : ''}
+                                                    <ExternalLink className="h-3 w-3 ml-1" />
+                                                </a>
+                                            </div>
+                                        )}
+                                        
+                                        {/* Reviewer Notes */}
+                                        <div className="mt-4">
+                                            <Label htmlFor={`notes-${concept.id}`}>Review Notes</Label>
+                                            <Textarea
+                                                id={`notes-${concept.id}`}
+                                                placeholder="Add your feedback or notes for the video editor..."
+                                                value={reviewerNotes[concept.id] || ''}
+                                                onChange={(e) => setReviewerNotes(prev => ({ ...prev, [concept.id]: e.target.value }))}
+                                                className="mt-1"
+                                            />
+                                        </div>
+                                        
+                                        {/* Review Buttons */}
+                                        <div className="flex space-x-2">
+                                            <Button
+                                                onClick={() => handleApprove(concept.id)}
+                                                disabled={reviewing[concept.id]}
+                                                className="bg-green-600 hover:bg-green-700 text-white flex-1"
+                                            >
+                                                {reviewing[concept.id] ? (
+                                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                                ) : (
+                                                    <CheckCircle className="h-4 w-4 mr-2" />
+                                                )}
+                                                Approve
+                                            </Button>
+                                            
+                                            <Button
+                                                onClick={() => handleRequestRevisions(concept.id)}
+                                                disabled={reviewing[concept.id]}
+                                                variant="outline"
+                                                className="border-amber-300 text-amber-700 hover:bg-amber-50 flex-1"
+                                            >
+                                                {reviewing[concept.id] ? (
+                                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                                ) : (
+                                                    <AlertTriangle className="h-4 w-4 mr-2" />
+                                                )}
+                                                Request Revisions
+                                            </Button>
+                                        </div>
+                                        
+                                        {/* Link to view full concept */}
+                                        <div className="mt-2">
+                                            <Link
+                                                href={`/app/powerbrief/${concept.brief_batches.brand_id}/${concept.brief_batch_id}`}
+                                                className="text-sm text-blue-600 hover:underline"
+                                            >
+                                                View in PowerBrief →
+                                            </Link>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            ))}
+                        </div>
+                    )}
+                </TabsContent>
+            </Tabs>
             
             {/* Approved Concepts Section */}
             {approvedConcepts.length > 0 && (
@@ -1368,7 +1456,7 @@ export default function ReviewsPage() {
                                         <Button
                                             onClick={() => handleSendToAdBatch(concept.id)}
                                             className="bg-blue-600 hover:bg-blue-700 text-white"
-                                            title={concept.asset_upload_status === 'sent_to_ad_upload' ? "Resend approved assets to Ad Upload Tool" : "Send approved assets to Ad Upload Tool"}
+                                            title={concept.asset_upload_status === 'sent_to_ad_upload' ? `Resend approved assets to ${getContentTypeAction(concept.brief_batches?.content_type || 'ads')}` : `${getContentTypeAction(concept.brief_batches?.content_type || 'ads')}`}
                                             disabled={sendingToAds[concept.id]}
                                         >
                                             {sendingToAds[concept.id] ? (
@@ -1376,7 +1464,7 @@ export default function ReviewsPage() {
                                             ) : (
                                                 <Upload className="h-4 w-4 mr-2" />
                                             )}
-                                            {concept.asset_upload_status === 'sent_to_ad_upload' ? 'Resend to Ad Uploader' : 'Send to Ad Uploader'}
+                                            {concept.asset_upload_status === 'sent_to_ad_upload' ? 'Resend' : getContentTypeAction(concept.brief_batches?.content_type || 'ads')}
                                         </Button>
                                         
                                         <Button
