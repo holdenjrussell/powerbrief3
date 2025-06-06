@@ -1,16 +1,20 @@
 import { createServerAdminClient } from '@/lib/supabase/serverAdminClient';
+import { createSSRClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createServerAdminClient();
+    // First, verify user authentication with SSR client
+    const ssrSupabase = await createSSRClient();
+    const { data: { user }, error: authError } = await ssrSupabase.auth.getUser();
     
-    // Get user from session
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // Now use admin client for database operations
+    const supabase = await createServerAdminClient();
+    
     const { creatorId, brandId, subject, htmlContent, textContent } = await request.json();
 
     if (!creatorId || !brandId || !subject || !htmlContent) {
