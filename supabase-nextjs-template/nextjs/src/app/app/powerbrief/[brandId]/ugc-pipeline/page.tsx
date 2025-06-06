@@ -420,6 +420,7 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
                           script={script}
                           brandId={brandId}
                           showActionButtons={false}
+                          creators={creators}
                         />
                       ))}
                     

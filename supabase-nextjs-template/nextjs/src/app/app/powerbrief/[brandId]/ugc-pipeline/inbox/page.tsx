@@ -2,30 +2,33 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { 
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
   Button,
   Badge,
   Tabs,
-  TabsContent,
   TabsList,
   TabsTrigger,
-  Input
+  Input,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Textarea,
+  Label
 } from "@/components/ui";
 import { 
   ArrowLeft, 
   Mail, 
   Send, 
   Clock, 
-  CheckCircle, 
-  XCircle, 
   Search, 
-  Filter,
   User,
   MessageSquare,
   Plus
@@ -51,18 +54,31 @@ interface EmailThread {
   unread_count: number;
 }
 
+interface Creator {
+  id: string;
+  name: string;
+  email: string;
+}
+
 type FilterType = 'all' | 'unread' | 'active' | 'closed';
 
 export default function EmailInboxPage({ params }: { params: ParamsType | Promise<ParamsType> }) {
   const { user } = useAuth();
-  const router = useRouter();
   const [brand, setBrand] = useState<Brand | null>(null);
   const [threads, setThreads] = useState<EmailThread[]>([]);
+  const [creators, setCreators] = useState<Creator[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterType>('all');
   const [selectedThread, setSelectedThread] = useState<string | null>(null);
+  
+  // New Message Modal State
+  const [showNewMessageModal, setShowNewMessageModal] = useState(false);
+  const [newMessageCreatorId, setNewMessageCreatorId] = useState('');
+  const [newMessageSubject, setNewMessageSubject] = useState('');
+  const [newMessageContent, setNewMessageContent] = useState('');
+  const [sendingMessage, setSendingMessage] = useState(false);
 
   // Unwrap params using React.use()
   const unwrappedParams = params instanceof Promise ? React.use(params) : params;
@@ -80,8 +96,11 @@ export default function EmailInboxPage({ params }: { params: ParamsType | Promis
         const brandData = await getBrandById(brandId);
         setBrand(brandData);
         
-        // Fetch email threads
-        await fetchEmailThreads();
+        // Fetch email threads and creators
+        await Promise.all([
+          fetchEmailThreads(),
+          fetchCreators()
+        ]);
       } catch (err: unknown) {
         console.error('Failed to fetch data:', err);
         setError('Failed to fetch inbox data. Please try again.');
@@ -109,6 +128,69 @@ export default function EmailInboxPage({ params }: { params: ParamsType | Promis
     }
   };
 
+  const fetchCreators = async () => {
+    try {
+      const response = await fetch(`/api/ugc/creators?brandId=${brandId}`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch creators');
+      }
+      
+      const data = await response.json();
+      setCreators(data.creators || []);
+    } catch (err) {
+      console.error('Failed to fetch creators:', err);
+    }
+  };
+
+  const handleSendNewMessage = async () => {
+    if (!newMessageCreatorId || !newMessageSubject.trim() || !newMessageContent.trim()) {
+      return;
+    }
+
+    setSendingMessage(true);
+    try {
+      const selectedCreator = creators.find(c => c.id === newMessageCreatorId);
+      if (!selectedCreator) {
+        throw new Error('Creator not found');
+      }
+
+      const response = await fetch('/api/ugc/email/compose', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          brandId,
+          creatorId: newMessageCreatorId,
+          creatorEmail: selectedCreator.email,
+          subject: newMessageSubject.trim(),
+          content: newMessageContent.trim(),
+          type: 'manual'
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to send message');
+      }
+
+      // Reset form and close modal
+      setNewMessageCreatorId('');
+      setNewMessageSubject('');
+      setNewMessageContent('');
+      setShowNewMessageModal(false);
+      
+      // Refresh threads
+      await fetchEmailThreads();
+      
+    } catch (err) {
+      console.error('Failed to send message:', err);
+      setError('Failed to send message. Please try again.');
+    } finally {
+      setSendingMessage(false);
+    }
+  };
+
   const filteredThreads = threads.filter(thread => {
     // Apply search filter
     if (searchQuery) {
@@ -132,19 +214,6 @@ export default function EmailInboxPage({ params }: { params: ParamsType | Promis
         return true;
     }
   });
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'sent':
-        return <CheckCircle className="w-4 h-4 text-green-500" />;
-      case 'pending':
-        return <Clock className="w-4 h-4 text-yellow-500" />;
-      case 'failed':
-        return <XCircle className="w-4 h-4 text-red-500" />;
-      default:
-        return <Mail className="w-4 h-4 text-gray-400" />;
-    }
-  };
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -216,7 +285,10 @@ export default function EmailInboxPage({ params }: { params: ParamsType | Promis
           </div>
         </div>
         
-        <Button className="flex items-center gap-2">
+        <Button 
+          className="flex items-center gap-2"
+          onClick={() => setShowNewMessageModal(true)}
+        >
           <Plus className="w-4 h-4" />
           New Message
         </Button>
@@ -401,6 +473,83 @@ export default function EmailInboxPage({ params }: { params: ParamsType | Promis
           )}
         </div>
       </div>
+
+      {/* New Message Modal */}
+      <Dialog open={showNewMessageModal} onOpenChange={setShowNewMessageModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>New Message</DialogTitle>
+            <DialogDescription>
+              Send a new message to a creator
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label htmlFor="creator-select">Creator</Label>
+              <Select value={newMessageCreatorId} onValueChange={setNewMessageCreatorId}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder="Select a creator" />
+                </SelectTrigger>
+                <SelectContent>
+                  {creators.map((creator) => (
+                    <SelectItem key={creator.id} value={creator.id}>
+                      {creator.name} ({creator.email})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div>
+              <Label htmlFor="subject-input">Subject</Label>
+              <Input
+                id="subject-input"
+                value={newMessageSubject}
+                onChange={(e) => setNewMessageSubject(e.target.value)}
+                placeholder="Enter email subject"
+                className="mt-1"
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="content-input">Message</Label>
+              <Textarea
+                id="content-input"
+                value={newMessageContent}
+                onChange={(e) => setNewMessageContent(e.target.value)}
+                placeholder="Enter your message"
+                className="mt-1"
+                rows={5}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setShowNewMessageModal(false)}
+              disabled={sendingMessage}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleSendNewMessage}
+              disabled={!newMessageCreatorId || !newMessageSubject.trim() || !newMessageContent.trim() || sendingMessage}
+            >
+              {sendingMessage ? (
+                <>
+                  <Clock className="h-4 w-4 mr-2 animate-spin" />
+                  Sending...
+                </>
+              ) : (
+                <>
+                  <Send className="h-4 w-4 mr-2" />
+                  Send Message
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 } 

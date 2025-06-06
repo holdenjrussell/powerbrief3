@@ -1997,6 +1997,649 @@ export type Database = {
           },
         ]
       }
+      ugc_email_templates: {
+        Row: {
+          id: string
+          brand_id: string
+          user_id: string
+          name: string
+          subject: string
+          html_content: string
+          text_content: string
+          variables: string[] | null
+          trigger_status: string | null
+          pipeline_stage: string
+          enabled: boolean | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          brand_id: string
+          user_id: string
+          name: string
+          subject: string
+          html_content: string
+          text_content: string
+          variables?: string[] | null
+          trigger_status?: string | null
+          pipeline_stage: string
+          enabled?: boolean | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          brand_id?: string
+          user_id?: string
+          name?: string
+          subject?: string
+          html_content?: string
+          text_content?: string
+          variables?: string[] | null
+          trigger_status?: string | null
+          pipeline_stage?: string
+          enabled?: boolean | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ugc_email_templates_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ugc_email_threads: {
+        Row: {
+          id: string
+          creator_id: string
+          brand_id: string
+          thread_subject: string
+          status: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          creator_id: string
+          brand_id: string
+          thread_subject: string
+          status?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          creator_id?: string
+          brand_id?: string
+          thread_subject?: string
+          status?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ugc_email_threads_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "ugc_creators"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ugc_email_threads_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ugc_email_messages: {
+        Row: {
+          id: string
+          thread_id: string
+          message_id: string | null
+          from_email: string
+          to_email: string
+          subject: string
+          html_content: string
+          text_content: string
+          sent_at: string | null
+          status: string | null
+          template_id: string | null
+          variables_used: Json | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          thread_id: string
+          message_id?: string | null
+          from_email: string
+          to_email: string
+          subject: string
+          html_content: string
+          text_content: string
+          sent_at?: string | null
+          status?: string | null
+          template_id?: string | null
+          variables_used?: Json | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          thread_id?: string
+          message_id?: string | null
+          from_email?: string
+          to_email?: string
+          subject?: string
+          html_content?: string
+          text_content?: string
+          sent_at?: string | null
+          status?: string | null
+          template_id?: string | null
+          variables_used?: Json | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ugc_email_messages_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "ugc_email_threads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ugc_email_messages_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "ugc_email_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ugc_ai_coordinator: {
+        Row: {
+          id: string
+          brand_id: string
+          user_id: string
+          name: string | null
+          enabled: boolean | null
+          settings: Json | null
+          system_prompt: string | null
+          model_config: Json | null
+          slack_notifications_enabled: boolean | null
+          email_automation_enabled: boolean | null
+          last_activity_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          brand_id: string
+          user_id: string
+          name?: string | null
+          enabled?: boolean | null
+          settings?: Json | null
+          system_prompt?: string | null
+          model_config?: Json | null
+          slack_notifications_enabled?: boolean | null
+          email_automation_enabled?: boolean | null
+          last_activity_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          brand_id?: string
+          user_id?: string
+          name?: string | null
+          enabled?: boolean | null
+          settings?: Json | null
+          system_prompt?: string | null
+          model_config?: Json | null
+          slack_notifications_enabled?: boolean | null
+          email_automation_enabled?: boolean | null
+          last_activity_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ugc_ai_coordinator_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ugc_ai_coordinator_actions: {
+        Row: {
+          id: string
+          coordinator_id: string
+          creator_id: string | null
+          script_id: string | null
+          action_type: string
+          action_data: Json | null
+          success: boolean | null
+          error_message: string | null
+          ai_reasoning: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          coordinator_id: string
+          creator_id?: string | null
+          script_id?: string | null
+          action_type: string
+          action_data?: Json | null
+          success?: boolean | null
+          error_message?: string | null
+          ai_reasoning?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          coordinator_id?: string
+          creator_id?: string | null
+          script_id?: string | null
+          action_type?: string
+          action_data?: Json | null
+          success?: boolean | null
+          error_message?: string | null
+          ai_reasoning?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ugc_ai_coordinator_actions_coordinator_id_fkey"
+            columns: ["coordinator_id"]
+            isOneToOne: false
+            referencedRelation: "ugc_ai_coordinator"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ugc_ai_coordinator_actions_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "ugc_creators"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ugc_ai_coordinator_actions_script_id_fkey"
+            columns: ["script_id"]
+            isOneToOne: false
+            referencedRelation: "ugc_creator_scripts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ugc_email_sequences: {
+        Row: {
+          id: string
+          name: string
+          description: string | null
+          brand_id: string
+          trigger_event: string
+          trigger_conditions: Json | null
+          is_active: boolean | null
+          created_at: string
+          updated_at: string
+          created_by: string | null
+        }
+        Insert: {
+          id?: string
+          name: string
+          description?: string | null
+          brand_id: string
+          trigger_event: string
+          trigger_conditions?: Json | null
+          is_active?: boolean | null
+          created_at?: string
+          updated_at?: string
+          created_by?: string | null
+        }
+        Update: {
+          id?: string
+          name?: string
+          description?: string | null
+          brand_id?: string
+          trigger_event?: string
+          trigger_conditions?: Json | null
+          is_active?: boolean | null
+          created_at?: string
+          updated_at?: string
+          created_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ugc_email_sequences_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ugc_email_sequences_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ugc_email_sequence_steps: {
+        Row: {
+          id: string
+          sequence_id: string
+          step_order: number
+          name: string
+          delay_days: number | null
+          delay_hours: number | null
+          email_template_id: string | null
+          custom_subject: string | null
+          custom_html_content: string | null
+          custom_text_content: string | null
+          status_change_action: string | null
+          conditions: Json | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          sequence_id: string
+          step_order: number
+          name: string
+          delay_days?: number | null
+          delay_hours?: number | null
+          email_template_id?: string | null
+          custom_subject?: string | null
+          custom_html_content?: string | null
+          custom_text_content?: string | null
+          status_change_action?: string | null
+          conditions?: Json | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          sequence_id?: string
+          step_order?: number
+          name?: string
+          delay_days?: number | null
+          delay_hours?: number | null
+          email_template_id?: string | null
+          custom_subject?: string | null
+          custom_html_content?: string | null
+          custom_text_content?: string | null
+          status_change_action?: string | null
+          conditions?: Json | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ugc_email_sequence_steps_sequence_id_fkey"
+            columns: ["sequence_id"]
+            isOneToOne: false
+            referencedRelation: "ugc_email_sequences"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ugc_email_sequence_steps_email_template_id_fkey"
+            columns: ["email_template_id"]
+            isOneToOne: false
+            referencedRelation: "ugc_email_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ugc_creator_sequence_enrollments: {
+        Row: {
+          id: string
+          creator_id: string
+          sequence_id: string
+          brand_id: string
+          current_step: number | null
+          status: string | null
+          enrolled_at: string
+          next_send_at: string | null
+          completed_at: string | null
+          last_step_sent_at: string | null
+          enrollment_trigger: string | null
+          metadata: Json | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          creator_id: string
+          sequence_id: string
+          brand_id: string
+          current_step?: number | null
+          status?: string | null
+          enrolled_at?: string
+          next_send_at?: string | null
+          completed_at?: string | null
+          last_step_sent_at?: string | null
+          enrollment_trigger?: string | null
+          metadata?: Json | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          creator_id?: string
+          sequence_id?: string
+          brand_id?: string
+          current_step?: number | null
+          status?: string | null
+          enrolled_at?: string
+          next_send_at?: string | null
+          completed_at?: string | null
+          last_step_sent_at?: string | null
+          enrollment_trigger?: string | null
+          metadata?: Json | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ugc_creator_sequence_enrollments_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "ugc_creators"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ugc_creator_sequence_enrollments_sequence_id_fkey"
+            columns: ["sequence_id"]
+            isOneToOne: false
+            referencedRelation: "ugc_email_sequences"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ugc_creator_sequence_enrollments_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ugc_creator_communication_log: {
+        Row: {
+          id: string
+          creator_id: string
+          brand_id: string
+          log_type: string
+          source: string
+          subject: string | null
+          content: string | null
+          metadata: Json | null
+          email_thread_id: string | null
+          email_message_id: string | null
+          sequence_enrollment_id: string | null
+          ai_coordinator_action_id: string | null
+          performed_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          creator_id: string
+          brand_id: string
+          log_type: string
+          source: string
+          subject?: string | null
+          content?: string | null
+          metadata?: Json | null
+          email_thread_id?: string | null
+          email_message_id?: string | null
+          sequence_enrollment_id?: string | null
+          ai_coordinator_action_id?: string | null
+          performed_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          creator_id?: string
+          brand_id?: string
+          log_type?: string
+          source?: string
+          subject?: string | null
+          content?: string | null
+          metadata?: Json | null
+          email_thread_id?: string | null
+          email_message_id?: string | null
+          sequence_enrollment_id?: string | null
+          ai_coordinator_action_id?: string | null
+          performed_by?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ugc_creator_communication_log_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "ugc_creators"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ugc_creator_communication_log_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ugc_creator_communication_log_email_thread_id_fkey"
+            columns: ["email_thread_id"]
+            isOneToOne: false
+            referencedRelation: "ugc_email_threads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ugc_creator_communication_log_email_message_id_fkey"
+            columns: ["email_message_id"]
+            isOneToOne: false
+            referencedRelation: "ugc_email_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ugc_creator_communication_log_sequence_enrollment_id_fkey"
+            columns: ["sequence_enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "ugc_creator_sequence_enrollments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ugc_creator_communication_log_ai_coordinator_action_id_fkey"
+            columns: ["ai_coordinator_action_id"]
+            isOneToOne: false
+            referencedRelation: "ugc_ai_coordinator_actions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ugc_creator_communication_log_performed_by_fkey"
+            columns: ["performed_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ugc_sequence_execution_log: {
+        Row: {
+          id: string
+          enrollment_id: string
+          step_id: string
+          creator_id: string
+          scheduled_at: string
+          executed_at: string | null
+          status: string | null
+          email_message_id: string | null
+          error_message: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          enrollment_id: string
+          step_id: string
+          creator_id: string
+          scheduled_at: string
+          executed_at?: string | null
+          status?: string | null
+          email_message_id?: string | null
+          error_message?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          enrollment_id?: string
+          step_id?: string
+          creator_id?: string
+          scheduled_at?: string
+          executed_at?: string | null
+          status?: string | null
+          email_message_id?: string | null
+          error_message?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ugc_sequence_execution_log_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "ugc_creator_sequence_enrollments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ugc_sequence_execution_log_step_id_fkey"
+            columns: ["step_id"]
+            isOneToOne: false
+            referencedRelation: "ugc_email_sequence_steps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ugc_sequence_execution_log_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "ugc_creators"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ugc_sequence_execution_log_email_message_id_fkey"
+            columns: ["email_message_id"]
+            isOneToOne: false
+            referencedRelation: "ugc_email_messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       wireframe_modules: {
         Row: {
           alignment: string | null

@@ -1,16 +1,33 @@
-import { createSSRClient } from '@/lib/supabase/server';
+import { createServerAdminClient } from '@/lib/supabase/serverAdminClient';
 import { NextRequest, NextResponse } from 'next/server';
+
+interface EmailMessage {
+  id: string;
+  from_email: string;
+  text_content: string;
+  created_at: string;
+  status: string;
+}
+
+interface EmailThread {
+  id: string;
+  creator_id: string;
+  brand_id: string;
+  thread_subject: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  creator: {
+    name: string;
+    email: string;
+  } | null;
+  messages: EmailMessage[];
+}
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createSSRClient();
+    const supabase = await createServerAdminClient();
     
-    // Get user from session
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const { searchParams } = new URL(request.url);
     const brandId = searchParams.get('brandId');
 
@@ -18,16 +35,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Brand ID is required' }, { status: 400 });
     }
 
-    // Check if user has access to this brand (owner or shared)
-    const { data: canAccess, error: brandError } = await supabase
-      .rpc('can_user_edit_brand', { p_brand_id: brandId });
-
-    if (brandError || !canAccess) {
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
-    }
-
     // Fetch email threads with latest message and creator details
-    const { data: threads, error: threadsError } = await (supabase as any)
+    const { data: threadsData, error: threadsError } = await (supabase as any)
       .from('ugc_email_threads')
       .select(`
         *,
@@ -49,14 +58,15 @@ export async function GET(request: NextRequest) {
     }
 
     // Process threads to get required format
-    const formattedThreads = threads.map((thread: any) => {
+    const threads = threadsData as EmailThread[] || [];
+    const formattedThreads = threads.map((thread: EmailThread) => {
       const lastMessage = thread.messages.length > 0
-        ? thread.messages.reduce((latest: any, current: any) => 
+        ? thread.messages.reduce((latest: EmailMessage, current: EmailMessage) => 
             new Date(current.created_at) > new Date(latest.created_at) ? current : latest
           )
         : null;
 
-      const unreadCount = thread.messages.filter((m: any) => 
+      const unreadCount = thread.messages.filter((m: EmailMessage) => 
         !m.from_email.includes('@mail.powerbrief.ai') &&
         m.status !== 'read'
       ).length;
@@ -64,8 +74,8 @@ export async function GET(request: NextRequest) {
       return {
         id: thread.id,
         creator_id: thread.creator_id,
-        creator_name: thread.creator.name,
-        creator_email: thread.creator.email,
+        creator_name: thread.creator?.name || 'Unknown Creator',
+        creator_email: thread.creator?.email || '',
         thread_subject: thread.thread_subject,
         status: thread.status,
         message_count: thread.messages.length,

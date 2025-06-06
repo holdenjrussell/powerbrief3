@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { createServerAdminClient } from '@/lib/supabase/serverAdminClient';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(
@@ -6,41 +6,30 @@ export async function GET(
   { params }: { params: { creatorId: string } }
 ) {
   try {
-    const supabase = createClient();
+    const supabase = await createServerAdminClient();
     
-    // Get user from session
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const { creatorId } = params;
+    const { searchParams } = new URL(request.url);
+    const brandId = searchParams.get('brandId');
+
+    if (!brandId) {
+      return NextResponse.json({ error: 'Brand ID is required' }, { status: 400 });
     }
 
-    const { creatorId } = params;
-
-    // Get creator to verify access
+    // Get creator to verify it exists and belongs to the brand
     const { data: creator, error: creatorError } = await supabase
       .from('ugc_creators')
-      .select('brand_id')
+      .select('id, brand_id, name')
       .eq('id', creatorId)
+      .eq('brand_id', brandId)
       .single();
 
     if (creatorError || !creator) {
       return NextResponse.json({ error: 'Creator not found' }, { status: 404 });
     }
 
-    // Check if user has access to this brand
-    const { data: brand, error: brandError } = await supabase
-      .from('brands')
-      .select('id')
-      .eq('id', creator.brand_id)
-      .eq('user_id', user.id)
-      .single();
-
-    if (brandError || !brand) {
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
-    }
-
     // Fetch email threads with messages
-    const { data: threads, error: threadsError } = await supabase
+    const { data: threads, error: threadsError } = await (supabase as any)
       .from('ugc_email_threads')
       .select(`
         *,
@@ -55,7 +44,7 @@ export async function GET(
     }
 
     // Sort messages within each thread by creation date
-    const sortedThreads = threads.map(thread => ({
+    const sortedThreads = threads.map((thread: any) => ({
       ...thread,
       messages: thread.messages.sort((a: any, b: any) => 
         new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
