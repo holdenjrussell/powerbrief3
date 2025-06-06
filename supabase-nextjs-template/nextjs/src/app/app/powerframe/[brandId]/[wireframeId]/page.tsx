@@ -869,20 +869,8 @@ Check console for detailed error analysis.`);
               
               setCurrentEditor(editor);
               
-              // Setup for better scroll support - allow all directions
-              if (editor) {
-                const container = editor.getContainer();
-                if (container) {
-                  // Use 'auto' to allow all scroll/zoom directions without interference
-                  // This permits mouse wheel, trackpad pan/zoom in all directions
-                  container.style.touchAction = 'auto';
-                  
-                  // Ensure the container can handle overflow properly
-                  container.style.overflow = 'visible';
-                  
-                  console.log('🎯 Container setup complete - touchAction: auto, overflow: visible');
-                }
-              }
+              // Let tldraw handle all events natively - no interference
+              console.log('🎯 Editor mounted - letting tldraw handle all events natively');
             }}
           />
         </div>

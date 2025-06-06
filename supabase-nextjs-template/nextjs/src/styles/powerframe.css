@@ -244,9 +244,9 @@
   }
 }
 
-/* Tldraw Canvas Touch/Scroll Support - Permissive for All Scrolling */
+/* Tldraw Canvas Support - Let tldraw handle all events natively */
 .tl-container {
-  touch-action: auto !important;
+  /* Remove all touch-action interference - let tldraw handle everything */
   user-select: none !important;
   -webkit-user-select: none !important;
   -webkit-touch-callout: none !important;
@@ -256,25 +256,9 @@
 
 .tl-canvas,
 .tl-svg-container {
-  touch-action: auto !important;
+  /* Remove all touch-action interference - let tldraw handle everything */
   user-select: none !important;
   -webkit-user-select: none !important;
   -webkit-touch-callout: none !important;
   overflow: visible !important;
-}
-
-/* Enhanced support for all pointer types - allow all scroll directions */
-@media (pointer: fine) {
-  .tl-container {
-    touch-action: auto !important;
-  }
-  
-  .tl-canvas {
-    scroll-behavior: auto !important;
-  }
-}
-
-/* Allow all children to inherit auto touch-action */
-.tl-container * {
-  touch-action: inherit !important;
 } 
