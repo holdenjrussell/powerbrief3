@@ -44,9 +44,9 @@ export async function GET(
     }
 
     // Sort messages within each thread by creation date
-    const sortedThreads = threads.map((thread: any) => ({
+    const sortedThreads = (threads || []).map((thread: any) => ({
       ...thread,
-      messages: thread.messages.sort((a: any, b: any) => 
+      messages: (thread.messages || []).sort((a: any, b: any) => 
         new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
       ),
     }));

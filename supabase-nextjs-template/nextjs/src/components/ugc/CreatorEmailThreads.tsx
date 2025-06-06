@@ -64,7 +64,7 @@ export default function CreatorEmailThreads({ creatorId, brandId }: CreatorEmail
       }
       
       const data = await response.json();
-      setThreads(data);
+      setThreads(data.threads || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load email threads');
     } finally {
@@ -282,7 +282,7 @@ export default function CreatorEmailThreads({ creatorId, brandId }: CreatorEmail
                     </span>
                   </div>
                   <div className="text-sm text-gray-500 mt-1">
-                    {thread.messages.length} message{thread.messages.length !== 1 ? 's' : ''} • 
+                    {(thread.messages || []).length} message{(thread.messages || []).length !== 1 ? 's' : ''} • 
                     Last updated {formatDate(thread.updated_at)}
                   </div>
                 </div>
@@ -295,7 +295,7 @@ export default function CreatorEmailThreads({ creatorId, brandId }: CreatorEmail
               {/* Thread Messages */}
               {expandedThreads.has(thread.id) && (
                 <div className="border-t border-gray-200">
-                  {thread.messages.map((message) => (
+                  {(thread.messages || []).map((message) => (
                     <div key={message.id} className="p-4 border-b border-gray-100 last:border-b-0">
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
