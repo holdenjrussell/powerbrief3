@@ -21,8 +21,9 @@ export function useTldrawPersistence({
   editor
 }: UseTldrawPersistenceOptions) {
   const hasLoadedInitialData = useRef(false);
+  const lastSavedSnapshot = useRef<string | null>(null);
 
-  // Load initial data from Supabase (one-time only)
+  // Load initial data from Supabase - ONLY ONCE
   const loadInitialData = useCallback(async () => {
     if (!editor || hasLoadedInitialData.current) return;
 
@@ -31,7 +32,6 @@ export function useTldrawPersistence({
       const wireframe = await getWireframe(wireframeId);
       
       if (wireframe?.tldraw_data) {
-        // More lenient validation for tldraw snapshot data
         const snapshotData = wireframe.tldraw_data as unknown as TLStoreSnapshot;
         
         // Basic validation - just check if it's an object
@@ -40,57 +40,55 @@ export function useTldrawPersistence({
           return;
         }
         
-        // Log the structure for debugging
-        console.log('Tldraw snapshot structure:', Object.keys(snapshotData));
-        
         // Try to load the snapshot with error handling
         try {
           editor.store.loadSnapshot(snapshotData);
-          console.log('Tldraw data loaded successfully - now using local persistence');
+          lastSavedSnapshot.current = JSON.stringify(snapshotData);
+          console.log('Tldraw data loaded successfully');
         } catch (loadError) {
           console.error('Failed to load snapshot into tldraw:', loadError);
-          console.log('Snapshot data that failed:', snapshotData);
-          // Don't throw - just continue with empty canvas
           console.log('Continuing with empty canvas due to load error');
         }
       } else {
-        console.log('No existing tldraw data found - starting with empty canvas');
+        console.log('No existing tldraw data found');
       }
     } catch (error) {
       console.error('Failed to load tldraw data:', error);
-      // Don't throw the error - just log it and continue with empty canvas
     } finally {
       hasLoadedInitialData.current = true;
     }
   }, [editor, wireframeId]);
 
-  // Manual save function for explicit saves
+  // Manual save function - ONLY when explicitly called
   const saveNow = useCallback(async () => {
     if (!editor) return;
 
     try {
-      console.log('Manually saving tldraw data to Supabase...');
+      console.log('Manually saving tldraw data...');
       const snapshot = editor.store.getSnapshot();
       const snapshotString = JSON.stringify(snapshot);
+      
+      // Don't save if it's the same as the last saved snapshot
+      if (lastSavedSnapshot.current === snapshotString) {
+        console.log('No changes detected, skipping save');
+        return;
+      }
+
       await updateWireframeTldrawData(wireframeId, { 
         tldraw_data: JSON.parse(snapshotString) as Json
       });
-      console.log('Manual save to Supabase completed');
+      lastSavedSnapshot.current = snapshotString;
+      console.log('Manual save completed');
     } catch (error) {
       console.error('Failed to manually save tldraw data:', error);
       throw error;
     }
   }, [editor, wireframeId]);
 
-  // Load initial data when editor is ready (no auto-save listeners)
+  // Load initial data when editor is ready - NO STORE LISTENING
   useEffect(() => {
     if (!editor) return;
-
-    // Only load initial data - no auto-save
     loadInitialData();
-    
-    // Let tldraw handle its own local persistence from here
-    console.log('Tldraw persistence initialized - using local storage only. Save to Supabase manually.');
   }, [editor, loadInitialData]);
 
   return {

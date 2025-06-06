@@ -43,11 +43,43 @@ export default function WireframeEditorPage() {
   const [jsonInput, setJsonInput] = useState('');
   const [isLoadingJson, setIsLoadingJson] = useState(false);
 
-  // Custom persistence hook - manual save only
+  // Custom persistence hook - NO AUTO-SAVE
   const { saveNow, hasLoadedInitialData } = useTldrawPersistence({
     wireframeId,
     editor: currentEditor
   });
+
+  // Add save on page unload
+  useEffect(() => {
+    const handleBeforeUnload = async () => {
+      if (currentEditor) {
+        try {
+          await saveNow();
+        } catch (error) {
+          console.error('Failed to save on page unload:', error);
+        }
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [currentEditor, saveNow]);
+
+  // Very infrequent backup save (every 5 minutes) as safety net
+  useEffect(() => {
+    if (!currentEditor) return;
+
+    const backupSaveInterval = setInterval(async () => {
+      try {
+        console.log('Performing backup save...');
+        await saveNow();
+      } catch (error) {
+        console.error('Backup save failed:', error);
+      }
+    }, 5 * 60 * 1000); // 5 minutes
+
+    return () => clearInterval(backupSaveInterval);
+  }, [currentEditor, saveNow]);
 
   // Valid tldraw colors - expanded list
   const VALID_COLORS = ['black', 'grey', 'white', 'blue', 'red', 'green', 'orange', 'yellow', 'light-violet', 'violet', 'light-blue', 'light-green', 'light-red', 'light-grey'];
@@ -633,9 +665,9 @@ Check console for detailed error analysis.`);
           </div>
         </div>
         
-        {/* Auto-save indicator */}
+        {/* Save indicator */}
         <div className="mt-2 text-xs text-gray-400">
-          Manual save only • Changes saved locally • Click save to persist to Supabase
+          Manual save • Backup save every 5 min • Saves on page exit
         </div>
       </div>
 
