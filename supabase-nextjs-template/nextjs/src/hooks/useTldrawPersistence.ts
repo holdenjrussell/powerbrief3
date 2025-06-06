@@ -2,14 +2,11 @@ import { useCallback, useEffect, useRef } from 'react';
 import { updateWireframeTldrawData, getWireframe } from '@/lib/services/powerframeService';
 import { Json } from '@/lib/types/supabase';
 
-// Modern tldraw APIs - avoid deprecated store methods
+// Import modern tldraw functions and types
+import { loadSnapshot, getSnapshot, Editor } from '@tldraw/tldraw';
+
+// Modern tldraw APIs
 type TLStoreSnapshot = Record<string, unknown>;
-type Editor = {
-  store: {
-    getSnapshot?: () => TLStoreSnapshot;
-    loadSnapshot?: (snapshot: TLStoreSnapshot) => void;
-  };
-};
 
 interface UseTldrawPersistenceOptions {
   wireframeId: string;
@@ -40,11 +37,11 @@ export function useTldrawPersistence({
           return;
         }
         
-        // Try to load the snapshot with error handling
+        // Try to load the snapshot using modern tldraw API
         try {
-          editor.store.loadSnapshot(snapshotData);
+          await loadSnapshot(editor.store, snapshotData);
           lastSavedSnapshot.current = JSON.stringify(snapshotData);
-          console.log('Tldraw data loaded successfully');
+          console.log('Tldraw data loaded successfully with modern API');
         } catch (loadError) {
           console.error('Failed to load snapshot into tldraw:', loadError);
           console.log('Continuing with empty canvas due to load error');
@@ -65,7 +62,7 @@ export function useTldrawPersistence({
 
     try {
       console.log('Manually saving tldraw data...');
-      const snapshot = editor.store.getSnapshot();
+      const snapshot = getSnapshot(editor.store);
       const snapshotString = JSON.stringify(snapshot);
       
       // Don't save if it's the same as the last saved snapshot
@@ -78,7 +75,7 @@ export function useTldrawPersistence({
         tldraw_data: JSON.parse(snapshotString) as Json
       });
       lastSavedSnapshot.current = snapshotString;
-      console.log('Manual save completed');
+      console.log('Manual save completed with modern API');
     } catch (error) {
       console.error('Failed to manually save tldraw data:', error);
       throw error;
