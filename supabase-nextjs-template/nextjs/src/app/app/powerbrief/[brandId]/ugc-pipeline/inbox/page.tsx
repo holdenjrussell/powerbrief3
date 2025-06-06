@@ -86,6 +86,8 @@ export default function EmailInboxPage({ params }: { params: ParamsType | Promis
   const [selectedThread, setSelectedThread] = useState<string | null>(null);
   const [threadMessages, setThreadMessages] = useState<EmailMessage[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
+  const [replyMessage, setReplyMessage] = useState('');
+  const [sendingReply, setSendingReply] = useState(false);
   
   // New Message Modal State
   const [showNewMessageModal, setShowNewMessageModal] = useState(false);
@@ -179,6 +181,52 @@ export default function EmailInboxPage({ params }: { params: ParamsType | Promis
   const handleThreadSelect = (threadId: string) => {
     setSelectedThread(threadId);
     fetchThreadMessages(threadId);
+  };
+
+  const handleSendReply = async () => {
+    if (!selectedThread || !replyMessage.trim()) return;
+
+    const selectedThreadData = filteredThreads.find(t => t.id === selectedThread);
+    if (!selectedThreadData) return;
+
+    setSendingReply(true);
+    try {
+      const response = await fetch('/api/ugc/email/compose', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          brandId,
+          creatorId: selectedThreadData.creator_id,
+          subject: `Re: ${selectedThreadData.thread_subject}`,
+          htmlContent: replyMessage.trim(),
+          textContent: replyMessage.trim().replace(/<[^>]*>/g, ''), // Strip HTML for text version
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to send reply');
+      }
+
+      // Clear reply input and refresh messages
+      setReplyMessage('');
+      await fetchThreadMessages(selectedThread);
+      await fetchEmailThreads(); // Refresh thread list
+      
+    } catch (err) {
+      console.error('Failed to send reply:', err);
+      setError('Failed to send reply. Please try again.');
+    } finally {
+      setSendingReply(false);
+    }
+  };
+
+  const handleReplyKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendReply();
+    }
   };
 
   const handleSendNewMessage = async () => {
@@ -539,9 +587,23 @@ export default function EmailInboxPage({ params }: { params: ParamsType | Promis
               {/* Reply Box */}
               <div className="p-4 border-t bg-gray-50">
                 <div className="flex gap-2">
-                  <Input placeholder="Type your message..." className="flex-1" />
-                  <Button>
-                    <Send className="w-4 h-4" />
+                  <Input 
+                    placeholder="Type your message..." 
+                    className="flex-1"
+                    value={replyMessage}
+                    onChange={(e) => setReplyMessage(e.target.value)}
+                    onKeyDown={handleReplyKeyDown}
+                    disabled={sendingReply}
+                  />
+                  <Button 
+                    onClick={handleSendReply}
+                    disabled={!replyMessage.trim() || sendingReply}
+                  >
+                    {sendingReply ? (
+                      <Clock className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Send className="w-4 h-4" />
+                    )}
                   </Button>
                 </div>
               </div>
