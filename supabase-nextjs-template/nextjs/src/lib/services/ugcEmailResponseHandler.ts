@@ -31,19 +31,45 @@ export async function processCreatorEmailResponse({
   try {
     const supabase = await createServerAdminClient();
 
-    // 1. Find the brand by email identifier
+    // 1. Find the brand by email identifier with enhanced validation
     const { data: brand, error: brandError } = await (supabase as any)
       .from('brands')
       .select('*')
       .eq('email_identifier', brandIdentifier)
+      .not('email_identifier', 'is', null)
       .single();
 
     if (brandError || !brand) {
+      console.error('❌ Brand lookup failed:', { brandIdentifier, error: brandError });
       return { success: false, error: `Brand not found: ${brandIdentifier}` };
     }
 
+    // Enhanced validation: Ensure email identifier matches exactly
+    if (brand.email_identifier !== brandIdentifier) {
+      console.error('❌ Email identifier mismatch:', { 
+        expected: brand.email_identifier, 
+        received: brandIdentifier 
+      });
+      return { success: false, error: `Invalid email identifier: ${brandIdentifier}` };
+    }
+
+    // Validate brand has required fields for email processing
+    if (!brand.user_id) {
+      console.error('❌ Brand missing user_id:', { brandId: brand.id });
+      return { success: false, error: `Brand configuration invalid: ${brandIdentifier}` };
+    }
+
+    console.log('✅ Valid brand found:', { 
+      brandId: brand.id, 
+      brandName: brand.name, 
+      emailIdentifier: brand.email_identifier,
+      userId: brand.user_id 
+    });
+
     // 2. Find or create creator by email
     const creatorEmail = extractEmailFromSender(emailData.from);
+    console.log('🔍 Looking for creator:', { creatorEmail, brandId: brand.id });
+    
     let { data: creator, error: creatorError } = await (supabase as any)
       .from('ugc_creators')
       .select('*')
@@ -53,6 +79,8 @@ export async function processCreatorEmailResponse({
 
     if (creatorError && creatorError.code === 'PGRST116') {
       // Creator doesn't exist, create new one
+      console.log('👤 Creating new creator:', { creatorEmail, brandId: brand.id });
+      
       const { data: newCreator, error: createError } = await (supabase as any)
         .from('ugc_creators')
         .insert({
@@ -66,11 +94,17 @@ export async function processCreatorEmailResponse({
         .single();
 
       if (createError) {
+        console.error('❌ Failed to create creator:', { creatorEmail, error: createError });
         return { success: false, error: 'Failed to create creator' };
       }
+      
       creator = newCreator;
+      console.log('✅ Creator created successfully:', { creatorId: creator.id, email: creator.email });
     } else if (creatorError) {
+      console.error('❌ Database error finding creator:', { creatorEmail, error: creatorError });
       return { success: false, error: 'Database error finding creator' };
+    } else {
+      console.log('✅ Existing creator found:', { creatorId: creator.id, email: creator.email, status: creator.status });
     }
 
     // 3. Find or create email thread
