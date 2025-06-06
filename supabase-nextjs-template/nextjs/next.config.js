@@ -8,20 +8,6 @@ const nextConfig = {
   },
   // Server external packages configuration
   serverExternalPackages: [],
-  // Simple webpack config for tldraw client-side only
-  webpack: (config, { isServer }) => {
-    // Only apply client-side optimizations
-    if (!isServer) {
-      config.resolve.fallback = {
-        ...config.resolve.fallback,
-        fs: false,
-        path: false,
-        crypto: false,
-      };
-    }
-
-    return config;
-  },
   // Add headers for FFmpeg support - modified to be less restrictive for media loading
   async headers() {
     return [

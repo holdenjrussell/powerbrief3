@@ -244,21 +244,40 @@
   }
 }
 
-/* Tldraw Canvas Support - Let tldraw handle all events natively */
+/* Tldraw Canvas Support - Ensure native scroll/pan behavior works properly */
 .tl-container {
-  /* Remove all touch-action interference - let tldraw handle everything */
+  /* Let tldraw handle all touch and scroll events natively */
+  touch-action: none !important;
   user-select: none !important;
   -webkit-user-select: none !important;
   -webkit-touch-callout: none !important;
-  overflow: visible !important;
+  /* DO NOT override overflow - let tldraw manage this */
   position: relative !important;
 }
 
 .tl-canvas,
 .tl-svg-container {
-  /* Remove all touch-action interference - let tldraw handle everything */
+  /* Ensure proper touch handling for pan/zoom */
+  touch-action: none !important;
   user-select: none !important;
   -webkit-user-select: none !important;
   -webkit-touch-callout: none !important;
-  overflow: visible !important;
+  /* DO NOT override overflow - let tldraw manage scrolling */
+}
+
+/* Ensure the canvas container allows tldraw to handle all interactions */
+div[data-testid="canvas"] {
+  touch-action: none !important;
+}
+
+/* Make sure parent containers don't interfere with tldraw's event handling */
+.tl-editor {
+  touch-action: none !important;
+}
+
+/* Prevent any interference with tldraw's pointer events */
+.tl-shapes,
+.tl-shape,
+.tl-shape-indicator {
+  touch-action: none !important;
 } 

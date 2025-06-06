@@ -7,9 +7,15 @@ import { ArrowLeft, Sparkles, ChevronLeft, ChevronRight, Upload, X, Save, CheckC
 import dynamic from 'next/dynamic';
 import { useTldrawPersistence } from '@/hooks/useTldrawPersistence';
 
-// Dynamically import Tldraw to avoid SSR issues and prevent duplicate imports
+// Dynamically import both Tldraw component and toRichText function together to avoid multiple instances
 const TldrawComponent = dynamic(
-  () => import('@tldraw/tldraw').then((mod) => mod.Tldraw),
+  () => import('@tldraw/tldraw').then((mod) => {
+    // Store the toRichText function when tldraw loads to avoid duplicate imports
+    if (typeof window !== 'undefined') {
+      (window as Window & { __tldrawToRichText?: typeof mod.toRichText }).__tldrawToRichText = mod.toRichText;
+    }
+    return mod.Tldraw;
+  }),
   { 
     ssr: false,
     loading: () => <div className="w-full h-full flex items-center justify-center bg-gray-100">Loading canvas...</div>
@@ -80,18 +86,6 @@ export default function WireframeEditorPage() {
 
     return () => clearInterval(backupSaveInterval);
   }, [currentEditor, saveNow]);
-
-  // Cleanup navigation event listener on unmount
-  useEffect(() => {
-    return () => {
-      if (currentEditor) {
-        const container = currentEditor.getContainer();
-        if (container && (container as HTMLElement & { _cleanupNavigation?: () => void })._cleanupNavigation) {
-          (container as HTMLElement & { _cleanupNavigation?: () => void })._cleanupNavigation?.();
-        }
-      }
-    };
-  }, [currentEditor]);
 
   // Valid tldraw colors - expanded list
   const VALID_COLORS = ['black', 'grey', 'white', 'blue', 'red', 'green', 'orange', 'yellow', 'light-violet', 'violet', 'light-blue', 'light-green', 'light-red', 'light-grey'];
@@ -227,13 +221,23 @@ export default function WireframeEditorPage() {
     return validatedShape;
   };
 
-  // Ensure we're on the client side and load toRichText function
+  // Ensure we're on the client side and get toRichText function from stored reference
   useEffect(() => {
     setIsClient(true);
-    // Load toRichText function dynamically
-    import('@tldraw/tldraw').then((mod) => {
-      setToRichTextFn(() => mod.toRichText);
-    });
+    
+    // Get toRichText function from the stored reference to avoid duplicate imports
+    const checkForTldrawFunction = () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const tldrawWindow = window as Window & { __tldrawToRichText?: (text: string) => any };
+      if (tldrawWindow.__tldrawToRichText) {
+        setToRichTextFn(() => tldrawWindow.__tldrawToRichText);
+      } else {
+        // If not available yet, check again in 100ms
+        setTimeout(checkForTldrawFunction, 100);
+      }
+    };
+    
+    checkForTldrawFunction();
   }, []);
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -869,7 +873,7 @@ Check console for detailed error analysis.`);
         </div>
 
         {/* Canvas */}
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 overflow-hidden" style={{ touchAction: 'none' }}>
           <TldrawComponent 
             className="w-full h-full"
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -881,30 +885,14 @@ Check console for detailed error analysis.`);
               
               setCurrentEditor(editor);
               
-              // Prevent Chrome's back/forward navigation on horizontal scroll
-              if (editor) {
-                const container = editor.getContainer();
-                if (container) {
-                  // Prevent browser back/forward on horizontal scroll/swipe
-                  const preventNavigation = (e: WheelEvent) => {
-                    // Only prevent default for horizontal scrolling to stop browser navigation
-                    if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
-                      e.preventDefault();
-                    }
-                  };
-
-                  // Add wheel event listener to prevent horizontal navigation
-                  container.addEventListener('wheel', preventNavigation, { passive: false });
-                  
-                  // Store the cleanup function
-                  (container as HTMLElement & { _cleanupNavigation?: () => void })._cleanupNavigation = () => {
-                    container.removeEventListener('wheel', preventNavigation);
-                  };
-                }
-              }
+              // Let tldraw handle ALL events natively - no custom event handling
+              console.log('🎯 Editor mounted - letting tldraw handle all events natively');
               
-              // Let tldraw handle all other events natively
-              console.log('🎯 Editor mounted - preventing Chrome navigation, letting tldraw handle scroll events');
+              // Ensure the editor container has proper touch handling
+              const editorContainer = editor.getContainer();
+              if (editorContainer) {
+                editorContainer.style.touchAction = 'none';
+              }
             }}
           />
         </div>
