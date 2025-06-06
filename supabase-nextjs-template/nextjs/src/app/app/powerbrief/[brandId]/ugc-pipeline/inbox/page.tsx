@@ -202,6 +202,7 @@ export default function EmailInboxPage({ params }: { params: ParamsType | Promis
           subject: selectedThreadData.thread_subject,
           htmlContent: replyMessage.trim(),
           textContent: replyMessage.trim().replace(/<[^>]*>/g, ''), // Strip HTML for text version
+          threadId: selectedThread,
         })
       });
 

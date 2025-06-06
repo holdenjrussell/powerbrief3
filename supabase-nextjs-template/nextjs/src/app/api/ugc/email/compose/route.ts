@@ -20,8 +20,8 @@ export async function POST(request: NextRequest) {
     // Now use admin client for database operations
     const supabase = await createServerAdminClient();
     
-    const { creatorId, brandId, subject, htmlContent, textContent } = await request.json();
-    console.log('📝 Request payload:', { creatorId, brandId, subject, htmlContentLength: htmlContent?.length, textContentLength: textContent?.length });
+    const { creatorId, brandId, subject, htmlContent, textContent, threadId: existingThreadId } = await request.json();
+    console.log('📝 Request payload:', { creatorId, brandId, subject, htmlContentLength: htmlContent?.length, textContentLength: textContent?.length, existingThreadId });
 
     if (!creatorId || !brandId || !subject || !htmlContent) {
       console.log('❌ Missing required fields');
@@ -79,42 +79,50 @@ export async function POST(request: NextRequest) {
     console.log('📧 Generated from email:', fromEmail);
 
     // Check if thread exists or create new one
-    const threadSubject = subject;
     let threadId: string;
 
-    console.log('🔍 Looking for existing thread');
-    const { data: existingThread } = await supabase
-      .from('ugc_email_threads' as any)
-      .select('id')
-      .eq('creator_id', creatorId)
-      .eq('brand_id', brandId)
-      .eq('thread_subject', threadSubject)
-      .single();
-
-    if (existingThread) {
-      threadId = String((existingThread as any).id);
-      console.log('✅ Found existing thread:', threadId);
+    if (existingThreadId) {
+      // Reply to existing thread
+      console.log('🔄 Using existing thread:', existingThreadId);
+      threadId = existingThreadId;
     } else {
-      console.log('📝 Creating new thread');
-      // Create new thread
-      const { data: newThread, error: threadError } = await supabase
+      // New conversation - try to find by subject or create new
+      const threadSubject = subject;
+      console.log('🔍 Looking for existing thread by subject:', threadSubject);
+      
+      const { data: existingThread } = await supabase
         .from('ugc_email_threads' as any)
-        .insert({
-          creator_id: creatorId,
-          brand_id: brandId,
-          thread_subject: threadSubject,
-          status: 'active'
-        })
         .select('id')
+        .eq('creator_id', creatorId)
+        .eq('brand_id', brandId)
+        .eq('thread_subject', threadSubject)
         .single();
 
-      if (threadError || !newThread) {
-        console.log('❌ Thread creation failed:', threadError);
-        return NextResponse.json({ error: 'Failed to create email thread' }, { status: 500 });
-      }
+      if (existingThread) {
+        threadId = String((existingThread as any).id);
+        console.log('✅ Found existing thread by subject:', threadId);
+      } else {
+        console.log('📝 Creating new thread');
+        // Create new thread
+        const { data: newThread, error: threadError } = await supabase
+          .from('ugc_email_threads' as any)
+          .insert({
+            creator_id: creatorId,
+            brand_id: brandId,
+            thread_subject: threadSubject,
+            status: 'active'
+          })
+          .select('id')
+          .single();
 
-      threadId = String((newThread as any).id);
-      console.log('✅ Created new thread:', threadId);
+        if (threadError || !newThread) {
+          console.log('❌ Thread creation failed:', threadError);
+          return NextResponse.json({ error: 'Failed to create email thread' }, { status: 500 });
+        }
+
+        threadId = String((newThread as any).id);
+        console.log('✅ Created new thread:', threadId);
+      }
     }
 
     // Create email message record
