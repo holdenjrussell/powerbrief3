@@ -26,9 +26,10 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue
+  SelectValue,
+  Input
 } from "@/components/ui";
-import { Plus, Loader2, Save, Settings2, Sparkles, Bot, Mail, FileText, Eye, CheckCircle, AlertCircle, Video, Mic, BookOpen, Zap, Heart, Coffee, Edit, Package, Users } from "lucide-react";
+import { Plus, Loader2, Save, Settings2, Sparkles, Bot, Mail, FileText, Eye, CheckCircle, AlertCircle, Video, Mic, BookOpen, Zap, Heart, Coffee, Edit, Package, Users, Upload, X, Bug, Trash2 } from "lucide-react";
 import { useAuth } from '@/hooks/useAuth';
 import { getBrandById } from '@/lib/services/powerbriefService';
 import { 
@@ -71,6 +72,32 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
   const [showNewCreatorDialog, setShowNewCreatorDialog] = useState(false);
   const [creatingCreator, setCreatingCreator] = useState(false);
   
+  // Script creation state variables (from working version)
+  const [title, setTitle] = useState<string>('');
+  const [scriptContent, setScriptContent] = useState({
+    scene_start: '',
+    segments: [{ segment: 'Initial Approach', script: '', visuals: '' }],
+    scene_end: ''
+  });
+  const [bRollShotList, setBRollShotList] = useState<string[]>([]);
+  const [aiCustomPrompt, setAiCustomPrompt] = useState<string>('');
+  const [systemInstructions, setSystemInstructions] = useState<string>('');
+  const [hookType, setHookType] = useState<string>('verbal');
+  const [hookCount, setHookCount] = useState<number>(1);
+  const [hookBody, setHookBody] = useState<string>('');
+  const [cta, setCta] = useState<string>('');
+  const [generatingScript, setGeneratingScript] = useState<boolean>(false);
+  const [referenceVideo, setReferenceVideo] = useState<File | null>(null);
+  const [referenceVideoUrl, setReferenceVideoUrl] = useState<string>('');
+  const [uploadingVideo, setUploadingVideo] = useState<boolean>(false);
+  const [saving, setSaving] = useState<boolean>(false);
+  const videoInputRef = useRef<HTMLInputElement>(null);
+  const [creativeStrategist, setCreativeStrategist] = useState<string>('');
+  const [referenceVideoNotes, setReferenceVideoNotes] = useState<string>('');
+  const [showDebugModal, setShowDebugModal] = useState(false);
+  const [debugPromptData, setDebugPromptData] = useState<string>('');
+  const [selectedCreators, setSelectedCreators] = useState<string[]>(['TBD']);
+  
   // New creator form state
   const [newCreator, setNewCreator] = useState<Partial<UgcCreator>>({
     name: '',
@@ -97,14 +124,7 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
   const [guideDescription, setGuideDescription] = useState('');
   const [filmingInstructions, setFilmingInstructions] = useState('');
   const [defaultSystemInstructions, setDefaultSystemInstructions] = useState('');
-  const [systemInstructions, setSystemInstructions] = useState('');
   const [savingSettings, setSavingSettings] = useState(false);
-
-  // Reference video state
-  const [referenceVideo, setReferenceVideo] = useState<File | null>(null);
-  const [referenceVideoUrl, setReferenceVideoUrl] = useState<string>('');
-  const [referenceVideoNotes, setReferenceVideoNotes] = useState<string>('');
-  const videoInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const unwrapParams = async () => {
@@ -448,498 +468,452 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
         <TabsContent value="script">
           <Card>
             <CardHeader>
-              <CardTitle>Script Creation Tool</CardTitle>
-              <CardDescription>Create and manage UGC scripts with AI assistance, templates, and detailed instructions</CardDescription>
+              <CardTitle>Create New UGC Script</CardTitle>
+              <CardDescription>Create and generate scripts for UGC creators</CardDescription>
             </CardHeader>
             <CardContent>
-              <Tabs defaultValue="generator" className="w-full">
-                <TabsList className="grid w-full grid-cols-4">
-                  <TabsTrigger value="generator" className="flex items-center gap-2">
-                    <Sparkles className="h-4 w-4" />
-                    Generator
-                  </TabsTrigger>
-                  <TabsTrigger value="templates" className="flex items-center gap-2">
-                    <FileText className="h-4 w-4" />
-                    Templates
-                  </TabsTrigger>
-                  <TabsTrigger value="instructions" className="flex items-center gap-2">
-                    <Settings2 className="h-4 w-4" />
-                    Instructions
-                  </TabsTrigger>
-                  <TabsTrigger value="review" className="flex items-center gap-2">
-                    <Eye className="h-4 w-4" />
-                    Review
-                  </TabsTrigger>
+              <Tabs defaultValue="generator" className="space-y-6">
+                <TabsList>
+                  <TabsTrigger value="generator">AI Generator</TabsTrigger>
+                  <TabsTrigger value="script">Script Editor</TabsTrigger>
+                  <TabsTrigger value="metadata">Additional Info</TabsTrigger>
+                  <TabsTrigger value="system">System Instructions</TabsTrigger>
                 </TabsList>
+                
+                <TabsContent value="generator" className="space-y-6">
+                  <div>
+                    <Label htmlFor="title">Script Title</Label>
+                    <Input
+                      id="title"
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                      placeholder="Enter script title"
+                    />
+                  </div>
 
-                <TabsContent value="generator" className="mt-6">
-                  <div className="space-y-6">
-                    {/* AI Script Generator */}
-                    <div className="bg-gradient-to-r from-purple-50 to-blue-50 p-6 rounded-lg border">
-                      <h3 className="text-lg font-semibold mb-2 flex items-center gap-2">
-                        <Sparkles className="h-5 w-5 text-purple-600" />
-                        AI-Powered Script Generation
-                      </h3>
-                      <p className="text-gray-600 mb-4">
-                        Generate engaging UGC scripts using AI with creator assignment and custom prompts.
-                      </p>
-                      
-                      {creators.length > 0 ? (
-                        <div className="space-y-4">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                              <Label htmlFor="creator-select">Select Creator</Label>
-                              <Select>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Choose a creator" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {creators.map((creator) => (
-                                    <SelectItem key={creator.id} value={creator.id}>
-                                      <div className="flex items-center gap-2">
-                                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                                        {creator.name || creator.email}
-                                      </div>
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            
-                            <div>
-                              <Label htmlFor="script-type">Script Type</Label>
-                              <Select>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select script type" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="unboxing">Product Unboxing</SelectItem>
-                                  <SelectItem value="before-after">Before & After</SelectItem>
-                                  <SelectItem value="tutorial">Tutorial Style</SelectItem>
-                                  <SelectItem value="testimonial">Testimonial</SelectItem>
-                                  <SelectItem value="lifestyle">Lifestyle Integration</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                          </div>
-                          
-                          <div>
-                            <Label htmlFor="custom-prompt">Custom AI Prompt</Label>
-                            <Textarea
-                              id="custom-prompt"
-                              placeholder="Enter specific instructions for the AI to customize the script generation..."
-                              rows={3}
+                  <div>
+                    <Label htmlFor="creative-strategist">Creative Strategist</Label>
+                    <Input
+                      id="creative-strategist"
+                      value={creativeStrategist}
+                      onChange={(e) => setCreativeStrategist(e.target.value)}
+                      placeholder="Enter creative strategist name"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      Name of the creative strategist assigned to this script.
+                    </p>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="custom-prompt">Custom Prompt (Optional)</Label>
+                    <Textarea
+                      id="custom-prompt"
+                      value={aiCustomPrompt}
+                      onChange={(e) => setAiCustomPrompt(e.target.value)}
+                      placeholder="Provide custom instructions for the AI to follow when generating the script"
+                      className="h-32"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="hook-type">Hook Type</Label>
+                      <Select value={hookType} onValueChange={setHookType}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="verbal">Verbal</SelectItem>
+                          <SelectItem value="text">Text</SelectItem>
+                          <SelectItem value="both">Both</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="hook-count">Number of Hooks</Label>
+                      <Select value={hookCount.toString()} onValueChange={(value) => setHookCount(Number(value))}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="1">1</SelectItem>
+                          <SelectItem value="3">3</SelectItem>
+                          <SelectItem value="5">5</SelectItem>
+                          <SelectItem value="10">10</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="reference-video">Reference Video (Optional)</Label>
+                    <div className="mt-2">
+                      {!referenceVideo ? (
+                        <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                          <Upload className="mx-auto h-12 w-12 text-gray-400" />
+                          <div className="mt-4">
+                            <Button
+                              variant="outline"
+                              onClick={() => videoInputRef.current?.click()}
+                              disabled={uploadingVideo}
+                            >
+                              <Upload className="mr-2 h-4 w-4" />
+                              Upload Reference Video
+                            </Button>
+                            <input
+                              ref={videoInputRef}
+                              type="file"
+                              accept="video/*"
+                              onChange={handleFileChange}
+                              className="hidden"
                             />
                           </div>
-                          
-                          <Button className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700">
-                            <Sparkles className="h-4 w-4 mr-2" />
-                            Generate AI Script
-                          </Button>
+                          <p className="mt-2 text-sm text-gray-500">
+                            Upload a video for AI analysis and script inspiration
+                          </p>
                         </div>
                       ) : (
-                        <div className="text-center py-8">
-                          <Users className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-                          <p className="text-gray-600 mb-4">No creators available</p>
-                          <Button onClick={() => setShowNewCreatorDialog(true)} variant="outline">
-                            <Plus className="h-4 w-4 mr-2" />
-                            Add Creator First
-                          </Button>
+                        <div className="space-y-4">
+                          <div className="flex items-center justify-between bg-gray-50 rounded-lg p-4">
+                            <div className="flex items-center space-x-3">
+                              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                                <Upload className="h-5 w-5 text-blue-600" />
+                              </div>
+                              <div>
+                                <p className="font-medium">{referenceVideo.name}</p>
+                                <p className="text-sm text-gray-500">
+                                  {(referenceVideo.size / (1024 * 1024)).toFixed(2)} MB
+                                </p>
+                              </div>
+                            </div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={handleRemoveVideo}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                          
+                          {referenceVideoUrl && (
+                            <div className="space-y-4">
+                              <video
+                                src={referenceVideoUrl}
+                                controls
+                                className="w-full max-w-md mx-auto rounded-lg"
+                              />
+                              
+                              <div>
+                                <Label htmlFor="video-notes">Video Notes</Label>
+                                <Textarea
+                                  id="video-notes"
+                                  value={referenceVideoNotes}
+                                  onChange={(e) => setReferenceVideoNotes(e.target.value)}
+                                  placeholder="Add notes about what aspects of this video should be referenced..."
+                                  className="mt-1"
+                                  rows={3}
+                                />
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
+                  </div>
 
-                    {/* Manual Script Creation */}
-                    <div className="border rounded-lg p-6">
-                      <h3 className="text-lg font-semibold mb-2">Manual Script Creation</h3>
-                      <p className="text-gray-600 mb-4">Create a script manually with full control over content and structure.</p>
-                      
-                      <div className="flex gap-2">
-                        <Button 
-                          variant="outline" 
-                          onClick={() => {
-                            if (creators.length > 0) {
-                              router.push(`/app/powerbrief/${brandId}/ugc-pipeline/creators/${creators[0].id}/new-script`);
-                            }
-                          }}
-                          disabled={creators.length === 0}
-                        >
-                          <Edit className="h-4 w-4 mr-2" />
-                          Create Manual Script
-                        </Button>
-                      </div>
-                    </div>
+                  <div className="flex gap-4">
+                    <Button
+                      onClick={handleGenerateScript}
+                      disabled={generatingScript}
+                      className="flex-1"
+                    >
+                      {generatingScript ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Generating...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="mr-2 h-4 w-4" />
+                          Generate AI Script
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={handleShowDebugPrompt}
+                    >
+                      <Bug className="mr-2 h-4 w-4" />
+                      Debug
+                    </Button>
                   </div>
                 </TabsContent>
-
-                <TabsContent value="templates" className="mt-6">
-                  <div className="space-y-6">
-                    <div>
-                      <h3 className="text-lg font-semibold mb-2">Pre-Built Script Templates</h3>
-                      <p className="text-gray-600 mb-6">Choose from professionally crafted templates to jumpstart your script creation.</p>
-                    </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      <Card className="p-6 hover:shadow-lg transition-shadow cursor-pointer border-2 border-dashed border-blue-200 hover:border-blue-400">
-                        <div className="text-center">
-                          <div className="w-16 h-16 bg-blue-100 rounded-lg flex items-center justify-center mx-auto mb-4">
-                            <Package className="h-8 w-8 text-blue-600" />
-                          </div>
-                          <h4 className="font-semibold mb-2">Product Unboxing</h4>
-                          <p className="text-sm text-gray-600 mb-4">
-                            Perfect for showcasing product packaging, first impressions, and initial reactions.
-                          </p>
-                          <Badge variant="outline" className="mb-3">
-                            <Sparkles className="h-3 w-3 mr-1" />
-                            AI Enhanced
-                          </Badge>
-                          <div className="space-y-2">
-                            <Button size="sm" className="w-full">Use Template</Button>
-                            <Button size="sm" variant="outline" className="w-full">Preview</Button>
-                          </div>
-                        </div>
-                      </Card>
-                      
-                      <Card className="p-6 hover:shadow-lg transition-shadow cursor-pointer border-2 border-dashed border-green-200 hover:border-green-400">
-                        <div className="text-center">
-                          <div className="w-16 h-16 bg-green-100 rounded-lg flex items-center justify-center mx-auto mb-4">
-                            <Zap className="h-8 w-8 text-green-600" />
-                          </div>
-                          <h4 className="font-semibold mb-2">Before & After</h4>
-                          <p className="text-sm text-gray-600 mb-4">
-                            Demonstrate transformation and results with compelling before/after storytelling.
-                          </p>
-                          <Badge variant="outline" className="mb-3">
-                            <Sparkles className="h-3 w-3 mr-1" />
-                            AI Enhanced
-                          </Badge>
-                          <div className="space-y-2">
-                            <Button size="sm" className="w-full">Use Template</Button>
-                            <Button size="sm" variant="outline" className="w-full">Preview</Button>
-                          </div>
-                        </div>
-                      </Card>
-                      
-                      <Card className="p-6 hover:shadow-lg transition-shadow cursor-pointer border-2 border-dashed border-purple-200 hover:border-purple-400">
-                        <div className="text-center">
-                          <div className="w-16 h-16 bg-purple-100 rounded-lg flex items-center justify-center mx-auto mb-4">
-                            <BookOpen className="h-8 w-8 text-purple-600" />
-                          </div>
-                          <h4 className="font-semibold mb-2">Tutorial Style</h4>
-                          <p className="text-sm text-gray-600 mb-4">
-                            Educational content and step-by-step how-to guides for product usage.
-                          </p>
-                          <Badge variant="outline" className="mb-3">
-                            <Sparkles className="h-3 w-3 mr-1" />
-                            AI Enhanced
-                          </Badge>
-                          <div className="space-y-2">
-                            <Button size="sm" className="w-full">Use Template</Button>
-                            <Button size="sm" variant="outline" className="w-full">Preview</Button>
-                          </div>
-                        </div>
-                      </Card>
-                      
-                      <Card className="p-6 hover:shadow-lg transition-shadow cursor-pointer border-2 border-dashed border-orange-200 hover:border-orange-400">
-                        <div className="text-center">
-                          <div className="w-16 h-16 bg-orange-100 rounded-lg flex items-center justify-center mx-auto mb-4">
-                            <Heart className="h-8 w-8 text-orange-600" />
-                          </div>
-                          <h4 className="font-semibold mb-2">Testimonial</h4>
-                          <p className="text-sm text-gray-600 mb-4">
-                            Authentic customer experiences and product testimonials that build trust.
-                          </p>
-                          <Badge variant="outline" className="mb-3">
-                            <Sparkles className="h-3 w-3 mr-1" />
-                            AI Enhanced
-                          </Badge>
-                          <div className="space-y-2">
-                            <Button size="sm" className="w-full">Use Template</Button>
-                            <Button size="sm" variant="outline" className="w-full">Preview</Button>
-                          </div>
-                        </div>
-                      </Card>
-                      
-                      <Card className="p-6 hover:shadow-lg transition-shadow cursor-pointer border-2 border-dashed border-pink-200 hover:border-pink-400">
-                        <div className="text-center">
-                          <div className="w-16 h-16 bg-pink-100 rounded-lg flex items-center justify-center mx-auto mb-4">
-                            <Coffee className="h-8 w-8 text-pink-600" />
-                          </div>
-                          <h4 className="font-semibold mb-2">Lifestyle Integration</h4>
-                          <p className="text-sm text-gray-600 mb-4">
-                            Show how the product fits naturally into daily life and routines.
-                          </p>
-                          <Badge variant="outline" className="mb-3">
-                            <Sparkles className="h-3 w-3 mr-1" />
-                            AI Enhanced
-                          </Badge>
-                          <div className="space-y-2">
-                            <Button size="sm" className="w-full">Use Template</Button>
-                            <Button size="sm" variant="outline" className="w-full">Preview</Button>
-                          </div>
-                        </div>
-                      </Card>
-                      
-                      <Card className="p-6 hover:shadow-lg transition-shadow cursor-pointer border-2 border-dashed border-gray-200 hover:border-gray-400">
-                        <div className="text-center">
-                          <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center mx-auto mb-4">
-                            <Plus className="h-8 w-8 text-gray-600" />
-                          </div>
-                          <h4 className="font-semibold mb-2">Custom Template</h4>
-                          <p className="text-sm text-gray-600 mb-4">
-                            Create your own template from scratch with full customization.
-                          </p>
-                          <Badge variant="secondary" className="mb-3">
-                            Custom
-                          </Badge>
-                          <div className="space-y-2">
-                            <Button size="sm" variant="outline" className="w-full">Create Template</Button>
-                          </div>
-                        </div>
-                      </Card>
-                    </div>
+                
+                <TabsContent value="script" className="space-y-6">
+                  <div>
+                    <Label>Scene Start</Label>
+                    <Textarea
+                      value={scriptContent.scene_start}
+                      onChange={(e) => setScriptContent(prev => ({ ...prev, scene_start: e.target.value }))}
+                      placeholder="Describe how the video starts..."
+                      className="mt-1"
+                      rows={3}
+                    />
                   </div>
-                </TabsContent>
 
-                <TabsContent value="instructions" className="mt-6">
-                  <div className="space-y-6">
-                    <div>
-                      <h3 className="text-lg font-semibold mb-2">Filming Instructions & Guidelines</h3>
-                      <p className="text-gray-600 mb-6">Set up comprehensive filming instructions and additional notes for creators.</p>
-                    </div>
-                    
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                      <Card className="p-6">
-                        <h4 className="font-semibold mb-4 flex items-center gap-2">
-                          <Video className="h-5 w-5 text-blue-600" />
-                          Technical Specifications
-                        </h4>
-                        <div className="space-y-4">
-                          <div>
-                            <Label htmlFor="video-quality">Video Quality</Label>
-                            <Select>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select quality" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="1080p">1080p HD</SelectItem>
-                                <SelectItem value="4k">4K Ultra HD</SelectItem>
-                                <SelectItem value="720p">720p HD</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          
-                          <div>
-                            <Label htmlFor="frame-rate">Frame Rate</Label>
-                            <Select>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select frame rate" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="30fps">30 FPS</SelectItem>
-                                <SelectItem value="60fps">60 FPS</SelectItem>
-                                <SelectItem value="24fps">24 FPS</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          
-                          <div>
-                            <Label htmlFor="orientation">Video Orientation</Label>
-                            <Select>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select orientation" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="vertical">Vertical (9:16)</SelectItem>
-                                <SelectItem value="horizontal">Horizontal (16:9)</SelectItem>
-                                <SelectItem value="square">Square (1:1)</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-                      </Card>
-                      
-                      <Card className="p-6">
-                        <h4 className="font-semibold mb-4 flex items-center gap-2">
-                          <Mic className="h-5 w-5 text-green-600" />
-                          Audio Guidelines
-                        </h4>
-                        <div className="space-y-4">
-                          <div className="flex items-center space-x-2">
-                            <input type="checkbox" id="clear-audio" className="rounded" />
-                            <Label htmlFor="clear-audio">Clear, crisp audio quality</Label>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <input type="checkbox" id="no-background-noise" className="rounded" />
-                            <Label htmlFor="no-background-noise">Minimal background noise</Label>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <input type="checkbox" id="voice-over" className="rounded" />
-                            <Label htmlFor="voice-over">Natural voice-over preferred</Label>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <input type="checkbox" id="music" className="rounded" />
-                            <Label htmlFor="music">Background music allowed</Label>
-                          </div>
-                        </div>
-                      </Card>
-                    </div>
-                    
-                    <Card className="p-6">
-                      <h4 className="font-semibold mb-4 flex items-center gap-2">
-                        <FileText className="h-5 w-5 text-purple-600" />
-                        Additional Instructions
-                      </h4>
-                      <div className="space-y-4">
-                        <div>
-                          <Label htmlFor="brand-guidelines">Brand Guidelines</Label>
-                          <Textarea
-                            id="brand-guidelines"
-                            placeholder="Enter specific brand guidelines and requirements..."
-                            rows={3}
-                          />
-                        </div>
-                        
-                        <div>
-                          <Label htmlFor="do-donts">Do's and Don'ts</Label>
-                          <Textarea
-                            id="do-donts"
-                            placeholder="List what creators should and shouldn't do..."
-                            rows={3}
-                          />
-                        </div>
-                        
-                        <div>
-                          <Label htmlFor="special-notes">Special Notes</Label>
-                          <Textarea
-                            id="special-notes"
-                            placeholder="Any additional notes or special requirements..."
-                            rows={3}
-                          />
-                        </div>
-                      </div>
-                    </Card>
-                    
-                    <div className="flex justify-end">
-                      <Button>
-                        <Save className="h-4 w-4 mr-2" />
-                        Save Instructions
+                  <div>
+                    <div className="flex items-center justify-between mb-4">
+                      <Label>Script Segments</Label>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleAddSegment}
+                      >
+                        <Plus className="mr-2 h-4 w-4" />
+                        Add Segment
                       </Button>
                     </div>
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="review" className="mt-6">
-                  <div className="space-y-6">
-                    <div>
-                      <h3 className="text-lg font-semibold mb-2">Script Preview & Review</h3>
-                      <p className="text-gray-600 mb-6">Review your script before sending it to creators. Make final adjustments and approve for distribution.</p>
-                    </div>
                     
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                      <div className="lg:col-span-2">
-                        <Card className="p-6">
-                          <h4 className="font-semibold mb-4">Script Preview</h4>
-                          <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                            <p className="text-sm text-gray-600 mb-2">No script selected for preview</p>
-                            <p className="text-xs text-gray-500">Create or select a script to see the preview here.</p>
+                    <div className="space-y-4">
+                      {scriptContent.segments?.map((segment, index) => (
+                        <Card key={index} className="p-4">
+                          <div className="flex items-center justify-between mb-4">
+                            <Input
+                              value={segment.segment}
+                              onChange={(e) => handleUpdateSegment(index, 'segment', e.target.value)}
+                              placeholder="Segment name"
+                              className="flex-1 mr-4"
+                            />
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleRemoveSegment(index)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           </div>
                           
-                          <div className="space-y-4">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                              <Label className="text-sm font-medium">Scene Start</Label>
-                              <div className="bg-white border rounded p-3 text-sm">
-                                <em>Scene start content will appear here...</em>
-                              </div>
-                            </div>
-                            
-                            <div>
-                              <Label className="text-sm font-medium">Main Content</Label>
-                              <div className="bg-white border rounded p-3 text-sm">
-                                <em>Main script content will appear here...</em>
-                              </div>
-                            </div>
-                            
-                            <div>
-                              <Label className="text-sm font-medium">Scene End</Label>
-                              <div className="bg-white border rounded p-3 text-sm">
-                                <em>Scene end content will appear here...</em>
-                              </div>
-                            </div>
-                          </div>
-                        </Card>
-                      </div>
-                      
-                      <div>
-                        <Card className="p-6">
-                          <h4 className="font-semibold mb-4">Review Actions</h4>
-                          <div className="space-y-4">
-                            <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                              <div className="flex items-center gap-2 mb-2">
-                                <AlertCircle className="h-4 w-4 text-yellow-600" />
-                                <span className="text-sm font-medium text-yellow-800">Pending Review</span>
-                              </div>
-                              <p className="text-xs text-yellow-700">Script is ready for review and approval.</p>
-                            </div>
-                            
-                            <div className="space-y-2">
-                              <Button className="w-full bg-green-600 hover:bg-green-700">
-                                <CheckCircle className="h-4 w-4 mr-2" />
-                                Approve & Send
-                              </Button>
-                              <Button variant="outline" className="w-full">
-                                <Edit className="h-4 w-4 mr-2" />
-                                Request Changes
-                              </Button>
-                              <Button variant="outline" className="w-full">
-                                <Eye className="h-4 w-4 mr-2" />
-                                Preview Public View
-                              </Button>
-                            </div>
-                            
-                            <div className="pt-4 border-t">
-                              <Label className="text-sm font-medium">Reviewer Notes</Label>
+                              <Label>Script</Label>
                               <Textarea
-                                placeholder="Add notes for the creator..."
-                                rows={3}
-                                className="mt-2"
+                                value={segment.script}
+                                onChange={(e) => handleUpdateSegment(index, 'script', e.target.value)}
+                                placeholder="What the creator says..."
+                                className="mt-1"
+                                rows={4}
+                              />
+                            </div>
+                            
+                            <div>
+                              <Label>Visuals</Label>
+                              <Textarea
+                                value={segment.visuals}
+                                onChange={(e) => handleUpdateSegment(index, 'visuals', e.target.value)}
+                                placeholder="What the creator shows/does..."
+                                className="mt-1"
+                                rows={4}
                               />
                             </div>
                           </div>
                         </Card>
-                      </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label>Scene End</Label>
+                    <Textarea
+                      value={scriptContent.scene_end}
+                      onChange={(e) => setScriptContent(prev => ({ ...prev, scene_end: e.target.value }))}
+                      placeholder="Describe how the video ends..."
+                      className="mt-1"
+                      rows={3}
+                    />
+                  </div>
+
+                  <div>
+                    <Label>Hook Body</Label>
+                    <Textarea
+                      value={hookBody}
+                      onChange={(e) => setHookBody(e.target.value)}
+                      placeholder="The main hook content..."
+                      className="mt-1"
+                      rows={3}
+                    />
+                  </div>
+
+                  <div>
+                    <Label>Call to Action</Label>
+                    <Textarea
+                      value={cta}
+                      onChange={(e) => setCta(e.target.value)}
+                      placeholder="What action should viewers take?"
+                      className="mt-1"
+                      rows={2}
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-4">
+                      <Label>B-Roll Shot List</Label>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleAddBRollShot}
+                      >
+                        <Plus className="mr-2 h-4 w-4" />
+                        Add Shot
+                      </Button>
                     </div>
                     
-                    <Card className="p-6">
-                      <h4 className="font-semibold mb-4">Recent Scripts</h4>
-                      <div className="space-y-3">
-                        {scripts.length > 0 ? (
-                          scripts.slice(0, 3).map((script) => (
-                            <div key={script.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
-                              <div>
-                                <h5 className="font-medium">{script.title}</h5>
-                                <p className="text-sm text-gray-600">
-                                  Creator: {creators.find(c => c.id === script.creator_id)?.name || 'Unknown'}
-                                </p>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <Badge variant={script.status === 'approved' ? 'default' : 'secondary'}>
-                                  {script.status}
-                                </Badge>
-                                <Button size="sm" variant="outline">
-                                  Review
-                                </Button>
-                              </div>
+                    <div className="space-y-2">
+                      {bRollShotList.map((shot, index) => (
+                        <div key={index} className="flex items-center gap-2">
+                          <Input
+                            value={shot}
+                            onChange={(e) => handleUpdateBRollShot(index, e.target.value)}
+                            placeholder="Describe the B-roll shot..."
+                            className="flex-1"
+                          />
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleRemoveBRollShot(index)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </TabsContent>
+                
+                <TabsContent value="metadata" className="space-y-6">
+                  <div>
+                    <Label>Selected Creators</Label>
+                    <div className="mt-2 space-y-2">
+                      {creators.length > 0 ? (
+                        <>
+                          <div className="flex flex-wrap gap-2 mb-4">
+                            <Button
+                              variant={selectedCreators.includes('TBD') ? 'default' : 'outline'}
+                              size="sm"
+                              onClick={() => handleCreatorSelection('TBD')}
+                            >
+                              TBD
+                            </Button>
+                            {creators.map((creator) => (
+                              <Button
+                                key={creator.id}
+                                variant={selectedCreators.includes(creator.id) ? 'default' : 'outline'}
+                                size="sm"
+                                onClick={() => handleCreatorSelection(creator.id)}
+                              >
+                                {creator.name || creator.email}
+                              </Button>
+                            ))}
+                          </div>
+                          
+                          {selectedCreators.length > 0 && (
+                            <div className="text-sm text-gray-600">
+                              Selected: {selectedCreators.map(id => {
+                                if (id === 'TBD') return 'TBD';
+                                const creator = creators.find(c => c.id === id);
+                                return creator?.name || creator?.email;
+                              }).join(', ')}
                             </div>
-                          ))
-                        ) : (
-                          <p className="text-sm text-gray-500 text-center py-8">No scripts available for review</p>
-                        )}
-                      </div>
-                    </Card>
+                          )}
+                        </>
+                      ) : (
+                        <p className="text-sm text-gray-500">No creators available. Create some creators first.</p>
+                      )}
+                    </div>
+                  </div>
+                </TabsContent>
+                
+                <TabsContent value="system" className="space-y-6">
+                  <div>
+                    <Label htmlFor="system-instructions">AI System Instructions</Label>
+                    <Textarea
+                      id="system-instructions"
+                      value={systemInstructions}
+                      onChange={(e) => setSystemInstructions(e.target.value)}
+                      placeholder={defaultSystemInstructions || "Enter system instructions for AI script generation..."}
+                      className="mt-1"
+                      rows={8}
+                    />
+                    <div className="mt-2 flex items-center justify-between">
+                      <p className="text-xs text-gray-500">
+                        These instructions will be used by the AI when generating scripts.
+                      </p>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setSystemInstructions(defaultSystemInstructions)}
+                        disabled={!defaultSystemInstructions}
+                      >
+                        Use Default
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="company-description">About the Company</Label>
+                    <Textarea
+                      id="company-description"
+                      value={companyDescription}
+                      onChange={(e) => setCompanyDescription(e.target.value)}
+                      placeholder="Describe your company, products, and brand identity"
+                      className="mt-1"
+                      rows={4}
+                    />
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="guide-description">About the Guide</Label>
+                    <Textarea
+                      id="guide-description"
+                      value={guideDescription}
+                      onChange={(e) => setGuideDescription(e.target.value)}
+                      placeholder="Overview of what the creator will be filming and the goals of the content"
+                      className="mt-1"
+                      rows={4}
+                    />
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="filming-instructions">Filming Instructions</Label>
+                    <Textarea
+                      id="filming-instructions"
+                      value={filmingInstructions}
+                      onChange={(e) => setFilmingInstructions(e.target.value)}
+                      placeholder="Detailed technical and performance guidance for filming"
+                      className="mt-1"
+                      rows={6}
+                    />
                   </div>
                 </TabsContent>
               </Tabs>
+
+              <div className="flex justify-end mt-6 pt-6 border-t">
+                <Button
+                  onClick={handleSubmitScript}
+                  disabled={saving || !title || selectedCreators.length === 0}
+                >
+                  {saving ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="mr-2 h-4 w-4" />
+                      Save Script
+                    </>
+                  )}
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
