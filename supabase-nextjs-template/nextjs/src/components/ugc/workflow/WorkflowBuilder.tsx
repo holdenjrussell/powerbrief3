@@ -33,7 +33,9 @@ import {
   ChevronRight,
   Copy,
   HelpCircle,
-  Info
+  Info,
+  List,
+  Network
 } from 'lucide-react';
 import {
   UgcWorkflowTemplate,
@@ -281,6 +283,9 @@ export default function WorkflowBuilder({ workflow, brandId, onSave }: WorkflowB
   const [isLoading, setIsLoading] = useState(true);
   const [isStepDialogOpen, setIsStepDialogOpen] = useState(false);
   const [editingStep, setEditingStep] = useState<UgcWorkflowStep | null>(null);
+  
+  // New state for view mode toggle
+  const [viewMode, setViewMode] = useState<'list' | 'canvas'>('list');
 
   // New step form state
   const [newStep, setNewStep] = useState<Partial<UgcWorkflowStep>>({
@@ -779,7 +784,27 @@ export default function WorkflowBuilder({ workflow, brandId, onSave }: WorkflowB
           <h2 className="text-2xl font-bold">{workflow.name}</h2>
           <p className="text-gray-600">{workflow.description}</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          {/* View Mode Toggle */}
+          <div className="flex items-center gap-2 mr-4">
+            <Button
+              variant={viewMode === 'list' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setViewMode('list')}
+            >
+              <List className="h-4 w-4 mr-2" />
+              List
+            </Button>
+            <Button
+              variant={viewMode === 'canvas' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setViewMode('canvas')}
+            >
+              <Network className="h-4 w-4 mr-2" />
+              Canvas
+            </Button>
+          </div>
+
           <Button variant="outline" onClick={onSave}>
             <Save className="h-4 w-4 mr-2" />
             Save Changes
