@@ -11,6 +11,7 @@
 - **Phase 1 Major Feature: Step Triggers System** - Implemented event-driven workflow triggers including email responses, status changes, time delays, file uploads, manual triggers, and approvals
 - **Phase 1 Canvas Enhancement: Pure Canvas Experience** - Removed list view, implemented persistent node positioning, and manual connection system
 - **Phase 1 UX Enhancement: Hover-to-Disconnect Edges** - Added intuitive X buttons on connection hover for easy disconnection
+- **Phase 1 Core Feature: Conditional Steps Implementation** - Built comprehensive visual condition builder with intuitive field selection interface
 
 ### 🔄 **IN PROGRESS**
 - **Phase 1: Visual Canvas & Core UX** - Core features complete, polishing user interactions and visual feedback
@@ -169,6 +170,27 @@ This document outlines a comprehensive strategy to transform the current UGC wor
   - **No Auto-Reconnection**: New steps remain unconnected, preserving manual workflow design
   - **Persistent Connections**: All manual connections are saved to database and restored on reload
 - **Impact**: Eliminates need for complex edge selection + delete key workflow, making disconnection as intuitive as clicking an X button
+
+**Phase 1 Core Feature: Conditional Steps Implementation** ✅
+- **Status**: COMPLETED
+- **Implementation**:
+  - Built comprehensive visual condition builder with intuitive field selection interface
+  - Implemented support for 8 different comparison operators (equals, not equals, contains, not contains, greater than, less than, exists, not exists)
+  - Added smart field selector using existing variable system for condition evaluation
+  - Created condition preview with syntax highlighting showing field, operator, and expected value
+  - Enhanced ConditionNode canvas visualization to display actual condition logic
+  - Added proper TypeScript typing with ConditionOperator enum integration
+  - Implemented conditional state management with proper form validation
+  - Added contextual help explaining TRUE/FALSE branching paths
+- **Condition Features**:
+  - **Field Selection**: Choose from any workflow variable (creator.status, creator.email, etc.)
+  - **8 Operators**: Full comparison support including existence checks
+  - **Dynamic UI**: Expected value field only appears for relevant operators  
+  - **Live Preview**: Real-time condition preview with syntax highlighting
+  - **Visual Branching**: TRUE (green) and FALSE (red) connection handles on nodes
+  - **Smart Validation**: Prevents invalid condition configurations
+  - **Contextual Help**: Built-in guidance for common condition patterns
+- **Impact**: Transformed linear workflows into intelligent branching automation that adapts based on real-time data conditions
 
 ### **Phase 1: Visual Canvas & Core UX (4-6 weeks)**
 

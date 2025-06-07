@@ -40,7 +40,8 @@ import {
   StepType,
   ActionType,
   ALL_WORKFLOW_VARIABLES,
-  StepTriggerType
+  StepTriggerType,
+  ConditionOperator
 } from '@/lib/types/ugcWorkflow';
 import {
   getWorkflowActions,
@@ -1030,17 +1031,229 @@ export default function WorkflowBuilder({ workflow, brandId, onSave }: WorkflowB
           <div className="space-y-6">
             <FieldGroup 
               title="Condition Logic" 
-              description="Define branching logic"
+              description="Define when this condition is true or false"
               icon={<GitBranch className="h-4 w-4" />}
             >
-              <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                <div className="flex items-center gap-2 mb-2">
-                  <AlertCircle className="h-4 w-4 text-yellow-600" />
-                  <span className="font-medium text-yellow-800">Coming Soon</span>
+              <FieldWithHelp
+                label="Field to Check"
+                help="Select which field/variable you want to evaluate in this condition"
+                examples={["creator.status", "creator.email", "script.approval_status"]}
+                required
+              >
+                <SmartVariableSelector
+                  value={currentStep.config.conditions?.[0]?.field_name || ''}
+                  onChange={(value) => {
+                    if (isEditing && editingStep) {
+                      const conditions = editingStep.config.conditions || [];
+                      const updatedConditions = [...conditions];
+                      if (updatedConditions.length === 0) {
+                        updatedConditions.push({
+                          id: '',
+                          step_id: editingStep.id,
+                          condition_type: 'field_contains',
+                          field_name: value,
+                          operator: 'equals',
+                          expected_value: '',
+                          created_at: ''
+                        });
+                      } else {
+                        updatedConditions[0] = {
+                          ...updatedConditions[0],
+                          field_name: value
+                        };
+                      }
+                      setEditingStep({
+                        ...editingStep,
+                        config: {
+                          ...editingStep.config,
+                          conditions: updatedConditions
+                        }
+                      });
+                    }
+                  }}
+                  disabled={!isEditing}
+                  placeholder="Select field to check"
+                />
+              </FieldWithHelp>
+
+              <FieldWithHelp
+                label="Operator"
+                help="How should the field be compared to the expected value?"
+                examples={["equals - exact match", "contains - partial match", "not_equals - different value"]}
+                required
+              >
+                <Select
+                  value={currentStep.config.conditions?.[0]?.operator || 'equals'}
+                  onValueChange={(value: ConditionOperator) => {
+                    if (isEditing && editingStep) {
+                      const conditions = editingStep.config.conditions || [];
+                      const updatedConditions = [...conditions];
+                      if (updatedConditions.length === 0) {
+                        updatedConditions.push({
+                          id: '',
+                          step_id: editingStep.id,
+                          condition_type: 'field_contains',
+                          field_name: '',
+                          operator: value,
+                          expected_value: '',
+                          created_at: ''
+                        });
+                      } else {
+                        updatedConditions[0] = {
+                          ...updatedConditions[0],
+                          operator: value
+                        };
+                      }
+                      setEditingStep({
+                        ...editingStep,
+                        config: {
+                          ...editingStep.config,
+                          conditions: updatedConditions
+                        }
+                      });
+                    }
+                  }}
+                  disabled={!isEditing}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="equals">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-sm">=</span>
+                        <span>Equals</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="not_equals">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-sm">≠</span>
+                        <span>Not Equals</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="contains">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-sm">⊃</span>
+                        <span>Contains</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="not_contains">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-sm">⊅</span>
+                        <span>Not Contains</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="greater_than">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-sm">&gt;</span>
+                        <span>Greater Than</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="less_than">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-sm">&lt;</span>
+                        <span>Less Than</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="exists">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-sm">∃</span>
+                        <span>Exists (has value)</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="not_exists">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-sm">∄</span>
+                        <span>Not Exists (empty)</span>
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </FieldWithHelp>
+
+              {/* Only show expected value field for operators that need it */}
+              {currentStep.config.conditions?.[0]?.operator && 
+               !['exists', 'not_exists'].includes(currentStep.config.conditions[0].operator) && (
+                <FieldWithHelp
+                  label="Expected Value"
+                  help="What value should the field be compared against?"
+                  examples={["approved", "pending", "john@example.com", "5"]}
+                  required
+                >
+                  <Input
+                    value={currentStep.config.conditions?.[0]?.expected_value || ''}
+                    onChange={(e) => {
+                      if (isEditing && editingStep) {
+                        const conditions = editingStep.config.conditions || [];
+                        const updatedConditions = [...conditions];
+                        if (updatedConditions.length === 0) {
+                          updatedConditions.push({
+                            id: '',
+                            step_id: editingStep.id,
+                            condition_type: 'field_contains',
+                            field_name: '',
+                            operator: 'equals',
+                            expected_value: e.target.value,
+                            created_at: ''
+                          });
+                        } else {
+                          updatedConditions[0] = {
+                            ...updatedConditions[0],
+                            expected_value: e.target.value
+                          };
+                        }
+                        setEditingStep({
+                          ...editingStep,
+                          config: {
+                            ...editingStep.config,
+                            conditions: updatedConditions
+                          }
+                        });
+                      }
+                    }}
+                    disabled={!isEditing}
+                    placeholder="Enter expected value"
+                  />
+                </FieldWithHelp>
+              )}
+
+              {/* Condition Preview */}
+              {currentStep.config.conditions?.[0]?.field_name && (
+                <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <h4 className="font-medium text-blue-800 mb-2">Condition Preview</h4>
+                  <div className="font-mono text-sm text-blue-700 bg-white p-2 rounded border">
+                    <span className="text-purple-600">{currentStep.config.conditions[0].field_name}</span>
+                    {' '}
+                    <span className="text-orange-600">
+                      {currentStep.config.conditions[0].operator?.replace('_', ' ')}
+                    </span>
+                    {' '}
+                    {currentStep.config.conditions[0].expected_value && (
+                      <span className="text-green-600">&quot;{currentStep.config.conditions[0].expected_value}&quot;</span>
+                    )}
+                  </div>
+                  <div className="mt-2 text-xs text-blue-600">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                      <span>TRUE → Goes to next connected step</span>
+                    </div>
+                    <div className="flex items-center gap-2 mt-1">
+                      <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                      <span>FALSE → Goes to alternative path (if connected)</span>
+                    </div>
+                  </div>
                 </div>
-                <p className="text-sm text-yellow-700">
-                  Advanced condition builder with visual logic editor is under development.
-                </p>
+              )}
+
+              {/* Help Section */}
+              <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                <h4 className="font-medium text-gray-800 mb-2">How Conditions Work</h4>
+                <ul className="text-sm text-gray-600 space-y-1">
+                  <li>• <strong>TRUE path:</strong> Connect the green handle to the next step</li>
+                  <li>• <strong>FALSE path:</strong> Connect the red handle to an alternative step</li>
+                  <li>• Use variables like <code className="bg-gray-200 px-1 rounded">creator.status</code> to check current values</li>
+                  <li>• Common patterns: status checks, approval gates, data validation</li>
+                </ul>
               </div>
             </FieldGroup>
           </div>

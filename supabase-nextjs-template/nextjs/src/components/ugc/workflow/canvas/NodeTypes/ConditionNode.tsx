@@ -96,16 +96,37 @@ export const ConditionNode: React.FC<NodeProps<ConditionNodeData>> = ({
             </p>
           )}
           
-          <div className="mb-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs">
-            <div className="flex items-center gap-1 text-yellow-700">
-              <AlertCircle className="h-3 w-3" />
-              <span>Coming Soon</span>
+          {/* Condition Display */}
+          {step.config.conditions && step.config.conditions.length > 0 && step.config.conditions[0].field_name ? (
+            <div className="mb-2 p-2 bg-orange-50 border border-orange-200 rounded text-xs">
+              <div className="font-medium text-orange-800 mb-1">Condition:</div>
+              <div className="font-mono text-xs bg-white p-1 rounded border">
+                <span className="text-purple-600">{step.config.conditions[0].field_name}</span>
+                {' '}
+                <span className="text-orange-600">
+                  {step.config.conditions[0].operator?.replace('_', ' ')}
+                </span>
+                {' '}
+                {step.config.conditions[0].expected_value && (
+                  <span className="text-green-600">&quot;{step.config.conditions[0].expected_value}&quot;</span>
+                )}
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="mb-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs">
+              <div className="flex items-center gap-1 text-yellow-700">
+                <AlertCircle className="h-3 w-3" />
+                <span>No condition configured</span>
+              </div>
+            </div>
+          )}
           
           <div className="flex items-center justify-between">
             <div className="text-xs text-gray-500">
-              Logic Editor
+              {step.config.conditions && step.config.conditions.length > 0 && step.config.conditions[0].field_name
+                ? 'Configured'
+                : 'Click to configure'
+              }
             </div>
             <Settings className="h-3 w-3 text-gray-400" />
           </div>
