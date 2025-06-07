@@ -234,6 +234,49 @@ export async function createUgcCreatorScript(script: Omit<UgcCreatorScript, 'id'
   };
 }
 
+export async function updateUgcCreatorScript(scriptUpdate: Partial<UgcCreatorScript> & { id: string }): Promise<UgcCreatorScript> {
+  const { data, error } = await supabase
+    .from('ugc_creator_scripts')
+    .update({
+      ...scriptUpdate,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', scriptUpdate.id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error updating UGC creator script:', error);
+    throw error;
+  }
+
+  return {
+    ...data,
+    script_content: data.script_content as UgcCreatorScript['script_content'],
+    b_roll_shot_list: data.b_roll_shot_list as string[] || []
+  };
+}
+
+export function generateDefaultSystemInstructions(): string {
+  return `You are an expert UGC (User Generated Content) script writer specializing in creating engaging, authentic, and conversion-focused scripts for creators.
+
+Your scripts should:
+1. Feel natural and conversational, like a friend recommending a product
+2. Include specific product benefits and features
+3. Address common pain points the target audience faces
+4. Include a clear call-to-action
+5. Be structured for visual storytelling
+
+Format your response as a structured script with:
+- Scene Start: How the video begins
+- Script Segments: Break down the narrative into clear segments with both verbal script and visual directions
+- Hook Body: The main compelling hook(s)
+- Call to Action: Clear next steps for viewers
+- B-Roll Shot List: Specific shots needed to support the narrative
+
+Keep the tone authentic and avoid overly promotional language. Focus on storytelling and genuine product benefits.`;
+}
+
 // Brand UGC Settings Services
 export interface UgcBrandFields {
   ugc_company_description?: string | null;
