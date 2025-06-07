@@ -150,10 +150,7 @@ export async function updateWorkflowStep(
 ): Promise<UgcWorkflowStep> {
   const { data, error } = await supabase
     .from('ugc_workflow_steps')
-    .update({
-      ...updates,
-      updated_at: new Date().toISOString()
-    })
+    .update(updates)
     .eq('id', stepId)
     .select()
     .single();
@@ -723,4 +720,23 @@ export function extractTemplateVariables(template: string): string[] {
   }
   
   return variables;
+}
+
+export async function updateWorkflow(
+  workflowId: string, 
+  updates: Partial<UgcWorkflowTemplate>
+): Promise<UgcWorkflowTemplate> {
+  const { data, error } = await supabase
+    .from('ugc_workflow_templates')
+    .update(updates)
+    .eq('id', workflowId)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error updating workflow:', error);
+    throw error;
+  }
+
+  return data;
 } 

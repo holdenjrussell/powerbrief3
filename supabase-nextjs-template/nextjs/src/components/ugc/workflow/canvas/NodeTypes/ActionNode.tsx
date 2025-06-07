@@ -132,6 +132,57 @@ export const ActionNode: React.FC<NodeProps<ActionNodeData>> = ({
             </p>
           )}
           
+          {/* Trigger Indicator */}
+          {step.config.trigger && step.config.trigger.type !== 'immediate' && (
+            <div className="mb-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs">
+              <div className="flex items-center gap-1">
+                {step.config.trigger.type === 'email_response' && (
+                  <>
+                    <Mail className="h-3 w-3 text-blue-600" />
+                    <span className="text-blue-800 font-medium">Waits for Email Response</span>
+                  </>
+                )}
+                {step.config.trigger.type === 'status_change' && (
+                  <>
+                    <UserCheck className="h-3 w-3 text-orange-600" />
+                    <span className="text-orange-800 font-medium">Waits for Status Change</span>
+                  </>
+                )}
+                {step.config.trigger.type === 'time_delay' && (
+                  <>
+                    <Clock className="h-3 w-3 text-purple-600" />
+                    <span className="text-purple-800 font-medium">
+                      Delays {Math.floor((step.config.trigger.config.time_delay?.duration || 3600) / 3600)}h
+                    </span>
+                  </>
+                )}
+                {step.config.trigger.type === 'manual_trigger' && (
+                  <>
+                    <User className="h-3 w-3 text-red-600" />
+                    <span className="text-red-800 font-medium">Manual Trigger Required</span>
+                  </>
+                )}
+                {step.config.trigger.type === 'approval' && (
+                  <>
+                    <Settings className="h-3 w-3 text-gray-600" />
+                    <span className="text-gray-800 font-medium">Approval Required</span>
+                  </>
+                )}
+                {step.config.trigger.type === 'file_upload' && (
+                  <>
+                    <Copy className="h-3 w-3 text-indigo-600" />
+                    <span className="text-indigo-800 font-medium">Waits for File Upload</span>
+                  </>
+                )}
+              </div>
+              {step.config.trigger.timeout_duration && (
+                <div className="text-xs text-gray-600 mt-1">
+                  Timeout: {Math.floor(step.config.trigger.timeout_duration / 3600)}h
+                </div>
+              )}
+            </div>
+          )}
+          
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1">
               {step.config.retry_on_failure && (

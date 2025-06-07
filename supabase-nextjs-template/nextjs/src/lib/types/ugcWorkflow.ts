@@ -10,6 +10,17 @@ export interface UgcWorkflowTemplate {
   category: WorkflowCategory;
   trigger_event: TriggerEvent;
   is_active: boolean;
+  canvas_layout?: {
+    start_position?: { x: number; y: number };
+    end_position?: { x: number; y: number };
+    connections?: Array<{
+      id: string;
+      source: string;
+      target: string;
+      sourceHandle?: string;
+      targetHandle?: string;
+    }>;
+  };
   created_at: string;
   updated_at: string;
 }
@@ -37,6 +48,7 @@ export interface UgcWorkflowStep {
   description?: string;
   step_type: StepType;
   config: WorkflowStepConfig;
+  canvas_position?: { x: number; y: number };
   created_at: string;
   updated_at: string;
 }
@@ -61,10 +73,105 @@ export interface WorkflowStepConfig {
   assignee?: string;
   priority?: 'low' | 'medium' | 'high' | 'urgent';
   
+  // Step trigger config - NEW
+  trigger?: StepTrigger;
+  
   // General config
   retry_on_failure?: boolean;
   retry_count?: number;
   timeout?: number; // in seconds
+}
+
+// NEW: Step-level trigger system
+export interface StepTrigger {
+  type: StepTriggerType;
+  config: StepTriggerConfig;
+  timeout_duration?: number; // How long to wait for trigger before timeout
+  timeout_action?: 'skip' | 'retry' | 'fail' | 'continue_to_step';
+  timeout_next_step_id?: string;
+}
+
+export type StepTriggerType = 
+  | 'immediate' // Execute immediately after previous step
+  | 'email_response' // Wait for email reply
+  | 'status_change' // Wait for creator status change
+  | 'time_delay' // Wait for specific time period
+  | 'file_upload' // Wait for file to be uploaded
+  | 'form_submission' // Wait for form to be submitted
+  | 'manual_trigger' // Wait for manual user action
+  | 'webhook' // Wait for external webhook
+  | 'approval' // Wait for approval/rejection
+  | 'calendar_event'; // Wait for calendar event completion
+
+export interface StepTriggerConfig {
+  // Email response trigger
+  email_filters?: {
+    from_email?: string;
+    subject_contains?: string;
+    body_contains?: string;
+    attachment_required?: boolean;
+  };
+  
+  // Status change trigger
+  status_change?: {
+    from_status?: string;
+    to_status?: string;
+    any_status_change?: boolean;
+  };
+  
+  // Time delay trigger
+  time_delay?: {
+    duration: number; // in seconds
+    delay_type: 'fixed' | 'business_hours_only';
+    start_time?: string; // HH:MM
+    end_time?: string; // HH:MM
+  };
+  
+  // File upload trigger
+  file_upload?: {
+    file_types?: string[]; // ['pdf', 'jpg', 'mp4']
+    min_files?: number;
+    max_files?: number;
+    upload_location?: string;
+  };
+  
+  // Form submission trigger
+  form_submission?: {
+    form_id?: string;
+    required_fields?: string[];
+  };
+  
+  // Manual trigger
+  manual_trigger?: {
+    assigned_to?: string;
+    instructions?: string;
+    approval_required?: boolean;
+  };
+  
+  // Webhook trigger
+  webhook?: {
+    endpoint_url?: string;
+    expected_payload?: Record<string, unknown>;
+    authentication?: {
+      type: 'bearer' | 'api_key' | 'none';
+      token?: string;
+    };
+  };
+  
+  // Approval trigger
+  approval?: {
+    approver_role?: string;
+    approver_email?: string;
+    approval_type: 'simple' | 'detailed';
+    approval_criteria?: string;
+  };
+  
+  // Calendar event trigger
+  calendar_event?: {
+    event_type?: string;
+    duration_minutes?: number;
+    attendees_required?: string[];
+  };
 }
 
 // Workflow Action Types

@@ -16,7 +16,10 @@ import ReactFlow, {
   useReactFlow,
   ReactFlowProvider,
   NodeTypes,
-  MarkerType
+  MarkerType,
+  NodeChange,
+  EdgeChange,
+  ConnectionLineType
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 
@@ -27,6 +30,7 @@ import { HumanInterventionNode } from './NodeTypes/HumanInterventionNode';
 import { StartNode } from './NodeTypes/StartNode';
 import { EndNode } from './NodeTypes/EndNode';
 import { ToolPalette } from './ToolPalette';
+import { CustomEdge } from './CustomEdge';
 
 import { UgcWorkflowStep, UgcWorkflowTemplate, StepType } from '@/lib/types/ugcWorkflow';
 
@@ -38,6 +42,11 @@ const nodeTypes: NodeTypes = {
   condition: ConditionNode,
   wait: WaitNode,
   human_intervention: HumanInterventionNode,
+};
+
+// Define custom edge types
+const edgeTypes = {
+  custom: CustomEdge,
 };
 
 interface WorkflowCanvasProps {
@@ -52,6 +61,7 @@ interface WorkflowCanvasProps {
     position: { x: number; y: number };
     name: string;
   }) => void;
+  onWorkflowUpdate: (workflow: UgcWorkflowTemplate) => void;
   selectedStep: UgcWorkflowStep | null;
 }
 
@@ -63,6 +73,7 @@ const WorkflowCanvasInner: React.FC<WorkflowCanvasProps> = ({
   onStepDelete,
   onStepDuplicate,
   onStepCreate,
+  onWorkflowUpdate,
   selectedStep
 }) => {
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
@@ -72,27 +83,29 @@ const WorkflowCanvasInner: React.FC<WorkflowCanvasProps> = ({
   const convertStepsToNodes = useCallback((workflowSteps: UgcWorkflowStep[]): Node[] => {
     const nodes: Node[] = [];
     
-    // Add start node
+    // Add start node with saved position or default
+    const startPosition = workflow.canvas_layout?.start_position || { x: 100, y: 100 };
     nodes.push({
       id: 'start',
       type: 'start',
-      position: { x: 100, y: 100 },
+      position: startPosition,
       data: { 
         label: `Start: ${workflow.trigger_event}`,
         workflow 
       },
-      draggable: false,
     });
 
-    // Add workflow step nodes
+    // Add workflow step nodes with saved positions
     workflowSteps.forEach((step, index) => {
+      const savedPosition = step.canvas_position || {
+        x: 100 + (index % 3) * 300, 
+        y: 250 + Math.floor(index / 3) * 150 
+      };
+      
       nodes.push({
         id: step.id,
         type: step.step_type,
-        position: { 
-          x: 100 + (index % 3) * 300, 
-          y: 250 + Math.floor(index / 3) * 150 
-        },
+        position: savedPosition,
         data: {
           step,
           isSelected: selectedStep?.id === step.id,
@@ -105,77 +118,77 @@ const WorkflowCanvasInner: React.FC<WorkflowCanvasProps> = ({
       });
     });
 
-    // Add end node
+    // Add end node with saved position or default
+    const endPosition = workflow.canvas_layout?.end_position || { 
+      x: 100, 
+      y: 250 + Math.ceil(workflowSteps.length / 3) * 150 
+    };
     nodes.push({
       id: 'end',
       type: 'end',
-      position: { 
-        x: 100, 
-        y: 250 + Math.ceil(workflowSteps.length / 3) * 150 
-      },
+      position: endPosition,
       data: { 
         label: 'End: Workflow Complete' 
       },
-      draggable: false,
     });
 
     return nodes;
   }, [workflow, selectedStep, onStepSelect, onStepUpdate, onStepDelete, onStepDuplicate]);
 
-  // Convert steps to edges (connections)
+  // Convert manual connections to edges
   const convertStepsToEdges = useCallback((workflowSteps: UgcWorkflowStep[]): Edge[] => {
     const edges: Edge[] = [];
     
-    if (workflowSteps.length === 0) {
-      // Direct connection from start to end if no steps
+    // Use manual connections from workflow layout if they exist
+    const manualConnections = workflow.canvas_layout?.connections || [];
+    
+    if (manualConnections.length > 0) {
+      // Use saved manual connections only
+      manualConnections.forEach((connection) => {
+        edges.push({
+          id: connection.id,
+          source: connection.source,
+          target: connection.target,
+          sourceHandle: connection.sourceHandle,
+          targetHandle: connection.targetHandle,
+          type: 'custom',
+          markerEnd: {
+            type: MarkerType.ArrowClosed,
+          },
+          data: {
+            onRemove: (edgeId: string) => {
+              const currentConnections = workflow.canvas_layout?.connections || [];
+              const updatedConnections = currentConnections.filter(conn => conn.id !== edgeId);
+              
+              const updatedWorkflow = {
+                ...workflow,
+                canvas_layout: {
+                  ...workflow.canvas_layout,
+                  connections: updatedConnections
+                }
+              };
+              onWorkflowUpdate(updatedWorkflow);
+            }
+          }
+        });
+      });
+    } else if (workflowSteps.length === 0) {
+      // Only create default connection for completely empty workflows
       edges.push({
         id: 'start-end',
         source: 'start',
         target: 'end',
-        type: 'smoothstep',
-        markerEnd: {
-          type: MarkerType.ArrowClosed,
-        },
-      });
-    } else {
-      // Connect start to first step
-      edges.push({
-        id: 'start-first',
-        source: 'start',
-        target: workflowSteps[0].id,
-        type: 'smoothstep',
-        markerEnd: {
-          type: MarkerType.ArrowClosed,
-        },
-      });
-
-      // Connect steps in sequence
-      for (let i = 0; i < workflowSteps.length - 1; i++) {
-        edges.push({
-          id: `${workflowSteps[i].id}-${workflowSteps[i + 1].id}`,
-          source: workflowSteps[i].id,
-          target: workflowSteps[i + 1].id,
-          type: 'smoothstep',
-          markerEnd: {
-            type: MarkerType.ArrowClosed,
-          },
-        });
-      }
-
-      // Connect last step to end
-      edges.push({
-        id: 'last-end',
-        source: workflowSteps[workflowSteps.length - 1].id,
-        target: 'end',
-        type: 'smoothstep',
+        type: 'custom',
         markerEnd: {
           type: MarkerType.ArrowClosed,
         },
       });
     }
+    // For workflows with steps but no manual connections, don't create any automatic connections
+    // Users must manually connect steps
 
     return edges;
-  }, []);
+  }, [workflow, onWorkflowUpdate]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(convertStepsToNodes(steps));
   const [edges, setEdges, onEdgesChange] = useEdgesState(convertStepsToEdges(steps));
@@ -186,11 +199,119 @@ const WorkflowCanvasInner: React.FC<WorkflowCanvasProps> = ({
     setEdges(convertStepsToEdges(steps));
   }, [steps, convertStepsToNodes, convertStepsToEdges, setNodes, setEdges]);
 
+  // Save node positions when moved
+  const handleNodesChange = useCallback((changes: NodeChange[]) => {
+    onNodesChange(changes);
+    
+    // Save position changes
+    changes.forEach((change) => {
+      if (change.type === 'position' && 'position' in change && change.position) {
+        if (change.id === 'start') {
+          // Save start node position
+          const updatedWorkflow = {
+            ...workflow,
+            canvas_layout: {
+              ...workflow.canvas_layout,
+              start_position: change.position
+            }
+          };
+          onWorkflowUpdate(updatedWorkflow);
+        } else if (change.id === 'end') {
+          // Save end node position
+          const updatedWorkflow = {
+            ...workflow,
+            canvas_layout: {
+              ...workflow.canvas_layout,
+              end_position: change.position
+            }
+          };
+          onWorkflowUpdate(updatedWorkflow);
+        } else {
+          // Save step position
+          const step = steps.find(s => s.id === change.id);
+          if (step) {
+            const updatedStep = {
+              ...step,
+              canvas_position: change.position
+            };
+            onStepUpdate(updatedStep);
+          }
+        }
+      }
+    });
+  }, [onNodesChange, workflow, steps, onWorkflowUpdate, onStepUpdate]);
+
   // Handle new connections between nodes
   const onConnect = useCallback(
-    (params: Connection) => setEdges((eds) => addEdge(params, eds)),
-    [setEdges]
+    (params: Connection) => {
+      const newEdge = {
+        ...params,
+        type: 'custom',
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+        },
+        data: {
+          onRemove: (edgeId: string) => {
+            const currentConnections = workflow.canvas_layout?.connections || [];
+            const updatedConnections = currentConnections.filter(conn => conn.id !== edgeId);
+            
+            const updatedWorkflow = {
+              ...workflow,
+              canvas_layout: {
+                ...workflow.canvas_layout,
+                connections: updatedConnections
+              }
+            };
+            onWorkflowUpdate(updatedWorkflow);
+          }
+        }
+      };
+      
+      setEdges((eds) => addEdge(newEdge, eds));
+      
+      // Save connection to workflow layout
+      const newConnection = {
+        id: `${params.source}-${params.target}`,
+        source: params.source!,
+        target: params.target!,
+        sourceHandle: params.sourceHandle,
+        targetHandle: params.targetHandle,
+      };
+      
+      const currentConnections = workflow.canvas_layout?.connections || [];
+      const updatedWorkflow = {
+        ...workflow,
+        canvas_layout: {
+          ...workflow.canvas_layout,
+          connections: [...currentConnections, newConnection]
+        }
+      };
+      onWorkflowUpdate(updatedWorkflow);
+    },
+    [setEdges, workflow, onWorkflowUpdate]
   );
+
+  // Handle edge deletion
+  const handleEdgesChange = useCallback((changes: EdgeChange[]) => {
+    onEdgesChange(changes);
+    
+    // Handle edge deletions
+    changes.forEach((change) => {
+      if (change.type === 'remove') {
+        const currentConnections = workflow.canvas_layout?.connections || [];
+        const updatedConnections = currentConnections.filter(conn => conn.id !== change.id);
+        
+        const updatedWorkflow = {
+          ...workflow,
+          canvas_layout: {
+            ...workflow.canvas_layout,
+            connections: updatedConnections
+          }
+        };
+        onWorkflowUpdate(updatedWorkflow);
+      }
+    });
+  }, [onEdgesChange, workflow, onWorkflowUpdate]);
 
   // Handle node selection
   const onNodeClick = useCallback(
@@ -256,20 +377,26 @@ const WorkflowCanvasInner: React.FC<WorkflowCanvasProps> = ({
         <ReactFlow
           nodes={nodes}
           edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
+          onNodesChange={handleNodesChange}
+          onEdgesChange={handleEdgesChange}
           onConnect={onConnect}
           onNodeClick={onNodeClick}
           onPaneClick={onPaneClick}
           onDrop={onDrop}
           onDragOver={onDragOver}
           nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
           connectionMode={ConnectionMode.Loose}
           fitView
           fitViewOptions={{
             padding: 0.2,
           }}
           className="bg-gray-50"
+          elementsSelectable={true}
+          edgesUpdatable={true}
+          edgesFocusable={true}
+          connectionLineStyle={{ stroke: '#3b82f6', strokeWidth: 2 }}
+          connectionLineType={ConnectionLineType.SmoothStep}
         >
           <Controls 
             position="bottom-left"

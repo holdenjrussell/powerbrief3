@@ -8,20 +8,17 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Switch } from '@/components/ui/switch';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { 
   Plus, 
   Play, 
-  Pause, 
   Zap, 
   GitBranch, 
   Clock, 
   User, 
   Save,
-  Trash2,
   Edit,
   AlertCircle,
   Mail,
@@ -33,9 +30,7 @@ import {
   ChevronRight,
   Copy,
   HelpCircle,
-  Info,
-  List,
-  Network
+  Info
 } from 'lucide-react';
 import {
   UgcWorkflowTemplate,
@@ -44,7 +39,8 @@ import {
   UgcMessageTemplate,
   StepType,
   ActionType,
-  ALL_WORKFLOW_VARIABLES
+  ALL_WORKFLOW_VARIABLES,
+  StepTriggerType
 } from '@/lib/types/ugcWorkflow';
 import {
   getWorkflowActions,
@@ -52,8 +48,10 @@ import {
   createWorkflowStep,
   updateWorkflowStep,
   deleteWorkflowStep,
-  getMessageTemplates
+  getMessageTemplates,
+  updateWorkflow
 } from '@/lib/services/ugcWorkflowService';
+import { WorkflowCanvas } from './canvas/WorkflowCanvas';
 
 // New: Field Group Component for organized configuration
 interface FieldGroupProps {
@@ -258,13 +256,6 @@ interface WorkflowBuilderProps {
   onSave?: () => void;
 }
 
-const STEP_TYPE_ICONS: Record<StepType, React.ReactNode> = {
-  action: <Zap className="h-4 w-4" />,
-  condition: <GitBranch className="h-4 w-4" />,
-  wait: <Clock className="h-4 w-4" />,
-  human_intervention: <User className="h-4 w-4" />
-};
-
 const ACTION_TYPE_ICONS: Record<ActionType, React.ReactNode> = {
   send_email: <Mail className="h-4 w-4" />,
   update_status: <UserCheck className="h-4 w-4" />,
@@ -284,9 +275,9 @@ export default function WorkflowBuilder({ workflow, brandId, onSave }: WorkflowB
   const [isStepDialogOpen, setIsStepDialogOpen] = useState(false);
   const [editingStep, setEditingStep] = useState<UgcWorkflowStep | null>(null);
   
-  // New state for view mode toggle
-  const [viewMode, setViewMode] = useState<'list' | 'canvas'>('list');
-
+  // Local workflow state to track canvas layout changes
+  const [localWorkflow, setLocalWorkflow] = useState<UgcWorkflowTemplate>(workflow);
+  
   // New step form state
   const [newStep, setNewStep] = useState<Partial<UgcWorkflowStep>>({
     name: '',
@@ -319,6 +310,11 @@ export default function WorkflowBuilder({ workflow, brandId, onSave }: WorkflowB
     loadData();
   }, [workflow.id, brandId]);
 
+  // Update local workflow when prop changes
+  useEffect(() => {
+    setLocalWorkflow(workflow);
+  }, [workflow]);
+
   const handleAddStep = async () => {
     if (!newStep.name) return;
 
@@ -346,14 +342,19 @@ export default function WorkflowBuilder({ workflow, brandId, onSave }: WorkflowB
     }
   };
 
-  const handleUpdateStep = async () => {
-    if (!editingStep) return;
+  const handleUpdateStep = async (step?: UgcWorkflowStep) => {
+    const stepToUpdate = step || editingStep;
+    if (!stepToUpdate) return;
 
     try {
-      const updatedStep = await updateWorkflowStep(editingStep.id, editingStep);
+      const updatedStep = await updateWorkflowStep(stepToUpdate.id, stepToUpdate);
       setSteps(steps.map(s => s.id === updatedStep.id ? updatedStep : s));
-      setEditingStep(null);
-      setSelectedStep(updatedStep);
+      
+      // Only clear editing state if this was called from the edit dialog
+      if (!step) {
+        setEditingStep(null);
+        setSelectedStep(updatedStep);
+      }
     } catch (error) {
       console.error('Error updating step:', error);
     }
@@ -387,6 +388,21 @@ export default function WorkflowBuilder({ workflow, brandId, onSave }: WorkflowB
       setSteps([...steps, duplicatedStep]);
     } catch (error) {
       console.error('Error duplicating step:', error);
+    }
+  };
+
+  // NEW: Handle workflow updates (canvas layout, etc.)
+  const handleWorkflowUpdate = async (updatedWorkflow: UgcWorkflowTemplate) => {
+    try {
+      // Update local state immediately so UI doesn't flicker
+      setLocalWorkflow(updatedWorkflow);
+      
+      // Save to database
+      await updateWorkflow(updatedWorkflow.id, updatedWorkflow);
+    } catch (error) {
+      console.error('Error updating workflow:', error);
+      // Revert local state on error
+      setLocalWorkflow(workflow);
     }
   };
 
@@ -447,8 +463,8 @@ export default function WorkflowBuilder({ workflow, brandId, onSave }: WorkflowB
               >
                 <FieldWithHelp
                   label="Email Template"
-                  help="Choose a pre-configured email template or create a custom message"
-                  examples={["Welcome Email", "Status Update", "Reminder"]}
+                  help="Choose from your existing email templates. These are pre-configured email layouts with your brand styling and content structure."
+                  examples={["Welcome Email Template", "Creator Approval Template", "Script Assignment Template"]}
                   required
                 >
                   <Select
@@ -470,14 +486,26 @@ export default function WorkflowBuilder({ workflow, brandId, onSave }: WorkflowB
                     disabled={!isEditing}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Select a template" />
+                      <SelectValue placeholder="Select an email template" />
                     </SelectTrigger>
                     <SelectContent>
-                      {messageTemplates.filter(t => t.template_type === 'email').map((template) => (
-                        <SelectItem key={template.id} value={template.id}>
-                          {template.name}
-                        </SelectItem>
-                      ))}
+                      {messageTemplates.filter(t => t.template_type === 'email').length === 0 ? (
+                        <div className="p-3 text-sm text-gray-500">
+                          <p>No email templates found.</p>
+                          <p className="mt-1">Create email templates in the Templates section first.</p>
+                        </div>
+                      ) : (
+                        messageTemplates.filter(t => t.template_type === 'email').map((template) => (
+                          <SelectItem key={template.id} value={template.id}>
+                            <div className="flex flex-col">
+                              <span className="font-medium">{template.name}</span>
+                              {template.subject && (
+                                <span className="text-xs text-gray-500">Subject: {template.subject}</span>
+                              )}
+                            </div>
+                          </SelectItem>
+                        ))
+                      )}
                     </SelectContent>
                   </Select>
                 </FieldWithHelp>
@@ -591,6 +619,261 @@ export default function WorkflowBuilder({ workflow, brandId, onSave }: WorkflowB
                   placeholder="No timeout"
                 />
               </FieldWithHelp>
+            </FieldGroup>
+
+            <FieldGroup 
+              title="Step Triggers" 
+              description="Configure when this step should execute"
+              icon={<Play className="h-4 w-4" />}
+              collapsible
+              defaultExpanded={true}
+            >
+              <FieldWithHelp
+                label="Trigger Type"
+                help="When should this step execute? Choose immediate for standard sequential execution, or select a trigger to wait for specific events."
+                examples={["Immediate - Execute right after previous step", "Email Response - Wait for creator to reply", "Status Change - Wait for status update"]}
+                required
+              >
+                <Select
+                  value={currentStep.config.trigger?.type || 'immediate'}
+                  onValueChange={(value: StepTriggerType) => {
+                    if (isEditing && editingStep) {
+                      setEditingStep({
+                        ...editingStep,
+                        config: {
+                          ...editingStep.config,
+                          trigger: {
+                            type: value,
+                            config: {},
+                            ...(value !== 'immediate' && { timeout_duration: 86400 }) // 24 hours default
+                          }
+                        }
+                      });
+                    }
+                  }}
+                  disabled={!isEditing}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="immediate">
+                      <div className="flex items-center gap-2">
+                        <Play className="h-4 w-4 text-green-500" />
+                        <span>Immediate</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="email_response">
+                      <div className="flex items-center gap-2">
+                        <Mail className="h-4 w-4 text-blue-500" />
+                        <span>Email Response</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="status_change">
+                      <div className="flex items-center gap-2">
+                        <UserCheck className="h-4 w-4 text-orange-500" />
+                        <span>Status Change</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="time_delay">
+                      <div className="flex items-center gap-2">
+                        <Clock className="h-4 w-4 text-purple-500" />
+                        <span>Time Delay</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="file_upload">
+                      <div className="flex items-center gap-2">
+                        <Copy className="h-4 w-4 text-indigo-500" />
+                        <span>File Upload</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="manual_trigger">
+                      <div className="flex items-center gap-2">
+                        <User className="h-4 w-4 text-red-500" />
+                        <span>Manual Trigger</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="approval">
+                      <div className="flex items-center gap-2">
+                        <Settings className="h-4 w-4 text-gray-500" />
+                        <span>Approval Required</span>
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </FieldWithHelp>
+
+              {/* Trigger-specific configuration */}
+              {currentStep.config.trigger?.type === 'email_response' && (
+                <div className="space-y-4 pl-4 border-l-2 border-blue-200">
+                  <FieldWithHelp
+                    label="Expected Response From"
+                    help="Email address that should respond (leave empty for any reply)"
+                    examples={["{{creator.email}}", "specific@email.com"]}
+                  >
+                    <SmartVariableSelector
+                      value={currentStep.config.trigger.config.email_filters?.from_email || ''}
+                      onChange={(value) => {
+                        if (isEditing && editingStep) {
+                          setEditingStep({
+                            ...editingStep,
+                            config: {
+                              ...editingStep.config,
+                              trigger: {
+                                ...editingStep.config.trigger!,
+                                config: {
+                                  ...editingStep.config.trigger!.config,
+                                  email_filters: {
+                                    ...editingStep.config.trigger!.config.email_filters,
+                                    from_email: value
+                                  }
+                                }
+                              }
+                            }
+                          });
+                        }
+                      }}
+                      disabled={!isEditing}
+                      placeholder="Any email address"
+                    />
+                  </FieldWithHelp>
+                  
+                  <FieldWithHelp
+                    label="Subject Must Contain"
+                    help="Text that must be present in the reply subject line"
+                    examples={["Re:", "Approved", "Ready for review"]}
+                  >
+                    <Input
+                      value={currentStep.config.trigger.config.email_filters?.subject_contains || ''}
+                      onChange={(e) => {
+                        if (isEditing && editingStep) {
+                          setEditingStep({
+                            ...editingStep,
+                            config: {
+                              ...editingStep.config,
+                              trigger: {
+                                ...editingStep.config.trigger!,
+                                config: {
+                                  ...editingStep.config.trigger!.config,
+                                  email_filters: {
+                                    ...editingStep.config.trigger!.config.email_filters,
+                                    subject_contains: e.target.value
+                                  }
+                                }
+                              }
+                            }
+                          });
+                        }
+                      }}
+                      disabled={!isEditing}
+                      placeholder="Leave empty for any subject"
+                    />
+                  </FieldWithHelp>
+                </div>
+              )}
+
+              {currentStep.config.trigger?.type === 'status_change' && (
+                <div className="space-y-4 pl-4 border-l-2 border-orange-200">
+                  <FieldWithHelp
+                    label="Wait for Status Change To"
+                    help="Which status should trigger the next step"
+                    examples={["approved", "rejected", "in_review"]}
+                  >
+                    <Input
+                      value={currentStep.config.trigger.config.status_change?.to_status || ''}
+                      onChange={(e) => {
+                        if (isEditing && editingStep) {
+                          setEditingStep({
+                            ...editingStep,
+                            config: {
+                              ...editingStep.config,
+                              trigger: {
+                                ...editingStep.config.trigger!,
+                                config: {
+                                  ...editingStep.config.trigger!.config,
+                                  status_change: {
+                                    ...editingStep.config.trigger!.config.status_change,
+                                    to_status: e.target.value
+                                  }
+                                }
+                              }
+                            }
+                          });
+                        }
+                      }}
+                      disabled={!isEditing}
+                      placeholder="e.g., approved"
+                    />
+                  </FieldWithHelp>
+                </div>
+              )}
+
+              {currentStep.config.trigger?.type === 'time_delay' && (
+                <div className="space-y-4 pl-4 border-l-2 border-purple-200">
+                  <FieldWithHelp
+                    label="Delay Duration (hours)"
+                    help="How many hours to wait before executing this step"
+                    examples={["1", "24", "72"]}
+                  >
+                    <Input
+                      type="number"
+                      value={Math.floor((currentStep.config.trigger.config.time_delay?.duration || 3600) / 3600)}
+                      onChange={(e) => {
+                        if (isEditing && editingStep) {
+                          setEditingStep({
+                            ...editingStep,
+                            config: {
+                              ...editingStep.config,
+                              trigger: {
+                                ...editingStep.config.trigger!,
+                                config: {
+                                  ...editingStep.config.trigger!.config,
+                                  time_delay: {
+                                    ...editingStep.config.trigger!.config.time_delay,
+                                    duration: parseInt(e.target.value) * 3600
+                                  }
+                                }
+                              }
+                            }
+                          });
+                        }
+                      }}
+                      disabled={!isEditing}
+                      min="1"
+                    />
+                  </FieldWithHelp>
+                </div>
+              )}
+
+              {/* Timeout configuration for non-immediate triggers */}
+              {currentStep.config.trigger?.type !== 'immediate' && (
+                <FieldWithHelp
+                  label="Timeout (hours)"
+                  help="How long to wait for the trigger before giving up and continuing"
+                  examples={["24", "72", "168 (1 week)"]}
+                >
+                  <Input
+                    type="number"
+                    value={Math.floor((currentStep.config.trigger?.timeout_duration || 86400) / 3600)}
+                    onChange={(e) => {
+                      if (isEditing && editingStep) {
+                        setEditingStep({
+                          ...editingStep,
+                          config: {
+                            ...editingStep.config,
+                            trigger: {
+                              ...editingStep.config.trigger!,
+                              timeout_duration: parseInt(e.target.value) * 3600
+                            }
+                          }
+                        });
+                      }
+                    }}
+                    disabled={!isEditing}
+                    min="1"
+                  />
+                </FieldWithHelp>
+              )}
             </FieldGroup>
           </div>
         );
@@ -768,6 +1051,29 @@ export default function WorkflowBuilder({ workflow, brandId, onSave }: WorkflowB
     }
   };
 
+  // Add new function for creating steps from canvas
+  const handleStepCreate = async (stepData: {
+    type: StepType;
+    position: { x: number; y: number };
+    name: string;
+  }) => {
+    try {
+      const stepOrder = steps.length;
+      const createdStep = await createWorkflowStep({
+        workflow_id: workflow.id,
+        step_order: stepOrder,
+        name: stepData.name,
+        description: '',
+        step_type: stepData.type,
+        config: {}
+      });
+
+      setSteps([...steps, createdStep]);
+    } catch (error) {
+      console.error('Error creating step from canvas:', error);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -785,26 +1091,6 @@ export default function WorkflowBuilder({ workflow, brandId, onSave }: WorkflowB
           <p className="text-gray-600">{workflow.description}</p>
         </div>
         <div className="flex gap-2 items-center">
-          {/* View Mode Toggle */}
-          <div className="flex items-center gap-2 mr-4">
-            <Button
-              variant={viewMode === 'list' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setViewMode('list')}
-            >
-              <List className="h-4 w-4 mr-2" />
-              List
-            </Button>
-            <Button
-              variant={viewMode === 'canvas' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setViewMode('canvas')}
-            >
-              <Network className="h-4 w-4 mr-2" />
-              Canvas
-            </Button>
-          </div>
-
           <Button variant="outline" onClick={onSave}>
             <Save className="h-4 w-4 mr-2" />
             Save Changes
@@ -893,96 +1179,31 @@ export default function WorkflowBuilder({ workflow, brandId, onSave }: WorkflowB
 
       {/* Main Content */}
       <div className="flex-1 flex gap-6">
-        {/* Steps List */}
-        <div className="w-96">
-          <Card className="h-full">
-            <CardHeader>
-              <CardTitle>Workflow Steps</CardTitle>
-              <CardDescription>
-                Drag to reorder, click to configure
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ScrollArea className="h-[calc(100vh-300px)]">
-                <div className="space-y-2">
-                  {/* Start Node */}
-                  <div className="p-3 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2">
-                    <Play className="h-5 w-5 text-green-600" />
-                    <span className="font-medium">Start: {workflow.trigger_event}</span>
-                  </div>
-
-                  {/* Steps */}
-                  {steps.map((step) => (
-                    <div
-                      key={step.id}
-                      className={`p-3 border rounded-lg cursor-pointer transition-colors ${
-                        selectedStep?.id === step.id
-                          ? 'border-blue-300 bg-blue-50'
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
-                      onClick={() => setSelectedStep(step)}
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-start gap-2">
-                          {STEP_TYPE_ICONS[step.step_type]}
-                          <div>
-                            <div className="font-medium">{step.name}</div>
-                            {step.description && (
-                              <div className="text-sm text-gray-500 mt-1">
-                                {step.description}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDuplicateStep(step);
-                            }}
-                            title="Duplicate step"
-                          >
-                            <Copy className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteStep(step.id);
-                            }}
-                            title="Delete step"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-
-                  {/* End Node */}
-                  <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
-                    <Pause className="h-5 w-5 text-red-600" />
-                    <span className="font-medium">End: Workflow Complete</span>
-                  </div>
-                </div>
-              </ScrollArea>
-            </CardContent>
-          </Card>
+        {/* Canvas */}
+        <div className="flex-1">
+          <WorkflowCanvas
+            workflow={localWorkflow}
+            steps={steps}
+            onStepSelect={setSelectedStep}
+            onStepUpdate={handleUpdateStep}
+            onStepDelete={handleDeleteStep}
+            onStepDuplicate={handleDuplicateStep}
+            onStepCreate={handleStepCreate}
+            selectedStep={selectedStep}
+            onWorkflowUpdate={handleWorkflowUpdate}
+          />
         </div>
 
-        {/* Step Configuration */}
-        <div className="flex-1">
-          {selectedStep ? (
+        {/* Configuration Panel */}
+        {selectedStep && (
+          <div className="w-96">
             <Card className="h-full">
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle>{selectedStep.name}</CardTitle>
-                    <CardDescription>
-                      Configure step settings and parameters
+                    <CardTitle className="text-lg">{selectedStep.name}</CardTitle>
+                    <CardDescription className="text-sm">
+                      Configure step settings
                     </CardDescription>
                   </div>
                   <div className="flex gap-2">
@@ -997,7 +1218,7 @@ export default function WorkflowBuilder({ workflow, brandId, onSave }: WorkflowB
                         </Button>
                         <Button
                           size="sm"
-                          onClick={handleUpdateStep}
+                          onClick={() => handleUpdateStep()}
                         >
                           Save
                         </Button>
@@ -1008,7 +1229,7 @@ export default function WorkflowBuilder({ workflow, brandId, onSave }: WorkflowB
                         size="sm"
                         onClick={() => setEditingStep(selectedStep)}
                       >
-                        <Edit className="h-4 w-4 mr-2" />
+                        <Edit className="h-4 w-4 mr-1" />
                         Edit
                       </Button>
                     )}
@@ -1016,57 +1237,13 @@ export default function WorkflowBuilder({ workflow, brandId, onSave }: WorkflowB
                 </div>
               </CardHeader>
               <CardContent>
-                <Tabs defaultValue="config">
-                  <TabsList>
-                    <TabsTrigger value="config">Configuration</TabsTrigger>
-                    <TabsTrigger value="variables">Variables</TabsTrigger>
-                  </TabsList>
-                  
-                  <TabsContent value="config" className="space-y-4">
-                    <ScrollArea className="h-[calc(100vh-400px)]">
-                      {renderStepConfig(selectedStep, !!editingStep)}
-                    </ScrollArea>
-                  </TabsContent>
-                  
-                  <TabsContent value="variables" className="space-y-4">
-                    <div>
-                      <h4 className="font-medium mb-2">Available Variables</h4>
-                      <p className="text-sm text-gray-500 mb-4">
-                        These variables can be used in templates and messages
-                      </p>
-                      <div className="grid grid-cols-2 gap-2">
-                        {ALL_WORKFLOW_VARIABLES.map((variable) => (
-                          <div
-                            key={variable}
-                            className="p-2 bg-gray-50 rounded text-sm font-mono cursor-pointer hover:bg-gray-100"
-                            onClick={() => navigator.clipboard.writeText(`{{${variable}}}`)}
-                            title="Click to copy"
-                          >
-                            {variable}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </TabsContent>
-                </Tabs>
+                <ScrollArea className="h-[calc(100vh-300px)]">
+                  {renderStepConfig(selectedStep, !!editingStep)}
+                </ScrollArea>
               </CardContent>
             </Card>
-          ) : (
-            <Card className="h-full flex items-center justify-center">
-              <CardContent>
-                <div className="text-center">
-                  <Settings className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-600 mb-2">
-                    No Step Selected
-                  </h3>
-                  <p className="text-gray-500">
-                    Select a step from the list to configure it
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );
