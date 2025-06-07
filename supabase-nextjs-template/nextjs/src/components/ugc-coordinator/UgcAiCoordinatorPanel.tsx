@@ -8,6 +8,7 @@ import { UgcCreator } from '@/lib/types/ugcCreator';
 import { Brand } from '@/lib/types/powerbrief';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import LiveAnalysisStream from './LiveAnalysisStream';
+import AiChatAssistant from '@/components/ugc/AiChatAssistant';
 
 interface EmailPreview {
   subject: string;
@@ -47,7 +48,7 @@ export default function UgcAiCoordinatorPanel({ brand, creators, onRefresh }: Ug
   const [loading, setLoading] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'actions' | 'settings' | 'history'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'actions' | 'settings' | 'history' | 'assistant'>('dashboard');
   const [emailPreview, setEmailPreview] = useState<EmailPreview | null>(null);
   const [showPreviewDialog, setShowPreviewDialog] = useState(false);
   const [previewingAction, setPreviewingAction] = useState<{creatorId: string, actionIndex: number} | null>(null);
@@ -347,10 +348,11 @@ export default function UgcAiCoordinatorPanel({ brand, creators, onRefresh }: Ug
         </Alert>
       )}
 
-      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'dashboard' | 'actions' | 'settings' | 'history')}>
-        <TabsList className="grid w-full grid-cols-4">
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'dashboard' | 'actions' | 'settings' | 'history' | 'assistant')}>
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
           <TabsTrigger value="actions">Actions</TabsTrigger>
+          <TabsTrigger value="assistant">AI Assistant</TabsTrigger>
           <TabsTrigger value="settings">Settings</TabsTrigger>
           <TabsTrigger value="history">History</TabsTrigger>
         </TabsList>
@@ -552,6 +554,16 @@ export default function UgcAiCoordinatorPanel({ brand, creators, onRefresh }: Ug
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* AI Assistant Tab */}
+        <TabsContent value="assistant" className="space-y-6">
+          <AiChatAssistant 
+            brandId={brand.id}
+            brandName={brand.name}
+            creators={creators.map(c => ({ id: c.id, name: c.name || c.email || 'Unknown', status: c.status }))}
+            embedded={true}
+          />
         </TabsContent>
 
         {/* Settings Tab */}

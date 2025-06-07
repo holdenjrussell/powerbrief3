@@ -1,41 +1,33 @@
 import { createServerAdminClient } from '@/lib/supabase/serverAdminClient';
 import { createSSRClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
+import { cookies } from 'next/headers';
 
 // GET - Fetch custom statuses for a brand
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    const ssrSupabase = await createSSRClient();
-    const { data: { user }, error: authError } = await ssrSupabase.auth.getUser();
+    const supabase = createRouteHandlerClient({ cookies });
     
-    if (authError || !user) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const supabase = await createServerAdminClient();
-    const { searchParams } = new URL(request.url);
-    const brandId = searchParams.get('brandId');
-
-    if (!brandId) {
-      return NextResponse.json({ error: 'Brand ID is required' }, { status: 400 });
-    }
-
-    const { data: statuses, error } = await supabase
+    const { data, error } = await supabase
       .from('ugc_custom_creator_statuses')
       .select('*')
-      .eq('brand_id', brandId)
-      .eq('is_active', true)
+      .order('category', { ascending: true })
       .order('display_order', { ascending: true });
 
     if (error) {
-      console.error('Error fetching custom statuses:', error);
-      return NextResponse.json({ error: 'Failed to fetch statuses' }, { status: 500 });
+      console.error('Error fetching custom creator statuses:', error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json(statuses || []);
-
+    return NextResponse.json(data || []);
   } catch (error) {
-    console.error('Custom statuses API error:', error);
+    console.error('Error in GET /api/ugc/workflow/statuses:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

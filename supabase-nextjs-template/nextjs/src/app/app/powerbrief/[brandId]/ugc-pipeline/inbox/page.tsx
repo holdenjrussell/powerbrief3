@@ -36,7 +36,6 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { getBrandById } from '@/lib/services/powerbriefService';
 import { Brand } from '@/lib/types/powerbrief';
-import AiChatAssistant from '@/components/ugc/AiChatAssistant';
 import { useBrand } from '@/lib/context/BrandContext';
 
 // Helper to unwrap params safely
@@ -752,7 +751,8 @@ export default function EmailInboxPage({ params }: { params: ParamsType | Promis
         </DialogContent>
       </Dialog>
 
-      {/* Floating AI Chat Assistant */}
+      {/* Floating AI Chat Assistant - REMOVED: Now integrated into AI UGC Agent tab */}
+      {/* 
       {brand && (
         <AiChatAssistant 
           brandId={brand.id}
@@ -760,6 +760,7 @@ export default function EmailInboxPage({ params }: { params: ParamsType | Promis
           creators={creators.map(c => ({ id: c.id, name: c.name || c.email || 'Unknown', status: 'active' }))}
         />
       )}
+      */}
     </div>
   );
 } 

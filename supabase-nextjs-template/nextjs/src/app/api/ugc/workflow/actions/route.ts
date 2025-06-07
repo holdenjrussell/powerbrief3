@@ -1,35 +1,29 @@
-import { createServerAdminClient } from '@/lib/supabase/serverAdminClient';
-import { createSSRClient } from '@/lib/supabase/server';
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
+import { cookies } from 'next/headers';
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    // Verify authentication
-    const ssrSupabase = await createSSRClient();
-    const { data: { user }, error: authError } = await ssrSupabase.auth.getUser();
+    const supabase = createRouteHandlerClient({ cookies });
     
-    if (authError || !user) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const supabase = await createServerAdminClient();
-
-    // Get available workflow actions
-    const { data: actions, error } = await (supabase as any)
+    const { data, error } = await supabase
       .from('ugc_workflow_actions')
       .select('*')
-      .eq('is_system', true)
       .order('name', { ascending: true });
 
     if (error) {
       console.error('Error fetching workflow actions:', error);
-      return NextResponse.json({ error: 'Failed to fetch workflow actions' }, { status: 500 });
+      return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json(actions || []);
-
+    return NextResponse.json(data || []);
   } catch (error) {
-    console.error('Workflow actions API error:', error);
+    console.error('Error in GET /api/ugc/workflow/actions:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 } 

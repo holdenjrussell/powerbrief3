@@ -15,9 +15,10 @@ interface AiChatAssistantProps {
   brandId: string;
   brandName: string;
   creators: Array<{ id: string; name: string; status: string }>;
+  embedded?: boolean;
 }
 
-export default function AiChatAssistant({ brandId, brandName, creators }: AiChatAssistantProps) {
+export default function AiChatAssistant({ brandId, brandName, creators, embedded = false }: AiChatAssistantProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: '1',
@@ -120,6 +121,109 @@ export default function AiChatAssistant({ brandId, brandName, creators }: AiChat
         </React.Fragment>
       ));
   };
+
+  if (embedded) {
+    return (
+      <Card className="h-full flex flex-col">
+        <CardHeader className="bg-gradient-to-r from-blue-500 to-purple-600 text-white">
+          <div className="flex items-center space-x-2">
+            <div className="h-8 w-8 bg-white/20 rounded-full flex items-center justify-center">
+              <Bot className="h-5 w-5 text-white" />
+            </div>
+            <div>
+              <CardTitle className="text-lg">AI Assistant</CardTitle>
+              <CardDescription className="text-blue-100">
+                {brandName} Pipeline Manager
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+
+        <CardContent className="flex-1 flex flex-col p-0 min-h-[600px]">
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto p-6 space-y-4">
+            {messages.map((message) => (
+              <div
+                key={message.id}
+                className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+              >
+                <div
+                  className={`max-w-[80%] rounded-lg p-4 ${
+                    message.role === 'user'
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-gray-100 text-gray-900'
+                  }`}
+                >
+                  <div className="text-sm">{formatMessage(message.content)}</div>
+                  <div
+                    className={`text-xs mt-2 opacity-70 ${
+                      message.role === 'user' ? 'text-blue-100' : 'text-gray-500'
+                    }`}
+                  >
+                    {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </div>
+                </div>
+              </div>
+            ))}
+            
+            {isLoading && (
+              <div className="flex justify-start">
+                <div className="bg-gray-100 rounded-lg p-4">
+                  <div className="flex items-center space-x-2">
+                    <Bot className="h-4 w-4 animate-pulse text-blue-500" />
+                    <span className="text-sm text-gray-600">AI is typing...</span>
+                  </div>
+                </div>
+              </div>
+            )}
+            <div ref={messagesEndRef} />
+          </div>
+
+          {/* Quick Actions */}
+          {messages.length <= 2 && (
+            <div className="p-6 border-t bg-gray-50">
+              <div className="text-sm font-medium text-gray-600 mb-3">Quick Actions:</div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                {quickActions.map((action, index) => (
+                  <Button
+                    key={index}
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleQuickAction(action)}
+                    className="justify-start text-sm h-auto py-3 text-left"
+                  >
+                    <Sparkles className="h-4 w-4 mr-2 shrink-0" />
+                    <span className="truncate">{action}</span>
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Input */}
+          <div className="p-6 border-t">
+            <div className="flex space-x-3">
+              <Input
+                value={inputMessage}
+                onChange={(e) => setInputMessage(e.target.value)}
+                placeholder="Ask me anything about your creators..."
+                onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+                disabled={isLoading}
+                className="text-sm flex-1"
+              />
+              <Button
+                onClick={sendMessage}
+                disabled={!inputMessage.trim() || isLoading}
+                className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 shrink-0"
+              >
+                <Send className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   if (isMinimized) {
     return (

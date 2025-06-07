@@ -444,4 +444,76 @@ export const WORKFLOW_VARIABLES = {
   ],
 } as const;
 
-export const ALL_WORKFLOW_VARIABLES = Object.values(WORKFLOW_VARIABLES).flat(); 
+export const ALL_WORKFLOW_VARIABLES = Object.values(WORKFLOW_VARIABLES).flat();
+
+// Onboarding Form Configuration Types
+export interface UgcOnboardingFormConfig {
+  id: string;
+  brand_id: string;
+  form_name: string;
+  description?: string;
+  welcome_message?: string;
+  success_message?: string;
+  is_public: boolean;
+  is_active: boolean;
+  requires_approval: boolean;
+  auto_assign_status?: string;
+  collect_demographics: boolean;
+  collect_social_handles: boolean;
+  collect_address: boolean;
+  collect_portfolio: boolean;
+  custom_fields: Json;
+  branding: Json;
+  notification_emails: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UgcFormFieldOption {
+  id: string;
+  form_config_id: string;
+  field_name: string;
+  option_value: string;
+  option_label: string;
+  display_order: number;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface UgcFormSubmission {
+  id: string;
+  form_config_id: string;
+  brand_id: string;
+  submission_data: Json;
+  status: FormSubmissionStatus;
+  creator_id?: string;
+  submitted_ip?: string;
+  user_agent?: string;
+  utm_source?: string;
+  utm_medium?: string;
+  utm_campaign?: string;
+  reviewed_by?: string;
+  reviewed_at?: string;
+  review_notes?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export type FormSubmissionStatus = 'pending' | 'approved' | 'rejected' | 'converted';
+
+// Custom Form Field Types
+export interface CustomFormField {
+  name: string;
+  type: 'text' | 'textarea' | 'email' | 'phone' | 'url' | 'select' | 'checkbox' | 'radio' | 'file';
+  label: string;
+  required: boolean;
+  placeholder?: string;
+  options?: string[];
+  validation?: {
+    pattern?: string;
+    minLength?: number;
+    maxLength?: number;
+    min?: number;
+    max?: number;
+  };
+} 

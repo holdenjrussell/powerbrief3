@@ -27,9 +27,10 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-  Input
+  Input,
+  Badge
 } from "@/components/ui";
-import { Plus, Loader2, Save, Settings2, Sparkles, Bot, Mail, Upload, X, Bug, Trash2 } from "lucide-react";
+import { Plus, Loader2, Save, Settings2, Sparkles, Bot, Mail, Upload, X, Bug, Trash2, GitBranch, List, MessageSquare, BarChart3 } from "lucide-react";
 import { useAuth } from '@/hooks/useAuth';
 import { getBrandById } from '@/lib/services/powerbriefService';
 import { 
@@ -44,12 +45,27 @@ import { UgcCreator, UgcCreatorScript, UGC_CREATOR_SCRIPT_CONCEPT_STATUSES, UGC_
 import { CreatorCard, ScriptCard, CreatorForm } from '@/components/ugc-creator';
 import UgcAiCoordinatorPanel from '@/components/ugc-coordinator/UgcAiCoordinatorPanel';
 import EmailTemplateGenerator from '@/components/ugc/EmailTemplateGenerator';
-import AiChatAssistant from '@/components/ugc/AiChatAssistant';
 import { Brand } from '@/lib/types/powerbrief';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
 import { v4 as uuidv4 } from 'uuid';
 import { useBrand } from '@/lib/context/BrandContext';
+
+// Workflow components
+import WorkflowBuilder from '@/components/ugc/workflow/WorkflowBuilder';
+import CreatorStatusManager from '@/components/ugc/workflow/CreatorStatusManager';
+import MessageTemplateManager from '@/components/ugc/workflow/MessageTemplateManager';
+import WorkflowAnalytics from '@/components/ugc/workflow/WorkflowAnalytics';
+import {
+  getWorkflowTemplates,
+  createWorkflowTemplate,
+  updateWorkflowTemplate
+} from '@/lib/services/ugcWorkflowService';
+import { 
+  UgcWorkflowTemplate, 
+  WorkflowCategory,
+  TriggerEvent
+} from '@/lib/types/ugcWorkflow';
 
 // Helper to unwrap params safely
 type ParamsType = { brandId: string };
@@ -69,7 +85,7 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
   const [brand, setBrand] = useState<Brand | null>(null);
   const [creators, setCreators] = useState<UgcCreator[]>([]);
   const [scripts, setScripts] = useState<UgcCreatorScript[]>([]);
-  const [activeView, setActiveView] = useState<'concept' | 'script' | 'creator' | 'settings' | 'ai-agent' | 'inbox' | 'templates'>('concept');
+  const [activeView, setActiveView] = useState<'concept' | 'script' | 'creator' | 'settings' | 'ai-agent' | 'inbox' | 'templates' | 'workflow'>('concept');
   const [activeStatus, setActiveStatus] = useState<string>(UGC_CREATOR_SCRIPT_CONCEPT_STATUSES[0]);
   
   // Dialog state
@@ -131,6 +147,22 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
   const [filmingInstructions, setFilmingInstructions] = useState('');
   const [defaultSystemInstructions, setDefaultSystemInstructions] = useState('');
   const [savingSettings, setSavingSettings] = useState(false);
+
+  // Workflow state
+  const [workflows, setWorkflows] = useState<UgcWorkflowTemplate[]>([]);
+  const [selectedWorkflow, setSelectedWorkflow] = useState<UgcWorkflowTemplate | null>(null);
+  const [isWorkflowLoading, setIsWorkflowLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [activeWorkflowTab, setActiveWorkflowTab] = useState('workflows');
+  
+  // Create Workflow Dialog State
+  const [newWorkflow, setNewWorkflow] = useState({
+    name: '',
+    description: '',
+    category: 'onboarding' as WorkflowCategory,
+    trigger_event: 'creator_added' as TriggerEvent,
+  });
 
   useEffect(() => {
     const unwrapParams = async () => {
@@ -377,7 +409,7 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
     }
   };
 
-  const handleViewChange = async (view: 'concept' | 'script' | 'creator' | 'settings' | 'ai-agent' | 'inbox' | 'templates') => {
+  const handleViewChange = async (view: 'concept' | 'script' | 'creator' | 'settings' | 'ai-agent' | 'inbox' | 'templates' | 'workflow') => {
     if (view === 'inbox') {
       // Redirect to the dedicated inbox page
       router.push(`/app/powerbrief/${brandId}/ugc-pipeline/inbox`);
@@ -393,6 +425,22 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
         setScripts(scriptsData);
       } catch (err) {
         console.error('Failed to fetch scripts for concept view:', err);
+      }
+    }
+    
+    // If switching to workflow view, load workflow data
+    if (view === 'workflow' && brandId) {
+      try {
+        setIsWorkflowLoading(true);
+        const workflowData = await getWorkflowTemplates(brandId);
+        setWorkflows(workflowData);
+        if (workflowData.length > 0 && !selectedWorkflow) {
+          setSelectedWorkflow(workflowData[0]);
+        }
+      } catch (err) {
+        console.error('Failed to load workflows:', err);
+      } finally {
+        setIsWorkflowLoading(false);
       }
     }
   };
@@ -947,6 +995,49 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
     }
   };
 
+  // Workflow handlers
+  const handleCreateWorkflow = async () => {
+    if (!newWorkflow.name.trim()) return;
+
+    setIsSaving(true);
+    try {
+      const createdWorkflow = await createWorkflowTemplate({
+        ...newWorkflow,
+        brand_id: brandId,
+        is_active: true
+      });
+
+      setWorkflows([...workflows, createdWorkflow]);
+      setSelectedWorkflow(createdWorkflow);
+      setIsCreateDialogOpen(false);
+      setNewWorkflow({
+        name: '',
+        description: '',
+        category: 'onboarding',
+        trigger_event: 'creator_added',
+      });
+    } catch (error) {
+      console.error('Error creating workflow:', error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSaveWorkflow = async () => {
+    if (!selectedWorkflow) return;
+
+    setIsSaving(true);
+    try {
+      await updateWorkflowTemplate(selectedWorkflow.id, {
+        is_active: selectedWorkflow.is_active
+      });
+    } catch (error) {
+      console.error('Error saving workflow:', error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
     <div className="p-6" key={brandId}>
       <div className="flex justify-between items-center mb-6">
@@ -988,7 +1079,7 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
         </Alert>
       )}
       
-      <Tabs value={activeView} onValueChange={(v: string) => handleViewChange(v as 'concept' | 'script' | 'creator' | 'settings' | 'ai-agent' | 'inbox' | 'templates')}>
+      <Tabs value={activeView} onValueChange={(v: string) => handleViewChange(v as 'concept' | 'script' | 'creator' | 'settings' | 'ai-agent' | 'inbox' | 'templates' | 'workflow')}>
         <TabsList className="mb-4">
           <TabsTrigger value="concept">Concept View</TabsTrigger>
           <TabsTrigger value="script">Script Creation</TabsTrigger>
@@ -996,6 +1087,10 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
           <TabsTrigger value="templates">
             <Sparkles className="h-4 w-4 mr-2" />
             Email Templates
+          </TabsTrigger>
+          <TabsTrigger value="workflow">
+            <GitBranch className="h-4 w-4 mr-2" />
+            Workflow Builder
           </TabsTrigger>
           <TabsTrigger value="ai-agent">
             <Bot className="h-4 w-4 mr-2" />
@@ -1785,17 +1880,208 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
             </CardContent>
           </Card>
         </TabsContent>
+
+        <TabsContent value="workflow">
+          <div className="space-y-6">
+            <div className="mb-6">
+              <h2 className="text-2xl font-semibold">UGC Workflow Automation</h2>
+              <p className="text-gray-600">Build and manage automated workflows for your UGC creators</p>
+            </div>
+
+            <Tabs value={activeWorkflowTab} onValueChange={setActiveWorkflowTab}>
+              <TabsList className="mb-6">
+                <TabsTrigger value="workflows">
+                  <GitBranch className="h-4 w-4 mr-2" />
+                  Workflows
+                </TabsTrigger>
+                <TabsTrigger value="statuses">
+                  <List className="h-4 w-4 mr-2" />
+                  Creator Statuses
+                </TabsTrigger>
+                <TabsTrigger value="templates">
+                  <MessageSquare className="h-4 w-4 mr-2" />
+                  Message Templates
+                </TabsTrigger>
+                <TabsTrigger value="analytics">
+                  <BarChart3 className="h-4 w-4 mr-2" />
+                  Analytics
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="workflows" className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xl font-semibold">Workflow Templates</h3>
+                  <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button>
+                        <Plus className="h-4 w-4 mr-2" />
+                        New Workflow
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Create New Workflow</DialogTitle>
+                        <DialogDescription>
+                          Set up a new automation workflow for your UGC creators.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4">
+                        <div>
+                          <Label htmlFor="name">Workflow Name</Label>
+                          <Input
+                            id="name"
+                            value={newWorkflow.name}
+                            onChange={(e) => setNewWorkflow({ ...newWorkflow, name: e.target.value })}
+                            placeholder="e.g., Creator Onboarding"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="description">Description</Label>
+                          <Textarea
+                            id="description"
+                            value={newWorkflow.description}
+                            onChange={(e) => setNewWorkflow({ ...newWorkflow, description: e.target.value })}
+                            placeholder="Describe what this workflow does..."
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="category">Category</Label>
+                          <Select
+                            value={newWorkflow.category}
+                            onValueChange={(value) => setNewWorkflow({ ...newWorkflow, category: value as WorkflowCategory })}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="onboarding">Onboarding</SelectItem>
+                              <SelectItem value="script_pipeline">Script Pipeline</SelectItem>
+                              <SelectItem value="rate_negotiation">Rate Negotiation</SelectItem>
+                              <SelectItem value="product_shipment">Product Shipment</SelectItem>
+                              <SelectItem value="contract_signing">Contract Signing</SelectItem>
+                              <SelectItem value="content_delivery">Content Delivery</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <Label htmlFor="trigger">Trigger Event</Label>
+                          <Select
+                            value={newWorkflow.trigger_event}
+                            onValueChange={(value) => setNewWorkflow({ ...newWorkflow, trigger_event: value as TriggerEvent })}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="creator_added">Creator Added</SelectItem>
+                              <SelectItem value="status_change">Status Change</SelectItem>
+                              <SelectItem value="manual">Manual Trigger</SelectItem>
+                              <SelectItem value="time_based">Time Based</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="flex justify-end gap-2">
+                          <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
+                            Cancel
+                          </Button>
+                          <Button onClick={handleCreateWorkflow} disabled={isSaving}>
+                            {isSaving ? 'Creating...' : 'Create Workflow'}
+                          </Button>
+                        </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+
+                {isWorkflowLoading ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
+                  </div>
+                ) : workflows.length === 0 ? (
+                  <Card>
+                    <CardContent className="text-center py-12">
+                      <Settings2 className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                      <h3 className="text-lg font-medium text-gray-900 mb-2">No workflows yet</h3>
+                      <p className="text-gray-500 mb-4">Create your first workflow to start automating</p>
+                      <Button onClick={() => setIsCreateDialogOpen(true)}>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Create Workflow
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                    {/* Workflow List */}
+                    <div className="lg:col-span-1">
+                      <Card>
+                        <CardHeader>
+                          <CardTitle>Your Workflows</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-2">
+                            {workflows.map((workflow) => (
+                              <div
+                                key={workflow.id}
+                                className={`p-3 border rounded-lg cursor-pointer transition-colors ${
+                                  selectedWorkflow?.id === workflow.id
+                                    ? 'border-blue-300 bg-blue-50'
+                                    : 'border-gray-200 hover:border-gray-300'
+                                }`}
+                                onClick={() => setSelectedWorkflow(workflow)}
+                              >
+                                <div className="flex items-start justify-between">
+                                  <div>
+                                    <div className="font-medium">{workflow.name}</div>
+                                    <div className="text-sm text-gray-500">{workflow.description}</div>
+                                    <div className="flex gap-1 mt-2">
+                                      <Badge variant="secondary" className="text-xs">
+                                        {workflow.category}
+                                      </Badge>
+                                      {workflow.is_active ? (
+                                        <Badge variant="default" className="text-xs">Active</Badge>
+                                      ) : (
+                                        <Badge variant="outline" className="text-xs">Inactive</Badge>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+
+                    {/* Workflow Builder */}
+                    <div className="lg:col-span-3">
+                      {selectedWorkflow && (
+                        <WorkflowBuilder
+                          workflow={selectedWorkflow}
+                          brandId={brandId}
+                          onSave={handleSaveWorkflow}
+                        />
+                      )}
+                    </div>
+                  </div>
+                )}
+              </TabsContent>
+
+              <TabsContent value="statuses">
+                <CreatorStatusManager brandId={brandId} />
+              </TabsContent>
+
+              <TabsContent value="templates">
+                <MessageTemplateManager brandId={brandId} />
+              </TabsContent>
+
+              <TabsContent value="analytics">
+                <WorkflowAnalytics brandId={brandId} />
+              </TabsContent>
+            </Tabs>
+          </div>
+        </TabsContent>
       </Tabs>
       
-      {/* Floating AI Chat Assistant */}
-      {brand && (
-        <AiChatAssistant 
-          brandId={brand.id}
-          brandName={brand.name}
-          creators={creators.map(c => ({ id: c.id, name: c.name || c.email || 'Unknown', status: c.status }))}
-        />
-      )}
-
       {/* Debug Modal */}
       <Dialog open={showDebugModal} onOpenChange={setShowDebugModal}>
         <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">

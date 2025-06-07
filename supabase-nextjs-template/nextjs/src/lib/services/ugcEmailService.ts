@@ -3,9 +3,12 @@ import { createServerAdminClient } from '@/lib/supabase/serverAdminClient';
 import sgMail from '@sendgrid/mail';
 import { UgcCreator } from '@/lib/types/ugcCreator';
 import { Brand } from '@/lib/types/powerbrief';
+import { v4 as uuidv4 } from 'uuid';
 
 // Initialize SendGrid
 sgMail.setApiKey(process.env.SENDGRID_API_KEY!);
+
+const supabase = createSPAClient();
 
 export interface EmailTemplate {
   id: string;
@@ -235,6 +238,197 @@ export const DEFAULT_EMAIL_TEMPLATES: Omit<EmailTemplate, 'id' | 'created_at' | 
     enabled: true
   }
 ];
+
+export interface EmailResult {
+  id: string;
+  thread_id: string;
+  created_at: string;
+}
+
+export async function sendEmailToCreator(
+  creatorId: string,
+  brandId: string,
+  subject: string,
+  content: string,
+  source: 'workflow' | 'manual' = 'manual'
+): Promise<EmailResult> {
+  // Get creator details
+  const { data: creator, error: creatorError } = await supabase
+    .from('ugc_creators')
+    .select('email, name')
+    .eq('id', creatorId)
+    .single();
+
+  if (creatorError || !creator) {
+    throw new Error('Creator not found');
+  }
+
+  // Get brand details
+  const { data: brand, error: brandError } = await supabase
+    .from('brands')
+    .select('name')
+    .eq('id', brandId)
+    .single();
+
+  if (brandError || !brand) {
+    throw new Error('Brand not found');
+  }
+
+  // Check if there's an existing thread with this creator
+  const { data: existingThread } = await supabase
+    .from('email_threads')
+    .select('id')
+    .eq('brand_id', brandId)
+    .eq('participant_email', creator.email)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single();
+
+  let threadId = existingThread?.id;
+
+  // Create a new thread if none exists
+  if (!threadId) {
+    const { data: newThread, error: threadError } = await supabase
+      .from('email_threads')
+      .insert({
+        id: uuidv4(),
+        brand_id: brandId,
+        subject: subject,
+        participant_email: creator.email,
+        participant_name: creator.name,
+        status: 'active',
+        last_message_at: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .select()
+      .single();
+
+    if (threadError || !newThread) {
+      throw new Error('Failed to create email thread');
+    }
+
+    threadId = newThread.id;
+  }
+
+  // Create the email message
+  const messageId = uuidv4();
+  const { error: messageError } = await supabase
+    .from('email_messages')
+    .insert({
+      id: messageId,
+      thread_id: threadId,
+      brand_id: brandId,
+      message_id: `${messageId}@workflow.local`,
+      from_email: 'noreply@workflow.local', // This should be configured per brand
+      from_name: brand.name,
+      to_email: creator.email,
+      to_name: creator.name,
+      subject: subject,
+      body_text: content,
+      body_html: `<p>${content.replace(/\n/g, '<br>')}</p>`,
+      direction: 'outbound',
+      status: 'pending',
+      source: source,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    });
+
+  if (messageError) {
+    throw new Error('Failed to create email message');
+  }
+
+  // Update thread last message time
+  await supabase
+    .from('email_threads')
+    .update({
+      last_message_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', threadId);
+
+  // TODO: Trigger actual email sending via SendGrid
+  // This would typically be handled by a background job or edge function
+  // that processes pending emails and sends them via SendGrid
+
+  return {
+    id: messageId,
+    thread_id: threadId,
+    created_at: new Date().toISOString()
+  };
+}
+
+export async function getCreatorEmailThreads(
+  creatorId: string,
+  brandId: string
+): Promise<any[]> {
+  const { data: creator } = await supabase
+    .from('ugc_creators')
+    .select('email')
+    .eq('id', creatorId)
+    .single();
+
+  if (!creator) {
+    return [];
+  }
+
+  const { data: threads, error } = await supabase
+    .from('email_threads')
+    .select(`
+      *,
+      email_messages (
+        id,
+        subject,
+        body_text,
+        direction,
+        status,
+        created_at
+      )
+    `)
+    .eq('brand_id', brandId)
+    .eq('participant_email', creator.email)
+    .order('last_message_at', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching email threads:', error);
+    return [];
+  }
+
+  return threads || [];
+}
+
+export async function markEmailAsSent(messageId: string): Promise<void> {
+  const { error } = await supabase
+    .from('email_messages')
+    .update({
+      status: 'sent',
+      sent_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', messageId);
+
+  if (error) {
+    throw new Error('Failed to mark email as sent');
+  }
+}
+
+export async function markEmailAsFailed(
+  messageId: string,
+  errorMessage: string
+): Promise<void> {
+  const { error } = await supabase
+    .from('email_messages')
+    .update({
+      status: 'failed',
+      error_message: errorMessage,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', messageId);
+
+  if (error) {
+    throw new Error('Failed to mark email as failed');
+  }
+}
 
 export class UgcEmailService {
   constructor() {
