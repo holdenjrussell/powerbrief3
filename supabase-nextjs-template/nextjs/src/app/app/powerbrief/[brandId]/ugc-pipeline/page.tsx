@@ -102,6 +102,7 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
   const [debugPromptData, setDebugPromptData] = useState<string>('');
   const [selectedCreators, setSelectedCreators] = useState<string[]>(['TBD']);
   const [isAiGenerated, setIsAiGenerated] = useState<boolean>(false);
+  const [creatorSearchQuery, setCreatorSearchQuery] = useState<string>('');
   
   // New creator form state
   const [newCreator, setNewCreator] = useState<Partial<UgcCreator>>({
@@ -566,7 +567,7 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
       
       // Create script for TBD or each selected creator
       const scriptsToCreate = selectedCreators.includes('TBD') 
-        ? [{ creator_id: 'TBD', name: 'TBD' }]
+        ? [{ creator_id: '00000000-0000-0000-0000-000000000000', name: 'TBD' }]
         : selectedCreators.map(creatorId => {
             const creator = creators.find(c => c.id === creatorId);
             return { creator_id: creatorId, name: creator?.name || creator?.email || 'Unknown' };
@@ -1409,41 +1410,104 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
                 <TabsContent value="metadata" className="space-y-6">
                   <div>
                     <Label>Selected Creators</Label>
-                    <div className="mt-2 space-y-2">
+                    <div className="mt-2 space-y-4">
                       {creators.length > 0 ? (
                         <>
+                          {/* Search Bar */}
+                          <div className="relative">
+                            <Input
+                              placeholder="Search creators..."
+                              value={creatorSearchQuery}
+                              onChange={(e) => setCreatorSearchQuery(e.target.value)}
+                              className="pl-10"
+                            />
+                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                              <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                              </svg>
+                            </div>
+                          </div>
+
+                          {/* TBD Option */}
                           <div className="flex flex-wrap gap-2 mb-4">
                             <Button
                               variant={selectedCreators.includes('TBD') ? 'default' : 'outline'}
                               size="sm"
                               onClick={() => handleCreatorSelection('TBD')}
+                              className="flex items-center gap-2"
                             >
-                              TBD
+                              <span>TBD (To Be Determined)</span>
                             </Button>
-                            {creators.map((creator) => (
-                              <Button
-                                key={creator.id}
-                                variant={selectedCreators.includes(creator.id) ? 'default' : 'outline'}
-                                size="sm"
-                                onClick={() => handleCreatorSelection(creator.id)}
-                              >
-                                {creator.name || creator.email}
-                              </Button>
-                            ))}
+                          </div>
+
+                          {/* Filtered Creators */}
+                          <div className="max-h-60 overflow-y-auto border rounded-lg p-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                              {creators
+                                .filter(creator => {
+                                  if (!creatorSearchQuery) return true;
+                                  const query = creatorSearchQuery.toLowerCase();
+                                  return (
+                                    (creator.name && creator.name.toLowerCase().includes(query)) ||
+                                    (creator.email && creator.email.toLowerCase().includes(query))
+                                  );
+                                })
+                                .map((creator) => (
+                                  <Button
+                                    key={creator.id}
+                                    variant={selectedCreators.includes(creator.id) ? 'default' : 'outline'}
+                                    size="sm"
+                                    onClick={() => handleCreatorSelection(creator.id)}
+                                    className="justify-start h-auto py-2 px-3 text-left"
+                                  >
+                                    <div className="flex flex-col items-start min-w-0 w-full">
+                                      <span className="font-medium truncate w-full">
+                                        {creator.name || 'Unnamed'}
+                                      </span>
+                                      <span className="text-xs text-gray-500 truncate w-full">
+                                        {creator.email}
+                                      </span>
+                                    </div>
+                                  </Button>
+                                ))}
+                            </div>
+                            
+                            {creators.filter(creator => {
+                              if (!creatorSearchQuery) return true;
+                              const query = creatorSearchQuery.toLowerCase();
+                              return (
+                                (creator.name && creator.name.toLowerCase().includes(query)) ||
+                                (creator.email && creator.email.toLowerCase().includes(query))
+                              );
+                            }).length === 0 && creatorSearchQuery && (
+                              <div className="text-center py-8 text-gray-500">
+                                <p>No creators found matching &quot;{creatorSearchQuery}&quot;</p>
+                                <p className="text-sm">Try a different search term</p>
+                              </div>
+                            )}
                           </div>
                           
+                          {/* Selected Summary */}
                           {selectedCreators.length > 0 && (
-                            <div className="text-sm text-gray-600">
-                              Selected: {selectedCreators.map(id => {
-                                if (id === 'TBD') return 'TBD';
-                                const creator = creators.find(c => c.id === id);
-                                return creator?.name || creator?.email;
-                              }).join(', ')}
+                            <div className="bg-blue-50 p-3 rounded-lg">
+                              <p className="text-sm font-medium text-blue-800 mb-1">
+                                Selected ({selectedCreators.length}):
+                              </p>
+                              <p className="text-sm text-blue-600">
+                                {selectedCreators.map(id => {
+                                  if (id === 'TBD') return 'TBD';
+                                  const creator = creators.find(c => c.id === id);
+                                  return creator?.name || creator?.email;
+                                }).join(', ')}
+                              </p>
                             </div>
                           )}
                         </>
                       ) : (
-                        <p className="text-sm text-gray-500">No creators available. Create some creators first.</p>
+                        <div className="text-center py-8 text-gray-500 border rounded-lg">
+                          <p>No creators available.</p>
+                          <p className="text-sm">Create some creators first in the Creator View tab.</p>
+                        </div>
                       )}
                     </div>
                   </div>
