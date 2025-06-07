@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Switch } from '@/components/ui/switch';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { 
   Plus, 
   Play, 
@@ -27,7 +28,12 @@ import {
   MessageSquare,
   Bot,
   UserCheck,
-  Settings
+  Settings,
+  ChevronDown,
+  ChevronRight,
+  Copy,
+  HelpCircle,
+  Info
 } from 'lucide-react';
 import {
   UgcWorkflowTemplate,
@@ -46,6 +52,203 @@ import {
   deleteWorkflowStep,
   getMessageTemplates
 } from '@/lib/services/ugcWorkflowService';
+
+// New: Field Group Component for organized configuration
+interface FieldGroupProps {
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+  collapsible?: boolean;
+  defaultExpanded?: boolean;
+  icon?: React.ReactNode;
+}
+
+const FieldGroup: React.FC<FieldGroupProps> = ({ 
+  title, 
+  description, 
+  children, 
+  collapsible = false, 
+  defaultExpanded = true,
+  icon
+}) => {
+  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+
+  if (collapsible) {
+    return (
+      <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
+        <CollapsibleTrigger className="flex items-center justify-between w-full p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+          <div className="flex items-center gap-2">
+            {icon}
+            <div className="text-left">
+              <h4 className="font-medium text-sm">{title}</h4>
+              {description && (
+                <p className="text-xs text-gray-600 mt-1">{description}</p>
+              )}
+            </div>
+          </div>
+          {isExpanded ? (
+            <ChevronDown className="h-4 w-4" />
+          ) : (
+            <ChevronRight className="h-4 w-4" />
+          )}
+        </CollapsibleTrigger>
+        <CollapsibleContent className="mt-3">
+          <div className="space-y-4 pl-4 border-l-2 border-gray-100">
+            {children}
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        {icon}
+        <div>
+          <h4 className="font-medium text-sm">{title}</h4>
+          {description && (
+            <p className="text-xs text-gray-600 mt-1">{description}</p>
+          )}
+        </div>
+      </div>
+      <div className="space-y-4 pl-6 border-l-2 border-gray-100">
+        {children}
+      </div>
+    </div>
+  );
+};
+
+// New: Field with Help Component for contextual guidance
+interface FieldWithHelpProps {
+  label: string;
+  help?: string;
+  examples?: string[];
+  required?: boolean;
+  children: React.ReactNode;
+}
+
+const FieldWithHelp: React.FC<FieldWithHelpProps> = ({ 
+  label, 
+  help, 
+  examples, 
+  required = false, 
+  children 
+}) => {
+  const [showHelp, setShowHelp] = useState(false);
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <Label className={required ? "font-medium" : ""}>{label}</Label>
+        {required && <span className="text-red-500 text-sm">*</span>}
+        {help && (
+          <button
+            type="button"
+            onClick={() => setShowHelp(!showHelp)}
+            className="text-gray-400 hover:text-gray-600"
+            aria-label={`Show help for ${label}`}
+            title={`Show help for ${label}`}
+          >
+            <HelpCircle className="h-4 w-4" />
+          </button>
+        )}
+      </div>
+      {children}
+      {help && showHelp && (
+        <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="flex items-start gap-2">
+            <Info className="h-4 w-4 text-blue-500 mt-0.5 flex-shrink-0" />
+            <div className="text-sm">
+              <p className="text-blue-800">{help}</p>
+              {examples && examples.length > 0 && (
+                <div className="mt-2">
+                  <p className="font-medium text-blue-800">Examples:</p>
+                  <ul className="list-disc list-inside text-blue-700 mt-1">
+                    {examples.map((example, index) => (
+                      <li key={index}>{example}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// New: Smart Variable Selector Component
+interface SmartVariableSelectorProps {
+  availableVariables?: string[];
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  disabled?: boolean;
+}
+
+const SmartVariableSelector: React.FC<SmartVariableSelectorProps> = ({
+  availableVariables = ALL_WORKFLOW_VARIABLES,
+  value,
+  onChange,
+  placeholder = "Select a variable...",
+  disabled = false
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const filteredVariables = availableVariables.filter(variable =>
+    variable.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const groupedVariables = filteredVariables.reduce((groups, variable) => {
+    const category = variable.split('.')[0];
+    if (!groups[category]) {
+      groups[category] = [];
+    }
+    groups[category].push(variable);
+    return groups;
+  }, {} as Record<string, string[]>);
+
+  return (
+    <div className="relative">
+      <Select
+        value={value}
+        onValueChange={onChange}
+        disabled={disabled}
+        open={isOpen}
+        onOpenChange={setIsOpen}
+      >
+        <SelectTrigger>
+          <SelectValue placeholder={placeholder} />
+        </SelectTrigger>
+        <SelectContent>
+          <div className="p-2">
+            <Input
+              placeholder="Search variables..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="mb-2"
+            />
+          </div>
+          {Object.entries(groupedVariables).map(([category, variables]) => (
+            <div key={category}>
+              <div className="px-2 py-1 text-xs font-medium text-gray-500 uppercase">
+                {category}
+              </div>
+              {variables.map((variable) => (
+                <SelectItem key={variable} value={variable}>
+                  <span className="font-mono text-sm">{variable}</span>
+                </SelectItem>
+              ))}
+            </div>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+};
 
 interface WorkflowBuilderProps {
   workflow: UgcWorkflowTemplate;
@@ -163,6 +366,26 @@ export default function WorkflowBuilder({ workflow, brandId, onSave }: WorkflowB
     }
   };
 
+  // New: Step duplication functionality (Quick Win #4)
+  const handleDuplicateStep = async (step: UgcWorkflowStep) => {
+    try {
+      const stepOrder = steps.length;
+      const duplicatedStep = await createWorkflowStep({
+        workflow_id: workflow.id,
+        step_order: stepOrder,
+        name: `${step.name} (Copy)`,
+        description: step.description,
+        step_type: step.step_type,
+        config: { ...step.config }
+      });
+
+      setSteps([...steps, duplicatedStep]);
+    } catch (error) {
+      console.error('Error duplicating step:', error);
+    }
+  };
+
+  // Enhanced renderStepConfig with organized field groups
   const renderStepConfig = (step: UgcWorkflowStep, isEditing: boolean = false) => {
     const currentStep = isEditing ? editingStep : step;
     if (!currentStep) return null;
@@ -170,52 +393,309 @@ export default function WorkflowBuilder({ workflow, brandId, onSave }: WorkflowB
     switch (currentStep.step_type) {
       case 'action':
         return (
-          <div className="space-y-4">
-            <div>
-              <Label>Action Type</Label>
-              <Select
-                value={currentStep.config.action_id || ''}
-                onValueChange={(value) => {
-                  if (isEditing && editingStep) {
-                    setEditingStep({
-                      ...editingStep,
-                      config: { ...editingStep.config, action_id: value }
-                    });
-                  }
-                }}
-                disabled={!isEditing}
+          <div className="space-y-6">
+            <FieldGroup 
+              title="Basic Settings" 
+              description="Core action configuration"
+              icon={<Settings className="h-4 w-4" />}
+            >
+              <FieldWithHelp
+                label="Action Type"
+                help="Choose the type of action this step will perform"
+                examples={["Send Email", "Update Creator Status", "Assign Script"]}
+                required
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select an action" />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableActions.map((action) => (
-                    <SelectItem key={action.id} value={action.id}>
-                      <div className="flex items-center gap-2">
-                        {ACTION_TYPE_ICONS[action.action_type]}
-                        <span>{action.name}</span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+                <Select
+                  value={currentStep.config.action_id || ''}
+                  onValueChange={(value) => {
+                    if (isEditing && editingStep) {
+                      setEditingStep({
+                        ...editingStep,
+                        config: { ...editingStep.config, action_id: value }
+                      });
+                    }
+                  }}
+                  disabled={!isEditing}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select an action" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableActions.map((action) => (
+                      <SelectItem key={action.id} value={action.id}>
+                        <div className="flex items-center gap-2">
+                          {ACTION_TYPE_ICONS[action.action_type]}
+                          <span>{action.name}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FieldWithHelp>
+            </FieldGroup>
 
             {currentStep.config.action_id === 'send_email' && (
-              <div>
-                <Label>Email Template</Label>
+              <FieldGroup 
+                title="Email Configuration" 
+                description="Email-specific settings"
+                icon={<Mail className="h-4 w-4" />}
+              >
+                <FieldWithHelp
+                  label="Email Template"
+                  help="Choose a pre-configured email template or create a custom message"
+                  examples={["Welcome Email", "Status Update", "Reminder"]}
+                  required
+                >
+                  <Select
+                    value={currentStep.config.action_inputs?.template_id as string || ''}
+                    onValueChange={(value) => {
+                      if (isEditing && editingStep) {
+                        setEditingStep({
+                          ...editingStep,
+                          config: {
+                            ...editingStep.config,
+                            action_inputs: {
+                              ...editingStep.config.action_inputs,
+                              template_id: value
+                            }
+                          }
+                        });
+                      }
+                    }}
+                    disabled={!isEditing}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a template" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {messageTemplates.filter(t => t.template_type === 'email').map((template) => (
+                        <SelectItem key={template.id} value={template.id}>
+                          {template.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FieldWithHelp>
+
+                <FieldWithHelp
+                  label="Recipient"
+                  help="Who should receive this email"
+                  examples={["{{creator.email}}", "admin@company.com"]}
+                >
+                  <SmartVariableSelector
+                    value={currentStep.config.action_inputs?.recipient as string || ''}
+                    onChange={(value) => {
+                      if (isEditing && editingStep) {
+                        setEditingStep({
+                          ...editingStep,
+                          config: {
+                            ...editingStep.config,
+                            action_inputs: {
+                              ...editingStep.config.action_inputs,
+                              recipient: value
+                            }
+                          }
+                        });
+                      }
+                    }}
+                    disabled={!isEditing}
+                    placeholder="Select recipient variable"
+                  />
+                </FieldWithHelp>
+              </FieldGroup>
+            )}
+
+            <FieldGroup 
+              title="Error Handling" 
+              description="Configure how errors are handled"
+              icon={<AlertCircle className="h-4 w-4" />}
+              collapsible
+              defaultExpanded={false}
+            >
+              <FieldWithHelp
+                label="Retry Settings"
+                help="Automatically retry this action if it fails"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-sm">Retry on Failure</span>
+                  <Switch
+                    checked={currentStep.config.retry_on_failure || false}
+                    onCheckedChange={(checked) => {
+                      if (isEditing && editingStep) {
+                        setEditingStep({
+                          ...editingStep,
+                          config: {
+                            ...editingStep.config,
+                            retry_on_failure: checked
+                          }
+                        });
+                      }
+                    }}
+                    disabled={!isEditing}
+                  />
+                </div>
+              </FieldWithHelp>
+              
+              {currentStep.config.retry_on_failure && (
+                <FieldWithHelp
+                  label="Retry Count"
+                  help="Number of times to retry before giving up"
+                  examples={["3", "5", "10"]}
+                >
+                  <Input
+                    type="number"
+                    value={currentStep.config.retry_count || 3}
+                    onChange={(e) => {
+                      if (isEditing && editingStep) {
+                        setEditingStep({
+                          ...editingStep,
+                          config: {
+                            ...editingStep.config,
+                            retry_count: parseInt(e.target.value)
+                          }
+                        });
+                      }
+                    }}
+                    disabled={!isEditing}
+                    min="1"
+                    max="10"
+                  />
+                </FieldWithHelp>
+              )}
+
+              <FieldWithHelp
+                label="Timeout"
+                help="Maximum time to wait for this action to complete (in seconds)"
+                examples={["30", "60", "300"]}
+              >
+                <Input
+                  type="number"
+                  value={currentStep.config.timeout || ''}
+                  onChange={(e) => {
+                    if (isEditing && editingStep) {
+                      setEditingStep({
+                        ...editingStep,
+                        config: {
+                          ...editingStep.config,
+                          timeout: parseInt(e.target.value)
+                        }
+                      });
+                    }
+                  }}
+                  disabled={!isEditing}
+                  placeholder="No timeout"
+                />
+              </FieldWithHelp>
+            </FieldGroup>
+          </div>
+        );
+
+      case 'wait':
+        return (
+          <div className="space-y-6">
+            <FieldGroup 
+              title="Wait Configuration" 
+              description="Configure delay settings"
+              icon={<Clock className="h-4 w-4" />}
+            >
+              <FieldWithHelp
+                label="Wait Duration"
+                help="How long to wait before proceeding to the next step"
+                examples={["30 seconds", "5 minutes", "1 hour"]}
+                required
+              >
+                <Input
+                  type="number"
+                  value={currentStep.config.wait_duration || ''}
+                  onChange={(e) => {
+                    if (isEditing && editingStep) {
+                      setEditingStep({
+                        ...editingStep,
+                        config: {
+                          ...editingStep.config,
+                          wait_duration: parseInt(e.target.value)
+                        }
+                      });
+                    }
+                  }}
+                  disabled={!isEditing}
+                  placeholder="Duration in seconds"
+                />
+              </FieldWithHelp>
+            </FieldGroup>
+          </div>
+        );
+
+      case 'human_intervention':
+        return (
+          <div className="space-y-6">
+            <FieldGroup 
+              title="Intervention Details" 
+              description="Human review requirements"
+              icon={<User className="h-4 w-4" />}
+            >
+              <FieldWithHelp
+                label="Intervention Title"
+                help="Brief title describing what action is needed"
+                examples={["Review Creator Application", "Approve Content", "Manual Assignment"]}
+                required
+              >
+                <Input
+                  value={currentStep.config.intervention_title || ''}
+                  onChange={(e) => {
+                    if (isEditing && editingStep) {
+                      setEditingStep({
+                        ...editingStep,
+                        config: {
+                          ...editingStep.config,
+                          intervention_title: e.target.value
+                        }
+                      });
+                    }
+                  }}
+                  disabled={!isEditing}
+                  placeholder="What needs to be done?"
+                />
+              </FieldWithHelp>
+
+              <FieldWithHelp
+                label="Description"
+                help="Detailed instructions for the person handling this task"
+                examples={["Check creator's portfolio quality", "Verify brand alignment", "Review content guidelines"]}
+              >
+                <Textarea
+                  value={currentStep.config.intervention_description || ''}
+                  onChange={(e) => {
+                    if (isEditing && editingStep) {
+                      setEditingStep({
+                        ...editingStep,
+                        config: {
+                          ...editingStep.config,
+                          intervention_description: e.target.value
+                        }
+                      });
+                    }
+                  }}
+                  disabled={!isEditing}
+                  placeholder="Provide detailed instructions..."
+                  rows={3}
+                />
+              </FieldWithHelp>
+
+              <FieldWithHelp
+                label="Priority"
+                help="How urgent is this intervention"
+                examples={["Low - can wait", "High - needs quick attention", "Urgent - immediate action required"]}
+              >
                 <Select
-                  value={currentStep.config.action_inputs?.template_id as string || ''}
+                  value={currentStep.config.priority || 'medium'}
                   onValueChange={(value) => {
                     if (isEditing && editingStep) {
                       setEditingStep({
                         ...editingStep,
                         config: {
                           ...editingStep.config,
-                          action_inputs: {
-                            ...editingStep.config.action_inputs,
-                            template_id: value
-                          }
+                          priority: value as 'low' | 'medium' | 'high' | 'urgent'
                         }
                       });
                     }
@@ -223,122 +703,58 @@ export default function WorkflowBuilder({ workflow, brandId, onSave }: WorkflowB
                   disabled={!isEditing}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select a template" />
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {messageTemplates.filter(t => t.template_type === 'email').map((template) => (
-                      <SelectItem key={template.id} value={template.id}>
-                        {template.name}
-                      </SelectItem>
-                    ))}
+                    <SelectItem value="low">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                        <span>Low Priority</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="medium">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-yellow-500"></div>
+                        <span>Medium Priority</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="high">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-orange-500"></div>
+                        <span>High Priority</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="urgent">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                        <span>Urgent</span>
+                      </div>
+                    </SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
-            )}
-          </div>
-        );
-
-      case 'wait':
-        return (
-          <div className="space-y-4">
-            <div>
-              <Label>Wait Duration (seconds)</Label>
-              <Input
-                type="number"
-                value={currentStep.config.wait_duration || ''}
-                onChange={(e) => {
-                  if (isEditing && editingStep) {
-                    setEditingStep({
-                      ...editingStep,
-                      config: {
-                        ...editingStep.config,
-                        wait_duration: parseInt(e.target.value)
-                      }
-                    });
-                  }
-                }}
-                disabled={!isEditing}
-              />
-            </div>
-          </div>
-        );
-
-      case 'human_intervention':
-        return (
-          <div className="space-y-4">
-            <div>
-              <Label>Intervention Title</Label>
-              <Input
-                value={currentStep.config.intervention_title || ''}
-                onChange={(e) => {
-                  if (isEditing && editingStep) {
-                    setEditingStep({
-                      ...editingStep,
-                      config: {
-                        ...editingStep.config,
-                        intervention_title: e.target.value
-                      }
-                    });
-                  }
-                }}
-                disabled={!isEditing}
-              />
-            </div>
-            <div>
-              <Label>Description</Label>
-              <Textarea
-                value={currentStep.config.intervention_description || ''}
-                onChange={(e) => {
-                  if (isEditing && editingStep) {
-                    setEditingStep({
-                      ...editingStep,
-                      config: {
-                        ...editingStep.config,
-                        intervention_description: e.target.value
-                      }
-                    });
-                  }
-                }}
-                disabled={!isEditing}
-              />
-            </div>
-            <div>
-              <Label>Priority</Label>
-              <Select
-                value={currentStep.config.priority || 'medium'}
-                onValueChange={(value) => {
-                  if (isEditing && editingStep) {
-                    setEditingStep({
-                      ...editingStep,
-                      config: {
-                        ...editingStep.config,
-                        priority: value as 'low' | 'medium' | 'high' | 'urgent'
-                      }
-                    });
-                  }
-                }}
-                disabled={!isEditing}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="low">Low</SelectItem>
-                  <SelectItem value="medium">Medium</SelectItem>
-                  <SelectItem value="high">High</SelectItem>
-                  <SelectItem value="urgent">Urgent</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+              </FieldWithHelp>
+            </FieldGroup>
           </div>
         );
 
       case 'condition':
         return (
-          <div className="space-y-4">
-            <p className="text-sm text-gray-500">
-              Condition configuration coming soon...
-            </p>
+          <div className="space-y-6">
+            <FieldGroup 
+              title="Condition Logic" 
+              description="Define branching logic"
+              icon={<GitBranch className="h-4 w-4" />}
+            >
+              <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <AlertCircle className="h-4 w-4 text-yellow-600" />
+                  <span className="font-medium text-yellow-800">Coming Soon</span>
+                </div>
+                <p className="text-sm text-yellow-700">
+                  Advanced condition builder with visual logic editor is under development.
+                </p>
+              </div>
+            </FieldGroup>
           </div>
         );
 
@@ -493,16 +909,30 @@ export default function WorkflowBuilder({ workflow, brandId, onSave }: WorkflowB
                             )}
                           </div>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteStep(step.id);
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <div className="flex gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDuplicateStep(step);
+                            }}
+                            title="Duplicate step"
+                          >
+                            <Copy className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteStep(step.id);
+                            }}
+                            title="Delete step"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -564,44 +994,13 @@ export default function WorkflowBuilder({ workflow, brandId, onSave }: WorkflowB
                 <Tabs defaultValue="config">
                   <TabsList>
                     <TabsTrigger value="config">Configuration</TabsTrigger>
-                    <TabsTrigger value="advanced">Advanced</TabsTrigger>
                     <TabsTrigger value="variables">Variables</TabsTrigger>
                   </TabsList>
                   
                   <TabsContent value="config" className="space-y-4">
-                    {renderStepConfig(selectedStep, !!editingStep)}
-                  </TabsContent>
-                  
-                  <TabsContent value="advanced" className="space-y-4">
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="retry">Retry on Failure</Label>
-                        <Switch
-                          id="retry"
-                          checked={selectedStep.config.retry_on_failure || false}
-                          disabled={!editingStep}
-                        />
-                      </div>
-                      {selectedStep.config.retry_on_failure && (
-                        <div>
-                          <Label>Retry Count</Label>
-                          <Input
-                            type="number"
-                            value={selectedStep.config.retry_count || 3}
-                            disabled={!editingStep}
-                          />
-                        </div>
-                      )}
-                      <div>
-                        <Label>Timeout (seconds)</Label>
-                        <Input
-                          type="number"
-                          value={selectedStep.config.timeout || ''}
-                          placeholder="No timeout"
-                          disabled={!editingStep}
-                        />
-                      </div>
-                    </div>
+                    <ScrollArea className="h-[calc(100vh-400px)]">
+                      {renderStepConfig(selectedStep, !!editingStep)}
+                    </ScrollArea>
                   </TabsContent>
                   
                   <TabsContent value="variables" className="space-y-4">
@@ -614,7 +1013,9 @@ export default function WorkflowBuilder({ workflow, brandId, onSave }: WorkflowB
                         {ALL_WORKFLOW_VARIABLES.map((variable) => (
                           <div
                             key={variable}
-                            className="p-2 bg-gray-50 rounded text-sm font-mono"
+                            className="p-2 bg-gray-50 rounded text-sm font-mono cursor-pointer hover:bg-gray-100"
+                            onClick={() => navigator.clipboard.writeText(`{{${variable}}}`)}
+                            title="Click to copy"
                           >
                             {variable}
                           </div>

@@ -56,4 +56,7 @@ export {
   SheetDescription,
 } from './sheet';
 export { Switch } from './switch';
-export { Checkbox } from './checkbox'; 
+export { Checkbox } from './checkbox';
+export { Collapsible, CollapsibleTrigger, CollapsibleContent } from './collapsible';
+export { ScrollArea } from './scroll-area';
+export { Progress } from './progress'; 
