@@ -37,6 +37,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { getBrandById } from '@/lib/services/powerbriefService';
 import { Brand } from '@/lib/types/powerbrief';
 import AiChatAssistant from '@/components/ugc/AiChatAssistant';
+import { useBrand } from '@/lib/context/BrandContext';
 
 // Helper to unwrap params safely
 type ParamsType = { brandId: string };
@@ -76,6 +77,7 @@ type FilterType = 'all' | 'unread' | 'active' | 'closed';
 
 export default function EmailInboxPage({ params }: { params: ParamsType | Promise<ParamsType> }) {
   const { user } = useAuth();
+  const { setSelectedBrand, brands } = useBrand();
   const [brand, setBrand] = useState<Brand | null>(null);
   const [threads, setThreads] = useState<EmailThread[]>([]);
   const [creators, setCreators] = useState<Creator[]>([]);
@@ -100,23 +102,57 @@ export default function EmailInboxPage({ params }: { params: ParamsType | Promis
   const unwrappedParams = params instanceof Promise ? React.use(params) : params;
   const { brandId } = unwrappedParams;
 
+  // Sync brand context with URL brandId
+  useEffect(() => {
+    if (brandId && brands.length > 0) {
+      const urlBrand = brands.find(b => b.id === brandId);
+      if (urlBrand) {
+        console.log('Inbox: Syncing brand context with URL brand:', urlBrand.name);
+        setSelectedBrand(urlBrand);
+      }
+    }
+  }, [brandId, brands, setSelectedBrand]);
+
   useEffect(() => {
     const fetchData = async () => {
-      if (!user?.id) return;
+      if (!user?.id || !brandId) return;
+      
+      console.log('=== INBOX BRAND SWITCH DETECTED ===');
+      console.log('New brandId:', brandId);
+      console.log('User:', user.email);
       
       try {
         setLoading(true);
         setError(null);
         
+        // Clear existing data when brand changes
+        setThreads([]);
+        setCreators([]);
+        setBrand(null);
+        setSelectedThread(null);
+        setThreadMessages([]);
+        
+        console.log('Fetching inbox data for brand:', brandId);
+        
         // Fetch brand data
         const brandData = await getBrandById(brandId);
+        console.log('Brand fetched:', brandData?.name, brandData?.id);
         setBrand(brandData);
         
-        // Fetch email threads and creators
-        await Promise.all([
+        // Fetch email threads and creators in parallel
+        const [threadsResult, creatorsResult] = await Promise.allSettled([
           fetchEmailThreads(),
           fetchCreators()
         ]);
+        
+        if (threadsResult.status === 'rejected') {
+          console.error('Failed to fetch threads:', threadsResult.reason);
+        }
+        if (creatorsResult.status === 'rejected') {
+          console.error('Failed to fetch creators:', creatorsResult.reason);
+        }
+        
+        console.log('=== INBOX BRAND SWITCH COMPLETE ===');
       } catch (err: unknown) {
         console.error('Failed to fetch data:', err);
         setError('Failed to fetch inbox data. Please try again.');
@@ -130,6 +166,7 @@ export default function EmailInboxPage({ params }: { params: ParamsType | Promis
 
   const fetchEmailThreads = async () => {
     try {
+      console.log('Fetching email threads for brand:', brandId);
       const response = await fetch(`/api/ugc/inbox?brandId=${brandId}`);
       
       if (!response.ok) {
@@ -137,6 +174,7 @@ export default function EmailInboxPage({ params }: { params: ParamsType | Promis
       }
       
       const data = await response.json();
+      console.log(`Fetched ${data.threads?.length || 0} threads for brand ${brandId}`);
       setThreads(data.threads || []);
     } catch (err) {
       console.error('Failed to fetch email threads:', err);
@@ -146,6 +184,7 @@ export default function EmailInboxPage({ params }: { params: ParamsType | Promis
 
   const fetchCreators = async () => {
     try {
+      console.log('Fetching creators for brand:', brandId);
       const response = await fetch(`/api/ugc/creators?brandId=${brandId}`);
       
       if (!response.ok) {
@@ -153,6 +192,11 @@ export default function EmailInboxPage({ params }: { params: ParamsType | Promis
       }
       
       const data = await response.json();
+      console.log(`Fetched ${data.creators?.length || 0} creators for brand ${brandId}:`, data.creators?.map((c: Creator) => ({ 
+        id: c.id, 
+        name: c.name, 
+        email: c.email 
+      })));
       setCreators(data.creators || []);
     } catch (err) {
       console.error('Failed to fetch creators:', err);
@@ -355,7 +399,7 @@ export default function EmailInboxPage({ params }: { params: ParamsType | Promis
   }
 
   return (
-    <div className="p-6 h-screen flex flex-col">
+    <div className="p-6 h-screen flex flex-col" key={brandId}>
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center">

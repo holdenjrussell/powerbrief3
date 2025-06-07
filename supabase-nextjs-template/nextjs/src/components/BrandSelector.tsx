@@ -5,11 +5,14 @@ import { ChevronDown, Building2, Settings, Users } from 'lucide-react';
 import { useBrand } from '@/lib/context/BrandContext';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
+import { useRouter, usePathname } from 'next/navigation';
 
 export default function BrandSelector() {
   const { brands, selectedBrand, setSelectedBrand, isLoading } = useBrand();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
+  const pathname = usePathname();
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -22,6 +25,39 @@ export default function BrandSelector() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  const handleBrandChange = (brand: typeof brands[0]) => {
+    console.log('Brand selector: Switching from', selectedBrand?.name, 'to', brand.name);
+    setSelectedBrand(brand);
+    setIsOpen(false);
+    
+    // If we're on a brand-specific page, navigate to the same page for the new brand
+    if (pathname.includes('/powerbrief/') && pathname.includes('/ugc-pipeline')) {
+      // Extract the path after the brandId
+      const pathParts = pathname.split('/');
+      const brandIdIndex = pathParts.indexOf('powerbrief') + 1;
+      if (brandIdIndex > 0 && pathParts[brandIdIndex]) {
+        // Replace the old brandId with the new one
+        pathParts[brandIdIndex] = brand.id;
+        const newPath = pathParts.join('/');
+        console.log('Navigating to:', newPath);
+        router.push(newPath);
+      }
+    } else if (pathname.includes('/powerbrief/') || pathname.includes('/powerframe/')) {
+      // For other brand-specific pages, update the brandId in the URL
+      const pathParts = pathname.split('/');
+      const brandIdIndex = Math.max(
+        pathParts.indexOf('powerbrief') + 1,
+        pathParts.indexOf('powerframe') + 1
+      );
+      if (brandIdIndex > 0 && pathParts[brandIdIndex]) {
+        pathParts[brandIdIndex] = brand.id;
+        const newPath = pathParts.join('/');
+        console.log('Navigating to:', newPath);
+        router.push(newPath);
+      }
+    }
+  };
 
   if (isLoading) {
     return (
@@ -49,7 +85,6 @@ export default function BrandSelector() {
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="flex items-center space-x-2 px-3 py-2 text-sm text-gray-700 hover:text-gray-900 hover:bg-gray-50 rounded-md transition-colors"
-        aria-expanded={isOpen}
         aria-haspopup="true"
       >
         <Building2 className="h-5 w-5 text-gray-500" />
@@ -68,10 +103,7 @@ export default function BrandSelector() {
               return (
                 <button
                   key={brand.id}
-                  onClick={() => {
-                    setSelectedBrand(brand);
-                    setIsOpen(false);
-                  }}
+                  onClick={() => handleBrandChange(brand)}
                   className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center justify-between ${
                     selectedBrand?.id === brand.id ? 'bg-primary-50 text-primary-700' : 'text-gray-700'
                   }`}

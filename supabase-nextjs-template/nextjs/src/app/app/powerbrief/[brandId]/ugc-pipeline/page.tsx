@@ -29,7 +29,7 @@ import {
   SelectValue,
   Input
 } from "@/components/ui";
-import { Plus, Loader2, Save, Settings2, Sparkles, Bot, Mail, FileText, Eye, CheckCircle, AlertCircle, Video, Mic, BookOpen, Zap, Heart, Coffee, Edit, Package, Users, Upload, X, Bug, Trash2 } from "lucide-react";
+import { Plus, Loader2, Save, Settings2, Sparkles, Bot, Mail, Upload, X, Bug, Trash2 } from "lucide-react";
 import { useAuth } from '@/hooks/useAuth';
 import { getBrandById } from '@/lib/services/powerbriefService';
 import { 
@@ -37,7 +37,8 @@ import {
   createUgcCreator, 
   getUgcCreatorScriptsByConceptStatus,
   getBrandUgcFields,
-  updateBrandUgcFields 
+  updateBrandUgcFields,
+  createUgcCreatorScript
 } from '@/lib/services/ugcCreatorService';
 import { UgcCreator, UgcCreatorScript, UGC_CREATOR_SCRIPT_CONCEPT_STATUSES, UGC_CREATOR_ONBOARDING_STATUSES } from '@/lib/types/ugcCreator';
 import { CreatorCard, ScriptCard, CreatorForm } from '@/components/ugc-creator';
@@ -46,7 +47,9 @@ import EmailTemplateGenerator from '@/components/ugc/EmailTemplateGenerator';
 import AiChatAssistant from '@/components/ugc/AiChatAssistant';
 import { Brand } from '@/lib/types/powerbrief';
 import { useRouter } from 'next/navigation';
-import { Badge } from "@/components/ui";
+import { createClient } from '@/utils/supabase/client';
+import { v4 as uuidv4 } from 'uuid';
+import { useBrand } from '@/lib/context/BrandContext';
 
 // Helper to unwrap params safely
 type ParamsType = { brandId: string };
@@ -54,6 +57,7 @@ type ParamsType = { brandId: string };
 export default function UgcPipelinePage({ params }: { params: ParamsType | Promise<ParamsType> }) {
   const { user } = useAuth();
   const router = useRouter();
+  const { setSelectedBrand, brands } = useBrand();
   
   // Handle params unwrapping for React 19+ compatibility
   const [brandId, setBrandId] = useState<string>('');
@@ -97,6 +101,7 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
   const [showDebugModal, setShowDebugModal] = useState(false);
   const [debugPromptData, setDebugPromptData] = useState<string>('');
   const [selectedCreators, setSelectedCreators] = useState<string[]>(['TBD']);
+  const [isAiGenerated, setIsAiGenerated] = useState<boolean>(false);
   
   // New creator form state
   const [newCreator, setNewCreator] = useState<Partial<UgcCreator>>({
@@ -136,27 +141,90 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
     unwrapParams();
   }, [params]);
 
+  // Sync brand context with URL brandId
+  useEffect(() => {
+    if (brandId && brands.length > 0) {
+      const urlBrand = brands.find(b => b.id === brandId);
+      if (urlBrand) {
+        console.log('Syncing brand context with URL brand:', urlBrand.name);
+        setSelectedBrand(urlBrand);
+      }
+    }
+  }, [brandId, brands, setSelectedBrand]);
+
   useEffect(() => {
     const fetchBrandData = async () => {
-      if (!user?.id) return;
+      if (!user?.id || !brandId) return;
+      
+      console.log('=== BRAND SWITCH DETECTED ===');
+      console.log('New brandId:', brandId);
+      console.log('User:', user.email);
       
       try {
         setLoading(true);
         setError(null);
         
+        // Clear ALL existing data when brand changes
+        setCreators([]);
+        setScripts([]);
+        setBrand(null);
+        setTitle('');
+        setScriptContent({
+          scene_start: '',
+          segments: [{ segment: 'Initial Approach', script: '', visuals: '' }],
+          scene_end: ''
+        });
+        setBRollShotList([]);
+        setSelectedCreators(['TBD']);
+        
+        // Reset to first status when brand changes
+        const firstStatus = UGC_CREATOR_SCRIPT_CONCEPT_STATUSES[0];
+        setActiveStatus(firstStatus);
+        
+        // Add a small delay to ensure state is cleared
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
         // Fetch brand data
+        console.log('Fetching brand data for:', brandId);
         const brandData = await getBrandById(brandId);
+        console.log('Brand fetched:', brandData?.name, brandData?.id);
         setBrand(brandData);
         
-        // Fetch creators
+        // Fetch creators with explicit brand filtering
+        console.log('Fetching creators for brand:', brandId);
         const creatorData = await getUgcCreators(brandId);
+        console.log(`Fetched ${creatorData.length} creators for brand ${brandId}:`, creatorData.map(c => ({ 
+          id: c.id, 
+          name: c.name, 
+          email: c.email, 
+          brand_id: c.brand_id 
+        })));
+        
+        // Verify all creators belong to this brand
+        const wrongBrandCreators = creatorData.filter(c => c.brand_id !== brandId);
+        if (wrongBrandCreators.length > 0) {
+          console.error('ERROR: Found creators from wrong brand:', wrongBrandCreators);
+        }
+        
         setCreators(creatorData);
         
-        // Fetch scripts based on view and status
-        if (activeView === 'concept') {
-          const scriptsData = await getUgcCreatorScriptsByConceptStatus(brandId, activeStatus);
-          setScripts(scriptsData);
+        // Fetch scripts for the first status
+        console.log('Fetching scripts for brand:', brandId, 'status:', firstStatus);
+        const scriptsData = await getUgcCreatorScriptsByConceptStatus(brandId, firstStatus);
+        console.log(`Fetched ${scriptsData.length} scripts for brand ${brandId}:`, scriptsData.map(s => ({
+          id: s.id,
+          title: s.title,
+          brand_id: s.brand_id,
+          concept_status: s.concept_status
+        })));
+        
+        // Verify all scripts belong to this brand
+        const wrongBrandScripts = scriptsData.filter(s => s.brand_id !== brandId);
+        if (wrongBrandScripts.length > 0) {
+          console.error('ERROR: Found scripts from wrong brand:', wrongBrandScripts);
         }
+        
+        setScripts(scriptsData);
         
         // Fetch UGC brand settings
         try {
@@ -166,16 +234,13 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
             setGuideDescription(ugcFields.ugc_guide_description || '');
             setFilmingInstructions(ugcFields.ugc_filming_instructions || '');
             setDefaultSystemInstructions(ugcFields.ugc_default_system_instructions || '');
-            
-            // Initialize system instructions with default value if not already set
-            if (!systemInstructions && ugcFields.ugc_default_system_instructions) {
-              setSystemInstructions('');
-            }
           }
         } catch (settingsError) {
           console.error('Error fetching UGC settings:', settingsError);
           // Continue anyway, we can still show the UI
         }
+        
+        console.log('=== BRAND SWITCH COMPLETE ===');
       } catch (err: unknown) {
         console.error('Failed to fetch data:', err);
         setError('Failed to fetch data. Please try again.');
@@ -184,10 +249,27 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
       }
     };
 
-    if (brandId) {
     fetchBrandData();
+  }, [user?.id, brandId]); // Remove activeStatus from dependencies
+
+  // Separate useEffect for status changes within the same brand
+  useEffect(() => {
+    const fetchScriptsForStatus = async () => {
+      if (!brandId || !activeStatus) return;
+      
+      try {
+        const scriptsData = await getUgcCreatorScriptsByConceptStatus(brandId, activeStatus);
+        setScripts(scriptsData);
+      } catch (err) {
+        console.error('Failed to fetch scripts for status:', activeStatus, err);
+      }
+    };
+
+    // Only fetch if we have a brand already loaded (to avoid double fetch on initial load)
+    if (brand) {
+      fetchScriptsForStatus();
     }
-  }, [user?.id, brandId, activeView, activeStatus, systemInstructions]);
+  }, [activeStatus, brandId, brand]);
 
   // Don't render anything until params are resolved
   if (paramsPending || !brandId) {
@@ -202,16 +284,16 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
   const handleRefresh = () => {
     // Trigger a data refresh
     const fetchData = async () => {
-      if (!user?.id) return;
+      if (!user?.id || !brandId) return;
       
       try {
+        // Refresh creators
         const creatorData = await getUgcCreators(brandId);
         setCreators(creatorData);
         
-        if (activeView === 'concept') {
-          const scriptsData = await getUgcCreatorScriptsByConceptStatus(brandId, activeStatus);
-          setScripts(scriptsData);
-        }
+        // Refresh scripts for current status
+        const scriptsData = await getUgcCreatorScriptsByConceptStatus(brandId, activeStatus);
+        setScripts(scriptsData);
       } catch (err) {
         console.error('Failed to refresh data:', err);
       }
@@ -294,7 +376,7 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
     }
   };
 
-  const handleViewChange = (view: 'concept' | 'script' | 'creator' | 'settings' | 'ai-agent' | 'inbox' | 'templates') => {
+  const handleViewChange = async (view: 'concept' | 'script' | 'creator' | 'settings' | 'ai-agent' | 'inbox' | 'templates') => {
     if (view === 'inbox') {
       // Redirect to the dedicated inbox page
       router.push(`/app/powerbrief/${brandId}/ugc-pipeline/inbox`);
@@ -302,8 +384,15 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
     }
     
     setActiveView(view);
-    if (view === 'concept') {
-      setActiveStatus(UGC_CREATOR_SCRIPT_CONCEPT_STATUSES[0]);
+    
+    // If switching to concept view, fetch scripts for the current status
+    if (view === 'concept' && brandId) {
+      try {
+        const scriptsData = await getUgcCreatorScriptsByConceptStatus(brandId, activeStatus);
+        setScripts(scriptsData);
+      } catch (err) {
+        console.error('Failed to fetch scripts for concept view:', err);
+      }
     }
   };
 
@@ -339,8 +428,526 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
     }
   };
 
+  // Script generation handler
+  const handleGenerateScript = async () => {
+    if (!user?.id || !brand) return;
+    
+    try {
+      setGeneratingScript(true);
+      setError(null);
+      
+      // Format reference video data if it exists
+      let referenceVideoData: { url: string; type: string } | undefined;
+      if (referenceVideo) {
+        // Upload the video first
+        const uploadedUrl = await uploadVideoForAI(referenceVideo);
+        referenceVideoData = {
+          url: uploadedUrl,
+          type: referenceVideo.type
+        };
+      }
+      
+      // Send generation request to AI endpoint
+      const response = await fetch('/api/ai/generate-ugc-script', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          brandContext: {
+            brand_info_data: brand.brand_info_data || {},
+            target_audience_data: brand.target_audience_data || {},
+            competition_data: brand.competition_data || {},
+            ugc_company_description: companyDescription,
+            ugc_filming_instructions: filmingInstructions
+          },
+          customPrompt: aiCustomPrompt,
+          systemInstructions,
+          referenceVideo: referenceVideoData,
+          hookOptions: {
+            type: hookType,
+            count: hookCount
+          }
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to generate script (HTTP ${response.status})`);
+      }
+      
+      const data = await response.json();
+      
+      // Update state with generated script content
+      setScriptContent(data.script_content);
+      setBRollShotList(data.b_roll_shot_list || []);
+      
+      if (data.hook_body) {
+        setHookBody(data.hook_body);
+      }
+      
+      if (data.cta) {
+        setCta(data.cta);
+      }
+      
+      // Set the AI generated flag to true
+      setIsAiGenerated(true);
+      
+    } catch (err: unknown) {
+      console.error('Failed to generate script:', err);
+      const errMsg = err instanceof Error ? err.message : 'Unknown error';
+      setError(`Failed to generate script: ${errMsg}`);
+    } finally {
+      setGeneratingScript(false);
+    }
+  };
+
+  // Upload video for AI analysis
+  const uploadVideoForAI = async (file: File): Promise<string> => {
+    try {
+      setUploadingVideo(true);
+      
+      // Create Supabase client for direct upload
+      const supabase = createClient();
+      
+      // Generate a unique filename to avoid collisions
+      const fileExtension = file.name.split('.').pop();
+      const fileName = `temp-videos/${uuidv4()}.${fileExtension}`;
+      
+      console.log(`Direct uploading video: ${file.name} (${file.size} bytes) to ${fileName}`);
+      
+      // Direct upload to Supabase Storage (bypasses Next.js API entirely)
+      const { data, error } = await supabase.storage
+        .from('powerbrief-media')
+        .upload(fileName, file, {
+          contentType: file.type,
+          cacheControl: '3600',
+          upsert: false
+        });
+      
+      if (error) {
+        console.error('Direct Supabase upload error:', error);
+        throw new Error(`Upload failed: ${error.message}`);
+      }
+      
+      if (!data) {
+        throw new Error('No data returned from upload');
+      }
+      
+      // Get the public URL for the uploaded file
+      const { data: { publicUrl } } = supabase.storage
+        .from('powerbrief-media')
+        .getPublicUrl(fileName);
+      
+      if (!publicUrl) {
+        throw new Error('No public URL generated for uploaded file');
+      }
+      
+      console.log('Direct video upload successful:', publicUrl);
+      return publicUrl;
+      
+    } catch (error) {
+      console.error('Error in direct video upload:', error);
+      throw error;
+    } finally {
+      setUploadingVideo(false);
+    }
+  };
+
+  // Script submission handler
+  const handleSubmitScript = async () => {
+    if (!brand || !title || selectedCreators.length === 0) return;
+    
+    if (!creativeStrategist || creativeStrategist.trim() === '') {
+      setError('Please provide a creative strategist for the script.');
+      return;
+    }
+    
+    try {
+      setSaving(true);
+      setError(null);
+      
+      // Create script for TBD or each selected creator
+      const scriptsToCreate = selectedCreators.includes('TBD') 
+        ? [{ creator_id: 'TBD', name: 'TBD' }]
+        : selectedCreators.map(creatorId => {
+            const creator = creators.find(c => c.id === creatorId);
+            return { creator_id: creatorId, name: creator?.name || creator?.email || 'Unknown' };
+          });
+      
+      for (const creatorInfo of scriptsToCreate) {
+        // Prepare script object with required fields - submit for approval
+        const scriptData: Omit<UgcCreatorScript, 'id' | 'created_at' | 'updated_at'> = {
+          creator_id: creatorInfo.creator_id,
+          user_id: user?.id || '',
+          brand_id: brand.id,
+          title,
+          script_content: scriptContent,
+          status: 'PENDING_APPROVAL',
+          concept_status: 'Script Approval',
+          b_roll_shot_list: bRollShotList,
+          hook_type: hookType,
+          hook_count: hookCount,
+          hook_body: hookBody || null,
+          cta: cta || null,
+          company_description: companyDescription || null,
+          guide_description: guideDescription || null,
+          filming_instructions: filmingInstructions || null,
+          ai_custom_prompt: aiCustomPrompt || null,
+          system_instructions: systemInstructions || null,
+          media_type: 'video',
+          inspiration_video_url: null,
+          inspiration_video_notes: null,
+          is_ai_generated: isAiGenerated,
+          creative_strategist: creativeStrategist || null,
+          creator_footage: null,
+          payment_status: 'Pending',
+          deposit_amount: 0,
+          final_payment_amount: 0
+        };
+        
+        // If we have a reference video, upload it and add the URL to the metadata
+        if (referenceVideo) {
+          const uploadedUrl = await uploadVideoForAI(referenceVideo);
+          scriptData.creator_footage = uploadedUrl;
+          
+          // Use the reference video as the inspiration video
+          scriptData.inspiration_video_url = uploadedUrl;
+          scriptData.inspiration_video_notes = referenceVideoNotes || null;
+        }
+        
+        // Save script to database
+        await createUgcCreatorScript(scriptData);
+      }
+      
+      // Reset form after successful save
+      setTitle('');
+      setCreativeStrategist('');
+      setScriptContent({
+        scene_start: '',
+        segments: [{ segment: 'Initial Approach', script: '', visuals: '' }],
+        scene_end: ''
+      });
+      setHookBody('');
+      setCta('');
+      setBRollShotList([]);
+      setSelectedCreators(['TBD']);
+      setAiCustomPrompt('');
+      setReferenceVideoNotes('');
+      setIsAiGenerated(false);
+      handleRemoveVideo();
+      
+      // Switch to concept view and refresh scripts
+      setActiveView('concept');
+      setActiveStatus('Script Approval'); // Switch to Script Approval status
+      
+      // Refresh the scripts to show the newly created ones
+      try {
+        const scriptsData = await getUgcCreatorScriptsByConceptStatus(brandId, 'Script Approval');
+        setScripts(scriptsData);
+      } catch (refreshError) {
+        console.error('Failed to refresh scripts after creation:', refreshError);
+      }
+      
+    } catch (err: unknown) {
+      console.error('Failed to save script:', err);
+      setError('Failed to save script. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Debug prompt handler
+  const handleShowDebugPrompt = () => {
+    const promptData = {
+      title,
+      creativeStrategist,
+      aiCustomPrompt,
+      hookType,
+      hookCount,
+      referenceVideo: referenceVideo?.name,
+      referenceVideoNotes,
+      systemInstructions,
+      companyDescription,
+      guideDescription,
+      filmingInstructions
+    };
+    
+    setDebugPromptData(JSON.stringify(promptData, null, 2));
+    setShowDebugModal(true);
+  };
+
+  // Script segment handlers
+  const handleAddSegment = () => {
+    setScriptContent(prev => ({
+      ...prev,
+      segments: [...(prev.segments || []), { segment: 'New Segment', script: '', visuals: '' }]
+    }));
+  };
+
+  const handleUpdateSegment = (index: number, field: 'segment' | 'script' | 'visuals', value: string) => {
+    setScriptContent(prev => ({
+      ...prev,
+      segments: prev.segments?.map((seg, i) => 
+        i === index ? { ...seg, [field]: value } : seg
+      ) || []
+    }));
+  };
+
+  const handleRemoveSegment = (index: number) => {
+    setScriptContent(prev => ({
+      ...prev,
+      segments: prev.segments?.filter((_, i) => i !== index) || []
+    }));
+  };
+
+  // B-roll shot handlers
+  const handleAddBRollShot = () => {
+    setBRollShotList(prev => [...prev, '']);
+  };
+
+  const handleUpdateBRollShot = (index: number, value: string) => {
+    setBRollShotList(prev => prev.map((shot, i) => i === index ? value : shot));
+  };
+
+  const handleRemoveBRollShot = (index: number) => {
+    setBRollShotList(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // Creator selection handler
+  const handleCreatorSelection = (creatorId: string) => {
+    setSelectedCreators(prev => {
+      if (prev.includes(creatorId)) {
+        return prev.filter(id => id !== creatorId);
+      } else {
+        return [...prev, creatorId];
+      }
+    });
+  };
+
+  // Handle status change in concept view
+  const handleStatusChange = async (status: string) => {
+    setActiveStatus(status);
+    // The useEffect will handle fetching the scripts for the new status
+  };
+
+  // Script approval handlers
+  const handleApproveScript = async (scriptId: string) => {
+    try {
+      const response = await fetch(`/api/ugc/scripts/${scriptId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          status: 'APPROVED',
+          concept_status: 'Creator Assignment' 
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Server error: ${response.status}`);
+      }
+      
+      // Refresh scripts for current status
+      handleRefresh();
+      
+    } catch (err) {
+      console.error('Failed to approve script:', err);
+      setError(`Failed to approve script: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
+  };
+
+  const handleRequestRevision = async (scriptId: string, revisionNotes: string) => {
+    try {
+      const response = await fetch(`/api/ugc/scripts/${scriptId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          status: 'REVISION_REQUESTED',
+          concept_status: 'Script Approval',
+          revision_notes: revisionNotes
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Server error: ${response.status}`);
+      }
+      
+      // Refresh scripts for current status
+      handleRefresh();
+      
+    } catch (err) {
+      console.error('Failed to request revision:', err);
+      setError(`Failed to request revision: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
+  };
+
+  const handleAssignCreators = async (scriptId: string, creatorIds: string[]) => {
+    try {
+      const response = await fetch(`/api/ugc/scripts/${scriptId}/assign`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ creatorIds })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Server error: ${response.status}`);
+      }
+      
+      // Refresh scripts for current status
+      handleRefresh();
+      
+    } catch (err) {
+      console.error('Failed to assign creators:', err);
+      setError(`Failed to assign creators: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
+  };
+
+  const handleCreatorApprove = async (scriptId: string) => {
+    try {
+      const response = await fetch(`/api/ugc/scripts/${scriptId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          status: 'CREATOR_APPROVED',
+          concept_status: 'Creator Shooting' 
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Server error: ${response.status}`);
+      }
+      
+      // Refresh scripts for current status
+      handleRefresh();
+      
+    } catch (err) {
+      console.error('Failed to approve creator:', err);
+      setError(`Failed to approve creator: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
+  };
+
+  const handleCreatorReject = async (scriptId: string, rejectionNotes: string) => {
+    try {
+      const response = await fetch(`/api/ugc/scripts/${scriptId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          status: 'CREATOR_REASSIGNMENT',
+          concept_status: 'Creator Assignment',
+          revision_notes: rejectionNotes
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Server error: ${response.status}`);
+      }
+      
+      // Refresh scripts for current status
+      handleRefresh();
+      
+    } catch (err) {
+      console.error('Failed to reject creator:', err);
+      setError(`Failed to reject creator: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
+  };
+
+  const handleApproveContent = async (scriptId: string) => {
+    try {
+      const response = await fetch(`/api/ugc/scripts/${scriptId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          status: 'COMPLETED',
+          concept_status: 'To Edit' 
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Server error: ${response.status}`);
+      }
+      
+      // Refresh scripts for current status
+      handleRefresh();
+      
+    } catch (err) {
+      console.error('Failed to approve content:', err);
+      setError(`Failed to approve content: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
+  };
+
+  const handleRequestContentRevision = async (scriptId: string, revisionNotes: string) => {
+    try {
+      const response = await fetch(`/api/ugc/scripts/${scriptId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          status: 'CONTENT_REVISION_REQUESTED',
+          concept_status: 'Creator Shooting',
+          revision_notes: revisionNotes
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Server error: ${response.status}`);
+      }
+      
+      // Refresh scripts for current status
+      handleRefresh();
+      
+    } catch (err) {
+      console.error('Failed to request content revision:', err);
+      setError(`Failed to request content revision: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
+  };
+
+  const handleSubmitContent = async (scriptId: string, contentLink: string) => {
+    try {
+      const response = await fetch(`/api/ugc/scripts/${scriptId}/submit-content`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ final_content_link: contentLink })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Server error: ${response.status}`);
+      }
+      
+      // Refresh scripts for current status
+      handleRefresh();
+      
+    } catch (err) {
+      console.error('Failed to submit content:', err);
+      setError(`Failed to submit content: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
+  };
+
+  const handleDeleteScript = async (scriptId: string) => {
+    try {
+      const response = await fetch(`/api/ugc/scripts/${scriptId}`, {
+        method: 'DELETE'
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Server error: ${response.status}`);
+      }
+      
+      // Refresh scripts for current status
+      handleRefresh();
+      
+    } catch (err) {
+      console.error('Failed to delete script:', err);
+      setError(`Failed to delete script: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
+  };
+
   return (
-    <div className="p-6">
+    <div className="p-6" key={brandId}>
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-bold">UGC Creator Pipeline</h1>
@@ -419,7 +1026,7 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
                         key={status}
                         variant={activeStatus === status ? "secondary" : "outline"}
                         size="sm"
-                        onClick={() => setActiveStatus(status)}
+                        onClick={() => handleStatusChange(status)}
                         className="whitespace-nowrap"
                       >
                         {status}
@@ -442,14 +1049,23 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
                     {scripts
                       .filter(script => script.concept_status === activeStatus)
                       .map((script) => (
-                      <ScriptCard 
-                        key={script.id} 
-                        script={script}
-                        brandId={brandId}
-                          showActionButtons={false}
+                        <ScriptCard 
+                          key={script.id} 
+                          script={script}
+                          brandId={brandId}
+                          showActionButtons={true}
                           creators={creators}
-                      />
-                    ))}
+                          onApprove={handleApproveScript}
+                          onRequestRevision={handleRequestRevision}
+                          onAssign={handleAssignCreators}
+                          onCreatorApprove={handleCreatorApprove}
+                          onCreatorReject={handleCreatorReject}
+                          onApproveContent={handleApproveContent}
+                          onRequestContentRevision={handleRequestContentRevision}
+                          onSubmitContent={handleSubmitContent}
+                          onDelete={handleDeleteScript}
+                        />
+                      ))}
                     
                     {scripts.filter(script => script.concept_status === activeStatus).length === 0 && (
                       <div className="col-span-full text-center py-12 text-gray-500">
@@ -566,6 +1182,7 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
                               accept="video/*"
                               onChange={handleFileChange}
                               className="hidden"
+                              aria-label="Upload reference video file"
                             />
                           </div>
                           <p className="mt-2 text-sm text-gray-500">
@@ -904,12 +1521,12 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
                   {saving ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Saving...
+                      Submitting...
                     </>
                   ) : (
                     <>
                       <Save className="mr-2 h-4 w-4" />
-                      Save Script
+                      Submit for Approval
                     </>
                   )}
                 </Button>
@@ -1114,6 +1731,24 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
           creators={creators.map(c => ({ id: c.id, name: c.name || c.email || 'Unknown', status: c.status }))}
         />
       )}
+
+      {/* Debug Modal */}
+      <Dialog open={showDebugModal} onOpenChange={setShowDebugModal}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Debug - AI Generation Prompt</DialogTitle>
+            <DialogDescription>
+              This shows the data that would be sent to the AI for script generation
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="py-4">
+            <pre className="bg-gray-100 p-4 rounded-md text-xs overflow-auto">
+              {debugPromptData}
+            </pre>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 } 

@@ -15,6 +15,7 @@ export async function getUgcCreators(brandId: string): Promise<UgcCreator[]> {
     .from('ugc_creators')
     .select('*')
     .eq('brand_id', brandId)
+    .not('brand_id', 'is', null)
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -22,12 +23,16 @@ export async function getUgcCreators(brandId: string): Promise<UgcCreator[]> {
     throw error;
   }
 
-  return (data || []).map((creator: DbUgcCreator) => ({
-    ...creator,
-    products: creator.products as string[] || [],
-    content_types: creator.content_types as string[] || [],
-    platforms: creator.platforms as string[] || []
-  }));
+  const mappedCreators = (data || []).map((creator: DbUgcCreator) => {
+    return {
+      ...creator,
+      products: creator.products as string[] || [],
+      content_types: creator.content_types as string[] || [],
+      platforms: creator.platforms as string[] || []
+    };
+  }) as UgcCreator[];
+
+  return mappedCreators;
 }
 
 export async function getUgcCreatorById(creatorId: string): Promise<UgcCreator | null> {
@@ -156,16 +161,16 @@ export async function getUgcCreatorScriptById(scriptId: string): Promise<UgcCrea
   };
 }
 
-export async function getUgcCreatorScriptsByConceptStatus(brandId: string, status: string): Promise<UgcCreatorScript[]> {
+export async function getUgcCreatorScriptsByConceptStatus(brandId: string, conceptStatus: string): Promise<UgcCreatorScript[]> {
   const { data, error } = await supabase
     .from('ugc_creator_scripts')
     .select('*, ugc_creators(*)')
     .eq('brand_id', brandId)
-    .eq('status', status)
+    .eq('concept_status', conceptStatus)
     .order('created_at', { ascending: false });
 
   if (error) {
-    console.error('Error fetching UGC creator scripts by status:', error);
+    console.error('Error fetching UGC creator scripts by concept status:', error);
     throw error;
   }
 
