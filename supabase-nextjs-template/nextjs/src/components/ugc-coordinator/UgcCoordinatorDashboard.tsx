@@ -136,20 +136,20 @@ export default function UgcCoordinatorDashboard({ brand, creators, onRefresh }: 
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'completed': return 'text-green-600 bg-green-50';
-      case 'running': return 'text-blue-600 bg-blue-50';
-      case 'failed': return 'text-red-600 bg-red-50';
-      case 'pending_human_review': return 'text-yellow-600 bg-yellow-50';
-      default: return 'text-gray-600 bg-gray-50';
+      case 'completed': return 'bg-green-100 text-green-800';
+      case 'running': return 'bg-blue-100 text-blue-800';
+      case 'failed': return 'bg-red-100 text-red-800';
+      case 'pending_human_review': return 'bg-yellow-100 text-yellow-800';
+      default: return 'bg-gray-100 text-gray-800';
     }
   };
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
-      case 'high': return 'text-red-600 bg-red-50';
-      case 'medium': return 'text-yellow-600 bg-yellow-50';
-      case 'low': return 'text-green-600 bg-green-50';
-      default: return 'text-gray-600 bg-gray-50';
+      case 'high': return 'bg-red-100 text-red-800';
+      case 'medium': return 'bg-yellow-100 text-yellow-800';
+      case 'low': return 'bg-green-100 text-green-800';
+      default: return 'bg-gray-100 text-gray-800';
     }
   };
 
