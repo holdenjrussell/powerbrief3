@@ -150,12 +150,14 @@ const getBaseNameRatioAndVersion = (filename: string): { baseName: string; detec
   
   if (detectedRatio) {
     // Remove the detected ratio pattern from the name
+    // Escape special regex characters to prevent injection issues
+    const escapedRatio = detectedRatio.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const ratioPatterns = [
-      new RegExp(`[_-]${detectedRatio}[_-]?`, 'gi'),
-      new RegExp(`\\(${detectedRatio}\\)`, 'gi'),
-      new RegExp(`\\s${detectedRatio}\\s`, 'gi'),
-      new RegExp(`\\.${detectedRatio}\\.`, 'gi'),
-      new RegExp(`${detectedRatio}$`, 'gi')
+      new RegExp(`[_-]${escapedRatio}[_-]?`, 'gi'),
+      new RegExp(`\\(${escapedRatio}\\)`, 'gi'),
+      new RegExp(`\\s${escapedRatio}\\s`, 'gi'),
+      new RegExp(`\\.${escapedRatio}\\.`, 'gi'),
+      new RegExp(`${escapedRatio}$`, 'gi')
     ];
     
     for (const pattern of ratioPatterns) {

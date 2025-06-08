@@ -105,12 +105,14 @@ const getBaseNameAndRatio = (filename: string, identifiers: string[], suffixesTo
   
   if (detectedRatio) {
     // Remove the detected ratio pattern from the name
+    // Escape special regex characters to prevent injection issues
+    const escapedRatio = detectedRatio.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const ratioPatterns = [
-      new RegExp(`[_-]${detectedRatio}[_-]?`, 'gi'),
-      new RegExp(`\\(${detectedRatio}\\)`, 'gi'),
-      new RegExp(`\\s${detectedRatio}\\s`, 'gi'),
-      new RegExp(`\\.${detectedRatio}\\.`, 'gi'),
-      new RegExp(`${detectedRatio}$`, 'gi')
+      new RegExp(`[_-]${escapedRatio}[_-]?`, 'gi'),
+      new RegExp(`\\(${escapedRatio}\\)`, 'gi'),
+      new RegExp(`\\s${escapedRatio}\\s`, 'gi'),
+      new RegExp(`\\.${escapedRatio}\\.`, 'gi'),
+      new RegExp(`${escapedRatio}$`, 'gi')
     ];
     
     for (const pattern of ratioPatterns) {
@@ -209,6 +211,20 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
   // Grouping preview state
   const [showGroupingPreview, setShowGroupingPreview] = useState(false);
   const [previewAssetGroups, setPreviewAssetGroups] = useState<UploadedAssetGroup[]>([]);
+
+  // Cleanup object URLs when component unmounts or preview groups change
+  React.useEffect(() => {
+    return () => {
+      // Cleanup object URLs to prevent memory leaks
+      previewAssetGroups.forEach(group => {
+        group.assets.forEach(asset => {
+          if (asset.supabaseUrl.startsWith('blob:')) {
+            URL.revokeObjectURL(asset.supabaseUrl);
+          }
+        });
+      });
+    };
+  }, [previewAssetGroups]);
 
   const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
@@ -342,21 +358,23 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
     // Convert to UploadedAssetGroup format for the preview component
     const assetGroups: UploadedAssetGroup[] = Object.entries(groups).map(([groupKey, files]) => ({
       baseName: groupKey,
-      assets: files.map(file => {
-        const { baseName } = getBaseNameAndRatio(file.file.name, DEFAULT_ASPECT_RATIO_IDENTIFIERS, KNOWN_FILENAME_SUFFIXES_TO_REMOVE);
-        return {
-          id: file.id,
-          name: file.file.name,
-          supabaseUrl: URL.createObjectURL(file.file), // Create temporary URL for preview
-          type: file.file.type.startsWith('image/') ? 'image' as const : 'video' as const,
-          aspectRatio: file.detectedRatio || 'unknown',
-          baseName: baseName || file.file.name,
-          uploadedAt: new Date().toISOString()
-        };
-      }),
+      assets: files
+        .filter(file => file.file.type.startsWith('image/') || file.file.type.startsWith('video/')) // Only include supported file types
+        .map(file => {
+          const { baseName } = getBaseNameAndRatio(file.file.name, DEFAULT_ASPECT_RATIO_IDENTIFIERS, KNOWN_FILENAME_SUFFIXES_TO_REMOVE);
+          return {
+            id: file.id,
+            name: file.file.name,
+            supabaseUrl: URL.createObjectURL(file.file), // Create temporary URL for preview
+            type: file.file.type.startsWith('image/') ? 'image' as const : 'video' as const,
+            aspectRatio: file.detectedRatio || 'unknown',
+            baseName: baseName || file.file.name,
+            uploadedAt: new Date().toISOString()
+          };
+        }),
       aspectRatios: [...new Set(files.map(f => f.detectedRatio).filter(Boolean))],
       uploadedAt: new Date().toISOString()
-    }));
+    })).filter(group => group.assets.length > 0); // Remove groups with no valid assets
     
     setPreviewAssetGroups(assetGroups);
     setShowGroupingPreview(true);
