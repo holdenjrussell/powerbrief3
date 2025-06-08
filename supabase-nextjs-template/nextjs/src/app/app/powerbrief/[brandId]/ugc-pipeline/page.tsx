@@ -51,6 +51,7 @@ import {
 import { UgcCreator, UgcCreatorScript, UGC_CREATOR_SCRIPT_CONCEPT_STATUSES, UGC_CREATOR_ONBOARDING_STATUSES } from '@/lib/types/ugcCreator';
 import { CreatorCard, ScriptCard, CreatorForm } from '@/components/ugc-creator';
 import UgcAiCoordinatorPanel from '@/components/ugc-coordinator/UgcAiCoordinatorPanel';
+import UgcCoordinatorDashboard from '@/components/ugc-coordinator/UgcCoordinatorDashboard';
 import EmailTemplateGenerator from '@/components/ugc/EmailTemplateGenerator';
 import { Brand } from '@/lib/types/powerbrief';
 import { createClient } from '@/utils/supabase/client';
@@ -76,7 +77,7 @@ import {
 
 // Helper to unwrap params safely
 type ParamsType = { brandId: string };
-type ViewType = 'concept' | 'script' | 'creator' | 'settings' | 'ai-agent' | 'inbox' | 'templates' | 'workflow' | 'fields';
+type ViewType = 'concept' | 'script' | 'creator' | 'settings' | 'coordinator' | 'inbox' | 'templates' | 'workflow' | 'fields' | 'statuses';
 
 const navigationItems = [
   {
@@ -99,8 +100,8 @@ const navigationItems = [
     group: 'Automation',
     icon: Bot,
     items: [
+      { view: 'coordinator' as ViewType, label: 'UGC Coordinator', icon: Bot },
       { view: 'workflow' as ViewType, label: 'Workflow Builder', icon: GitBranch },
-      { view: 'ai-agent' as ViewType, label: 'AI UGC Agent', icon: Bot },
     ],
   },
   {
@@ -108,6 +109,7 @@ const navigationItems = [
     icon: Settings2,
     items: [
       { view: 'settings' as ViewType, label: 'Pipeline Settings', icon: Settings2 },
+      { view: 'statuses' as ViewType, label: 'Creator Statuses', icon: List },
       { view: 'fields' as ViewType, label: 'Creator Fields', icon: List },
       { view: 'templates' as ViewType, label: 'Email Templates', icon: Sparkles },
     ],
@@ -1877,10 +1879,10 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
         </>
       )}
 
-      {activeView === 'ai-agent' && (
+      {activeView === 'coordinator' && (
         <>
           {brand && (
-            <UgcAiCoordinatorPanel 
+            <UgcCoordinatorDashboard 
               brand={brand} 
               creators={creators} 
               onRefresh={handleRefresh} 
@@ -1997,10 +1999,6 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
                 <TabsTrigger value="workflows">
                   <GitBranch className="h-4 w-4 mr-2" />
                   Workflows
-                </TabsTrigger>
-                <TabsTrigger value="statuses">
-                  <List className="h-4 w-4 mr-2" />
-                  Creator Statuses
                 </TabsTrigger>
                 <TabsTrigger value="templates">
                   <MessageSquare className="h-4 w-4 mr-2" />
@@ -2170,10 +2168,6 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
                 )}
               </TabsContent>
 
-              <TabsContent value="statuses">
-                <CreatorStatusManager brandId={brandId} />
-              </TabsContent>
-
               <TabsContent value="templates">
                 <MessageTemplateManager brandId={brandId} />
               </TabsContent>
@@ -2183,6 +2177,10 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
               </TabsContent>
             </Tabs>
           </div>
+      )}
+
+      {activeView === 'statuses' && (
+        <CreatorStatusManager brandId={brandId} />
       )}
 
       {activeView === 'fields' && (

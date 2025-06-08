@@ -242,7 +242,7 @@ export default function MessageTemplateManager({ brandId }: MessageTemplateManag
               Add Template
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
                 {editingTemplate ? 'Edit Template' : 'Create New Template'}
@@ -275,7 +275,7 @@ export default function MessageTemplateManager({ brandId }: MessageTemplateManag
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {Object.entries(TEMPLATE_TYPE_LABELS).map(([value, label]) => (
+                      {Object.entries(TEMPLATE_TYPE_LABELS).filter(([value]) => value !== 'notification').map(([value, label]) => (
                         <SelectItem key={value} value={value}>
                           <div className="flex items-center gap-2">
                             {TEMPLATE_TYPE_ICONS[value as MessageTemplateType]}
@@ -299,53 +299,6 @@ export default function MessageTemplateManager({ brandId }: MessageTemplateManag
                 </div>
               )}
 
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <Label>Content</Label>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowVariableHelper(!showVariableHelper)}
-                  >
-                    <Variable className="h-4 w-4 mr-1" />
-                    Variables
-                  </Button>
-                </div>
-                <Textarea
-                  id="template-content"
-                  value={formData.content}
-                  onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-                  placeholder="Enter your message content here. Use {variable_name} for dynamic content."
-                  rows={8}
-                />
-                
-                {showVariableHelper && (
-                  <div className="mt-2 p-3 bg-gray-50 rounded-lg">
-                    <p className="text-sm font-medium mb-2">Available Variables</p>
-                    <div className="space-y-2">
-                      {Object.entries(WORKFLOW_VARIABLES).map(([category, vars]) => (
-                        <div key={category}>
-                          <p className="text-xs text-gray-500 uppercase mb-1">{category}</p>
-                          <div className="flex flex-wrap gap-1">
-                            {vars.map((variable) => (
-                              <button
-                                key={variable}
-                                type="button"
-                                className="px-2 py-1 text-xs bg-white border rounded hover:bg-gray-50"
-                                onClick={() => insertVariable(variable)}
-                              >
-                                {variable}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="ai_generated">AI Generated</Label>
@@ -368,6 +321,95 @@ export default function MessageTemplateManager({ brandId }: MessageTemplateManag
                   </div>
                 )}
               </div>
+
+              {!formData.is_ai_generated && (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <Label>Content</Label>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowVariableHelper(!showVariableHelper)}
+                    >
+                      <Variable className="h-4 w-4 mr-1" />
+                      Variables
+                    </Button>
+                  </div>
+                  <Textarea
+                    id="template-content"
+                    value={formData.content}
+                    onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+                    placeholder="Enter your message content here. Use {variable_name} for dynamic content."
+                    rows={8}
+                  />
+                  
+                  {showVariableHelper && (
+                    <div className="mt-2 p-3 bg-gray-50 rounded-lg">
+                      <p className="text-sm font-medium mb-2">Available Variables</p>
+                      <div className="space-y-2">
+                        {Object.entries(WORKFLOW_VARIABLES).map(([category, vars]) => (
+                          <div key={category}>
+                            <p className="text-xs text-gray-500 uppercase mb-1">{category}</p>
+                            <div className="flex flex-wrap gap-1">
+                              {vars.map((variable) => (
+                                <button
+                                  key={variable}
+                                  type="button"
+                                  className="px-2 py-1 text-xs bg-white border rounded hover:bg-gray-50"
+                                  onClick={() => insertVariable(variable)}
+                                >
+                                  {variable}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {formData.is_ai_generated && (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <Label>Available Variables for AI</Label>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowVariableHelper(!showVariableHelper)}
+                    >
+                      <Variable className="h-4 w-4 mr-1" />
+                      Show Variables
+                    </Button>
+                  </div>
+                  <p className="text-sm text-gray-600 mb-2">
+                    The AI can use these variables when generating content. You don't need to write the content manually.
+                  </p>
+                  
+                  {showVariableHelper && (
+                    <div className="mt-2 p-3 bg-gray-50 rounded-lg">
+                      <p className="text-sm font-medium mb-2">Available Variables for AI</p>
+                      <div className="space-y-2">
+                        {Object.entries(WORKFLOW_VARIABLES).map(([category, vars]) => (
+                          <div key={category}>
+                            <p className="text-xs text-gray-500 uppercase mb-1">{category}</p>
+                            <div className="flex flex-wrap gap-1">
+                              {vars.map((variable) => (
+                                <Badge key={variable} variant="secondary" className="text-xs">
+                                  {variable}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="flex justify-end gap-2">
                 <Button
