@@ -1309,10 +1309,10 @@ Focus on search optimization, reader value, and conversion potential.`
                     cta_text_overlay: conceptWithSavedPrompt.cta_text_overlay || '',
                     description: conceptWithSavedPrompt.description || ''
                 },
-                media: {
-                    url: conceptWithSavedPrompt.media_url || '',
+                media: conceptWithSavedPrompt.media_url ? {
+                    url: conceptWithSavedPrompt.media_url,
                     type: conceptWithSavedPrompt.media_type || ''
-                },
+                } : undefined,
                 desiredOutputFields: conceptWithSavedPrompt.media_type === 'image' 
                     ? ['description', 'cta'] // For image briefs
                     : ['text_hook_options', 'spoken_hook_options', 'body_content_structured_scenes', 'cta_script', 'cta_text_overlay'], // For video briefs
@@ -1570,10 +1570,10 @@ Focus on search optimization, reader value, and conversion potential.`
                             cta_text_overlay: concept.cta_text_overlay || '',
                             description: concept.description || ''
                         },
-                        media: {
-                            url: concept.media_url || '',
+                        media: concept.media_url ? {
+                            url: concept.media_url,
                             type: concept.media_type || ''
-                        },
+                        } : undefined,
                         desiredOutputFields: concept.media_type === 'image' 
                             ? ['description', 'cta'] // For image briefs
                             : ['text_hook_options', 'spoken_hook_options', 'body_content_structured_scenes', 'cta_script', 'cta_text_overlay'], // For video briefs
@@ -2590,17 +2590,24 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
             
             const formData = new FormData();
             
-            // Add all PDF files to form data
-            Array.from(files).forEach((file) => {
-                if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
-                    formData.append('files', file);
-                }
+            // Filter and add only PDF files to form data
+            const pdfFiles = Array.from(files).filter((file) => 
+                file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
+            );
+            
+            if (pdfFiles.length === 0) {
+                setError('No PDF files found in the selection. Please select PDF files only.');
+                return;
+            }
+            
+            pdfFiles.forEach((file) => {
+                formData.append('files', file);
             });
             
             formData.append('brandId', brandId);
             formData.append('batchId', batchId);
             
-            console.log(`Importing ${files.length} PDF files...`);
+            console.log(`Importing ${pdfFiles.length} PDF files...`);
             
             const response = await fetch('/api/powerbrief/import-concept-from-pdf', {
                 method: 'POST',
@@ -2629,6 +2636,30 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                     // Create a new concept with the extracted data
                     const conceptNumber = startingConceptNumber + concepts.length + i;
                     
+                    // Process text hooks with proper structure
+                    const textHooks = result.conceptData.text_hook_options ? 
+                        result.conceptData.text_hook_options.split('\n')
+                            .map((hook: string, index: number) => hook.trim())
+                            .filter((hook: string) => hook.length > 0)
+                            .map((hook: string, index: number) => ({
+                                id: uuidv4(),
+                                title: `Hook ${index + 1}`,
+                                content: hook,
+                                is_active: true
+                            })) : [];
+                    
+                    // Process spoken hooks with proper structure
+                    const spokenHooks = result.conceptData.spoken_hook_options ? 
+                        result.conceptData.spoken_hook_options.split('\n')
+                            .map((hook: string, index: number) => hook.trim())
+                            .filter((hook: string) => hook.length > 0)
+                            .map((hook: string, index: number) => ({
+                                id: uuidv4(),
+                                title: `Hook ${index + 1}`,
+                                content: hook,
+                                is_active: true
+                            })) : [];
+                    
                     const newConcept = await createBriefConcept({
                         brief_batch_id: batch!.id,
                         user_id: user!.id,
@@ -2648,16 +2679,8 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                         media_url: null,
                         media_type: null,
                         ai_custom_prompt: null,
-                        text_hook_options: result.conceptData.text_hook_options ? 
-                            result.conceptData.text_hook_options.split('\n').map((hook: string, index: number) => ({
-                                id: uuidv4(),
-                                content: hook.trim()
-                            })).filter((hook: any) => hook.content) : [],
-                        spoken_hook_options: result.conceptData.spoken_hook_options ? 
-                            result.conceptData.spoken_hook_options.split('\n').map((hook: string, index: number) => ({
-                                id: uuidv4(),
-                                content: hook.trim()
-                            })).filter((hook: any) => hook.content) : [],
+                        text_hook_options: textHooks,
+                        spoken_hook_options: spokenHooks,
                         cta_script: result.conceptData.cta_script || null,
                         cta_text_overlay: result.conceptData.cta_text_overlay || null,
                         description: `Imported from PDF: ${result.fileName}`,

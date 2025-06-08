@@ -87,8 +87,8 @@ Brand Name: ${brand.name}
 
 IMPORTANT: Your response MUST be valid JSON and nothing else. Format:
 {
-  "text_hook_options": "Generate text hooks here as simple text with each hook on a new line. Include emojis and catchy phrases suitable for social media text titles for the video. Like a tiktok video title or title to an ig reel that appears for the first couple seconds. Do NOT use JSON formatting or escaped quotes - just plain text with line breaks between hooks.",
-  "spoken_hook_options": "Generate verbal/spoken hooks here as simple text with each hook on a new line. These are hooks meant to be spoken in videos, not written as captions. Do NOT use JSON formatting or escaped quotes - just plain text with line breaks between hooks.",
+  "text_hook_options": "Extract text hooks from the PDF here as simple text with each hook on a new line. Include any emojis and catchy phrases that are already in the document. Like existing tiktok video titles or ig reel titles. Do NOT use JSON formatting or escaped quotes - just plain text with line breaks between hooks.",
+  "spoken_hook_options": "Extract verbal/spoken hooks from the PDF here as simple text with each hook on a new line. These are hooks meant to be spoken in videos, not written as captions. Do NOT use JSON formatting or escaped quotes - just plain text with line breaks between hooks.",
   "body_content_structured_scenes": [
     {
       "scene_title": "Scene 1 (optional)",
@@ -103,10 +103,11 @@ IMPORTANT: Your response MUST be valid JSON and nothing else. Format:
 CRITICAL INSTRUCTIONS:
 - NEVER generate new content or modify the content in any way
 - Only reformat and organize existing content from the PDF
+- Extract hooks, scripts, and CTAs directly from the PDF content exactly as they appear
 - Anything related to visuals or footage goes in the "visuals" field of scenes
 - Anything related to editor instructions gets added to the "visuals" field
-- Extract hooks, scripts, and CTAs directly from the PDF content
-- If the PDF doesn't contain specific hooks or CTAs, leave those fields empty or use placeholder text from the document`;
+- If the PDF doesn't contain specific hooks or CTAs, leave those fields empty or extract similar content from the document
+- Preserve the original wording and style from the PDF`;
 
     const userPrompt = `Here's the script that you're going to be using. No need for iterations or changes. Just spit the same script back and add it in the section below.
 
