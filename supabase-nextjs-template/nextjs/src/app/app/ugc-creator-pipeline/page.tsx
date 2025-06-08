@@ -1,14 +1,22 @@
 "use client";
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useBrand } from '@/lib/context/BrandContext';
 import { Card, CardContent } from '@/components/ui/card';
 import { Building2 } from 'lucide-react';
 import { Loader2 } from 'lucide-react';
-import { redirect } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 
 export default function UGCCreatorPipelinePage() {
     const { selectedBrand, isLoading } = useBrand();
+    const router = useRouter();
+
+    // Handle redirect in useEffect for client components
+    useEffect(() => {
+        if (!isLoading && selectedBrand) {
+            router.replace(`/app/powerbrief/${selectedBrand.id}/ugc-pipeline`);
+        }
+    }, [selectedBrand, isLoading, router]);
 
     if (isLoading) {
         return (
@@ -34,6 +42,11 @@ export default function UGCCreatorPipelinePage() {
         );
     }
 
-    // Redirect to the brand-specific UGC Creator Pipeline page
-    redirect(`/app/powerbrief/${selectedBrand.id}/ugc-pipeline`);
+    // Show loading while redirecting
+    return (
+        <div className="flex justify-center items-center min-h-[200px]">
+            <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
+            <span className="ml-2 text-gray-600">Redirecting...</span>
+        </div>
+    );
 } 

@@ -52,6 +52,7 @@ import { UgcCreator, UgcCreatorScript, UGC_CREATOR_SCRIPT_CONCEPT_STATUSES, UGC_
 import { CreatorCard, ScriptCard, CreatorForm } from '@/components/ugc-creator';
 import UgcAiCoordinatorPanel from '@/components/ugc-coordinator/UgcAiCoordinatorPanel';
 import EmailTemplateGenerator from '@/components/ugc/EmailTemplateGenerator';
+import AdvancedEmailInbox from '@/components/ugc/AdvancedEmailInbox';
 import { Brand } from '@/lib/types/powerbrief';
 import { createClient } from '@/utils/supabase/client';
 import { v4 as uuidv4 } from 'uuid';
@@ -476,10 +477,6 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
   };
 
   const handleViewChange = (view: ViewType) => {
-    if (view === 'inbox') {
-      router.push(`/app/powerbrief/${brandId}/ugc-pipeline/inbox`);
-      return;
-    }
     const current = new URLSearchParams(Array.from(searchParams.entries()));
     current.set('view', view);
     const search = current.toString();
@@ -1890,9 +1887,14 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
       )}
         
       {activeView === 'inbox' && (
-          <div className="text-center py-8">
-            <p>Redirecting to Creator Inbox...</p>
-          </div>
+        <>
+          {brand && (
+            <AdvancedEmailInbox 
+              brandId={brand.id}
+              brandName={brand.name}
+            />
+          )}
+        </>
       )}
         
       {activeView === 'settings' && (

@@ -236,7 +236,7 @@ export default function CreatorFieldManager({ brandId }: CreatorFieldManagerProp
               <div className="flex items-center gap-2 mb-2">
                 <h4 className="font-medium">{field.field_label}</h4>
                 {field.is_protected && (
-                  <Shield className="h-4 w-4 text-amber-500" title="Protected field" />
+                  <Shield className="h-4 w-4 text-amber-500" />
                 )}
                 {field.is_required && (
                   <Badge variant="secondary" className="text-xs">Required</Badge>

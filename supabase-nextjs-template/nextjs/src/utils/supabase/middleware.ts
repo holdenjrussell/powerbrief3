@@ -99,7 +99,13 @@ export async function updateSession(request: NextRequest) {
 
   // This will refresh session if expired - required for Server Components
   // https://supabase.com/docs/guides/auth/server-side/nextjs
-  await supabase.auth.getUser();
+  try {
+    await supabase.auth.getUser();
+  } catch (error) {
+    // Log the error but don't crash the middleware
+    console.warn('Middleware auth error:', error);
+    // Continue processing the request even if auth fails
+  }
 
   return response;
 } 
