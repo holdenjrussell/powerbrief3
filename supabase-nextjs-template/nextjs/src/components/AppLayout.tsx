@@ -126,9 +126,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
     const toggleSidebar = () => setSidebarOpen(!isSidebarOpen);
 
-    // Check if the current path is a brand-specific path
-    const isBrandPage = pathname.includes('/powerbrief/') && pathname.split('/').length > 3;
-
     const toggleSubMenu = (itemName: string) => {
         setOpenSubMenu(openSubMenu === itemName ? null : itemName);
     };
@@ -171,9 +168,25 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 {/* Navigation */}
                 <nav className="mt-4 px-2 space-y-1">
                     {navigation.map((item) => {
-                        const isActive = pathname === item.href || 
-                          (item.href === '/app/powerbrief' && pathname.startsWith('/app/powerbrief') && !isBrandPage) ||
-                          (item.subItems && item.subItems.some(subItem => pathname === subItem.href));
+                        // Enhanced active state logic to handle brand-specific routes
+                        let isActive = false;
+                        
+                        if (item.href === pathname) {
+                            // Exact match
+                            isActive = true;
+                        } else if (item.href === '/app/ugc-creator-pipeline' && pathname.includes('/ugc-pipeline')) {
+                            // UGC Pipeline - matches both standalone and brand-specific routes (check this FIRST)
+                            isActive = true;
+                        } else if (item.href === '/app/powerbrief' && pathname.startsWith('/app/powerbrief') && !pathname.includes('/ugc-pipeline')) {
+                            // PowerBrief - includes brand-specific pages but excludes UGC pipeline pages
+                            isActive = true;
+                        } else if (item.href === '/app/powerframe' && pathname.startsWith('/app/powerframe')) {
+                            // PowerFrame - includes both main page and brand-specific pages
+                            isActive = true;
+                        } else if (item.subItems && item.subItems.some(subItem => pathname === subItem.href)) {
+                            // Sub-menu items
+                            isActive = true;
+                        }
                           
                         return (
                             <div key={item.name}>
@@ -181,7 +194,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                                     <>
                                         <button
                                             onClick={() => toggleSubMenu(item.name)}
-                                            aria-expanded={openSubMenu === item.name ? "true" : "false"}
                                             className={`group flex items-center w-full px-2 py-2 text-sm font-medium rounded-md ${
                                                 isActive
                                                     ? 'bg-primary-50 text-primary-600'
@@ -278,7 +290,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                             <button
                                 onClick={() => setUserDropdownOpen(!isUserDropdownOpen)}
                                 className="flex items-center space-x-2 text-sm text-gray-700 hover:text-gray-900"
-                                aria-expanded={isUserDropdownOpen ? "true" : "false"}
                                 aria-haspopup="true"
                             >
                                 <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center">

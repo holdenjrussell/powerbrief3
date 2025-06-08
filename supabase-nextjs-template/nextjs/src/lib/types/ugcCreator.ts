@@ -28,6 +28,7 @@ export interface UgcCreator {
   zip?: string | null;
   country?: string | null;
   contacted_by?: string | null;
+  custom_fields?: Record<string, string | number | boolean | string[] | null>; // Dynamic fields configured by brands
   created_at: string;
   updated_at: string;
 }
@@ -122,6 +123,7 @@ export type DbUgcCreator = {
   zip?: string | null;
   country?: string | null;
   contacted_by?: string | null;
+  custom_fields?: Json; // Dynamic fields configured by brands
   created_at: string;
   updated_at: string;
 };

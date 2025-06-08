@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { 
   Tabs, 
   TabsContent, 
@@ -30,7 +31,13 @@ import {
   Input,
   Badge
 } from "@/components/ui";
-import { Plus, Loader2, Save, Settings2, Sparkles, Bot, Mail, Upload, X, Bug, Trash2, GitBranch, List, MessageSquare, BarChart3 } from "lucide-react";
+import { 
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Plus, Loader2, Save, Settings2, Sparkles, Bot, Mail, Upload, X, Bug, Trash2, GitBranch, List, MessageSquare, BarChart3, Users, Copy, ExternalLink, CheckCircle2, Shield, Zap, ChevronDown } from "lucide-react";
 import { useAuth } from '@/hooks/useAuth';
 import { getBrandById } from '@/lib/services/powerbriefService';
 import { 
@@ -46,7 +53,6 @@ import { CreatorCard, ScriptCard, CreatorForm } from '@/components/ugc-creator';
 import UgcAiCoordinatorPanel from '@/components/ugc-coordinator/UgcAiCoordinatorPanel';
 import EmailTemplateGenerator from '@/components/ugc/EmailTemplateGenerator';
 import { Brand } from '@/lib/types/powerbrief';
-import { useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
 import { v4 as uuidv4 } from 'uuid';
 import { useBrand } from '@/lib/context/BrandContext';
@@ -56,6 +62,7 @@ import WorkflowBuilder from '@/components/ugc/workflow/WorkflowBuilder';
 import CreatorStatusManager from '@/components/ugc/workflow/CreatorStatusManager';
 import MessageTemplateManager from '@/components/ugc/workflow/MessageTemplateManager';
 import WorkflowAnalytics from '@/components/ugc/workflow/WorkflowAnalytics';
+import CreatorFieldManager from '@/components/ugc/CreatorFieldManager';
 import {
   getWorkflowTemplates,
   createWorkflowTemplate,
@@ -69,11 +76,50 @@ import {
 
 // Helper to unwrap params safely
 type ParamsType = { brandId: string };
+type ViewType = 'concept' | 'script' | 'creator' | 'settings' | 'ai-agent' | 'inbox' | 'templates' | 'workflow' | 'fields';
+
+const navigationItems = [
+  {
+    group: 'Pipeline',
+    icon: Zap,
+    items: [
+      { view: 'concept' as ViewType, label: 'Concept View', icon: Shield },
+      { view: 'script' as ViewType, label: 'Script Creation', icon: Plus },
+    ],
+  },
+  {
+    group: 'Creators',
+    icon: Users,
+    items: [
+      { view: 'creator' as ViewType, label: 'Creator Management', icon: Users },
+      { view: 'inbox' as ViewType, label: 'Creator Inbox', icon: Mail },
+    ],
+  },
+  {
+    group: 'Automation',
+    icon: Bot,
+    items: [
+      { view: 'workflow' as ViewType, label: 'Workflow Builder', icon: GitBranch },
+      { view: 'ai-agent' as ViewType, label: 'AI UGC Agent', icon: Bot },
+    ],
+  },
+  {
+    group: 'Settings',
+    icon: Settings2,
+    items: [
+      { view: 'settings' as ViewType, label: 'Pipeline Settings', icon: Settings2 },
+      { view: 'fields' as ViewType, label: 'Creator Fields', icon: List },
+      { view: 'templates' as ViewType, label: 'Email Templates', icon: Sparkles },
+    ],
+  },
+];
 
 export default function UgcPipelinePage({ params }: { params: ParamsType | Promise<ParamsType> }) {
   const { user } = useAuth();
   const router = useRouter();
   const { setSelectedBrand, brands } = useBrand();
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
   
   // Handle params unwrapping for React 19+ compatibility
   const [brandId, setBrandId] = useState<string>('');
@@ -85,7 +131,7 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
   const [brand, setBrand] = useState<Brand | null>(null);
   const [creators, setCreators] = useState<UgcCreator[]>([]);
   const [scripts, setScripts] = useState<UgcCreatorScript[]>([]);
-  const [activeView, setActiveView] = useState<'concept' | 'script' | 'creator' | 'settings' | 'ai-agent' | 'inbox' | 'templates' | 'workflow'>('concept');
+  const activeView = (searchParams.get('view') as ViewType) || 'concept';
   const [activeStatus, setActiveStatus] = useState<string>(UGC_CREATOR_SCRIPT_CONCEPT_STATUSES[0]);
   
   // Dialog state
@@ -304,6 +350,26 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
     }
   }, [activeStatus, brandId, brand]);
 
+  useEffect(() => {
+    const loadViewData = async () => {
+      if (activeView === 'workflow' && brandId) {
+        try {
+          setIsWorkflowLoading(true);
+          const workflowData = await getWorkflowTemplates(brandId);
+          setWorkflows(workflowData);
+          if (workflowData.length > 0 && !selectedWorkflow) {
+            setSelectedWorkflow(workflowData[0]);
+          }
+        } catch (err) {
+          console.error('Failed to load workflows:', err);
+        } finally {
+          setIsWorkflowLoading(false);
+        }
+      }
+    };
+    loadViewData();
+  }, [activeView, brandId, selectedWorkflow]);
+
   // Don't render anything until params are resolved
   if (paramsPending || !brandId) {
     return (
@@ -409,40 +475,16 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
     }
   };
 
-  const handleViewChange = async (view: 'concept' | 'script' | 'creator' | 'settings' | 'ai-agent' | 'inbox' | 'templates' | 'workflow') => {
+  const handleViewChange = (view: ViewType) => {
     if (view === 'inbox') {
-      // Redirect to the dedicated inbox page
       router.push(`/app/powerbrief/${brandId}/ugc-pipeline/inbox`);
       return;
     }
-    
-    setActiveView(view);
-    
-    // If switching to concept view, fetch scripts for the current status
-    if (view === 'concept' && brandId) {
-      try {
-        const scriptsData = await getUgcCreatorScriptsByConceptStatus(brandId, activeStatus);
-        setScripts(scriptsData);
-      } catch (err) {
-        console.error('Failed to fetch scripts for concept view:', err);
-      }
-    }
-    
-    // If switching to workflow view, load workflow data
-    if (view === 'workflow' && brandId) {
-      try {
-        setIsWorkflowLoading(true);
-        const workflowData = await getWorkflowTemplates(brandId);
-        setWorkflows(workflowData);
-        if (workflowData.length > 0 && !selectedWorkflow) {
-          setSelectedWorkflow(workflowData[0]);
-        }
-      } catch (err) {
-        console.error('Failed to load workflows:', err);
-      } finally {
-        setIsWorkflowLoading(false);
-      }
-    }
+    const current = new URLSearchParams(Array.from(searchParams.entries()));
+    current.set('view', view);
+    const search = current.toString();
+    const query = search ? `?${search}` : "";
+    router.push(`${pathname}${query}`);
   };
 
   // Handle file upload for reference video
@@ -684,7 +726,7 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
       handleRemoveVideo();
       
       // Switch to concept view and refresh scripts
-      setActiveView('concept');
+      handleViewChange('concept');
       setActiveStatus('Script Approval'); // Switch to Script Approval status
       
       // Refresh the scripts to show the newly created ones
@@ -1079,34 +1121,36 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
         </Alert>
       )}
       
-      <Tabs value={activeView} onValueChange={(v: string) => handleViewChange(v as 'concept' | 'script' | 'creator' | 'settings' | 'ai-agent' | 'inbox' | 'templates' | 'workflow')}>
-        <TabsList className="mb-4">
-          <TabsTrigger value="concept">Concept View</TabsTrigger>
-          <TabsTrigger value="script">Script Creation</TabsTrigger>
-          <TabsTrigger value="creator">Creator View</TabsTrigger>
-          <TabsTrigger value="templates">
-            <Sparkles className="h-4 w-4 mr-2" />
-            Email Templates
-          </TabsTrigger>
-          <TabsTrigger value="workflow">
-            <GitBranch className="h-4 w-4 mr-2" />
-            Workflow Builder
-          </TabsTrigger>
-          <TabsTrigger value="ai-agent">
-            <Bot className="h-4 w-4 mr-2" />
-            AI UGC Agent
-          </TabsTrigger>
-          <TabsTrigger value="inbox">
-            <Mail className="h-4 w-4 mr-2" />
-            Creator Inbox
-          </TabsTrigger>
-          <TabsTrigger value="settings">
-            <Settings2 className="h-4 w-4 mr-2" />
-            Settings
-          </TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="concept">
+      <div className="flex space-x-1 border-b mb-6">
+        {navigationItems.map((group) => {
+          const isActiveGroup = group.items.some(item => item.view === activeView);
+          return (
+            <DropdownMenu key={group.group}>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className={`flex items-center gap-2 px-4 h-12 rounded-none border-b-2 text-sm transition-all duration-200 ease-in-out ${isActiveGroup ? 'border-primary text-primary font-semibold' : 'border-transparent text-gray-500 hover:bg-gray-100/50 hover:text-gray-900 font-medium'}`}>
+                  <group.icon className={`h-5 w-5 transition-colors duration-200 ease-in-out ${isActiveGroup ? 'text-primary' : 'text-gray-400'}`} />
+                  <span>{group.group}</span>
+                  <ChevronDown className="h-4 w-4 text-gray-400 ml-1" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-56">
+                {group.items.map((item) => (
+                  <DropdownMenuItem
+                    key={item.view}
+                    onClick={() => handleViewChange(item.view)}
+                    className={`cursor-pointer flex items-center gap-3 p-2 ${activeView === item.view ? 'bg-accent text-accent-foreground' : ''}`}
+                  >
+                    <item.icon className={`h-4 w-4 ${activeView === item.view ? 'text-primary' : 'text-gray-500'}`} />
+                    <span className="text-sm">{item.label}</span>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          );
+        })}
+      </div>
+      
+      {activeView === 'concept' && (
           <Card>
             <CardHeader>
               <CardTitle>Scripts by Status</CardTitle>
@@ -1175,9 +1219,9 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
+      )}
         
-        <TabsContent value="script">
+      {activeView === 'script' && (
           <Card>
             <CardHeader>
               <CardTitle>Create New UGC Script</CardTitle>
@@ -1692,9 +1736,9 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
+      )}
         
-        <TabsContent value="creator">
+      {activeView === 'creator' && (
           <Card>
             <CardHeader>
               <CardTitle>Creator Management</CardTitle>
@@ -1707,6 +1751,63 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
                 </div>
               ) : (
               <div className="space-y-6">
+                  {/* Creator Onboarding Form Link */}
+                  <Card className="bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200">
+                    <CardHeader>
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <Users className="h-5 w-5 text-blue-600" />
+                        Creator Onboarding Form
+                      </CardTitle>
+                      <CardDescription>
+                        Share this link with potential creators to collect their information and add them to your pipeline
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-2 p-3 bg-white rounded-lg border">
+                          <Input
+                            value={`${window.location.origin}/apply/${brandId}`}
+                            readOnly
+                            className="flex-1 bg-gray-50"
+                          />
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              navigator.clipboard.writeText(`${window.location.origin}/apply/${brandId}`);
+                              // You could add a toast notification here
+                            }}
+                          >
+                            <Copy className="h-4 w-4 mr-1" />
+                            Copy
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => window.open(`${window.location.origin}/apply/${brandId}`, '_blank')}
+                          >
+                            <ExternalLink className="h-4 w-4 mr-1" />
+                            Open
+                          </Button>
+                        </div>
+                        <div className="flex items-center gap-4 text-sm text-gray-600">
+                          <div className="flex items-center gap-1">
+                            <CheckCircle2 className="h-4 w-4 text-green-500" />
+                            <span>Public form - no login required</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Shield className="h-4 w-4 text-blue-500" />
+                            <span>Secure data collection</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Zap className="h-4 w-4 text-purple-500" />
+                            <span>Auto-adds to pipeline</span>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
                   {/* Creator Filter/Sort Options */}
                   <div className="flex space-x-4 mb-6">
                     <Select>
@@ -1755,7 +1856,7 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
                       <div className="col-span-full text-center py-12 text-gray-500">
                         <Sparkles className="h-12 w-12 mx-auto mb-4 opacity-50" />
                         <p>No creators found</p>
-                        <p className="text-sm">Add creators to start building your UGC pipeline</p>
+                        <p className="text-sm">Share the onboarding form above to start building your UGC pipeline</p>
                   </div>
                 )}
               </div>
@@ -1763,18 +1864,21 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
               )}
             </CardContent>
           </Card>
-        </TabsContent>
+      )}
 
-        <TabsContent value="templates">
+      {activeView === 'templates' && (
+        <>
           {brand && (
             <EmailTemplateGenerator 
               brandId={brand.id}
               brandName={brand.name}
             />
           )}
-        </TabsContent>
+        </>
+      )}
 
-        <TabsContent value="ai-agent">
+      {activeView === 'ai-agent' && (
+        <>
           {brand && (
             <UgcAiCoordinatorPanel 
               brand={brand} 
@@ -1782,16 +1886,16 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
               onRefresh={handleRefresh} 
             />
           )}
-        </TabsContent>
+        </>
+      )}
         
-        <TabsContent value="inbox">
-          {/* This will redirect to inbox page, so content won't be shown */}
+      {activeView === 'inbox' && (
           <div className="text-center py-8">
             <p>Redirecting to Creator Inbox...</p>
           </div>
-        </TabsContent>
+      )}
         
-        <TabsContent value="settings">
+      {activeView === 'settings' && (
           <Card>
             <CardHeader>
               <CardTitle>UGC Pipeline Settings</CardTitle>
@@ -1879,9 +1983,9 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
+      )}
 
-        <TabsContent value="workflow">
+      {activeView === 'workflow' && (
           <div className="space-y-6">
             <div className="mb-6">
               <h2 className="text-2xl font-semibold">UGC Workflow Automation</h2>
@@ -2079,8 +2183,15 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
               </TabsContent>
             </Tabs>
           </div>
-        </TabsContent>
-      </Tabs>
+      )}
+
+      {activeView === 'fields' && (
+        <>
+          {brandId && (
+            <CreatorFieldManager brandId={brandId} />
+          )}
+        </>
+      )}
       
       {/* Debug Modal */}
       <Dialog open={showDebugModal} onOpenChange={setShowDebugModal}>

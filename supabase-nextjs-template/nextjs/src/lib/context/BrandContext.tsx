@@ -18,7 +18,7 @@ interface BrandContextType {
 const BrandContext = createContext<BrandContextType | undefined>(undefined);
 
 export function BrandProvider({ children }: { children: ReactNode }) {
-  const { user } = useGlobal();
+  const { user, loading: userLoading } = useGlobal();
   const [brands, setBrands] = useState<Brand[]>([]);
   const [selectedBrand, setSelectedBrand] = useState<Brand | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -30,19 +30,48 @@ export function BrandProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    console.time('BrandContext:fetchBrands');
+
     try {
       setIsLoading(true);
       setError(null);
       
-      // Fetch owned brands first
-      const ownedBrands = await getBrands(user.id);
+      // Start both API calls in parallel for better performance
+      const [ownedBrandsPromise, sharedBrandsPromise] = [
+        getBrands(user.id),
+        getSharedBrands().catch(error => {
+          console.warn('Failed to fetch shared brands:', error);
+          return []; // Return empty array on failure instead of throwing
+        })
+      ];
+
+      // Wait for owned brands (critical path)
+      const ownedBrands = await ownedBrandsPromise;
+      console.log(`Fetched ${ownedBrands.length} owned brands`);
+
+      // Set owned brands immediately for faster UI response
+      setBrands(ownedBrands);
       
-      // Try to fetch shared brands, but don't fail if it doesn't work
-      let sharedBrandsList: (Brand & { isShared: boolean; shareRole: string; sharedBy?: { email: string; full_name?: string } })[] = [];
-      try {
-        const sharedBrands = await getSharedBrands();
+      // Restore previously selected brand early if possible
+      const savedBrandId = user?.id ? localStorage.getItem(`selected-brand-${user.id}`) : null;
+      if (savedBrandId && ownedBrands.length > 0) {
+        const savedBrand = ownedBrands.find(b => b.id === savedBrandId);
+        if (savedBrand) {
+          setSelectedBrand(savedBrand);
+        } else if (ownedBrands.length > 0) {
+          setSelectedBrand(ownedBrands[0]);
+        }
+      } else if (ownedBrands.length > 0) {
+        setSelectedBrand(ownedBrands[0]);
+      }
+
+      // Handle shared brands in background
+      const sharedBrands = await sharedBrandsPromise;
+      
+      if (sharedBrands.length > 0) {
+        console.log(`Processing ${sharedBrands.length} shared brands`);
         
-        // Fetch full brand data for shared brands
+        // Fetch full brand data for shared brands in parallel
         const sharedBrandPromises = sharedBrands
           .filter(sharedBrand => sharedBrand.brand?.id)
           .map(async (sharedBrand) => {
@@ -51,7 +80,6 @@ export function BrandProvider({ children }: { children: ReactNode }) {
               if (fullBrand) {
                 return {
                   ...fullBrand,
-                  // Add indicators that this is a shared brand
                   isShared: true,
                   shareRole: sharedBrand.role,
                   sharedBy: sharedBrand.shared_by_user
@@ -59,50 +87,67 @@ export function BrandProvider({ children }: { children: ReactNode }) {
               }
               return null;
             } catch (error) {
-              console.error(`Failed to fetch shared brand ${sharedBrand.brand!.id}:`, error);
+              console.warn(`Failed to fetch shared brand ${sharedBrand.brand!.id}:`, error);
               return null;
             }
           });
         
-        sharedBrandsList = (await Promise.all(sharedBrandPromises))
+        const sharedBrandsList = (await Promise.all(sharedBrandPromises))
           .filter((brand): brand is NonNullable<typeof brand> => brand !== null);
-      } catch (sharedBrandsError) {
-        console.error('Failed to fetch shared brands, continuing with owned brands only:', sharedBrandsError);
-        // Continue with just owned brands
-      }
       
-      // Combine owned and shared brands
+        // Combine and update brands
       const allBrands = [...ownedBrands, ...sharedBrandsList];
       setBrands(allBrands);
       
-      // Try to restore previously selected brand from localStorage
-      const savedBrandId = localStorage.getItem(`selected-brand-${user.id}`);
-      if (savedBrandId && allBrands.length > 0) {
+        // Re-check selected brand with full list
+        if (savedBrandId && !selectedBrand) {
         const savedBrand = allBrands.find(b => b.id === savedBrandId);
-        setSelectedBrand(savedBrand || allBrands[0]);
-      } else if (allBrands.length > 0) {
-        setSelectedBrand(allBrands[0]);
-      } else {
-        setSelectedBrand(null);
+          if (savedBrand) {
+            setSelectedBrand(savedBrand);
+          }
+        }
+        
+        console.log(`Total brands loaded: ${allBrands.length} (${ownedBrands.length} owned + ${sharedBrandsList.length} shared)`);
       }
+      
     } catch (err) {
       console.error('Failed to fetch brands:', err);
       setError('Failed to load brands');
     } finally {
       setIsLoading(false);
+      console.timeEnd('BrandContext:fetchBrands');
     }
   };
 
+  // Only start fetching when user is ready and not loading
   useEffect(() => {
+    if (!userLoading && user?.id) {
     fetchBrands();
-  }, [user?.id]);
-
-  // Save selected brand to localStorage when it changes
-  useEffect(() => {
-    if (selectedBrand && user?.id) {
-      localStorage.setItem(`selected-brand-${user.id}`, selectedBrand.id);
+    } else if (!userLoading && !user?.id) {
+      // User is not authenticated, stop loading
+      setIsLoading(false);
     }
-  }, [selectedBrand, user?.id]);
+  }, [user?.id, userLoading]);
+
+  // Optimized localStorage operation with debouncing
+  useEffect(() => {
+    if (selectedBrand?.id && user?.id) {
+      // Use requestIdleCallback for non-critical localStorage write
+      const saveToStorage = () => {
+        try {
+      localStorage.setItem(`selected-brand-${user.id}`, selectedBrand.id);
+        } catch (error) {
+          console.warn('Failed to save selected brand to localStorage:', error);
+        }
+      };
+
+      if ('requestIdleCallback' in window) {
+        requestIdleCallback(saveToStorage);
+      } else {
+        setTimeout(saveToStorage, 0);
+      }
+    }
+  }, [selectedBrand?.id, user?.id]);
 
   return (
     <BrandContext.Provider value={{ brands, selectedBrand, setSelectedBrand, isLoading, error, refreshBrands: fetchBrands }}>

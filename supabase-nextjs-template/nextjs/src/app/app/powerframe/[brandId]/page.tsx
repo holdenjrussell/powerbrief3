@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useGlobal } from '@/lib/context/GlobalContext';
 import { getBrands } from '@/lib/services/powerbriefService';
+import { useBrand } from '@/lib/context/BrandContext';
 import { Brand } from '@/lib/types/powerbrief';
 import { PageType, Wireframe } from '@/lib/types/powerframe';
 import { 
@@ -36,26 +37,54 @@ export default function BrandPowerFramePage() {
   const [pageTypes, setPageTypes] = useState<PageType[]>([]);
   const [wireframes, setWireframes] = useState<Wireframe[]>([]);
   const [loading, setLoading] = useState(true);
+  const [brandNotFound, setBrandNotFound] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedPageType, setSelectedPageType] = useState<string>('');
   const [wireframeName, setWireframeName] = useState('');
   const [creating, setCreating] = useState(false);
   
   const { user } = useGlobal();
+  const { brands, isLoading: brandsLoading, setSelectedBrand } = useBrand();
 
   useEffect(() => {
     if (!user?.id || !brandId) return;
 
     const fetchData = async () => {
       try {
-        // Fetch brand
-        const brands = await getBrands(user.id);
-        const brandData = brands.find(b => b.id === brandId);
-        if (!brandData) {
-          router.push('/app/powerframe');
+        setLoading(true);
+        setBrandNotFound(false);
+        
+        // Wait for brands to load from context first
+        if (brandsLoading) {
           return;
         }
+        
+        // First try to find brand in context
+        let brandData = brands.find(b => b.id === brandId);
+        
+        // If not found in context, try fetching directly
+        if (!brandData) {
+          try {
+            const allBrands = await getBrands(user.id);
+            brandData = allBrands.find(b => b.id === brandId);
+          } catch (error) {
+            console.error('Error fetching brands:', error);
+          }
+        }
+        
+        if (!brandData) {
+          console.log('Brand not found:', brandId);
+          setBrandNotFound(true);
+          // Add a small delay to prevent immediate redirect loop
+          setTimeout(() => {
+            router.push('/app/powerframe?from=brand');
+          }, 1000);
+          return;
+        }
+        
         setBrand(brandData);
+        // Update the selected brand in context
+        setSelectedBrand(brandData);
 
         // Fetch page types
         try {
@@ -111,7 +140,7 @@ export default function BrandPowerFramePage() {
     };
 
     fetchData();
-  }, [user?.id, brandId, router]);
+  }, [user?.id, brandId, router, brands, brandsLoading, setSelectedBrand]);
 
   const handleCreateWireframe = async () => {
     if (!wireframeName.trim()) return;
@@ -159,6 +188,19 @@ export default function BrandPowerFramePage() {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+      </div>
+    );
+  }
+
+  if (brandNotFound) {
+    return (
+      <div className="flex items-center justify-center h-full min-h-[400px]">
+        <div className="text-center">
+          <AlertTriangle className="h-12 w-12 text-amber-500 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Brand Not Found</h3>
+          <p className="text-gray-600 mb-4">The brand you&apos;re looking for doesn&apos;t exist or you don&apos;t have access to it.</p>
+          <p className="text-sm text-gray-500">Redirecting you back to PowerFrame...</p>
+        </div>
       </div>
     );
   }

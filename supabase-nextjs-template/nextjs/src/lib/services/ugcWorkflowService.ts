@@ -12,6 +12,7 @@ import {
   UgcFormSubmission,
   ExecutionContext
 } from '../types/ugcWorkflow';
+import { UgcCreator } from '@/lib/types/ugcCreator';
 
 const supabase = createSPAClient();
 
@@ -536,9 +537,49 @@ export async function getOnboardingFormConfig(brandId: string): Promise<UgcOnboa
     .eq('is_active', true)
     .single();
 
-  if (error && error.code !== 'PGRST116') { // Not found error
+  if (error && error.code !== 'PGRST116') { // PGRST116 is "not found"
     console.error('Error fetching onboarding form config:', error);
     throw error;
+  }
+
+  // If no config exists, create a default one
+  if (!data) {
+    try {
+      const defaultConfig = {
+        brand_id: brandId,
+        form_name: 'Creator Application',
+        description: 'Join our creator community and start creating amazing content!',
+        welcome_message: 'Welcome! We\'re excited to learn more about you and your content creation journey.',
+        success_message: 'Thank you for your application! We will review it and get back to you soon.',
+        is_public: true,
+        is_active: true,
+        requires_approval: true,
+        auto_assign_status: 'New Creator Submission',
+        collect_demographics: true,
+        collect_social_handles: true,
+        collect_address: true,
+        collect_portfolio: true,
+        custom_fields: [],
+        branding: {},
+        notification_emails: []
+      };
+
+      const { data: newConfig, error: createError } = await supabase
+        .from('ugc_onboarding_form_configs')
+        .insert(defaultConfig)
+        .select()
+        .single();
+
+      if (createError) {
+        console.error('Error creating default onboarding form config:', createError);
+        return null;
+      }
+
+      return newConfig;
+    } catch (error) {
+      console.error('Error creating default form config:', error);
+      return null;
+    }
   }
 
   return data;
@@ -620,24 +661,27 @@ export async function getFormSubmissions(
 
 export async function createFormSubmission(
   submission: Omit<UgcFormSubmission, 'id' | 'created_at' | 'updated_at'>
-): Promise<UgcFormSubmission> {
-  const { data, error } = await supabase
-    .from('ugc_form_submissions')
-    .insert({
-      ...submission,
-      id: uuidv4(),
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    })
-    .select()
-    .single();
+): Promise<{ submission: UgcFormSubmission; creator?: UgcCreator; message: string }> {
+  try {
+    const response = await fetch('/api/ugc/onboarding/submit', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(submission),
+    });
 
-  if (error) {
-    console.error('Error creating form submission:', error);
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to submit form');
+    }
+
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    console.error('Error submitting form:', error);
     throw error;
   }
-
-  return data;
 }
 
 export async function approveFormSubmission(

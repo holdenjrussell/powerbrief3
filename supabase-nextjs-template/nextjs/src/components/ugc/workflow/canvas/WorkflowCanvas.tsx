@@ -199,46 +199,74 @@ const WorkflowCanvasInner: React.FC<WorkflowCanvasProps> = ({
     setEdges(convertStepsToEdges(steps));
   }, [steps, convertStepsToNodes, convertStepsToEdges, setNodes, setEdges]);
 
-  // Save node positions when moved
+  // Save node positions when moved with debouncing and error handling
+  const saveTimeout = useRef<NodeJS.Timeout>();
+  
   const handleNodesChange = useCallback((changes: NodeChange[]) => {
+    // Always apply the changes to the UI first
     onNodesChange(changes);
     
-    // Save position changes
-    changes.forEach((change) => {
-      if (change.type === 'position' && 'position' in change && change.position) {
-        if (change.id === 'start') {
-          // Save start node position
-          const updatedWorkflow = {
-            ...workflow,
-            canvas_layout: {
-              ...workflow.canvas_layout,
-              start_position: change.position
-            }
-          };
-          onWorkflowUpdate(updatedWorkflow);
-        } else if (change.id === 'end') {
-          // Save end node position
-          const updatedWorkflow = {
-            ...workflow,
-            canvas_layout: {
-              ...workflow.canvas_layout,
-              end_position: change.position
-            }
-          };
-          onWorkflowUpdate(updatedWorkflow);
-        } else {
-          // Save step position
-          const step = steps.find(s => s.id === change.id);
-          if (step) {
-            const updatedStep = {
-              ...step,
-              canvas_position: change.position
+    // Process position changes with debouncing
+    const positionChanges = changes.filter(
+      (change): change is NodeChange & { type: 'position'; position: { x: number; y: number } } => 
+        change.type === 'position' && 
+        'position' in change && 
+        change.position != null &&
+        typeof change.position.x === 'number' &&
+        typeof change.position.y === 'number'
+    );
+
+    if (positionChanges.length === 0) return;
+
+    // Clear previous timeout
+    if (saveTimeout.current) {
+      clearTimeout(saveTimeout.current);
+      saveTimeout.current = undefined;
+    }
+
+    // Debounce position saving to avoid too many API calls
+    saveTimeout.current = setTimeout(async () => {
+      try {
+        for (const change of positionChanges) {
+          if (!change.id || !change.position) continue;
+
+          if (change.id === 'start') {
+            // Save start node position
+            const updatedWorkflow = {
+              ...workflow,
+              canvas_layout: {
+                ...workflow.canvas_layout,
+                start_position: change.position
+              }
             };
-            onStepUpdate(updatedStep);
+            await onWorkflowUpdate(updatedWorkflow);
+          } else if (change.id === 'end') {
+            // Save end node position
+            const updatedWorkflow = {
+              ...workflow,
+              canvas_layout: {
+                ...workflow.canvas_layout,
+                end_position: change.position
+              }
+            };
+            await onWorkflowUpdate(updatedWorkflow);
+          } else {
+            // Save step position
+            const step = steps.find(s => s.id === change.id);
+            if (step) {
+              const updatedStep = {
+                ...step,
+                canvas_position: change.position
+              };
+              await onStepUpdate(updatedStep);
+            }
           }
         }
+      } catch (error) {
+        console.error('Error saving node positions:', error);
+        // Silently fail - don't break the UI
       }
-    });
+    }, 300); // 300ms debounce
   }, [onNodesChange, workflow, steps, onWorkflowUpdate, onStepUpdate]);
 
   // Handle new connections between nodes

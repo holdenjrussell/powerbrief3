@@ -24,30 +24,44 @@ export function GlobalProvider({ children }: { children: React.ReactNode }) {
 
     useEffect(() => {
         async function loadData() {
+            console.time('GlobalContext:loadData');
+            
             try {
                 const supabase = await createSPASassClient();
                 const client = supabase.getSupabaseClient();
 
-                // Get user data
-                const { data: { user } } = await client.auth.getUser();
-                if (user) {
+                // Check if we have a cached session first
+                const { data: { session } } = await client.auth.getSession();
+                console.log('Session check:', session ? 'found' : 'none');
+
+                if (session?.user) {
+                    // We have a session, use it directly
                     setUser({
-                        email: user.email!,
-                        id: user.id,
-                        registered_at: new Date(user.created_at)
+                        email: session.user.email!,
+                        id: session.user.id,
+                        registered_at: new Date(session.user.created_at)
                     });
                 } else {
-                    // Don't throw error for unauthenticated users - just set user to null
-                    // This allows public pages to work without authentication
+                    // No session, explicitly check auth state
+                    const { data: { user: authUser } } = await client.auth.getUser();
+                    
+                    if (authUser) {
+                        setUser({
+                            email: authUser.email!,
+                            id: authUser.id,
+                            registered_at: new Date(authUser.created_at)
+                        });
+                    } else {
                     setUser(null);
+                    }
                 }
 
             } catch (error) {
-                console.error('Error loading data:', error);
-                // Set user to null on error instead of throwing
+                console.error('Error loading user data:', error);
                 setUser(null);
             } finally {
                 setLoading(false);
+                console.timeEnd('GlobalContext:loadData');
             }
         }
 

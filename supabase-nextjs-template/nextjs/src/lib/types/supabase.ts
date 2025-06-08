@@ -1965,6 +1965,74 @@ export type Database = {
           },
         ]
       }
+      ugc_creator_field_configs: {
+        Row: {
+          brand_id: string
+          created_at: string
+          display_order: number | null
+          field_description: string | null
+          field_group: string | null
+          field_label: string
+          field_name: string
+          field_options: Json | null
+          field_placeholder: string | null
+          field_type: string
+          id: string
+          is_protected: boolean | null
+          is_required: boolean | null
+          is_visible_in_editor: boolean | null
+          is_visible_on_form: boolean | null
+          updated_at: string
+          validation_rules: Json | null
+        }
+        Insert: {
+          brand_id: string
+          created_at?: string
+          display_order?: number | null
+          field_description?: string | null
+          field_group?: string | null
+          field_label: string
+          field_name: string
+          field_options?: Json | null
+          field_placeholder?: string | null
+          field_type: string
+          id?: string
+          is_protected?: boolean | null
+          is_required?: boolean | null
+          is_visible_in_editor?: boolean | null
+          is_visible_on_form?: boolean | null
+          updated_at?: string
+          validation_rules?: Json | null
+        }
+        Update: {
+          brand_id?: string
+          created_at?: string
+          display_order?: number | null
+          field_description?: string | null
+          field_group?: string | null
+          field_label?: string
+          field_name?: string
+          field_options?: Json | null
+          field_placeholder?: string | null
+          field_type?: string
+          id?: string
+          is_protected?: boolean | null
+          is_required?: boolean | null
+          is_visible_in_editor?: boolean | null
+          is_visible_on_form?: boolean | null
+          updated_at?: string
+          validation_rules?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ugc_creator_field_configs_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ugc_creator_scripts: {
         Row: {
           ai_custom_prompt: string | null
@@ -2214,6 +2282,7 @@ export type Database = {
           contract_status: string | null
           country: string | null
           created_at: string
+          custom_fields: Json | null
           email: string | null
           gender: string | null
           id: string
@@ -2244,6 +2313,7 @@ export type Database = {
           contract_status?: string | null
           country?: string | null
           created_at?: string
+          custom_fields?: Json | null
           email?: string | null
           gender?: string | null
           id?: string
@@ -2274,6 +2344,7 @@ export type Database = {
           contract_status?: string | null
           country?: string | null
           created_at?: string
+          custom_fields?: Json | null
           email?: string | null
           gender?: string | null
           id?: string
@@ -3459,6 +3530,7 @@ export type Database = {
       }
       ugc_workflow_steps: {
         Row: {
+          canvas_position: Json | null
           config: Json | null
           created_at: string
           description: string | null
@@ -3470,6 +3542,7 @@ export type Database = {
           workflow_id: string
         }
         Insert: {
+          canvas_position?: Json | null
           config?: Json | null
           created_at?: string
           description?: string | null
@@ -3481,6 +3554,7 @@ export type Database = {
           workflow_id: string
         }
         Update: {
+          canvas_position?: Json | null
           config?: Json | null
           created_at?: string
           description?: string | null
@@ -3504,6 +3578,7 @@ export type Database = {
       ugc_workflow_templates: {
         Row: {
           brand_id: string
+          canvas_layout: Json | null
           category: string
           created_at: string
           description: string | null
@@ -3516,6 +3591,7 @@ export type Database = {
         }
         Insert: {
           brand_id: string
+          canvas_layout?: Json | null
           category: string
           created_at?: string
           description?: string | null
@@ -3528,6 +3604,7 @@ export type Database = {
         }
         Update: {
           brand_id?: string
+          canvas_layout?: Json | null
           category?: string
           created_at?: string
           description?: string | null
