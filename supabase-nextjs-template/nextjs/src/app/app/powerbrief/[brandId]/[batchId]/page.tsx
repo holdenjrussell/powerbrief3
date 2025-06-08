@@ -3666,26 +3666,24 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                     </div>
                                     
                                     {/* AI Button */}
-                                    {concept.media_url && (
-                                        <Button
-                                            size="sm"
-                                            className="ml-2 bg-primary-600 text-white hover:bg-primary-700 flex items-center"
-                                            disabled={generatingConceptIds[concept.id]}
-                                            onClick={() => handleGenerateAI(concept.id)}
-                                        >
-                                            {generatingConceptIds[concept.id] ? (
-                                                <>
-                                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                                    Generating...
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <Sparkles className="h-4 w-4 mr-2" />
-                                                    Generate AI
-                                                </>
-                                            )}
-                                        </Button>
-                                    )}
+                                    <Button
+                                        size="sm"
+                                        className="ml-2 bg-primary-600 text-white hover:bg-primary-700 flex items-center"
+                                        disabled={generatingConceptIds[concept.id]}
+                                        onClick={() => handleGenerateAI(concept.id)}
+                                    >
+                                        {generatingConceptIds[concept.id] ? (
+                                            <>
+                                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                                Generating...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Sparkles className="h-4 w-4 mr-2" />
+                                                Generate AI
+                                            </>
+                                        )}
+                                    </Button>
                                     
                                     {/* Debug Prompt Button */}
                                     <Button
