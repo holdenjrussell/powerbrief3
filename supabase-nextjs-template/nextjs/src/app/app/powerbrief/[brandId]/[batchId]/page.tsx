@@ -9,7 +9,7 @@ import { Brand, BriefBatch, BriefConcept, Scene, Hook, AiBriefingRequest, ShareS
 import { 
     Sparkles, Plus, X, FileUp, Trash2, Share2, MoveUp, MoveDown, 
     Loader2, Check, Pencil, Bug, Film, FileImage, ArrowLeft, Copy, LinkIcon, Mail,
-    Filter, SortAsc, RotateCcw, ExternalLink, XCircle
+    Filter, SortAsc, RotateCcw, ExternalLink, XCircle, FileText
 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -43,6 +43,7 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
     const [generatingConceptIds, setGeneratingConceptIds] = useState<Record<string, boolean>>({});
     const fileInputRef = useRef<HTMLInputElement>(null);
     const multipleFileInputRef = useRef<HTMLInputElement>(null);
+    const pdfInputRef = useRef<HTMLInputElement>(null);
     const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const isTypingRef = useRef<Record<string, boolean>>({});
     const [localPrompts, setLocalPrompts] = useState<Record<string, string>>({});
@@ -87,6 +88,12 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
     // Prerequisites state
     const [localPrerequisites, setLocalPrerequisites] = useState<Record<string, Prerequisite[]>>({});
     const [customPrerequisiteTypes, setCustomPrerequisiteTypes] = useState<Record<string, string[]>>({});
+
+    // PDF Import state
+    const [importingPDF, setImportingPDF] = useState<boolean>(false);
+    const [pdfImportProgress, setPdfImportProgress] = useState<number>(0);
+    const [showPdfImportDialog, setShowPdfImportDialog] = useState<boolean>(false);
+    const [pdfImportResults, setPdfImportResults] = useState<any[]>([]);
 
     // Filtering and sorting state
     const [filterStatus, setFilterStatus] = useState<string>('all');
@@ -2566,21 +2573,136 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
     };
 
     const getIncompletePrerequisites = (conceptId: string): string[] => {
-        const prerequisites = localPrerequisites[conceptId] || [];
-        return prerequisites
-            .filter(prereq => !prereq.completed)
-            .map(prereq => {
-                switch (prereq.type) {
-                    case 'AI Voiceover': return 'NEEDS AI VO';
-                    case 'UGC Script': return 'NEEDS UGC SCRIPT';
-                    case 'UGC B Roll': return 'NEEDS UGC B ROLL';
-                    case 'AI UGC': return 'NEEDS AI UGC';
-                    case 'AI B Roll': return 'NEEDS AI B ROLL';
-                    case 'Stock Footage': return 'NEEDS STOCK FOOTAGE';
-                    case 'Custom Animation': return 'NEEDS ANIMATION';
-                    default: return `NEEDS ${prereq.type.toUpperCase()}`;
+        const currentPrerequisites = localPrerequisites[conceptId] || [];
+        return currentPrerequisites
+            .filter(p => !p.completed)
+            .map(p => p.type);
+    };
+
+    // PDF Import handler
+    const handlePdfImport = async (files: FileList) => {
+        if (!files || files.length === 0) return;
+        
+        try {
+            setImportingPDF(true);
+            setPdfImportProgress(0);
+            setError(null);
+            
+            const formData = new FormData();
+            
+            // Add all PDF files to form data
+            Array.from(files).forEach((file) => {
+                if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+                    formData.append('files', file);
                 }
             });
+            
+            formData.append('brandId', brandId);
+            formData.append('batchId', batchId);
+            
+            console.log(`Importing ${files.length} PDF files...`);
+            
+            const response = await fetch('/api/powerbrief/import-concept-from-pdf', {
+                method: 'POST',
+                body: formData
+            });
+            
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => null);
+                throw new Error(errorData?.error || `Failed to import PDFs (HTTP ${response.status})`);
+            }
+            
+            const results = await response.json();
+            console.log('PDF import results:', results);
+            
+            setPdfImportResults(results.results || []);
+            setShowPdfImportDialog(true);
+            
+            // Create concepts for successful imports
+            const successfulImports = results.results.filter((r: any) => r.success);
+            
+            for (let i = 0; i < successfulImports.length; i++) {
+                const result = successfulImports[i];
+                setPdfImportProgress(((i + 1) / successfulImports.length) * 100);
+                
+                try {
+                    // Create a new concept with the extracted data
+                    const conceptNumber = startingConceptNumber + concepts.length + i;
+                    
+                    const newConcept = await createBriefConcept({
+                        brief_batch_id: batch!.id,
+                        user_id: user!.id,
+                        concept_title: `PDF Import - ${result.fileName.replace('.pdf', '')}`,
+                        body_content_structured: result.conceptData.body_content_structured_scenes || [],
+                        order_in_batch: concepts.length + i,
+                        clickup_id: null,
+                        clickup_link: null,
+                        custom_links: [],
+                        strategist: null,
+                        creative_coordinator: null,
+                        video_editor: null,
+                        editor_id: null,
+                        custom_editor_name: null,
+                        status: null,
+                        date_assigned: null,
+                        media_url: null,
+                        media_type: null,
+                        ai_custom_prompt: null,
+                        text_hook_options: result.conceptData.text_hook_options ? 
+                            result.conceptData.text_hook_options.split('\n').map((hook: string, index: number) => ({
+                                id: uuidv4(),
+                                content: hook.trim()
+                            })).filter((hook: any) => hook.content) : [],
+                        spoken_hook_options: result.conceptData.spoken_hook_options ? 
+                            result.conceptData.spoken_hook_options.split('\n').map((hook: string, index: number) => ({
+                                id: uuidv4(),
+                                content: hook.trim()
+                            })).filter((hook: any) => hook.content) : [],
+                        cta_script: result.conceptData.cta_script || null,
+                        cta_text_overlay: result.conceptData.cta_text_overlay || null,
+                        description: `Imported from PDF: ${result.fileName}`,
+                        videoInstructions: brand?.default_video_instructions || '',
+                        designerInstructions: brand?.default_designer_instructions || '',
+                        product_id: null,
+                        review_status: null,
+                        review_link: null,
+                        review_comments: null,
+                        brief_revision_comments: null,
+                        hook_type: null,
+                        hook_count: null,
+                        prerequisites: []
+                    });
+                    
+                    setConcepts(prev => [...prev, newConcept]);
+                    
+                } catch (conceptError) {
+                    console.error(`Failed to create concept for ${result.fileName}:`, conceptError);
+                    setError(`Failed to create concept for ${result.fileName}. Please try again.`);
+                }
+            }
+            
+            if (results.failureCount > 0) {
+                setError(`${results.failureCount} out of ${results.totalFiles} PDFs failed to import. Check the results dialog for details.`);
+            }
+            
+        } catch (err) {
+            console.error('PDF import error:', err);
+            setError(err instanceof Error ? err.message : 'Failed to import PDFs. Please try again.');
+        } finally {
+            setImportingPDF(false);
+            setPdfImportProgress(0);
+        }
+    };
+
+    // Handle PDF file selection
+    const handlePdfFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files.length > 0) {
+            await handlePdfImport(e.target.files);
+            // Reset the input
+            if (pdfInputRef.current) {
+                pdfInputRef.current.value = '';
+            }
+        }
     };
 
     if (loading) {
@@ -2680,6 +2802,31 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                             <>
                                 <FileUp className="h-4 w-4 mr-2" />
                                 EZ UPLOAD
+                            </>
+                        )}
+                    </Button>
+                    <Button
+                        className="bg-purple-600 text-white hover:bg-purple-700"
+                        onClick={() => {
+                            console.log("PDF IMPORT: Button clicked, opening file selector");
+                            if (pdfInputRef.current) {
+                                pdfInputRef.current.click();
+                            } else {
+                                console.error("PDF IMPORT: File input reference is null");
+                                setError("Cannot open file selector. Please try again.");
+                            }
+                        }}
+                        disabled={importingPDF || generatingAI}
+                    >
+                        {importingPDF ? (
+                            <>
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                Importing...
+                            </>
+                        ) : (
+                            <>
+                                <FileText className="h-4 w-4 mr-2" />
+                                Import Concept from PDF
                             </>
                         )}
                     </Button>
@@ -4367,6 +4514,104 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                 }}
             />
             
+            {/* Hidden File Input for PDF Import */}
+            <input 
+                type="file" 
+                ref={pdfInputRef} 
+                className="hidden"
+                accept=".pdf,application/pdf"
+                multiple={true}
+                aria-label="Import concepts from PDF files"
+                title="Import concepts from PDF files"
+                onChange={handlePdfFileChange}
+            />
+
+            {/* PDF Import Progress Dialog */}
+            {importingPDF && (
+                <Dialog open={true} onOpenChange={() => {}}>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Importing Concepts from PDF</DialogTitle>
+                            <DialogDescription>
+                                Processing PDF files and extracting concept data...
+                            </DialogDescription>
+                        </DialogHeader>
+                        
+                        <div className="py-4">
+                            <div className="flex items-center space-x-2 mb-2">
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                <span className="text-sm">Processing PDFs...</span>
+                            </div>
+                            {pdfImportProgress > 0 && (
+                                <div className="w-full bg-gray-200 rounded-full h-2">
+                                    <div 
+                                        className="bg-purple-600 h-2 rounded-full transition-all duration-300" 
+                                        style={{ width: `${pdfImportProgress}%` }}
+                                    ></div>
+                                </div>
+                            )}
+                        </div>
+                    </DialogContent>
+                </Dialog>
+            )}
+
+            {/* PDF Import Results Dialog */}
+            <Dialog open={showPdfImportDialog} onOpenChange={setShowPdfImportDialog}>
+                <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle>PDF Import Results</DialogTitle>
+                        <DialogDescription>
+                            Results from importing concepts from PDF files
+                        </DialogDescription>
+                    </DialogHeader>
+                    
+                    <div className="py-4 space-y-4">
+                        {pdfImportResults.map((result, index) => (
+                            <div key={index} className={`p-4 rounded-lg border ${
+                                result.success ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'
+                            }`}>
+                                <div className="flex items-center space-x-2 mb-2">
+                                    {result.success ? (
+                                        <Check className="h-5 w-5 text-green-600" />
+                                    ) : (
+                                        <X className="h-5 w-5 text-red-600" />
+                                    )}
+                                    <span className="font-medium">{result.fileName}</span>
+                                </div>
+                                
+                                {result.success ? (
+                                    <div className="text-sm text-green-700">
+                                        <p>✅ Successfully extracted concept data</p>
+                                        <p>✅ Created new concept in batch</p>
+                                    </div>
+                                ) : (
+                                    <div className="text-sm text-red-700">
+                                        <p>❌ {result.error}</p>
+                                        {result.rawResponse && (
+                                            <details className="mt-2">
+                                                <summary className="cursor-pointer">View raw response</summary>
+                                                <pre className="mt-1 p-2 bg-gray-100 rounded text-xs overflow-x-auto">
+                                                    {result.rawResponse}
+                                                </pre>
+                                            </details>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                    
+                    <DialogFooter>
+                        <Button 
+                            variant="outline" 
+                            onClick={() => setShowPdfImportDialog(false)}
+                        >
+                            Close
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
             {/* Debug Prompt Dialog */}
             <Dialog open={showPromptDebugDialog} onOpenChange={setShowPromptDebugDialog}>
                 <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
