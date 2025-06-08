@@ -9,7 +9,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import Link from 'next/link';
-// import WebAssetBriefBuilder from '@/components/WebAssetBriefBuilder';
+import WebAssetBriefBuilder from '@/components/WebAssetBriefBuilder';
 
 // Helper to unwrap params safely
 type ParamsType = { brandId: string, batchId: string };
@@ -116,7 +116,7 @@ export default function WebAssetConceptBriefingPage({ params }: { params: Params
     const [generatingAI, setGeneratingAI] = useState<boolean>(false);
     const [generatingConceptIds, setGeneratingConceptIds] = useState<Record<string, boolean>>({});
     const [startingConceptNumber, setStartingConceptNumber] = useState<number>(1);
-    // const [populatedBriefData, setPopulatedBriefData] = useState<WebAssetBriefData | null>(null);
+    const [populatedBriefData, setPopulatedBriefData] = useState<WebAssetBriefData | null>(null);
     const [justGenerated, setJustGenerated] = useState<boolean>(false);
 
     // Extract params
@@ -445,6 +445,9 @@ Look & Feel: ${briefData.lookAndFeelKeywords.join(', ')}`,
             // Mark as just generated to show success message
             setJustGenerated(true);
 
+            // Trigger builder population with AI-generated content
+            triggerBuilderPopulation(briefData, webAssetBriefResponse);
+
         } catch (err: unknown) {
             const errorMessage = err instanceof Error ? err.message : 'Failed to generate web asset brief';
             console.error('Error generating web asset brief:', err);
@@ -456,50 +459,50 @@ Look & Feel: ${briefData.lookAndFeelKeywords.join(', ')}`,
     };
 
     // Function to populate the WebAssetBriefBuilder with AI-generated content
-    // const triggerBuilderPopulation = (originalData: WebAssetBriefData, aiResponse: AIWebAssetResponse) => {
-    //     const populatedData = {
-    //         ...originalData,
-    //         // Update primary message with AI-generated headline if available
-    //         primaryMessage: aiResponse.primary_headline || originalData.primaryMessage,
-    //         callToAction: aiResponse.cta_primary || originalData.callToAction,
-    //     };
+    const triggerBuilderPopulation = (originalData: WebAssetBriefData, aiResponse: AIWebAssetResponse) => {
+        const populatedData = {
+            ...originalData,
+            // Update primary message with AI-generated headline if available
+            primaryMessage: aiResponse.primary_headline || originalData.primaryMessage,
+            callToAction: aiResponse.cta_primary || originalData.callToAction,
+        };
 
-    //     // Trigger re-render of WebAssetBriefBuilder with populated data
-    //     setPopulatedBriefData(populatedData);
-    // };
+        // Trigger re-render of WebAssetBriefBuilder with populated data
+        setPopulatedBriefData(populatedData);
+    };
 
     // Autosave function for WebAssetBriefBuilder
-    // const handleAutoSave = async (briefData: WebAssetBriefData) => {
-    //     if (!activeConceptId) return;
+    const handleAutoSave = async (briefData: WebAssetBriefData) => {
+        if (!activeConceptId) return;
         
-    //     try {
-    //         const concept = concepts.find(c => c.id === activeConceptId);
-    //         if (!concept) return;
+        try {
+            const concept = concepts.find(c => c.id === activeConceptId);
+            if (!concept) return;
 
-    //         await updateBriefConcept({
-    //             ...concept,
-    //             ai_custom_prompt: briefData.primaryMessage,
-    //             description: `DRAFT WEB ASSET BRIEF (Auto-saved):
+            await updateBriefConcept({
+                ...concept,
+                ai_custom_prompt: briefData.primaryMessage,
+                description: `DRAFT WEB ASSET BRIEF (Auto-saved):
                 
-    // Asset Type: ${briefData.assetType}${briefData.customAssetType ? ` (${briefData.customAssetType})` : ''}
-    // Project: ${briefData.projectName}
-    // Due Date: ${briefData.dueDate}
-    // Designer: ${briefData.assignedDesigner}
+Asset Type: ${briefData.assetType}${briefData.customAssetType ? ` (${briefData.customAssetType})` : ''}
+Project: ${briefData.projectName}
+Due Date: ${briefData.dueDate}
+Designer: ${briefData.assignedDesigner}
 
-    // Primary Message: ${briefData.primaryMessage}
-    // Call to Action: ${briefData.callToAction}
-    // ${briefData.offer ? `Offer: ${briefData.offer}` : ''}
+Primary Message: ${briefData.primaryMessage}
+Call to Action: ${briefData.callToAction}
+${briefData.offer ? `Offer: ${briefData.offer}` : ''}
 
-    // Look & Feel: ${briefData.lookAndFeelKeywords.join(', ')}
+Look & Feel: ${briefData.lookAndFeelKeywords.join(', ')}
 
-    // This is a draft that auto-saves as you work. Click "Generate & Populate Brief" to run AI analysis.`
-    //         });
+This is a draft that auto-saves as you work. Click "Generate & Populate Brief" to run AI analysis.`
+            });
 
-    //         console.log('Auto-saved draft');
-    //     } catch (error) {
-    //         console.error('Auto-save failed:', error);
-    //     }
-    // };
+            console.log('Auto-saved draft');
+        } catch (error) {
+            console.error('Auto-save failed:', error);
+        }
+    };
 
     if (loading) {
         return (
@@ -710,63 +713,16 @@ Look & Feel: ${briefData.lookAndFeelKeywords.join(', ')}`,
                                 {/* Web Asset Brief Builder */}
                                 <Card>
                                     <CardContent className="p-0">
-                                        {/* TODO: Create WebAssetBriefBuilder component */}
-                                        <div className="p-6">
-                                            <div className="text-center py-8">
-                                                <Palette className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                                                <h3 className="text-lg font-medium text-gray-900 mb-2">
-                                                    Web Asset Brief Builder
-                                                </h3>
-                                                <p className="text-gray-500 mb-4">
-                                                    Interactive brief builder component coming soon...
-                                                </p>
-                                                <Button onClick={() => handleGenerateWebAssetBrief({
-                                                    assetType: 'landing_page',
-                                                    dueDate: '',
-                                                    assignedDesigner: '',
-                                                    projectName: '',
-                                                    finalAssetsFolder: '',
-                                                    primaryMessage: 'Test message',
-                                                    callToAction: 'Shop Now',
-                                                    inspirationFiles: [],
-                                                    inspirationLinks: [],
-                                                    lookAndFeelKeywords: [],
-                                                    colorPalette: {
-                                                        primary: '',
-                                                        secondary: '',
-                                                        accent: '',
-                                                        avoidColors: []
-                                                    },
-                                                    typography: {
-                                                        fontFamily: '',
-                                                        weights: [],
-                                                        styles: []
-                                                    },
-                                                    mandatoryElements: {
-                                                        logo: false,
-                                                        logoVersion: 'primary',
-                                                        productShots: false,
-                                                        legalDisclaimer: false,
-                                                        customElements: []
-                                                    },
-                                                    assetSpecs: {},
-                                                    strictlyAvoid: '',
-                                                    brandGuidelinesLink: ''
-                                                })} disabled={generatingAI}>
-                                                    {generatingAI ? (
-                                                        <>
-                                                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                                                            Generating...
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            <Sparkles className="h-4 w-4 mr-2" />
-                                                            Test Generate Brief
-                                                        </>
-                                                    )}
-                                                </Button>
-                                            </div>
-                                        </div>
+                                        <WebAssetBriefBuilder
+                                            onGenerate={handleGenerateWebAssetBrief}
+                                            onAutoSave={handleAutoSave}
+                                            isGenerating={generatingAI}
+                                            populatedData={populatedBriefData}
+                                            onDataPopulated={() => {
+                                                setPopulatedBriefData(null);
+                                                setJustGenerated(false);
+                                            }}
+                                        />
                                     </CardContent>
                                 </Card>
 
