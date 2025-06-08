@@ -37,7 +37,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Plus, Loader2, Save, Settings2, Sparkles, Bot, Mail, Upload, X, Bug, Trash2, GitBranch, List, MessageSquare, BarChart3, Users, Copy, ExternalLink, CheckCircle2, Shield, Zap, ChevronDown } from "lucide-react";
+import { Plus, Loader2, Save, Settings2, Sparkles, Bot, Mail, Upload, X, Bug, Trash2, GitBranch, List, BarChart3, Users, Copy, ExternalLink, CheckCircle2, Shield, Zap, ChevronDown } from "lucide-react";
 import { useAuth } from '@/hooks/useAuth';
 import { getBrandById } from '@/lib/services/powerbriefService';
 import { 
@@ -50,7 +50,7 @@ import {
 } from '@/lib/services/ugcCreatorService';
 import { UgcCreator, UgcCreatorScript, UGC_CREATOR_SCRIPT_CONCEPT_STATUSES, UGC_CREATOR_ONBOARDING_STATUSES } from '@/lib/types/ugcCreator';
 import { CreatorCard, ScriptCard, CreatorForm } from '@/components/ugc-creator';
-import UgcAiCoordinatorPanel from '@/components/ugc-coordinator/UgcAiCoordinatorPanel';
+import UgcCoordinatorDashboard from '@/components/ugc-coordinator/UgcCoordinatorDashboard';
 import EmailTemplateGenerator from '@/components/ugc/EmailTemplateGenerator';
 import AdvancedEmailInbox from '@/components/ugc/AdvancedEmailInbox';
 import { Brand } from '@/lib/types/powerbrief';
@@ -60,8 +60,6 @@ import { useBrand } from '@/lib/context/BrandContext';
 
 // Workflow components
 import WorkflowBuilder from '@/components/ugc/workflow/WorkflowBuilder';
-import CreatorStatusManager from '@/components/ugc/workflow/CreatorStatusManager';
-import MessageTemplateManager from '@/components/ugc/workflow/MessageTemplateManager';
 import WorkflowAnalytics from '@/components/ugc/workflow/WorkflowAnalytics';
 import CreatorFieldManager from '@/components/ugc/CreatorFieldManager';
 import {
@@ -74,10 +72,11 @@ import {
   WorkflowCategory,
   TriggerEvent
 } from '@/lib/types/ugcWorkflow';
+import CreatorStatusManager from '@/components/ugc/CreatorStatusManager';
 
 // Helper to unwrap params safely
 type ParamsType = { brandId: string };
-type ViewType = 'concept' | 'script' | 'creator' | 'settings' | 'ai-agent' | 'inbox' | 'templates' | 'workflow' | 'fields';
+type ViewType = 'concept' | 'script' | 'creator' | 'settings' | 'coordinator' | 'inbox' | 'templates' | 'workflow' | 'fields';
 
 const navigationItems = [
   {
@@ -100,8 +99,8 @@ const navigationItems = [
     group: 'Automation',
     icon: Bot,
     items: [
+      { view: 'coordinator' as ViewType, label: 'UGC Coordinator', icon: Bot },
       { view: 'workflow' as ViewType, label: 'Workflow Builder', icon: GitBranch },
-      { view: 'ai-agent' as ViewType, label: 'AI UGC Agent', icon: Bot },
     ],
   },
   {
@@ -1874,10 +1873,10 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
         </>
       )}
 
-      {activeView === 'ai-agent' && (
+      {activeView === 'coordinator' && (
         <>
           {brand && (
-            <UgcAiCoordinatorPanel 
+            <UgcCoordinatorDashboard 
               brand={brand} 
               creators={creators} 
               onRefresh={handleRefresh} 
@@ -1898,93 +1897,119 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
       )}
         
       {activeView === 'settings' && (
-          <Card>
-            <CardHeader>
-              <CardTitle>UGC Pipeline Settings</CardTitle>
-              <CardDescription>Configure default settings for your UGC pipeline</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-6">
-                <div>
-                  <Label htmlFor="company-description">Default Company Description</Label>
-                  <Textarea
-                    id="company-description"
-                    value={companyDescription}
-                    onChange={(e) => setCompanyDescription(e.target.value)}
-                    placeholder="Describe your company, products, and brand identity"
-                    className="mt-1"
-                    rows={4}
-                  />
-                  <p className="mt-1 text-xs text-gray-500">
-                    This description will be pre-filled in the &quot;About the Company&quot; section when creating new UGC scripts.
-                  </p>
-                </div>
-                
-                <div>
-                  <Label htmlFor="guide-description">Default Guide Description</Label>
-                  <Textarea
-                    id="guide-description"
-                    value={guideDescription}
-                    onChange={(e) => setGuideDescription(e.target.value)}
-                    placeholder="Overview of what the creator will be filming and the goals of the content"
-                    className="mt-1"
-                    rows={4}
-                  />
-                  <p className="mt-1 text-xs text-gray-500">
-                    This description will be pre-filled in the &quot;About the Guide&quot; section when creating new UGC scripts.
-                  </p>
-                </div>
-                
-                <div>
-                  <Label htmlFor="filming-instructions">Default Filming Instructions</Label>
-                  <Textarea
-                    id="filming-instructions"
-                    value={filmingInstructions}
-                    onChange={(e) => setFilmingInstructions(e.target.value)}
-                    placeholder="Detailed technical and performance guidance for filming"
-                    className="mt-1"
-                    rows={5}
-                  />
-                  <p className="mt-1 text-xs text-gray-500">
-                    These instructions will be pre-filled in the &quot;Filming Instructions&quot; section when creating new UGC scripts.
-                  </p>
-                </div>
-                
-                <div>
-                  <Label htmlFor="system-instructions">Default System Instructions</Label>
-                  <Textarea
-                    id="system-instructions"
-                    value={defaultSystemInstructions}
-                    onChange={(e) => setDefaultSystemInstructions(e.target.value)}
-                    placeholder="Instructions for AI script generation specific to your brand"
-                    className="mt-1"
-                    rows={6}
-                  />
-                  <p className="mt-1 text-xs text-gray-500">
-                    These instructions will be used by AI when generating scripts for your brand. Include tone, style, and content preferences.
-                  </p>
-                </div>
-                
-                  <Button
-                    onClick={handleSaveSettings}
-                    disabled={savingSettings}
-                  className="w-full"
-                  >
-                    {savingSettings ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Saving...
-                      </>
-                    ) : (
-                      <>
-                        <Save className="h-4 w-4 mr-2" />
-                        Save Settings
-                      </>
-                    )}
-                  </Button>
-              </div>
-            </CardContent>
-          </Card>
+        <div className="space-y-6">
+          <div className="mb-6">
+            <h2 className="text-2xl font-semibold">UGC Pipeline Settings</h2>
+            <p className="text-gray-600">Configure settings and statuses for your UGC pipeline</p>
+          </div>
+
+          <Tabs defaultValue="pipeline" className="space-y-6">
+            <TabsList>
+              <TabsTrigger value="pipeline">
+                <Settings2 className="h-4 w-4 mr-2" />
+                Pipeline Settings
+              </TabsTrigger>
+              <TabsTrigger value="statuses">
+                <Users className="h-4 w-4 mr-2" />
+                Creator Statuses
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="pipeline">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Default Pipeline Settings</CardTitle>
+                  <CardDescription>Configure default settings for your UGC pipeline</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-6">
+                    <div>
+                      <Label htmlFor="company-description">Default Company Description</Label>
+                      <Textarea
+                        id="company-description"
+                        value={companyDescription}
+                        onChange={(e) => setCompanyDescription(e.target.value)}
+                        placeholder="Describe your company, products, and brand identity"
+                        className="mt-1"
+                        rows={4}
+                      />
+                      <p className="mt-1 text-xs text-gray-500">
+                        This description will be pre-filled in the &quot;About the Company&quot; section when creating new UGC scripts.
+                      </p>
+                    </div>
+                    
+                    <div>
+                      <Label htmlFor="guide-description">Default Guide Description</Label>
+                      <Textarea
+                        id="guide-description"
+                        value={guideDescription}
+                        onChange={(e) => setGuideDescription(e.target.value)}
+                        placeholder="Overview of what the creator will be filming and the goals of the content"
+                        className="mt-1"
+                        rows={4}
+                      />
+                      <p className="mt-1 text-xs text-gray-500">
+                        This description will be pre-filled in the &quot;About the Guide&quot; section when creating new UGC scripts.
+                      </p>
+                    </div>
+                    
+                    <div>
+                      <Label htmlFor="filming-instructions">Default Filming Instructions</Label>
+                      <Textarea
+                        id="filming-instructions"
+                        value={filmingInstructions}
+                        onChange={(e) => setFilmingInstructions(e.target.value)}
+                        placeholder="Detailed technical and performance guidance for filming"
+                        className="mt-1"
+                        rows={5}
+                      />
+                      <p className="mt-1 text-xs text-gray-500">
+                        These instructions will be pre-filled in the &quot;Filming Instructions&quot; section when creating new UGC scripts.
+                      </p>
+                    </div>
+                    
+                    <div>
+                      <Label htmlFor="system-instructions">Default System Instructions</Label>
+                      <Textarea
+                        id="system-instructions"
+                        value={defaultSystemInstructions}
+                        onChange={(e) => setDefaultSystemInstructions(e.target.value)}
+                        placeholder="Instructions for AI script generation specific to your brand"
+                        className="mt-1"
+                        rows={6}
+                      />
+                      <p className="mt-1 text-xs text-gray-500">
+                        These instructions will be used by AI when generating scripts for your brand. Include tone, style, and content preferences.
+                      </p>
+                    </div>
+                    
+                    <Button
+                      onClick={handleSaveSettings}
+                      disabled={savingSettings}
+                      className="w-full"
+                    >
+                      {savingSettings ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <Save className="h-4 w-4 mr-2" />
+                          Save Settings
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="statuses">
+              <CreatorStatusManager brandId={brandId} />
+            </TabsContent>
+          </Tabs>
+        </div>
       )}
 
       {activeView === 'workflow' && (
@@ -1999,14 +2024,6 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
                 <TabsTrigger value="workflows">
                   <GitBranch className="h-4 w-4 mr-2" />
                   Workflows
-                </TabsTrigger>
-                <TabsTrigger value="statuses">
-                  <List className="h-4 w-4 mr-2" />
-                  Creator Statuses
-                </TabsTrigger>
-                <TabsTrigger value="templates">
-                  <MessageSquare className="h-4 w-4 mr-2" />
-                  Message Templates
                 </TabsTrigger>
                 <TabsTrigger value="analytics">
                   <BarChart3 className="h-4 w-4 mr-2" />
@@ -2170,14 +2187,6 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
                     </div>
                   </div>
                 )}
-              </TabsContent>
-
-              <TabsContent value="statuses">
-                <CreatorStatusManager brandId={brandId} />
-              </TabsContent>
-
-              <TabsContent value="templates">
-                <MessageTemplateManager brandId={brandId} />
               </TabsContent>
 
               <TabsContent value="analytics">

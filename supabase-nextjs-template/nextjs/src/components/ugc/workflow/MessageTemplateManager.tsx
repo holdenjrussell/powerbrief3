@@ -17,7 +17,6 @@ import {
   Trash2,
   Mail,
   MessageSquare,
-  Bell,
   Smartphone,
   Bot,
   Copy,
@@ -43,15 +42,13 @@ interface MessageTemplateManagerProps {
 const TEMPLATE_TYPE_ICONS: Record<MessageTemplateType, React.ReactNode> = {
   email: <Mail className="h-4 w-4" />,
   sms: <Smartphone className="h-4 w-4" />,
-  slack: <MessageSquare className="h-4 w-4" />,
-  notification: <Bell className="h-4 w-4" />
+  slack: <MessageSquare className="h-4 w-4" />
 };
 
 const TEMPLATE_TYPE_LABELS: Record<MessageTemplateType, string> = {
   email: 'Email',
   sms: 'SMS',
-  slack: 'Slack',
-  notification: 'In-App Notification'
+  slack: 'Slack'
 };
 
 export default function MessageTemplateManager({ brandId }: MessageTemplateManagerProps) {
@@ -242,7 +239,7 @@ export default function MessageTemplateManager({ brandId }: MessageTemplateManag
               Add Template
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
                 {editingTemplate ? 'Edit Template' : 'Create New Template'}
@@ -254,7 +251,7 @@ export default function MessageTemplateManager({ brandId }: MessageTemplateManag
                 }
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-4">
+            <div className="space-y-4 py-4">
               <div>
                 <Label>Template Name</Label>
                 <Input
@@ -299,53 +296,6 @@ export default function MessageTemplateManager({ brandId }: MessageTemplateManag
                 </div>
               )}
 
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <Label>Content</Label>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowVariableHelper(!showVariableHelper)}
-                  >
-                    <Variable className="h-4 w-4 mr-1" />
-                    Variables
-                  </Button>
-                </div>
-                <Textarea
-                  id="template-content"
-                  value={formData.content}
-                  onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-                  placeholder="Enter your message content here. Use {variable_name} for dynamic content."
-                  rows={8}
-                />
-                
-                {showVariableHelper && (
-                  <div className="mt-2 p-3 bg-gray-50 rounded-lg">
-                    <p className="text-sm font-medium mb-2">Available Variables</p>
-                    <div className="space-y-2">
-                      {Object.entries(WORKFLOW_VARIABLES).map(([category, vars]) => (
-                        <div key={category}>
-                          <p className="text-xs text-gray-500 uppercase mb-1">{category}</p>
-                          <div className="flex flex-wrap gap-1">
-                            {vars.map((variable) => (
-                              <button
-                                key={variable}
-                                type="button"
-                                className="px-2 py-1 text-xs bg-white border rounded hover:bg-gray-50"
-                                onClick={() => insertVariable(variable)}
-                              >
-                                {variable}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="ai_generated">AI Generated</Label>
@@ -365,11 +315,63 @@ export default function MessageTemplateManager({ brandId }: MessageTemplateManag
                       placeholder="Describe how the AI should generate this message..."
                       rows={3}
                     />
+                    <p className="text-xs text-gray-500 mt-1">
+                      The AI will generate the content based on this prompt and available variables.
+                    </p>
                   </div>
                 )}
               </div>
 
-              <div className="flex justify-end gap-2">
+              {!formData.is_ai_generated && (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <Label>Content</Label>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowVariableHelper(!showVariableHelper)}
+                    >
+                      <Variable className="h-4 w-4 mr-1" />
+                      Variables
+                    </Button>
+                  </div>
+                  <Textarea
+                    id="template-content"
+                    value={formData.content}
+                    onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+                    placeholder="Enter your message content here. Use {variable_name} for dynamic content."
+                    rows={8}
+                  />
+                  
+                  {showVariableHelper && (
+                    <div className="mt-2 p-3 bg-gray-50 rounded-lg">
+                      <p className="text-sm font-medium mb-2">Available Variables</p>
+                      <div className="space-y-2">
+                        {Object.entries(WORKFLOW_VARIABLES).map(([category, vars]) => (
+                          <div key={category}>
+                            <p className="text-xs text-gray-500 uppercase mb-1">{category}</p>
+                            <div className="flex flex-wrap gap-1">
+                              {vars.map((variable) => (
+                                <button
+                                  key={variable}
+                                  type="button"
+                                  className="px-2 py-1 text-xs bg-white border rounded hover:bg-gray-50"
+                                  onClick={() => insertVariable(variable)}
+                                >
+                                  {variable}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 pt-4">
                 <Button
                   variant="outline"
                   onClick={() => {
