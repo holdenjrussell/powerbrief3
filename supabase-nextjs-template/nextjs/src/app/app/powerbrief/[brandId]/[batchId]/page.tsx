@@ -2597,6 +2597,7 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
             
             if (pdfFiles.length === 0) {
                 setError('No PDF files found in the selection. Please select PDF files only.');
+                setImportingPDF(false); // Fix: Clean up loading state before returning
                 return;
             }
             
@@ -2639,7 +2640,7 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                     // Process text hooks with proper structure
                     const textHooks = result.conceptData.text_hook_options ? 
                         result.conceptData.text_hook_options.split('\n')
-                            .map((hook: string, index: number) => hook.trim())
+                            .map((hook: string) => hook.trim())
                             .filter((hook: string) => hook.length > 0)
                             .map((hook: string, index: number) => ({
                                 id: uuidv4(),
@@ -2651,7 +2652,7 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                     // Process spoken hooks with proper structure
                     const spokenHooks = result.conceptData.spoken_hook_options ? 
                         result.conceptData.spoken_hook_options.split('\n')
-                            .map((hook: string, index: number) => hook.trim())
+                            .map((hook: string) => hook.trim())
                             .filter((hook: string) => hook.length > 0)
                             .map((hook: string, index: number) => ({
                                 id: uuidv4(),
