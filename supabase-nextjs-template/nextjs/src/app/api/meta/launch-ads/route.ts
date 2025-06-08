@@ -49,37 +49,68 @@ console.log(`[Launch API] Using Meta API version: ${META_API_VERSION}`);
 
 // Helper function to extract aspect ratio from filename as fallback
 const detectAspectRatioFromFilename = (filename: string): string | null => {
-  const identifiers = [
-    // Common patterns with common separators
-    '1x1', '9x16', '16x9', '4x5', '5x4', '2x3', '3x2',
-    '1:1', '9:16', '16:9', '4:5', '5:4', '2:3', '3:2',
+  const normalizedName = filename.toLowerCase();
+  
+  // More comprehensive patterns to catch various naming conventions
+  const patterns = [
+    // Standard patterns with separators
+    /[_-]4x5[_-]?/,
+    /[_-]9x16[_-]?/,
+    /[_-]16x9[_-]?/,
+    /[_-]1x1[_-]?/,
+    
+    // With parentheses
+    /\(4x5\)/,
+    /\(9x16\)/,
+    /\(16x9\)/,
+    /\(1x1\)/,
+    
+    // With spaces
+    /\s4x5\s/,
+    /\s9x16\s/,
+    /\s16x9\s/,
+    /\s1x1\s/,
+    
+    // At end of filename (before extension)
+    /4x5$/,
+    /9x16$/,
+    /16x9$/,
+    /1x1$/,
+    
+    // With dots
+    /\.4x5\./,
+    /\.9x16\./,
+    /\.16x9\./,
+    /\.1x1\./,
+    
+    // Alternative formats with colon
+    /[_-]4:5[_-]?/,
+    /[_-]9:16[_-]?/,
+    /[_-]16:9[_-]?/,
+    /[_-]1:1[_-]?/,
+    
     // Handle decimal ratios
-    '1.0x1.0', '9.0x16.0', '16.0x9.0', '4.0x5.0'
+    /[_-]4\.0x5\.0[_-]?/,
+    /[_-]9\.0x16\.0[_-]?/,
+    /[_-]16\.0x9\.0[_-]?/,
+    /[_-]1\.0x1\.0[_-]?/
   ];
   
-  for (const id of identifiers) {
-    const patternsToTest = [
-      `_${id}`,
-      `-${id}`,
-      ` - ${id}`,
-      `:${id}`,
-      `(${id})`,
-      `(${id}`,
-      `.${id}`,
-      `[${id}]`,
-      ` ${id} `,
-      `_${id}_`,
-      `-${id}-`,
-      // Case insensitive patterns
-      `_${id.toUpperCase()}`,
-      `-${id.toUpperCase()}`,
-      ` - ${id.toUpperCase()}`,
-    ];
-    
-    for (const pattern of patternsToTest) {
-      if (filename.toLowerCase().includes(pattern.toLowerCase())) {
-        return id.replace('x', ':'); // Normalize to colon format
+  for (const pattern of patterns) {
+    const match = normalizedName.match(pattern);
+    if (match) {
+      // Extract just the ratio and normalize to colon format
+      let ratio = match[0].replace(/[^0-9x:.]/g, '');
+      
+      // Normalize different formats to colon format
+      if (ratio.includes('x')) {
+        ratio = ratio.replace('x', ':');
       }
+      
+      // Remove decimal points for standard ratios
+      ratio = ratio.replace(/\.0/g, '');
+      
+      return ratio;
     }
   }
   

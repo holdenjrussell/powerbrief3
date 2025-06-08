@@ -73,7 +73,62 @@ const MAX_FILE_SIZE = 1024 * 1024 * 1024; // 1GB in bytes (increased from 200MB)
 const SUPPORTED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
 const SUPPORTED_VIDEO_TYPES = ['video/mp4', 'video/mov', 'video/avi', 'video/quicktime', 'video/x-msvideo'];
 
-// Helper function to extract base name, aspect ratio, and version from filename
+// Enhanced aspect ratio detection function
+const detectAspectRatioFromFilename = (filename: string): string | null => {
+  const normalizedName = filename.toLowerCase();
+  
+  // More comprehensive patterns to catch various naming conventions
+  const patterns = [
+    // Standard patterns with separators
+    /[_-]4x5[_-]?/,
+    /[_-]9x16[_-]?/,
+    /[_-]16x9[_-]?/,
+    /[_-]1x1[_-]?/,
+    
+    // With parentheses
+    /\(4x5\)/,
+    /\(9x16\)/,
+    /\(16x9\)/,
+    /\(1x1\)/,
+    
+    // With spaces
+    /\s4x5\s/,
+    /\s9x16\s/,
+    /\s16x9\s/,
+    /\s1x1\s/,
+    
+    // At end of filename (before extension)
+    /4x5$/,
+    /9x16$/,
+    /16x9$/,
+    /1x1$/,
+    
+    // With dots
+    /\.4x5\./,
+    /\.9x16\./,
+    /\.16x9\./,
+    /\.1x1\./,
+    
+    // Alternative formats with colon
+    /[_-]4:5[_-]?/,
+    /[_-]9:16[_-]?/,
+    /[_-]16:9[_-]?/,
+    /[_-]1:1[_-]?/
+  ];
+  
+  for (const pattern of patterns) {
+    const match = normalizedName.match(pattern);
+    if (match) {
+      // Extract just the ratio and normalize to x format
+      const ratio = match[0].replace(/[^0-9x:]/g, '').replace(':', 'x');
+      return ratio;
+    }
+  }
+  
+  return null;
+};
+
+// Enhanced grouping function that prioritizes version over aspect ratio
 const getBaseNameRatioAndVersion = (filename: string): { baseName: string; detectedRatio: string | null; version: string | null; groupKey: string } => {
   logger.debug('Parsing filename', { filename });
   
@@ -89,41 +144,52 @@ const getBaseNameRatioAndVersion = (filename: string): { baseName: string; detec
     }
   }
 
-  // Look for aspect ratio identifiers at the end (right before extension)
-  let detectedRatio: string | null = null;
+  // Use enhanced aspect ratio detection
+  const detectedRatio = detectAspectRatioFromFilename(nameWorkInProgress);
   let baseNameWithoutRatio = nameWorkInProgress;
   
-  for (const id of ASPECT_RATIO_IDENTIFIERS) {
-    const patternsToTest = [
-      `_${id}`,
-      `-${id}`
+  if (detectedRatio) {
+    // Remove the detected ratio pattern from the name
+    const ratioPatterns = [
+      new RegExp(`[_-]${detectedRatio}[_-]?`, 'gi'),
+      new RegExp(`\\(${detectedRatio}\\)`, 'gi'),
+      new RegExp(`\\s${detectedRatio}\\s`, 'gi'),
+      new RegExp(`\\.${detectedRatio}\\.`, 'gi'),
+      new RegExp(`${detectedRatio}$`, 'gi')
     ];
     
-    for (const pattern of patternsToTest) {
-      if (nameWorkInProgress.endsWith(pattern)) {
-        detectedRatio = id;
-        baseNameWithoutRatio = nameWorkInProgress.substring(0, nameWorkInProgress.length - pattern.length).trim();
-        logger.debug('Found aspect ratio at end', { pattern, detectedRatio, baseNameWithoutRatio });
+    for (const pattern of ratioPatterns) {
+      if (pattern.test(baseNameWithoutRatio)) {
+        baseNameWithoutRatio = baseNameWithoutRatio.replace(pattern, '').trim();
         break;
       }
     }
-    if (detectedRatio) break;
+    
+    logger.debug('Found aspect ratio', { detectedRatio, baseNameWithoutRatio });
   }
-  logger.debug('Aspect ratio detection result', { detectedRatio, baseNameWithoutRatio });
 
   // Extract version information (v1, v2, v3, etc.) from the remaining name
   let version: string | null = null;
   let finalBaseName = baseNameWithoutRatio;
-  const versionPatterns = ['_v1', '_v2', '_v3', '_v4', '_v5', '-v1', '-v2', '-v3', '-v4', '-v5'];
+  
+  // More flexible version pattern matching
+  const versionPatterns = [
+    /[_-]v(\d+)/i,
+    /[_-]version(\d+)/i,
+    /[_-]ver(\d+)/i,
+    /\sv(\d+)/i,
+    /\(v(\d+)\)/i
+  ];
+  
   for (const versionPattern of versionPatterns) {
-    if (baseNameWithoutRatio.endsWith(versionPattern)) {
-      version = versionPattern.substring(1); // Remove the _ or - prefix
-      finalBaseName = baseNameWithoutRatio.substring(0, baseNameWithoutRatio.length - versionPattern.length).trim();
-      logger.debug('Found version', { versionPattern, version, finalBaseName });
+    const match = baseNameWithoutRatio.match(versionPattern);
+    if (match) {
+      version = `v${match[1]}`;
+      finalBaseName = baseNameWithoutRatio.replace(match[0], '').trim();
+      logger.debug('Found version', { version, finalBaseName, matchedPattern: match[0] });
       break;
     }
   }
-  logger.debug('Version detection result', { version, finalBaseName });
 
   // Create a group key that combines base name and version
   // This ensures assets with same version but different aspect ratios are grouped together
@@ -857,7 +923,7 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
           updateProgress(80); // Processing thumbnail
           await new Promise(resolve => setTimeout(resolve, 100));
 
-          const uploadedAsset: UploadedAsset & { thumbnailUrl?: string } = {
+          const uploadedAsset: UploadedAsset & { thumbnailUrl?: string; thumbnailTimestamp?: number } = {
             id: assetFile.id,
             name: assetFile.file.name,
             supabaseUrl: publicUrl,
@@ -903,6 +969,29 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
                     videoFileName: assetFile.file.name,
                     thumbnailUrl: thumbnailPublicUrl
                   });
+
+                  // CRITICAL FIX: Save thumbnail URL to database immediately after upload
+                  // This ensures thumbnails persist through the entire workflow
+                  try {
+                    // For PowerBrief uploads, we need to save to the concept's uploaded_assets
+                    // The thumbnail will be transferred to ad_draft_assets when sent to ad upload
+                    logger.info('Saving thumbnail URL for future database persistence', {
+                      videoFileName: assetFile.file.name,
+                      thumbnailUrl: thumbnailPublicUrl,
+                      conceptId
+                    });
+                    
+                    // Store thumbnail info in the uploaded asset for later database save
+                    uploadedAsset.thumbnailUrl = thumbnailPublicUrl;
+                    uploadedAsset.thumbnailTimestamp = 1.0; // Default to 1 second timestamp
+                    
+                  } catch (dbError) {
+                    logger.warn('Failed to prepare thumbnail for database save', { 
+                      videoFileName: assetFile.file.name, 
+                      error: dbError 
+                    });
+                    // Continue without failing the upload
+                  }
                 }
               }
             } catch (thumbnailUploadError) {

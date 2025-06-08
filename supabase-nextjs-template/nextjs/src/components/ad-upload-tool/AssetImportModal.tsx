@@ -32,7 +32,62 @@ interface ProcessedAssetFile extends AssetFile {
   detectedRatio?: string | null;
 }
 
-// Helper function to extract base name and aspect ratio
+// Enhanced aspect ratio detection function
+const detectAspectRatioFromFilename = (filename: string): string | null => {
+  const normalizedName = filename.toLowerCase();
+  
+  // More comprehensive patterns to catch various naming conventions
+  const patterns = [
+    // Standard patterns with separators
+    /[_-]4x5[_-]?/,
+    /[_-]9x16[_-]?/,
+    /[_-]16x9[_-]?/,
+    /[_-]1x1[_-]?/,
+    
+    // With parentheses
+    /\(4x5\)/,
+    /\(9x16\)/,
+    /\(16x9\)/,
+    /\(1x1\)/,
+    
+    // With spaces
+    /\s4x5\s/,
+    /\s9x16\s/,
+    /\s16x9\s/,
+    /\s1x1\s/,
+    
+    // At end of filename (before extension)
+    /4x5$/,
+    /9x16$/,
+    /16x9$/,
+    /1x1$/,
+    
+    // With dots
+    /\.4x5\./,
+    /\.9x16\./,
+    /\.16x9\./,
+    /\.1x1\./,
+    
+    // Alternative formats with colon
+    /[_-]4:5[_-]?/,
+    /[_-]9:16[_-]?/,
+    /[_-]16:9[_-]?/,
+    /[_-]1:1[_-]?/
+  ];
+  
+  for (const pattern of patterns) {
+    const match = normalizedName.match(pattern);
+    if (match) {
+      // Extract just the ratio and normalize to x format
+      const ratio = match[0].replace(/[^0-9x:]/g, '').replace(':', 'x');
+      return ratio;
+    }
+  }
+  
+  return null;
+};
+
+// Helper function to extract base name and aspect ratio with enhanced detection
 const getBaseNameAndRatio = (filename: string, identifiers: string[], suffixesToRemove: string[]): { baseName: string; detectedRatio: string | null } => {
   let nameWorkInProgress = filename.substring(0, filename.lastIndexOf('.')) || filename;
   
@@ -44,28 +99,56 @@ const getBaseNameAndRatio = (filename: string, identifiers: string[], suffixesTo
     }
   }
 
-  // Step 2: Look for aspect ratio identifiers at the end (right before extension)
-  for (const id of identifiers) {
-    // Check for patterns like: "_4x5", "-4x5" at the end
-    const patternsToTest = [
-      `_${id}`,
-      `-${id}`
+  // Step 2: Use enhanced aspect ratio detection
+  const detectedRatio = detectAspectRatioFromFilename(nameWorkInProgress);
+  let baseNameWithoutRatio = nameWorkInProgress;
+  
+  if (detectedRatio) {
+    // Remove the detected ratio pattern from the name
+    const ratioPatterns = [
+      new RegExp(`[_-]${detectedRatio}[_-]?`, 'gi'),
+      new RegExp(`\\(${detectedRatio}\\)`, 'gi'),
+      new RegExp(`\\s${detectedRatio}\\s`, 'gi'),
+      new RegExp(`\\.${detectedRatio}\\.`, 'gi'),
+      new RegExp(`${detectedRatio}$`, 'gi')
     ];
     
-    for (const pattern of patternsToTest) {
-      if (nameWorkInProgress.endsWith(pattern)) {
-        const baseNameWithoutRatio = nameWorkInProgress.substring(0, nameWorkInProgress.length - pattern.length).trim();
-        return {
-          baseName: baseNameWithoutRatio,
-          detectedRatio: id
-        };
+    for (const pattern of ratioPatterns) {
+      if (pattern.test(baseNameWithoutRatio)) {
+        baseNameWithoutRatio = baseNameWithoutRatio.replace(pattern, '').trim();
+        break;
       }
     }
   }
   
-  // If no specific ratio pattern is found after cleaning suffixes,
-  // the remaining nameWorkInProgress is the baseName.
-  return { baseName: nameWorkInProgress.trim(), detectedRatio: null };
+  // Extract version and prioritize version-based grouping
+  let finalBaseName = baseNameWithoutRatio;
+  
+  // More flexible version pattern matching
+  const versionPatterns = [
+    /[_-]v(\d+)/i,
+    /[_-]version(\d+)/i,
+    /[_-]ver(\d+)/i,
+    /\sv(\d+)/i,
+    /\(v(\d+)\)/i
+  ];
+  
+  let version: string | null = null;
+  for (const versionPattern of versionPatterns) {
+    const match = baseNameWithoutRatio.match(versionPattern);
+    if (match) {
+      version = `v${match[1]}`;
+      finalBaseName = baseNameWithoutRatio.replace(match[0], '').trim();
+      break;
+    }
+  }
+  
+  // If we found a version, include it in the base name for proper grouping
+  if (version) {
+    finalBaseName = `${finalBaseName}_${version}`;
+  }
+  
+  return { baseName: finalBaseName.trim(), detectedRatio };
 };
 
 // Helper function to check video dimensions
@@ -540,6 +623,38 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
                   <p>• <strong>Aspect ratios:</strong> Only 4x5 and 9x16 (place right before file extension)</p>
                   <p>• <strong>Version numbers:</strong> v1, v2, v3 (place before aspect ratio)</p>
                   <p>• <strong>Examples:</strong> ProductDemo_v1_4x5.mp4, ProductDemo_v1_9x16.mp4</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Asset Grouping Guidelines */}
+          <div className="p-4 bg-blue-50 border border-blue-200 rounded-md">
+            <div className="flex items-start">
+              <div className="flex-1">
+                <h4 className="text-sm font-semibold text-blue-800 mb-2">
+                  🎯 Asset Grouping Guidelines
+                </h4>
+                <div className="text-sm text-blue-700 space-y-2">
+                  <p><strong>✅ Correct Grouping:</strong> Group by version (V1, V2, V3), not by aspect ratio</p>
+                  <div className="bg-white p-2 rounded border">
+                    <p className="font-medium text-green-700 mb-1">Example - Correct:</p>
+                    <ul className="text-xs space-y-1">
+                      <li>• <strong>Group 1:</strong> ProductDemo_v1_4x5.mp4 + ProductDemo_v1_9x16.mp4</li>
+                      <li>• <strong>Group 2:</strong> ProductDemo_v2_4x5.mp4 + ProductDemo_v2_9x16.mp4</li>
+                      <li>• <strong>Group 3:</strong> ProductDemo_v3_4x5.mp4 + ProductDemo_v3_9x16.mp4</li>
+                    </ul>
+                  </div>
+                  <div className="bg-red-50 p-2 rounded border border-red-200">
+                    <p className="font-medium text-red-700 mb-1">❌ Avoid - Incorrect:</p>
+                    <ul className="text-xs space-y-1">
+                      <li>• <strong>Group 1:</strong> All 4x5 files together</li>
+                      <li>• <strong>Group 2:</strong> All 9x16 files together</li>
+                    </ul>
+                  </div>
+                  <p className="text-xs text-blue-600 mt-2">
+                    💡 <strong>Why?</strong> Each version represents a different creative concept that should have both aspect ratios for optimal ad placement targeting.
+                  </p>
                 </div>
               </div>
             </div>
