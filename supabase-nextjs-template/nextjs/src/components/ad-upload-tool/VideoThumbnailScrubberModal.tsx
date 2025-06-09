@@ -203,12 +203,31 @@ export default function VideoThumbnailScrubberModal({
           console.log(`Generating thumbnail for ${video.name} at ${selectedTimestamp}s`);
           
           // First, get the existing thumbnail info from database to delete old file
-          const { data: existingAsset } = await supabase
+          // Query by both ad_draft_id and name since supabase_url format might differ
+          const { data: existingAssets, error: queryError } = await supabase
             .from('ad_draft_assets')
-            .select('id, thumbnail_url, thumbnail_timestamp')
+            .select('id, name, supabase_url, thumbnail_url, thumbnail_timestamp')
             .eq('ad_draft_id', draftId)
-            .eq('supabase_url', video.supabaseUrl)
-            .single();
+            .eq('name', video.name)
+            .eq('type', 'video');
+          
+          if (queryError) {
+            console.error('Database query error:', queryError);
+            throw new Error(`Failed to query database: ${queryError.message}`);
+          }
+          
+          // Find the exact matching asset
+          const existingAsset = existingAssets?.find(asset => 
+            asset.supabase_url === video.supabaseUrl || asset.name === video.name
+          );
+          
+          if (!existingAsset) {
+            console.warn(`Could not find database record for video: ${video.name}`);
+            console.log('Available assets:', existingAssets);
+            throw new Error(`No database record found for ${video.name}. Please save the ad draft first.`);
+          }
+          
+          console.log(`Found existing asset:`, existingAsset);
           
           // Create a temporary video element for each video to capture frame
           const tempVideo = document.createElement('video');
@@ -241,12 +260,14 @@ export default function VideoThumbnailScrubberModal({
                   }
                   
                   try {
-                    // Use consistent file name without timestamp for overwriting
-                    const thumbnailFileName = `${video.name.split('.')[0]}_thumbnail.jpg`;
+                    // Generate unique filename with timestamp to avoid caching issues
+                    const timestamp = Date.now();
+                    const baseFileName = video.name.split('.')[0];
+                    const thumbnailFileName = `${baseFileName}_thumbnail_${timestamp}.jpg`;
                     const thumbnailPath = `${draftId}/${thumbnailFileName}`;
                     
                     // Delete existing thumbnail file if it exists
-                    if (existingAsset && existingAsset.thumbnail_url) {
+                    if (existingAsset.thumbnail_url) {
                       try {
                         // Extract the file path from the existing URL
                         const existingUrl = existingAsset.thumbnail_url;
@@ -261,6 +282,8 @@ export default function VideoThumbnailScrubberModal({
                           
                           if (deleteError) {
                             console.warn(`Could not delete old thumbnail: ${deleteError.message}`);
+                          } else {
+                            console.log(`Successfully deleted old thumbnail: ${existingPath}`);
                           }
                         }
                       } catch (deleteErr) {
@@ -269,57 +292,78 @@ export default function VideoThumbnailScrubberModal({
                     }
                     
                     // Upload new thumbnail
+                    console.log(`Uploading new thumbnail to: ${thumbnailPath}`);
                     const { data, error: uploadError } = await supabase.storage
                       .from('ad-creatives')
                       .upload(thumbnailPath, blob, {
                         cacheControl: '3600',
-                        upsert: true, // Allow overwriting existing thumbnails
+                        upsert: false, // Use false to avoid conflicts, we deleted old file above
                       });
                     
                     if (uploadError || !data) {
-                      throw new Error(`Upload failed: ${uploadError?.message}`);
+                      console.error('Upload error:', uploadError);
+                      throw new Error(`Upload failed: ${uploadError?.message || 'Unknown upload error'}`);
                     }
                     
-                    // Get public URL
+                    console.log(`Upload successful:`, data);
+                    
+                    // Get public URL with cache busting
                     const { data: { publicUrl } } = supabase.storage
                       .from('ad-creatives')
                       .getPublicUrl(thumbnailPath);
                     
-                    if (publicUrl && existingAsset) {
-                      // Update database with new thumbnail URL and timestamp
-                      const { error: updateError } = await supabase
-                        .from('ad_draft_assets')
-                        .update({ 
-                          thumbnail_url: publicUrl,
-                          thumbnail_timestamp: selectedTimestamp
-                        })
-                        .eq('id', existingAsset.id);
-                      
-                      if (updateError) {
-                        console.error(`Failed to update database for ${video.name}:`, updateError);
-                        throw new Error(`Database update failed: ${updateError.message || JSON.stringify(updateError)}`);
-                      } else {
-                        console.log(`Thumbnail updated for ${video.name}: ${publicUrl}`);
-                      }
-                    } else if (!existingAsset) {
-                      console.warn(`Could not find database record for ${video.name}`);
-                      throw new Error(`No database record found for ${video.name}`);
+                    if (!publicUrl) {
+                      throw new Error('Failed to get public URL for uploaded thumbnail');
                     }
                     
+                    // Add cache-busting parameter to the URL
+                    const cacheBustedUrl = `${publicUrl}?t=${timestamp}`;
+                    console.log(`New thumbnail URL: ${cacheBustedUrl}`);
+                    
+                    // Update database with new thumbnail URL and timestamp
+                    const { error: updateError } = await supabase
+                      .from('ad_draft_assets')
+                      .update({ 
+                        thumbnail_url: cacheBustedUrl,
+                        thumbnail_timestamp: selectedTimestamp
+                      })
+                      .eq('id', existingAsset.id);
+                    
+                    if (updateError) {
+                      console.error(`Failed to update database for ${video.name}:`, updateError);
+                      throw new Error(`Database update failed: ${updateError.message || JSON.stringify(updateError)}`);
+                    }
+                    
+                    console.log(`✅ Thumbnail successfully updated for ${video.name} at ${selectedTimestamp}s`);
                     resolve();
+                    
                   } catch (error) {
+                    console.error('Error in thumbnail save process:', error);
                     reject(error);
                   }
                 }, 'image/jpeg', 0.85);
               }, { once: true });
+              
+              tempVideo.addEventListener('error', (e) => {
+                console.error('Video seek error:', e);
+                reject(new Error('Failed to seek to timestamp'));
+              }, { once: true });
             }, { once: true });
             
-            tempVideo.addEventListener('error', reject, { once: true });
+            tempVideo.addEventListener('error', (e) => {
+              console.error('Video load error:', e);
+              reject(new Error('Failed to load video for thumbnail capture'));
+            }, { once: true });
+            
             tempVideo.src = video.supabaseUrl;
             tempVideo.load();
             
             // Add timeout
-            setTimeout(() => reject(new Error('Timeout loading video')), 10000);
+            setTimeout(() => {
+              tempVideo.remove();
+              tempCanvas.remove();
+              reject(new Error('Timeout loading video - process took too long'));
+            }, 15000); // Increased timeout to 15 seconds
           });
           
           results.successes++;
@@ -333,17 +377,22 @@ export default function VideoThumbnailScrubberModal({
       
       // Show results and refresh regardless of some failures
       if (results.successes > 0) {
-        alert(`Successfully updated ${results.successes} thumbnail(s) at ${selectedTimestamp.toFixed(2)}s` + 
-              (results.failures > 0 ? `\n\nFailed: ${results.failures} video(s)` : ''));
+        const message = `✅ Successfully updated ${results.successes} thumbnail(s) at ${selectedTimestamp.toFixed(2)}s` + 
+              (results.failures > 0 ? `\n\n❌ Failed: ${results.failures} video(s)\nErrors:\n${results.errors.join('\n')}` : '');
+        
+        alert(message);
+        
+        // Call the refresh callback to update the UI
+        console.log('Calling onThumbnailUpdated to refresh UI...');
         onThumbnailUpdated();
         onClose();
       } else {
-        alert(`Failed to update any thumbnails:\n${results.errors.join('\n')}`);
+        alert(`❌ Failed to update any thumbnails:\n\n${results.errors.join('\n\n')}`);
       }
       
     } catch (error) {
       console.error('Error saving thumbnails:', error);
-      alert('Failed to save thumbnails. Please try again.');
+      alert(`❌ Failed to save thumbnails: ${error instanceof Error ? error.message : 'Unknown error'}\n\nPlease try again.`);
     } finally {
       setIsSaving(false);
     }
