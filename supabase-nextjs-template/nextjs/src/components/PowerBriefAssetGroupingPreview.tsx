@@ -120,8 +120,9 @@ const AssetGroupingPreview: React.FC<PowerBriefAssetGroupingPreviewProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col m-4">
-        <div className="flex items-center justify-between p-6 border-b">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl max-h-[90vh] flex flex-col m-4">
+        {/* Fixed Header */}
+        <div className="flex items-center justify-between p-6 border-b bg-white rounded-t-lg">
           <div>
             <h2 className="text-xl font-semibold text-gray-900">Asset Grouping Preview</h2>
             <p className="text-sm text-gray-600 mt-1">
@@ -138,45 +139,48 @@ const AssetGroupingPreview: React.FC<PowerBriefAssetGroupingPreviewProps> = ({
           </button>
         </div>
 
-        {/* File Grouping Instructions Banner */}
-        {showInstructions !== false && (
-          <div className="p-3 bg-blue-50 border border-blue-200 rounded-md mx-6 mb-4">
-            <div className="flex items-start">
-              <div className="flex-shrink-0">
-                <svg className="h-5 w-5 text-blue-600 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                </svg>
-              </div>
-              <div className="ml-3 flex-1">
-                <h4 className="text-sm font-semibold text-blue-800 mb-2">
-                  📝 File Grouping Instructions
-                </h4>
-                <div className="text-xs text-blue-700 space-y-1">
-                  <div className="font-medium text-blue-800">
-                    🎯 IMPORTANT GROUPING RULE: <span className="text-red-600">Group by VERSION (V1, V2, V3), NOT by aspect ratio!</span>
+        {/* Scrollable Content Area */}
+        <div className="flex-1 overflow-y-auto">
+          <div className="p-6">
+            {/* File Grouping Instructions Banner - Now inside scrollable area */}
+            {showInstructions !== false && (
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-md mb-6">
+                <div className="flex items-start">
+                  <div className="flex-shrink-0">
+                    <svg className="h-5 w-5 text-blue-600 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                    </svg>
                   </div>
-                  <div>• <strong>Correct grouping:</strong> V1 folder contains both 4x5 and 9x16 versions of the same concept</div>
-                  <div>• <strong>Wrong grouping:</strong> Separate folders for all 4x5s together and all 9x16s together</div>
-                  <div>• <strong>Aspect ratios:</strong> 4x5 and 9x16 can appear anywhere in filename</div>
-                  <div>• <strong>Version numbers:</strong> v1, v2, v3 help group the pairs together</div>
-                  
-                  <div className="mt-2 pt-2 border-t border-blue-200">
-                    <div className="font-medium text-blue-800 mb-1">Examples:</div>
-                    <div className="bg-white rounded p-2 text-xs font-mono">
-                      <div className="text-green-600 font-semibold">✅ Good grouping:</div>
-                      <div className="ml-2">ProductDemo_v1_4x5.mp4 + ProductDemo_v1_9x16.mp4 (grouped together)</div>
-                      <div className="ml-2">ProductDemo_v2_4x5.mp4 + ProductDemo_v2_9x16.mp4 (grouped together)</div>
-                      <div className="text-red-600 font-semibold mt-2">❌ Bad grouping:</div>
-                      <div className="ml-2">All 4x5 files in one folder, all 9x16 files in another folder</div>
+                  <div className="ml-3 flex-1">
+                    <h4 className="text-sm font-semibold text-blue-800 mb-2">
+                      📝 File Grouping Instructions
+                    </h4>
+                    <div className="text-xs text-blue-700 space-y-1">
+                      <div className="font-medium text-blue-800">
+                        🎯 IMPORTANT GROUPING RULE: <span className="text-red-600">Group by VERSION (V1, V2, V3), NOT by aspect ratio!</span>
+                      </div>
+                      <div>• <strong>Correct grouping:</strong> V1 folder contains both 4x5 and 9x16 versions of the same concept</div>
+                      <div>• <strong>Wrong grouping:</strong> Separate folders for all 4x5s together and all 9x16s together</div>
+                      <div>• <strong>Aspect ratios:</strong> 4x5 and 9x16 can appear anywhere in filename</div>
+                      <div>• <strong>Version numbers:</strong> v1, v2, v3 help group the pairs together</div>
+                      
+                      <div className="mt-2 pt-2 border-t border-blue-200">
+                        <div className="font-medium text-blue-800 mb-1">Examples:</div>
+                        <div className="bg-white rounded p-2 text-xs font-mono">
+                          <div className="text-green-600 font-semibold">✅ Good grouping:</div>
+                          <div className="ml-2">ProductDemo_v1_4x5.mp4 + ProductDemo_v1_9x16.mp4 (grouped together)</div>
+                          <div className="ml-2">ProductDemo_v2_4x5.mp4 + ProductDemo_v2_9x16.mp4 (grouped together)</div>
+                          <div className="text-red-600 font-semibold mt-2">❌ Bad grouping:</div>
+                          <div className="ml-2">All 4x5 files in one folder, all 9x16 files in another folder</div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
-          </div>
-        )}
+            )}
 
-        <div className="flex-1 overflow-y-auto p-6">
+            {/* Controls Section */}
           <div className="mb-4 flex items-center justify-between">
             <div className="text-sm text-gray-600">
               {editableGroups.filter(g => g.assets.length > 0).length} groups will create {editableGroups.filter(g => g.assets.length > 0).length} ad drafts
@@ -205,6 +209,7 @@ const AssetGroupingPreview: React.FC<PowerBriefAssetGroupingPreviewProps> = ({
             </div>
           </div>
 
+            {/* Manual Grouping Instructions */}
           {isEditing && (
             <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
               <h3 className="font-medium text-blue-800 mb-1">Manual Grouping Instructions</h3>
@@ -218,6 +223,7 @@ const AssetGroupingPreview: React.FC<PowerBriefAssetGroupingPreviewProps> = ({
             </div>
           )}
 
+            {/* Asset Groups */}
           <div className="space-y-4">
             {editableGroups.map((group, groupIndex) => (
               <Card 
@@ -309,10 +315,12 @@ const AssetGroupingPreview: React.FC<PowerBriefAssetGroupingPreviewProps> = ({
                 </CardContent>
               </Card>
             ))}
+            </div>
           </div>
         </div>
 
-        <div className="border-t p-6">
+        {/* Fixed Footer */}
+        <div className="border-t p-6 bg-white rounded-b-lg">
           <div className="flex justify-end space-x-3">
             <Button variant="outline" onClick={onClose}>
               Cancel

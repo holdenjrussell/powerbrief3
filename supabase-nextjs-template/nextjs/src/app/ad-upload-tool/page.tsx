@@ -191,22 +191,38 @@ const AdUploadToolPage = () => {
       setBrands(mappedBrands);
       setIsLoadingBrands(false);
       
-      // Try to load saved settings from localStorage
-      const savedSettings = localStorage.getItem(`ad-upload-settings-${user?.id}`);
-      if (savedSettings) {
-        const settings = JSON.parse(savedSettings);
-        
-        // Find and set the selected brand
-        const brand = mappedBrands.find(b => b.id === settings.brandId);
+      // Try to get the saved brand selection from BrandContext localStorage
+      const savedBrandId = localStorage.getItem(`selected-brand-${user?.id}`);
+      
+      // If there's a saved brand, use it; otherwise don't auto-select anything
+      if (savedBrandId) {
+        const brand = mappedBrands.find(b => b.id === savedBrandId);
         if (brand) {
           setSelectedBrand(brand);
+          
+          // Try to load brand-specific saved settings
+          const brandSpecificSettings = localStorage.getItem(`ad-upload-settings-${user?.id}-${savedBrandId}`);
+          
+          if (brandSpecificSettings) {
+            try {
+              const settings = JSON.parse(brandSpecificSettings);
+              // Ensure the brandId matches
+              if (settings.brandId === savedBrandId) {
+                setCurrentDefaults(settings);
+                console.log(`Brand-specific settings loaded for: ${brand.name}`);
+              }
+            } catch (error) {
+              console.error('Error parsing brand-specific settings:', error);
+            }
+          }
+          
           // Load configurations for the saved brand
           await loadConfigurations(brand.id, brand);
         } else {
-          // If saved brand not found, just set the defaults
-          setCurrentDefaults(settings);
+          console.log(`Saved brand ${savedBrandId} not found in available brands`);
         }
-        console.log('Settings loaded from localStorage');
+      } else {
+        console.log('No saved brand selection found');
       }
       
       // Mark initial load as complete
@@ -333,16 +349,33 @@ const AdUploadToolPage = () => {
   const handleBrandSelect = async (brandId: string) => {
     const brand = brands.find(b => b.id === brandId);
     if (brand) {
+      console.log(`[Ad Upload Tool] Switching to brand: ${brand.name} (${brandId})`);
+      
       // Clear current state to ensure clean transition
       setCurrentDefaults(null);
-      setSelectedBrand(brand);
       setSelectedConfiguration(null);
+      
+      // Clear only the previous brand's ad-upload-settings but preserve the brand selection in localStorage
+      if (user?.id) {
+        // Clear any existing brand-specific settings (we'll load new ones for the selected brand)
+        const currentBrandId = selectedBrand?.id;
+        if (currentBrandId) {
+          localStorage.removeItem(`ad-upload-settings-${user.id}-${currentBrandId}`);
+        }
+        
+        // Preserve and update the brand selection for BrandContext
+        localStorage.setItem(`selected-brand-${user.id}`, brandId);
+      }
+      
+      // Set loading state to prevent showing stale data
+      setIsLoadingConfigurations(true);
+      
+      setSelectedBrand(brand);
       
       // Load configurations for this brand and wait for them to complete
       await loadConfigurations(brandId, brand);
       
-      // Don't set defaults here - let loadConfigurations handle it
-      // The loadConfigurations function will auto-select and apply the default config
+      console.log(`[Ad Upload Tool] Brand switch completed for: ${brand.name}`);
     }
   };
 
@@ -356,9 +389,13 @@ const AdUploadToolPage = () => {
 
   const saveSettings = async (defaults: DefaultValues) => {
     try {
-      // Save to localStorage for immediate access
-      localStorage.setItem(`ad-upload-settings-${user?.id}`, JSON.stringify(defaults));
-      console.log('Settings saved to localStorage');
+      // Save settings per brand to prevent cross-brand contamination
+      const storageKey = defaults.brandId 
+        ? `ad-upload-settings-${user?.id}-${defaults.brandId}`
+        : `ad-upload-settings-${user?.id}`;
+      
+      localStorage.setItem(storageKey, JSON.stringify(defaults));
+      console.log(`Settings saved to localStorage for brand: ${defaults.brandId}`);
     } catch (error) {
       console.error('Error saving settings:', error);
     }

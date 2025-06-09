@@ -63,9 +63,11 @@ export async function POST(req: NextRequest) {
     // Continue without rate limiting if packages aren't available
   }
 
-  if (!process.env.GEMINI_API_KEY) {
+  const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+  
+  if (!apiKey) {
     return NextResponse.json(
-      { error: "GEMINI_API_KEY is not set" },
+      { error: "Google Gemini API key is not set. Please set GOOGLE_API_KEY, GEMINI_API_KEY, or GOOGLE_GENERATIVE_AI_API_KEY in your environment variables." },
       { status: 500 }
     );
   }
@@ -74,7 +76,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No assets found" }, { status: 400 });
   }
 
-  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY as string });
+  const ai = new GoogleGenAI({ apiKey });
 
   try {
     const processedAssetParts = await Promise.all(

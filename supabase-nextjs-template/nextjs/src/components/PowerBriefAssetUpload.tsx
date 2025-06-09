@@ -44,6 +44,10 @@ interface AssetFile {
   thumbnailUrl?: string;
   thumbnailExtracted?: boolean;
   videoDimensions?: { width: number; height: number }; // Video dimensions
+  // Add thumbnail selection properties
+  selectedThumbnailTimestamp?: number;
+  customThumbnailBlob?: Blob; // For manually selected thumbnails
+  hasCustomThumbnail?: boolean;
 }
 
 interface AssetGroup {
@@ -560,7 +564,11 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
         thumbnailBlob: undefined,
         thumbnailUrl: undefined,
         thumbnailExtracted: false,
-        videoDimensions
+        videoDimensions,
+        // Add thumbnail selection properties
+        selectedThumbnailTimestamp: undefined,
+        customThumbnailBlob: undefined,
+        hasCustomThumbnail: false
       };
       
       newFiles.push(assetFile);
@@ -1017,56 +1025,63 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
     });
 
     if (uploadedAssets.length > 0) {
-      onAssetsUploaded(assetGroups);
-      
-      // Automatically generate thumbnails for any video assets that were uploaded
       try {
-        console.log('[PowerBriefAssetUpload] Starting automatic thumbnail generation...');
+        onAssetsUploaded(assetGroups);
         
-        // Convert asset groups to the format expected by the thumbnail utility
-        const assetGroupsForThumbnails = assetGroups.map(group => ({
-          baseName: group.baseName,
-          assets: group.assets.map(asset => ({
-            id: asset.id,
-            name: asset.name,
-            supabaseUrl: asset.supabaseUrl,
-            type: asset.type
-          }))
-        }));
-        
-        const thumbnailResult = await generateThumbnailsForAssetGroups(
-          assetGroupsForThumbnails, 
-          conceptId
-        );
-        
-        if (thumbnailResult.processed > 0) {
-          addToast('success', 'Thumbnails Generated', 
-            `Automatically generated ${thumbnailResult.processed} video thumbnails.`);
-          logger.info('Automatic thumbnail generation completed', { 
-            processed: thumbnailResult.processed,
-            total: thumbnailResult.total,
-            errors: thumbnailResult.errors.length
-          });
+        // Automatically generate thumbnails for any video assets that were uploaded
+        try {
+          console.log('[PowerBriefAssetUpload] Starting automatic thumbnail generation...');
+          
+          // Convert asset groups to the format expected by the thumbnail utility
+          const assetGroupsForThumbnails = assetGroups.map(group => ({
+            baseName: group.baseName,
+            assets: group.assets.map(asset => ({
+              id: asset.id,
+              name: asset.name,
+              supabaseUrl: asset.supabaseUrl,
+              type: asset.type
+            }))
+          }));
+          
+          const thumbnailResult = await generateThumbnailsForAssetGroups(
+            assetGroupsForThumbnails, 
+            conceptId
+          );
+          
+          if (thumbnailResult.processed > 0) {
+            addToast('success', 'Thumbnails Generated', 
+              `Automatically generated ${thumbnailResult.processed} video thumbnails.`);
+            logger.info('Automatic thumbnail generation completed', { 
+              processed: thumbnailResult.processed,
+              total: thumbnailResult.total,
+              errors: thumbnailResult.errors.length
+            });
+          }
+          
+          if (thumbnailResult.errors.length > 0) {
+            addToast('warning', 'Thumbnail Generation Issues', 
+              `${thumbnailResult.errors.length} thumbnails failed to generate. Videos uploaded successfully.`);
+            logger.warn('Some thumbnail generation errors occurred', { 
+              errors: thumbnailResult.errors 
+            });
+          }
+          
+        } catch (thumbnailError) {
+          logger.error('Automatic thumbnail generation failed', thumbnailError);
+          addToast('warning', 'Thumbnail Generation Failed', 
+            'Videos uploaded successfully, but thumbnail generation failed. You can generate them manually later.');
         }
         
-        if (thumbnailResult.errors.length > 0) {
-          addToast('warning', 'Thumbnail Generation Issues', 
-            `${thumbnailResult.errors.length} thumbnails failed to generate. Videos uploaded successfully.`);
-          logger.warn('Some thumbnail generation errors occurred', { 
-            errors: thumbnailResult.errors 
-          });
-        }
-        
-      } catch (thumbnailError) {
-        logger.error('Automatic thumbnail generation failed', thumbnailError);
-        addToast('warning', 'Thumbnail Generation Failed', 
-          'Videos uploaded successfully, but thumbnail generation failed. You can generate them manually later.');
+        setSelectedFiles([]);
+        logger.info('Assets uploaded callback completed, closing modal');
+        onClose();
+      } catch (callbackError) {
+        logger.error('onAssetsUploaded callback failed', callbackError);
+        addToast('error', 'Upload Error', 'Failed to complete the upload process. Please try again.');
+        setSelectedFiles([]);
+      } finally {
+        setIsProcessing(false);
       }
-      
-      setSelectedFiles([]);
-      setIsProcessing(false);
-      logger.info('Assets uploaded callback completed, closing modal');
-      onClose();
     } else {
       setIsProcessing(false);
       logger.warn('No assets were uploaded, keeping modal open');

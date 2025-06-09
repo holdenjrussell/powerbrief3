@@ -513,21 +513,36 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, activeBatch, select
   // Load existing ad drafts on component mount
   useEffect(() => {
     const loadAdDrafts = async () => {
-      if (!defaults.brandId) return;
+      if (!defaults.brandId) {
+        console.warn('⚠️ No brandId available, skipping load');
+        return;
+      }
       
       try {
         setLoading(true);
+        
+        // Clear existing data immediately when brand changes to prevent showing stale data
+        setAdDrafts([]);
+        
         const params = new URLSearchParams({
           brandId: defaults.brandId
         });
         
-        // Remove batch filtering - load ALL ads for the brand
         console.log('🔍 Loading ALL drafts for brand:', defaults.brandId);
         
         const apiUrl = `/api/ad-drafts?${params}`;
         console.log('🌐 API URL:', apiUrl);
         
-        const response = await fetch(apiUrl);
+        const response = await fetch(apiUrl, {
+          // Add cache busting to prevent stale responses
+          cache: 'no-cache',
+          headers: {
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache',
+            // Add explicit brand context
+            'X-Brand-Context': defaults.brandId
+          }
+        });
         if (!response.ok) throw new Error('Failed to load ad drafts');
         
         const existingDrafts: AdDraft[] = await response.json();
@@ -548,7 +563,9 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, activeBatch, select
         }, 100);
         
       } catch (error) {
-        console.error('Error loading ad drafts:', error);
+        console.error('❌ Error loading ad drafts:', error);
+        // Clear ads on error to prevent showing stale data
+        setAdDrafts([]);
       } finally {
         setLoading(false);
       }
@@ -568,24 +585,61 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, activeBatch, select
 
   // Function to refresh ad drafts data
   const refreshAdDrafts = async () => {
-    if (!defaults.brandId) return;
+    if (!defaults.brandId) {
+      console.warn('⚠️ No brandId available, skipping refresh');
+      return;
+    }
     
     try {
       const params = new URLSearchParams({
         brandId: defaults.brandId
       });
       
-      // Remove batch filtering - refresh ALL ads for the brand
       console.log('🔄 Refreshing ALL drafts for brand:', defaults.brandId);
       
       const apiUrl = `/api/ad-drafts?${params}`;
       console.log('🌐 Refresh API URL:', apiUrl);
       
-      const response = await fetch(apiUrl);
-      if (!response.ok) throw new Error('Failed to refresh ad drafts');
+      const response = await fetch(apiUrl, {
+        // Add cache busting to prevent stale responses
+        cache: 'no-cache',
+        headers: {
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache',
+          // Add explicit brand context to prevent cross-brand contamination
+          'X-Brand-Context': defaults.brandId
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to refresh ad drafts: ${response.status} ${response.statusText}`);
+      }
       
       const existingDrafts: AdDraft[] = await response.json();
-      console.log('🔄 Refreshed drafts from API:', existingDrafts.length, existingDrafts);
+      console.log('🔄 Refreshed drafts from API:', existingDrafts.length);
+      
+      // CRITICAL: Validate that all returned drafts belong to the current brand
+      const wrongBrandDrafts = existingDrafts.filter(draft => 
+        draft.brandId && draft.brandId !== defaults.brandId
+      );
+      
+      if (wrongBrandDrafts.length > 0) {
+        console.error('❌ BRAND MISMATCH DETECTED! Wrong brand drafts returned:', wrongBrandDrafts.map(d => ({
+          id: d.id,
+          name: d.adName,
+          brandId: d.brandId,
+          expectedBrandId: defaults.brandId
+        })));
+        
+        // Filter out wrong brand drafts as a safety measure
+        const correctBrandDrafts = existingDrafts.filter(draft => 
+          !draft.brandId || draft.brandId === defaults.brandId
+        );
+        
+        console.log('🛡️ Filtered to correct brand drafts:', correctBrandDrafts.length);
+        setAdDrafts(correctBrandDrafts);
+        return;
+      }
       
       // Log status breakdown of refreshed drafts
       const statusBreakdown = existingDrafts.reduce((acc, draft) => {
@@ -598,7 +652,7 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, activeBatch, select
       // Ensure all drafts have brandId set (safety check for existing drafts)
       const draftsWithBrandId = existingDrafts.map(draft => ({
         ...draft,
-        brandId: draft.brandId || defaults.brandId || undefined
+        brandId: draft.brandId || defaults.brandId
       }));
       
       console.log('✅ Setting refreshed drafts in state:', draftsWithBrandId.length);
@@ -610,11 +664,14 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, activeBatch, select
         draftsWithBrandId.filter(draft => !hidePublished || draft.appStatus !== 'PUBLISHED').length
       );
       
-      // Check for thumbnail generation after refresh
-      checkAndGenerateThumbnails(draftsWithBrandId);
+      // Check for thumbnail generation after refresh (but don't trigger infinite loops)
+      if (existingDrafts.length > 0) {
+        checkAndGenerateThumbnails(draftsWithBrandId);
+      }
       
     } catch (error) {
-      console.error('Error refreshing ad drafts:', error);
+      console.error('❌ Error refreshing ad drafts:', error);
+      // Don't clear the drafts on error - keep showing what we have
     }
   };
 
