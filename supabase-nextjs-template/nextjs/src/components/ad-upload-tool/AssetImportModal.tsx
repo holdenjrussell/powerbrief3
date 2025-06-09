@@ -835,6 +835,7 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
           assetGroups={previewAssetGroups}
           conceptTitle="Asset Import Preview"
           onConfirmSend={handleConfirmGrouping}
+          showInstructions={false}
         />
       )}
     </div>

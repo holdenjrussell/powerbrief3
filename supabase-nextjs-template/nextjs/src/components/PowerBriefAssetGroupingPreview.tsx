@@ -4,20 +4,22 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { X, Upload, Edit3, Plus, Trash2, GripVertical } from 'lucide-react';
 import { UploadedAssetGroup, UploadedAsset } from '@/lib/types/powerbrief';
 
-interface AssetGroupingPreviewProps {
+interface PowerBriefAssetGroupingPreviewProps {
   isOpen: boolean;
   onClose: () => void;
   assetGroups: UploadedAssetGroup[];
   conceptTitle: string;
-  onConfirmSend: (groups: UploadedAssetGroup[]) => void;
+  onConfirmSend: (updatedGroups: UploadedAssetGroup[]) => void;
+  showInstructions?: boolean;
 }
 
-const AssetGroupingPreview: React.FC<AssetGroupingPreviewProps> = ({
+const AssetGroupingPreview: React.FC<PowerBriefAssetGroupingPreviewProps> = ({
   isOpen,
   onClose,
   assetGroups,
   conceptTitle,
-  onConfirmSend
+  onConfirmSend,
+  showInstructions = true
 }) => {
   const [editableGroups, setEditableGroups] = useState<UploadedAssetGroup[]>(assetGroups);
   const [isEditing, setIsEditing] = useState(false);
@@ -135,39 +137,40 @@ const AssetGroupingPreview: React.FC<AssetGroupingPreviewProps> = ({
           </button>
         </div>
 
-        {/* File Grouping Instructions Banner */}
-        <div className="p-4 bg-gray-50 border-b border-gray-200">
-          <div className="max-w-4xl">
-            <h3 className="text-sm font-semibold text-gray-800 mb-2">
-              📝 File Grouping Instructions
-            </h3>
-            <div className="text-xs text-gray-600 space-y-2">
-              <div className="flex items-start">
-                <span className="text-red-600 font-medium mr-1">🎯 IMPORTANT GROUPING RULE:</span>
-                <span className="text-red-600 font-medium">Group by VERSION (V1, V2, V3), NOT by aspect ratio!</span>
-              </div>
-              
-              <div className="space-y-1 ml-2">
-                <p>• <strong>Correct grouping:</strong> V1 folder contains both 4x5 and 9x16 versions of the same concept</p>
-                <p>• <strong>Wrong grouping:</strong> Separate folders for all 4x5s together and all 9x16s together</p>
-                <p>• <strong>Aspect ratios:</strong> 4x5 and 9x16 can appear anywhere in filename (ConceptName_4x5_v1.mp4 also works)</p>
-                <p>• <strong>Version numbers:</strong> v1, v2, v3 help group the pairs together</p>
-              </div>
-              
-              <div className="mt-3">
-                <p className="font-medium text-gray-700 mb-1">• <strong>Examples:</strong></p>
-                <div className="ml-4 text-xs font-mono bg-white p-3 rounded border">
-                  <div className="text-green-600 font-medium mb-1">✅ Good grouping:</div>
-                  <div className="mb-1">ProductDemo_v1_4x5.mp4 + ProductDemo_v1_9x16.mp4 (grouped together)</div>
-                  <div className="mb-2">ProductDemo_v2_4x5.mp4 + ProductDemo_v2_9x16.mp4 (grouped together)</div>
-                  
-                  <div className="text-red-600 font-medium mb-1">❌ Bad grouping:</div>
-                  <div>All 4x5 files in one folder, all 9x16 files in another folder</div>
+        {showInstructions && (
+          <div className="p-4 bg-gray-50 border-b border-gray-200">
+            <div className="max-w-4xl">
+              <h3 className="text-sm font-semibold text-gray-800 mb-2">
+                📝 File Grouping Instructions
+              </h3>
+              <div className="text-xs text-gray-600 space-y-2">
+                <div className="flex items-start">
+                  <span className="text-red-600 font-medium mr-1">🎯 IMPORTANT GROUPING RULE:</span>
+                  <span className="text-red-600 font-medium">Group by VERSION (V1, V2, V3), NOT by aspect ratio!</span>
+                </div>
+                
+                <div className="space-y-1 ml-2">
+                  <p>• <strong>Correct grouping:</strong> V1 folder contains both 4x5 and 9x16 versions of the same concept</p>
+                  <p>• <strong>Wrong grouping:</strong> Separate folders for all 4x5s together and all 9x16s together</p>
+                  <p>• <strong>Aspect ratios:</strong> 4x5 and 9x16 can appear anywhere in filename (ConceptName_4x5_v1.mp4 also works)</p>
+                  <p>• <strong>Version numbers:</strong> v1, v2, v3 help group the pairs together</p>
+                </div>
+                
+                <div className="mt-3">
+                  <p className="font-medium text-gray-700 mb-1">• <strong>Examples:</strong></p>
+                  <div className="ml-4 text-xs font-mono bg-white p-3 rounded border">
+                    <div className="text-green-600 font-medium mb-1">✅ Good grouping:</div>
+                    <div className="mb-1">ProductDemo_v1_4x5.mp4 + ProductDemo_v1_9x16.mp4 (grouped together)</div>
+                    <div className="mb-2">ProductDemo_v2_4x5.mp4 + ProductDemo_v2_9x16.mp4 (grouped together)</div>
+                    
+                    <div className="text-red-600 font-medium mb-1">❌ Bad grouping:</div>
+                    <div>All 4x5 files in one folder, all 9x16 files in another folder</div>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
+        )}
 
         <div className="flex-1 overflow-y-auto p-6">
           <div className="mb-4 flex items-center justify-between">
