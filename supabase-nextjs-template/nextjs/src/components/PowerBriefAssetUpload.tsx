@@ -33,6 +33,8 @@ interface AssetFile {
   thumbnailUrl?: string;
   thumbnailExtracted?: boolean;
   videoDimensions?: { width: number; height: number }; // Video dimensions
+  customThumbnailFile?: File; // Custom thumbnail uploaded by user
+  customThumbnailUrl?: string; // Preview URL for custom thumbnail
 }
 
 interface AssetGroup {
@@ -470,7 +472,9 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
         thumbnailBlob: undefined,
         thumbnailUrl: undefined,
         thumbnailExtracted: false,
-        videoDimensions
+        videoDimensions,
+        customThumbnailFile: undefined,
+        customThumbnailUrl: undefined
       };
       
       newFiles.push(assetFile);
@@ -777,8 +781,21 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
             uploadedAt: new Date().toISOString()
           };
 
-          // Upload thumbnail if it exists (for videos)
-          if (assetFile.thumbnailBlob && assetFile.thumbnailBlob.size > 0) {
+          // Upload thumbnail if it exists (for videos) - prioritize custom thumbnail
+          let thumbnailToUpload: Blob | null = null;
+          let thumbnailSource = '';
+          
+          if (assetFile.customThumbnailFile) {
+            // Use custom thumbnail if provided
+            thumbnailToUpload = assetFile.customThumbnailFile;
+            thumbnailSource = 'custom';
+          } else if (assetFile.thumbnailBlob && assetFile.thumbnailBlob.size > 0) {
+            // Use auto-generated thumbnail as fallback
+            thumbnailToUpload = assetFile.thumbnailBlob;
+            thumbnailSource = 'auto-generated';
+          }
+          
+          if (thumbnailToUpload && thumbnailToUpload.size > 0) {
             try {
               const thumbnailFileName = `${assetFile.file.name.split('.')[0]}_thumbnail.jpg`;
               const thumbnailPath = `${conceptId}/${timestamp}_${thumbnailFileName}`;
@@ -786,12 +803,13 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
               logger.debug('Uploading video thumbnail', { 
                 videoFileName: assetFile.file.name,
                 thumbnailPath,
-                thumbnailSize: assetFile.thumbnailBlob.size
+                thumbnailSize: thumbnailToUpload.size,
+                thumbnailSource
               });
 
               const { data: thumbnailData, error: thumbnailError } = await supabase.storage
                 .from('ad-creatives')
-                .upload(thumbnailPath, assetFile.thumbnailBlob, {
+                .upload(thumbnailPath, thumbnailToUpload, {
                   cacheControl: '3600',
                   upsert: false,
                 });
@@ -799,7 +817,8 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
               if (thumbnailError) {
                 logger.warn('Thumbnail upload failed', { 
                   videoFileName: assetFile.file.name, 
-                  error: thumbnailError 
+                  error: thumbnailError,
+                  thumbnailSource
                 });
               } else if (thumbnailData) {
                 const { data: { publicUrl: thumbnailPublicUrl } } = supabase.storage
@@ -811,7 +830,8 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
                   uploadedAsset.thumbnailUrl = thumbnailPublicUrl;
                   logger.info('Video thumbnail uploaded successfully', { 
                     videoFileName: assetFile.file.name,
-                    thumbnailUrl: thumbnailPublicUrl
+                    thumbnailUrl: thumbnailPublicUrl,
+                    thumbnailSource
                   });
 
                   // CRITICAL FIX: Save thumbnail URL to database immediately after upload
@@ -822,17 +842,19 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
                     logger.info('Saving thumbnail URL for future database persistence', {
                       videoFileName: assetFile.file.name,
                       thumbnailUrl: thumbnailPublicUrl,
-                      conceptId
+                      conceptId,
+                      thumbnailSource
                     });
                     
                     // Store thumbnail info in the uploaded asset for later database save
                     uploadedAsset.thumbnailUrl = thumbnailPublicUrl;
-                    uploadedAsset.thumbnailTimestamp = 1.0; // Default to 1 second timestamp
+                    uploadedAsset.thumbnailTimestamp = thumbnailSource === 'custom' ? 0 : 1.0; // Custom thumbnails don't have timestamps
                     
                   } catch (dbError) {
                     logger.warn('Failed to prepare thumbnail for database save', { 
                       videoFileName: assetFile.file.name, 
-                      error: dbError 
+                      error: dbError,
+                      thumbnailSource
                     });
                     // Continue without failing the upload
                   }
@@ -841,7 +863,8 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
             } catch (thumbnailUploadError) {
               logger.warn('Thumbnail upload error', { 
                 videoFileName: assetFile.file.name, 
-                error: thumbnailUploadError 
+                error: thumbnailUploadError,
+                thumbnailSource
               });
               // Continue without thumbnail
             }
@@ -1013,6 +1036,53 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
       selectedFileCount: selectedFiles.length
     });
     onClose();
+  };
+
+  // Function to handle custom thumbnail upload
+  const handleCustomThumbnailUpload = (fileId: string, thumbnailFile: File) => {
+    setSelectedFiles(prev => prev.map(assetFile => {
+      if (assetFile.id === fileId) {
+        // Create preview URL for the custom thumbnail
+        const customThumbnailUrl = URL.createObjectURL(thumbnailFile);
+        
+        // Clean up previous preview URL if it exists
+        if (assetFile.customThumbnailUrl) {
+          URL.revokeObjectURL(assetFile.customThumbnailUrl);
+        }
+        
+        logger.info('Custom thumbnail uploaded', { 
+          videoFileName: assetFile.file.name,
+          thumbnailFileName: thumbnailFile.name,
+          thumbnailSize: thumbnailFile.size 
+        });
+        
+        return {
+          ...assetFile,
+          customThumbnailFile: thumbnailFile,
+          customThumbnailUrl,
+          thumbnailExtracted: true // Mark as having a thumbnail
+        };
+      }
+      return assetFile;
+    }));
+  };
+
+  // Function to remove custom thumbnail
+  const removeCustomThumbnail = (fileId: string) => {
+    setSelectedFiles(prev => prev.map(assetFile => {
+      if (assetFile.id === fileId && assetFile.customThumbnailUrl) {
+        // Clean up preview URL
+        URL.revokeObjectURL(assetFile.customThumbnailUrl);
+        
+        return {
+          ...assetFile,
+          customThumbnailFile: undefined,
+          customThumbnailUrl: undefined,
+          thumbnailExtracted: false
+        };
+      }
+      return assetFile;
+    }));
   };
 
   if (!isOpen) return null;
@@ -1248,6 +1318,64 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
                         )}
                       </div>
                       
+                      {/* Custom Thumbnail Upload for Videos */}
+                      {file.file.type.startsWith('video/') && !file.uploading && (
+                        <div className="mt-2 p-2 bg-gray-50 rounded border">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-medium text-gray-700">Custom Thumbnail:</span>
+                            {file.customThumbnailFile ? (
+                              <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-1">
+                                  <img 
+                                    src={file.customThumbnailUrl} 
+                                    alt="Custom thumbnail preview"
+                                    className="w-8 h-8 object-cover rounded border"
+                                  />
+                                  <span className="text-xs text-green-600">✓ Custom thumbnail</span>
+                                </div>
+                                <button
+                                  onClick={() => removeCustomThumbnail(file.id)}
+                                  className="text-xs text-red-600 hover:text-red-800"
+                                  title="Remove custom thumbnail"
+                                >
+                                  Remove
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  onChange={(e) => {
+                                    const thumbnailFile = e.target.files?.[0];
+                                    if (thumbnailFile) {
+                                      handleCustomThumbnailUpload(file.id, thumbnailFile);
+                                    }
+                                  }}
+                                  className="hidden"
+                                  id={`thumbnail-${file.id}`}
+                                />
+                                <label
+                                  htmlFor={`thumbnail-${file.id}`}
+                                  className="text-xs text-blue-600 hover:text-blue-800 cursor-pointer underline"
+                                >
+                                  Upload image
+                                </label>
+                                <span className="text-xs text-gray-500">
+                                  (for slow connections)
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                          {!file.customThumbnailFile && (
+                            <p className="text-xs text-gray-500 mt-1">
+                              💡 Upload a custom thumbnail if auto-generation fails due to slow connection
+                            </p>
+                          )}
+                        </div>
+                      )}
+                      
+                      {/* Progress bars and error display */}
                       {file.compressing && (
                         <div className="mt-2">
                           <div className="w-full bg-gray-200 rounded-full h-2">

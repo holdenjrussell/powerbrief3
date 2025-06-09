@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { X, Play, Pause, RotateCcw, Save, Loader2, Clock } from 'lucide-react';
 import { createSPAClient } from '@/lib/supabase/client';
 import { AdDraftAsset } from './adUploadTypes';
+import { parseFilename } from '@/lib/utils/aspectRatioDetection';
 
 interface VideoThumbnailScrubberModalProps {
   isOpen: boolean;
@@ -32,15 +33,10 @@ export default function VideoThumbnailScrubberModal({
   const [selectedTimestamp, setSelectedTimestamp] = useState<number | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   
-  // Group related videos by concept name (remove version and aspect ratio)
+  // Enhanced grouping using shared utility
   const getConceptName = (filename: string) => {
-    // Remove file extension first
-    const nameWithoutExt = filename.replace(/\.[^/.]+$/, '');
-    // Remove version patterns like _v1, _v2, etc.
-    const withoutVersion = nameWithoutExt.replace(/_v\d+/i, '');
-    // Remove aspect ratio patterns like _4x5, _9x16, etc.
-    const withoutRatio = withoutVersion.replace(/[_-](4x5|9x16|1x1|16x9)$/i, '');
-    return withoutRatio;
+    const { groupKey } = parseFilename(filename);
+    return groupKey;
   };
 
   const conceptName = videoAsset ? getConceptName(videoAsset.name) : '';
