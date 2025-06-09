@@ -9,7 +9,7 @@ import { Brand, BriefBatch, BriefConcept, Scene, Hook, AiBriefingRequest, ShareS
 import { 
     Sparkles, Plus, X, FileUp, Trash2, Share2, MoveUp, MoveDown, 
     Loader2, Check, Pencil, Bug, Film, FileImage, ArrowLeft, Copy, LinkIcon, Mail,
-    Filter, SortAsc, RotateCcw, ExternalLink, XCircle
+    Filter, SortAsc, RotateCcw, ExternalLink, XCircle, FileText, ChevronDown, Settings
 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -22,6 +22,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogD
 import MarkdownTextarea from '@/components/ui/markdown-textarea';
 import ConceptVoiceGenerator from '@/components/ConceptVoiceGenerator';
 import { v4 as uuidv4 } from 'uuid';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 // Helper to unwrap params safely
 type ParamsType = { brandId: string, batchId: string };
@@ -43,6 +44,7 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
     const [generatingConceptIds, setGeneratingConceptIds] = useState<Record<string, boolean>>({});
     const fileInputRef = useRef<HTMLInputElement>(null);
     const multipleFileInputRef = useRef<HTMLInputElement>(null);
+    const pdfInputRef = useRef<HTMLInputElement>(null);
     const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const isTypingRef = useRef<Record<string, boolean>>({});
     const [localPrompts, setLocalPrompts] = useState<Record<string, string>>({});
@@ -87,6 +89,12 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
     // Prerequisites state
     const [localPrerequisites, setLocalPrerequisites] = useState<Record<string, Prerequisite[]>>({});
     const [customPrerequisiteTypes, setCustomPrerequisiteTypes] = useState<Record<string, string[]>>({});
+
+    // PDF Import state
+    const [importingPDF, setImportingPDF] = useState<boolean>(false);
+    const [pdfImportProgress, setPdfImportProgress] = useState<number>(0);
+    const [showPdfImportDialog, setShowPdfImportDialog] = useState<boolean>(false);
+    const [pdfImportResults, setPdfImportResults] = useState<any[]>([]);
 
     // Filtering and sorting state
     const [filterStatus, setFilterStatus] = useState<string>('all');
@@ -1302,10 +1310,10 @@ Focus on search optimization, reader value, and conversion potential.`
                     cta_text_overlay: conceptWithSavedPrompt.cta_text_overlay || '',
                     description: conceptWithSavedPrompt.description || ''
                 },
-                media: {
-                    url: conceptWithSavedPrompt.media_url || '',
+                media: conceptWithSavedPrompt.media_url ? {
+                    url: conceptWithSavedPrompt.media_url,
                     type: conceptWithSavedPrompt.media_type || ''
-                },
+                } : undefined,
                 desiredOutputFields: conceptWithSavedPrompt.media_type === 'image' 
                     ? ['description', 'cta'] // For image briefs
                     : ['text_hook_options', 'spoken_hook_options', 'body_content_structured_scenes', 'cta_script', 'cta_text_overlay'], // For video briefs
@@ -1563,10 +1571,10 @@ Focus on search optimization, reader value, and conversion potential.`
                             cta_text_overlay: concept.cta_text_overlay || '',
                             description: concept.description || ''
                         },
-                        media: {
-                            url: concept.media_url || '',
+                        media: concept.media_url ? {
+                            url: concept.media_url,
                             type: concept.media_type || ''
-                        },
+                        } : undefined,
                         desiredOutputFields: concept.media_type === 'image' 
                             ? ['description', 'cta'] // For image briefs
                             : ['text_hook_options', 'spoken_hook_options', 'body_content_structured_scenes', 'cta_script', 'cta_text_overlay'], // For video briefs
@@ -2566,21 +2574,160 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
     };
 
     const getIncompletePrerequisites = (conceptId: string): string[] => {
-        const prerequisites = localPrerequisites[conceptId] || [];
-        return prerequisites
-            .filter(prereq => !prereq.completed)
-            .map(prereq => {
-                switch (prereq.type) {
-                    case 'AI Voiceover': return 'NEEDS AI VO';
-                    case 'UGC Script': return 'NEEDS UGC SCRIPT';
-                    case 'UGC B Roll': return 'NEEDS UGC B ROLL';
-                    case 'AI UGC': return 'NEEDS AI UGC';
-                    case 'AI B Roll': return 'NEEDS AI B ROLL';
-                    case 'Stock Footage': return 'NEEDS STOCK FOOTAGE';
-                    case 'Custom Animation': return 'NEEDS ANIMATION';
-                    default: return `NEEDS ${prereq.type.toUpperCase()}`;
-                }
+        const currentPrerequisites = localPrerequisites[conceptId] || [];
+        return currentPrerequisites
+            .filter(p => !p.completed)
+            .map(p => p.type);
+    };
+
+    // PDF Import handler
+    const handlePdfImport = async (files: FileList) => {
+        if (!files || files.length === 0) return;
+        
+        try {
+            setImportingPDF(true);
+            setPdfImportProgress(0);
+            setError(null);
+            
+            const formData = new FormData();
+            
+            // Filter and add only PDF files to form data
+            const pdfFiles = Array.from(files).filter((file) => 
+                file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
+            );
+            
+            if (pdfFiles.length === 0) {
+                setError('No PDF files found in the selection. Please select PDF files only.');
+                setImportingPDF(false); // Fix: Clean up loading state before returning
+                return;
+            }
+            
+            pdfFiles.forEach((file) => {
+                formData.append('files', file);
             });
+            
+            formData.append('brandId', brandId);
+            formData.append('batchId', batchId);
+            
+            console.log(`Importing ${pdfFiles.length} PDF files...`);
+            
+            const response = await fetch('/api/powerbrief/import-concept-from-pdf', {
+                method: 'POST',
+                body: formData
+            });
+            
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => null);
+                throw new Error(errorData?.error || `Failed to import PDFs (HTTP ${response.status})`);
+            }
+            
+            const results = await response.json();
+            console.log('PDF import results:', results);
+            
+            setPdfImportResults(results.results || []);
+            setShowPdfImportDialog(true);
+            
+            // Create concepts for successful imports
+            const successfulImports = results.results.filter((r: any) => r.success);
+            
+            for (let i = 0; i < successfulImports.length; i++) {
+                const result = successfulImports[i];
+                setPdfImportProgress(((i + 1) / successfulImports.length) * 100);
+                
+                try {
+                    // Create a new concept with the extracted data
+                    const conceptNumber = startingConceptNumber + concepts.length + i;
+                    
+                    // Process text hooks with proper structure
+                    const textHooks = result.conceptData.text_hook_options ? 
+                        result.conceptData.text_hook_options.split('\n')
+                            .map((hook: string) => hook.trim())
+                            .filter((hook: string) => hook.length > 0)
+                            .map((hook: string, index: number) => ({
+                                id: uuidv4(),
+                                title: `Hook ${index + 1}`,
+                                content: hook,
+                                is_active: true
+                            })) : [];
+                    
+                    // Process spoken hooks with proper structure
+                    const spokenHooks = result.conceptData.spoken_hook_options ? 
+                        result.conceptData.spoken_hook_options.split('\n')
+                            .map((hook: string) => hook.trim())
+                            .filter((hook: string) => hook.length > 0)
+                            .map((hook: string, index: number) => ({
+                                id: uuidv4(),
+                                title: `Hook ${index + 1}`,
+                                content: hook,
+                                is_active: true
+                            })) : [];
+                    
+                    const newConcept = await createBriefConcept({
+                        brief_batch_id: batch!.id,
+                        user_id: user!.id,
+                        concept_title: `PDF Import - ${result.fileName.replace('.pdf', '')}`,
+                        body_content_structured: result.conceptData.body_content_structured_scenes || [],
+                        order_in_batch: concepts.length + i,
+                        clickup_id: null,
+                        clickup_link: null,
+                        custom_links: [],
+                        strategist: null,
+                        creative_coordinator: null,
+                        video_editor: null,
+                        editor_id: null,
+                        custom_editor_name: null,
+                        status: null,
+                        date_assigned: null,
+                        media_url: null,
+                        media_type: null,
+                        ai_custom_prompt: null,
+                        text_hook_options: textHooks,
+                        spoken_hook_options: spokenHooks,
+                        cta_script: result.conceptData.cta_script || null,
+                        cta_text_overlay: result.conceptData.cta_text_overlay || null,
+                        description: `Imported from PDF: ${result.fileName}`,
+                        videoInstructions: brand?.default_video_instructions || '',
+                        designerInstructions: brand?.default_designer_instructions || '',
+                        product_id: null,
+                        review_status: null,
+                        review_link: null,
+                        review_comments: null,
+                        brief_revision_comments: null,
+                        hook_type: null,
+                        hook_count: null,
+                        prerequisites: []
+                    });
+                    
+                    setConcepts(prev => [...prev, newConcept]);
+                    
+                } catch (conceptError) {
+                    console.error(`Failed to create concept for ${result.fileName}:`, conceptError);
+                    setError(`Failed to create concept for ${result.fileName}. Please try again.`);
+                }
+            }
+            
+            if (results.failureCount > 0) {
+                setError(`${results.failureCount} out of ${results.totalFiles} PDFs failed to import. Check the results dialog for details.`);
+            }
+            
+        } catch (err) {
+            console.error('PDF import error:', err);
+            setError(err instanceof Error ? err.message : 'Failed to import PDFs. Please try again.');
+        } finally {
+            setImportingPDF(false);
+            setPdfImportProgress(0);
+        }
+    };
+
+    // Handle PDF file selection
+    const handlePdfFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files.length > 0) {
+            await handlePdfImport(e.target.files);
+            // Reset the input
+            if (pdfInputRef.current) {
+                pdfInputRef.current.value = '';
+            }
+        }
     };
 
     if (loading) {
@@ -2609,7 +2756,8 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
 
     return (
         <div className="p-6 space-y-6">
-            <div className="flex justify-between items-center">
+            {/* Header Section */}
+            <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4">
                 <div className="flex items-center space-x-4">
                     <Link href="/app/powerbrief">
                         <Button variant="outline">
@@ -2619,70 +2767,115 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                     </Link>
                     <h1 className="text-2xl font-bold">{batch.name}</h1>
                 </div>
-                <div className="flex space-x-2">
-                    <Button
-                        variant="outline"
-                        onClick={() => setShowBatchSettingsDialog(true)}
-                    >
-                        Batch Settings
-                    </Button>
-                    <Button
-                        variant="outline"
-                        onClick={() => setShowShareBatchDialog(true)}
-                    >
-                        <Share2 className="h-4 w-4 mr-2" />
-                        Share Batch
-                    </Button>
-                    <Button
-                        variant="outline"
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                        onClick={() => setShowDeleteBatchDialog(true)}
-                    >
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Delete Batch
-                    </Button>
-                    <Button
-                        className="bg-red-600 text-white hover:bg-red-700"
-                        onClick={handleGenerateAllAI}
-                        disabled={generatingAI || concepts.length === 0}
-                    >
-                        {generatingAI ? (
-                            <>
-                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                Generating...
-                            </>
-                        ) : (
-                            <>
-                                <Sparkles className="h-4 w-4 mr-2" />
-                                EZ - BRIEF - ALL
-                            </>
-                        )}
-                    </Button>
-                    <Button
-                        className="bg-green-600 text-white hover:bg-green-700"
-                        onClick={() => {
-                            console.log("EZ UPLOAD: Button clicked, opening file selector");
-                            if (multipleFileInputRef.current) {
-                                multipleFileInputRef.current.click();
-                            } else {
-                                console.error("EZ UPLOAD: File input reference is null");
-                                setError("Cannot open file selector. Please try again.");
-                            }
-                        }}
-                        disabled={generatingAI}
-                    >
-                        {generatingAI ? (
-                            <>
-                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                Uploading...
-                            </>
-                        ) : (
-                            <>
-                                <FileUp className="h-4 w-4 mr-2" />
-                                EZ UPLOAD
-                            </>
-                        )}
-                    </Button>
+                
+                {/* Action Buttons - Responsive Layout */}
+                <div className="flex flex-col sm:flex-row gap-2">
+                    {/* Primary Actions Row */}
+                    <div className="flex gap-2">
+                        <Button
+                            className="bg-red-600 text-white hover:bg-red-700 flex-1 sm:flex-none"
+                            onClick={handleGenerateAllAI}
+                            disabled={generatingAI || concepts.length === 0}
+                        >
+                            {generatingAI ? (
+                                <>
+                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                    Generating...
+                                </>
+                            ) : (
+                                <>
+                                    <Sparkles className="h-4 w-4 mr-2" />
+                                    <span className="hidden sm:inline">EZ - BRIEF - ALL</span>
+                                    <span className="sm:hidden">Generate All</span>
+                                </>
+                            )}
+                        </Button>
+                        
+                        <Button
+                            className="bg-green-600 text-white hover:bg-green-700 flex-1 sm:flex-none"
+                            onClick={() => {
+                                console.log("EZ UPLOAD: Button clicked, opening file selector");
+                                if (multipleFileInputRef.current) {
+                                    multipleFileInputRef.current.click();
+                                } else {
+                                    console.error("EZ UPLOAD: File input reference is null");
+                                    setError("Cannot open file selector. Please try again.");
+                                }
+                            }}
+                            disabled={generatingAI}
+                        >
+                            {generatingAI ? (
+                                <>
+                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                    <span className="hidden sm:inline">Uploading...</span>
+                                    <span className="sm:hidden">Upload</span>
+                                </>
+                            ) : (
+                                <>
+                                    <FileUp className="h-4 w-4 mr-2" />
+                                    <span className="hidden sm:inline">EZ UPLOAD</span>
+                                    <span className="sm:hidden">Upload</span>
+                                </>
+                            )}
+                        </Button>
+                        
+                        <Button
+                            className="bg-purple-600 text-white hover:bg-purple-700 flex-1 sm:flex-none"
+                            onClick={() => {
+                                console.log("PDF IMPORT: Button clicked, opening file selector");
+                                if (pdfInputRef.current) {
+                                    pdfInputRef.current.click();
+                                } else {
+                                    console.error("PDF IMPORT: File input reference is null");
+                                    setError("Cannot open file selector. Please try again.");
+                                }
+                            }}
+                            disabled={importingPDF || generatingAI}
+                        >
+                            {importingPDF ? (
+                                <>
+                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                    <span className="hidden sm:inline">Importing...</span>
+                                    <span className="sm:hidden">Import</span>
+                                </>
+                            ) : (
+                                <>
+                                    <FileText className="h-4 w-4 mr-2" />
+                                    <span className="hidden lg:inline">Import from PDF</span>
+                                    <span className="lg:hidden">PDF Import</span>
+                                </>
+                            )}
+                        </Button>
+                    </div>
+                    
+                    {/* Secondary Actions Dropdown */}
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="outline" className="flex-1 sm:flex-none">
+                                <span className="hidden sm:inline mr-2">More Actions</span>
+                                <span className="sm:hidden mr-2">Menu</span>
+                                <ChevronDown className="h-4 w-4" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-48">
+                            <DropdownMenuItem onClick={() => setShowBatchSettingsDialog(true)}>
+                                <Settings className="h-4 w-4 mr-2" />
+                                Batch Settings
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setShowShareBatchDialog(true)}>
+                                <Share2 className="h-4 w-4 mr-2" />
+                                Share Batch
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem 
+                                onClick={() => setShowDeleteBatchDialog(true)}
+                                className="text-red-600 focus:text-red-600"
+                            >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Delete Batch
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                 </div>
             </div>
             
@@ -3519,26 +3712,24 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                     </div>
                                     
                                     {/* AI Button */}
-                                    {concept.media_url && (
-                                        <Button
-                                            size="sm"
-                                            className="ml-2 bg-primary-600 text-white hover:bg-primary-700 flex items-center"
-                                            disabled={generatingConceptIds[concept.id]}
-                                            onClick={() => handleGenerateAI(concept.id)}
-                                        >
-                                            {generatingConceptIds[concept.id] ? (
-                                                <>
-                                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                                    Generating...
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <Sparkles className="h-4 w-4 mr-2" />
-                                                    Generate AI
-                                                </>
-                                            )}
-                                        </Button>
-                                    )}
+                                    <Button
+                                        size="sm"
+                                        className="ml-2 bg-primary-600 text-white hover:bg-primary-700 flex items-center"
+                                        disabled={generatingConceptIds[concept.id]}
+                                        onClick={() => handleGenerateAI(concept.id)}
+                                    >
+                                        {generatingConceptIds[concept.id] ? (
+                                            <>
+                                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                                Generating...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Sparkles className="h-4 w-4 mr-2" />
+                                                Generate AI
+                                            </>
+                                        )}
+                                    </Button>
                                     
                                     {/* Debug Prompt Button */}
                                     <Button
@@ -4367,6 +4558,104 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                 }}
             />
             
+            {/* Hidden File Input for PDF Import */}
+            <input 
+                type="file" 
+                ref={pdfInputRef} 
+                className="hidden"
+                accept=".pdf,application/pdf"
+                multiple={true}
+                aria-label="Import concepts from PDF files"
+                title="Import concepts from PDF files"
+                onChange={handlePdfFileChange}
+            />
+
+            {/* PDF Import Progress Dialog */}
+            {importingPDF && (
+                <Dialog open={true} onOpenChange={() => {}}>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Importing Concepts from PDF</DialogTitle>
+                            <DialogDescription>
+                                Processing PDF files and extracting concept data...
+                            </DialogDescription>
+                        </DialogHeader>
+                        
+                        <div className="py-4">
+                            <div className="flex items-center space-x-2 mb-2">
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                <span className="text-sm">Processing PDFs...</span>
+                            </div>
+                            {pdfImportProgress > 0 && (
+                                <div className="w-full bg-gray-200 rounded-full h-2">
+                                    <div 
+                                        className="bg-purple-600 h-2 rounded-full transition-all duration-300" 
+                                        style={{ width: `${pdfImportProgress}%` }}
+                                    ></div>
+                                </div>
+                            )}
+                        </div>
+                    </DialogContent>
+                </Dialog>
+            )}
+
+            {/* PDF Import Results Dialog */}
+            <Dialog open={showPdfImportDialog} onOpenChange={setShowPdfImportDialog}>
+                <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle>PDF Import Results</DialogTitle>
+                        <DialogDescription>
+                            Results from importing concepts from PDF files
+                        </DialogDescription>
+                    </DialogHeader>
+                    
+                    <div className="py-4 space-y-4">
+                        {pdfImportResults.map((result, index) => (
+                            <div key={index} className={`p-4 rounded-lg border ${
+                                result.success ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'
+                            }`}>
+                                <div className="flex items-center space-x-2 mb-2">
+                                    {result.success ? (
+                                        <Check className="h-5 w-5 text-green-600" />
+                                    ) : (
+                                        <X className="h-5 w-5 text-red-600" />
+                                    )}
+                                    <span className="font-medium">{result.fileName}</span>
+                                </div>
+                                
+                                {result.success ? (
+                                    <div className="text-sm text-green-700">
+                                        <p>✅ Successfully extracted concept data</p>
+                                        <p>✅ Created new concept in batch</p>
+                                    </div>
+                                ) : (
+                                    <div className="text-sm text-red-700">
+                                        <p>❌ {result.error}</p>
+                                        {result.rawResponse && (
+                                            <details className="mt-2">
+                                                <summary className="cursor-pointer">View raw response</summary>
+                                                <pre className="mt-1 p-2 bg-gray-100 rounded text-xs overflow-x-auto">
+                                                    {result.rawResponse}
+                                                </pre>
+                                            </details>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                    
+                    <DialogFooter>
+                        <Button 
+                            variant="outline" 
+                            onClick={() => setShowPdfImportDialog(false)}
+                        >
+                            Close
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
             {/* Debug Prompt Dialog */}
             <Dialog open={showPromptDebugDialog} onOpenChange={setShowPromptDebugDialog}>
                 <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
