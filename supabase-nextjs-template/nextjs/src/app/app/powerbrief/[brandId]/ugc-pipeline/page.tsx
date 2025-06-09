@@ -135,6 +135,10 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
   const activeView = (searchParams.get('view') as ViewType) || 'concept';
   const [activeStatus, setActiveStatus] = useState<string>(UGC_CREATOR_SCRIPT_CONCEPT_STATUSES[0]);
   
+  // Creator view filter and sort state
+  const [creatorFilterStatus, setCreatorFilterStatus] = useState<string>('all');
+  const [creatorSortBy, setCreatorSortBy] = useState<string>('recent');
+  
   // Dialog state
   const [showNewCreatorDialog, setShowNewCreatorDialog] = useState(false);
   const [creatingCreator, setCreatingCreator] = useState(false);
@@ -405,6 +409,43 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
   const getScriptCountByConceptStatus = (status: string) => {
     return scripts.filter(script => script.concept_status === status).length;
   };
+
+  // Creator filtering and sorting functions
+  const filterCreators = (creatorsToFilter: UgcCreator[]): UgcCreator[] => {
+    if (creatorFilterStatus === 'all') {
+      return creatorsToFilter;
+    }
+    return creatorsToFilter.filter(creator => creator.status === creatorFilterStatus);
+  };
+
+  const sortCreators = (creatorsToSort: UgcCreator[]): UgcCreator[] => {
+    const sorted = [...creatorsToSort];
+    
+    switch (creatorSortBy) {
+      case 'name':
+        return sorted.sort((a, b) => {
+          const nameA = a.name || '';
+          const nameB = b.name || '';
+          return nameA.localeCompare(nameB);
+        });
+      case 'status':
+        return sorted.sort((a, b) => {
+          const statusA = a.status || '';
+          const statusB = b.status || '';
+          return statusA.localeCompare(statusB);
+        });
+      case 'recent':
+      default:
+        return sorted.sort((a, b) => {
+          const dateA = new Date(a.created_at || '').getTime();
+          const dateB = new Date(b.created_at || '').getTime();
+          return dateB - dateA; // Most recent first
+        });
+    }
+  };
+
+  // Get filtered and sorted creators
+  const filteredAndSortedCreators = sortCreators(filterCreators(creators));
 
   const handleCreateCreator = async (creatorData: Partial<UgcCreator>) => {
     if (!brand) return;
@@ -1806,22 +1847,25 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
                   </Card>
 
                   {/* Creator Filter/Sort Options */}
-                  <div className="flex space-x-4 mb-6">
-                    <Select>
+                  <div className="flex flex-wrap gap-4 mb-6">
+                    <Select value={creatorFilterStatus} onValueChange={setCreatorFilterStatus}>
                       <SelectTrigger className="w-48">
                         <SelectValue placeholder="Filter by status" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">All Statuses</SelectItem>
-                        {UGC_CREATOR_ONBOARDING_STATUSES.map((status) => (
-                          <SelectItem key={status} value={status}>
-                        {status}
-                          </SelectItem>
-                        ))}
+                        <SelectItem value="all">All Statuses ({creators.length})</SelectItem>
+                        {UGC_CREATOR_ONBOARDING_STATUSES.map((status) => {
+                          const count = creators.filter(c => c.status === status).length;
+                          return (
+                            <SelectItem key={status} value={status}>
+                              {status} ({count})
+                            </SelectItem>
+                          );
+                        })}
                       </SelectContent>
                     </Select>
                     
-                    <Select>
+                    <Select value={creatorSortBy} onValueChange={setCreatorSortBy}>
                       <SelectTrigger className="w-48">
                         <SelectValue placeholder="Sort by" />
                       </SelectTrigger>
@@ -1831,11 +1875,15 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
                         <SelectItem value="status">Status</SelectItem>
                       </SelectContent>
                     </Select>
+                    
+                    <div className="text-sm text-gray-500 flex items-center">
+                      Showing {filteredAndSortedCreators.length} of {creators.length} creators
+                    </div>
                   </div>
                   
                   {/* Creators Grid */}
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {creators.map((creator) => (
+                    {filteredAndSortedCreators.map((creator) => (
                       <CreatorCard
                         key={creator.id}
                         creator={creator}
@@ -1849,14 +1897,22 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
                       />
                     ))}
                     
+                    {filteredAndSortedCreators.length === 0 && creators.length > 0 && (
+                      <div className="col-span-full text-center py-12 text-gray-500">
+                        <Sparkles className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                        <p>No creators match the current filters</p>
+                        <p className="text-sm">Try adjusting your filter settings</p>
+                      </div>
+                    )}
+                    
                     {creators.length === 0 && (
                       <div className="col-span-full text-center py-12 text-gray-500">
                         <Sparkles className="h-12 w-12 mx-auto mb-4 opacity-50" />
                         <p>No creators found</p>
                         <p className="text-sm">Share the onboarding form above to start building your UGC pipeline</p>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
                 </div>
               )}
             </CardContent>

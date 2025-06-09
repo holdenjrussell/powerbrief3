@@ -70,6 +70,7 @@ export default function ScriptCard({
   const [revisionNotes, setRevisionNotes] = useState('');
   const [showAssignDialog, setShowAssignDialog] = useState(false);
   const [selectedCreatorId, setSelectedCreatorId] = useState('');
+  const [creatorSearchQuery, setCreatorSearchQuery] = useState('');
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showCreatorRejectDialog, setShowCreatorRejectDialog] = useState(false);
@@ -138,6 +139,7 @@ export default function ScriptCard({
         onAssign(script.id, creatorIds);
         setShowAssignDialog(false);
         setSelectedCreatorId('');
+        setCreatorSearchQuery('');
       } else {
         // Show an error message if no valid creator IDs
         console.error('No valid creator IDs selected');
@@ -749,32 +751,78 @@ export default function ScriptCard({
                       <p className="text-sm text-gray-700">{script.revision_notes}</p>
                     </div>
                   )}
-                  <Select
-                    value={selectedCreatorId}
-                    onValueChange={setSelectedCreatorId}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a creator" />
-                    </SelectTrigger>
-                    <SelectContent>
+                  
+                  {/* Search Input */}
+                  <div className="mb-4">
+                    <Input
+                      placeholder="Search creators by name or email..."
+                      value={creatorSearchQuery}
+                      onChange={(e) => setCreatorSearchQuery(e.target.value)}
+                      className="w-full"
+                    />
+                  </div>
+                  
+                  {/* Creator List */}
+                  <div className="space-y-2">
+                    <Label>Select Creator:</Label>
+                    <div className="max-h-48 overflow-y-auto border rounded-lg p-2">
                       {creators.length > 0 ? (
-                        creators.map((creator) => (
-                          <SelectItem key={creator.id} value={creator.id}>
-                            {creator.name}
-                          </SelectItem>
-                        ))
+                        creators
+                          .filter(creator => {
+                            if (!creatorSearchQuery) return true;
+                            const query = creatorSearchQuery.toLowerCase();
+                            return (
+                              (creator.name && creator.name.toLowerCase().includes(query)) ||
+                              (creator.email && creator.email.toLowerCase().includes(query))
+                            );
+                          })
+                          .map((creator) => (
+                            <div
+                              key={creator.id}
+                              className={`p-3 rounded-md cursor-pointer border transition-colors ${
+                                selectedCreatorId === creator.id
+                                  ? 'bg-blue-50 border-blue-200'
+                                  : 'hover:bg-gray-50 border-gray-200'
+                              }`}
+                              onClick={() => setSelectedCreatorId(creator.id)}
+                            >
+                              <div className="flex flex-col">
+                                <span className="font-medium">{creator.name || 'Unnamed'}</span>
+                                <span className="text-sm text-gray-500">{creator.email}</span>
+                                <span className="text-xs text-gray-400">{creator.status}</span>
+                              </div>
+                            </div>
+                          ))
                       ) : (
-                        <SelectItem value="no-creators" disabled>
-                          No creators available
-                        </SelectItem>
+                        <div className="text-center py-4 text-gray-500">
+                          <p>No creators available</p>
+                        </div>
                       )}
-                    </SelectContent>
-                  </Select>
+                      
+                      {creators.length > 0 && creators.filter(creator => {
+                        if (!creatorSearchQuery) return true;
+                        const query = creatorSearchQuery.toLowerCase();
+                        return (
+                          (creator.name && creator.name.toLowerCase().includes(query)) ||
+                          (creator.email && creator.email.toLowerCase().includes(query))
+                        );
+                      }).length === 0 && creatorSearchQuery && (
+                        <div className="text-center py-4 text-gray-500">
+                          <p>No creators found matching &quot;{creatorSearchQuery}&quot;</p>
+                          <p className="text-sm">Try a different search term</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
                 <DialogFooter>
                   <Button 
                     variant="outline" 
-                    onClick={() => setShowAssignDialog(false)}
+                    onClick={() => {
+                      setShowAssignDialog(false);
+                      setSelectedCreatorId('');
+                      setCreatorSearchQuery('');
+                    }}
                   >
                     Cancel
                   </Button>
