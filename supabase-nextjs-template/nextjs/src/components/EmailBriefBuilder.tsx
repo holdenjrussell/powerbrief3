@@ -23,6 +23,8 @@ interface EmailBriefData {
   briefType: 'campaign' | 'flow';
   dueDate: string;
   assignedDesigner: string;
+  strategist: string;
+  creativeCoordinator: string;
   campaignFlowName: string;
   finalAssetsFolder: string;
   
@@ -71,6 +73,8 @@ export default function EmailBriefBuilder({ onSave, onAutoSave, isGenerating = f
     briefType: 'campaign',
     dueDate: '',
     assignedDesigner: '',
+    strategist: '',
+    creativeCoordinator: '',
     campaignFlowName: '',
     finalAssetsFolder: '',
     inspirationFiles: [],
@@ -635,6 +639,46 @@ export default function EmailBriefBuilder({ onSave, onAutoSave, isGenerating = f
               </div>
             </div>
 
+            {/* Campaign/Flow Name */}
+            <div>
+              <Label className="text-sm font-medium">
+                {briefData.briefType === 'campaign' ? 'Campaign Name' : 'Flow Name'}
+              </Label>
+              <Input
+                value={briefData.campaignFlowName}
+                onChange={(e) => updateCoreConfigWithAutosave('campaignFlowName', e.target.value)}
+                placeholder={briefData.briefType === 'campaign' ? 'e.g., Black Friday Sale' : 'e.g., Welcome Email #1'}
+              />
+            </div>
+
+            {/* Strategist */}
+            <div>
+              <Label className="text-sm font-medium">Strategist</Label>
+              <div className="relative">
+                <User className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                <Input
+                  value={briefData.strategist}
+                  onChange={(e) => updateCoreConfigWithAutosave('strategist', e.target.value)}
+                  placeholder="Strategist name"
+                  className="pl-10"
+                />
+              </div>
+            </div>
+
+            {/* Creative Coordinator */}
+            <div>
+              <Label className="text-sm font-medium">Creative Coordinator</Label>
+              <div className="relative">
+                <User className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                <Input
+                  value={briefData.creativeCoordinator}
+                  onChange={(e) => updateCoreConfigWithAutosave('creativeCoordinator', e.target.value)}
+                  placeholder="Coordinator name"
+                  className="pl-10"
+                />
+              </div>
+            </div>
+
             {/* Assign to Designer */}
             <div>
               <Label className="text-sm font-medium">Assign to Designer</Label>
@@ -649,20 +693,8 @@ export default function EmailBriefBuilder({ onSave, onAutoSave, isGenerating = f
               </div>
             </div>
 
-            {/* Campaign/Flow Name */}
-            <div>
-              <Label className="text-sm font-medium">
-                {briefData.briefType === 'campaign' ? 'Campaign Name' : 'Flow Name'}
-              </Label>
-              <Input
-                value={briefData.campaignFlowName}
-                onChange={(e) => updateCoreConfigWithAutosave('campaignFlowName', e.target.value)}
-                placeholder={briefData.briefType === 'campaign' ? 'e.g., Black Friday Sale' : 'e.g., Welcome Email #1'}
-              />
-            </div>
-
             {/* Final Assets Folder */}
-            <div className="md:col-span-2">
+            <div className="md:col-span-3">
               <Label className="text-sm font-medium">Link to Final Assets Folder</Label>
               <div className="relative">
                 <Folder className="absolute left-3 top-3 h-4 w-4 text-gray-400" />

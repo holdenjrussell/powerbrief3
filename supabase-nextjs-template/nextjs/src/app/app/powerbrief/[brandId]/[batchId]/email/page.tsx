@@ -19,6 +19,8 @@ interface EmailBriefData {
   briefType: 'campaign' | 'flow';
   dueDate: string;
   assignedDesigner: string;
+  strategist: string;
+  creativeCoordinator: string;
   campaignFlowName: string;
   finalAssetsFolder: string;
   
@@ -301,6 +303,8 @@ CORE CONFIGURATION:
 Brief Type: ${briefData.briefType}
 Due Date: ${briefData.dueDate}
 Assigned Designer: ${briefData.assignedDesigner}
+Strategist: ${briefData.strategist}
+Creative Coordinator: ${briefData.creativeCoordinator}
 Campaign/Flow Name: ${briefData.campaignFlowName}
 Final Assets Folder: ${briefData.finalAssetsFolder}
 
@@ -363,6 +367,9 @@ Please generate comprehensive email content based on this interactive brief conf
                 body_content_structured: scenes,
                 cta_script: emailBriefResponse.primary_cta?.button_text || '',
                 cta_text_overlay: emailBriefResponse.primary_cta?.destination_url_placeholder || '',
+                strategist: briefData.strategist,
+                creative_coordinator: briefData.creativeCoordinator,
+                video_editor: briefData.assignedDesigner,
                 description: `INTERACTIVE EMAIL BRIEF GENERATED:
 
 Campaign Type: ${emailBriefResponse.campaign_type || 'Not specified'}
@@ -389,11 +396,15 @@ Button Text: ${emailBriefResponse.primary_cta?.button_text || 'Not specified'}
 Destination: ${emailBriefResponse.primary_cta?.destination_url_placeholder || 'Not specified'}
 Visual Recommendations: ${emailBriefResponse.primary_cta?.visual_recommendation || 'Not specified'}
 
+TEAM ASSIGNMENTS:
+Strategist: ${briefData.strategist}
+Creative Coordinator: ${briefData.creativeCoordinator}
+Designer: ${briefData.assignedDesigner}
+Due Date: ${briefData.dueDate}
+
 BRIEF CONFIGURATION:
 Brief Type: ${briefData.briefType}
 Campaign/Flow Name: ${briefData.campaignFlowName}
-Due Date: ${briefData.dueDate}
-Assigned Designer: ${briefData.assignedDesigner}
 Deliverables Format: ${briefData.deliverablesFormat}
 Email Width: ${briefData.emailWidth}`,
                 ai_custom_prompt: briefData.primaryGoal
@@ -479,12 +490,17 @@ Email Width: ${briefData.emailWidth}`,
             await updateBriefConcept({
                 ...concept,
                 ai_custom_prompt: briefData.primaryGoal,
+                strategist: briefData.strategist,
+                creative_coordinator: briefData.creativeCoordinator,
+                video_editor: briefData.assignedDesigner,
                 description: `DRAFT EMAIL BRIEF (Auto-saved):
                 
 Brief Type: ${briefData.briefType}
 Campaign/Flow: ${briefData.campaignFlowName}
 Due Date: ${briefData.dueDate}
 Designer: ${briefData.assignedDesigner}
+Strategist: ${briefData.strategist}
+Creative Coordinator: ${briefData.creativeCoordinator}
 
 Primary Goal: ${briefData.primaryGoal}
 
@@ -566,9 +582,17 @@ This is a draft that auto-saves as you work. Click "Generate & Populate Brief" t
                                         <div className="flex items-center justify-between">
                                             <div>
                                                 <p className="font-medium text-sm">{concept.concept_title}</p>
-                                                <p className="text-xs text-gray-500">
-                                                    {concept.ai_custom_prompt?.substring(0, 30)}...
-                                                </p>
+                                                {concept.strategist && (
+                                                    <p className="text-xs text-gray-600 mt-1">Strategist: {concept.strategist}</p>
+                                                )}
+                                                {concept.video_editor && (
+                                                    <p className="text-xs text-gray-600">Designer: {concept.video_editor}</p>
+                                                )}
+                                                {concept.status && (
+                                                    <span className="inline-block mt-2 px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-700">
+                                                        {concept.status}
+                                                    </span>
+                                                )}
                                             </div>
                                             <div className="flex items-center space-x-1">
                                                 {generatingConceptIds[concept.id] && (
