@@ -24,6 +24,7 @@ const AssetGroupingPreview: React.FC<PowerBriefAssetGroupingPreviewProps> = ({
   const [editableGroups, setEditableGroups] = useState<UploadedAssetGroup[]>(assetGroups);
   const [isEditing, setIsEditing] = useState(false);
   const [draggedAsset, setDraggedAsset] = useState<UploadedAsset | null>(null);
+  const [showDetails, setShowDetails] = useState(false);
 
   // Reset editable groups when assetGroups prop changes
   React.useEffect(() => {
@@ -137,35 +138,38 @@ const AssetGroupingPreview: React.FC<PowerBriefAssetGroupingPreviewProps> = ({
           </button>
         </div>
 
-        {showInstructions && (
-          <div className="p-4 bg-gray-50 border-b border-gray-200">
-            <div className="max-w-4xl">
-              <h3 className="text-sm font-semibold text-gray-800 mb-2">
-                📝 File Grouping Instructions
-              </h3>
-              <div className="text-xs text-gray-600 space-y-2">
-                <div className="flex items-start">
-                  <span className="text-red-600 font-medium mr-1">🎯 IMPORTANT GROUPING RULE:</span>
-                  <span className="text-red-600 font-medium">Group by VERSION (V1, V2, V3), NOT by aspect ratio!</span>
+        {/* File Grouping Instructions Banner */}
+        {showInstructions !== false && (
+          <div className="p-3 bg-blue-50 border border-blue-200 rounded-md mx-6 mb-4">
+            <div className="flex items-start justify-between">
+              <div className="flex items-start">
+                <div className="flex-shrink-0">
+                  <svg className="h-5 w-5 text-blue-600 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                  </svg>
                 </div>
-                
-                <div className="space-y-1 ml-2">
-                  <p>• <strong>Correct grouping:</strong> V1 folder contains both 4x5 and 9x16 versions of the same concept</p>
-                  <p>• <strong>Wrong grouping:</strong> Separate folders for all 4x5s together and all 9x16s together</p>
-                  <p>• <strong>Aspect ratios:</strong> 4x5 and 9x16 can appear anywhere in filename (ConceptName_4x5_v1.mp4 also works)</p>
-                  <p>• <strong>Version numbers:</strong> v1, v2, v3 help group the pairs together</p>
-                </div>
-                
-                <div className="mt-3">
-                  <p className="font-medium text-gray-700 mb-1">• <strong>Examples:</strong></p>
-                  <div className="ml-4 text-xs font-mono bg-white p-3 rounded border">
-                    <div className="text-green-600 font-medium mb-1">✅ Good grouping:</div>
-                    <div className="mb-1">ProductDemo_v1_4x5.mp4 + ProductDemo_v1_9x16.mp4 (grouped together)</div>
-                    <div className="mb-2">ProductDemo_v2_4x5.mp4 + ProductDemo_v2_9x16.mp4 (grouped together)</div>
-                    
-                    <div className="text-red-600 font-medium mb-1">❌ Bad grouping:</div>
-                    <div>All 4x5 files in one folder, all 9x16 files in another folder</div>
+                <div className="ml-3 flex-1">
+                  <h4 className="text-sm font-medium text-blue-800">
+                    📝 Grouping Rule: Group by VERSION (V1, V2, V3), NOT by aspect ratio!
+                  </h4>
+                  <div className={`mt-2 text-xs text-blue-700 ${!showDetails ? 'hidden' : ''}`}>
+                    <div className="space-y-1">
+                      <p>• <strong>Correct:</strong> V1 folder contains both 4x5 and 9x16 versions of same concept</p>
+                      <p>• <strong>Wrong:</strong> Separate folders for all 4x5s together and all 9x16s together</p>
+                      <div className="mt-2 p-2 bg-white rounded border text-xs">
+                        <div className="text-green-600 font-medium">✅ Good grouping:</div>
+                        <div className="font-mono">ProductDemo_v1_4x5.mp4 + ProductDemo_v1_9x16.mp4 (grouped together)</div>
+                        <div className="text-red-600 font-medium mt-1">❌ Bad grouping:</div>
+                        <div className="font-mono">All 4x5 files in one folder, all 9x16 files in another</div>
+                      </div>
+                    </div>
                   </div>
+                  <button
+                    onClick={() => setShowDetails(!showDetails)}
+                    className="mt-1 text-xs text-blue-600 hover:text-blue-800 font-medium focus:outline-none"
+                  >
+                    {showDetails ? 'Hide details' : 'Show examples'}
+                  </button>
                 </div>
               </div>
             </div>
