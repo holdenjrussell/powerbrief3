@@ -133,7 +133,9 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
   const [creators, setCreators] = useState<UgcCreator[]>([]);
   const [scripts, setScripts] = useState<UgcCreatorScript[]>([]);
   const activeView = (searchParams.get('view') as ViewType) || 'concept';
-  const [activeStatus, setActiveStatus] = useState<string>(UGC_CREATOR_SCRIPT_CONCEPT_STATUSES[0]);
+  const [activeStatus, setActiveStatus] = useState<string>(
+    searchParams.get('status') || UGC_CREATOR_SCRIPT_CONCEPT_STATUSES[0]
+  );
   
   // Creator view filter and sort state
   const [creatorFilterStatus, setCreatorFilterStatus] = useState<string>('all');
@@ -225,6 +227,22 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
     unwrapParams();
   }, [params]);
 
+  // Handle URL status parameter changes
+  useEffect(() => {
+    const urlStatus = searchParams.get('status');
+    if (urlStatus && UGC_CREATOR_SCRIPT_CONCEPT_STATUSES.includes(urlStatus)) {
+      setActiveStatus(urlStatus);
+    } else if (urlStatus && !UGC_CREATOR_SCRIPT_CONCEPT_STATUSES.includes(urlStatus)) {
+      // Invalid status in URL, clean it up
+      const current = new URLSearchParams(Array.from(searchParams.entries()));
+      current.delete('status');
+      const search = current.toString();
+      const query = search ? `?${search}` : "";
+      router.replace(`${pathname}${query}`);
+      setActiveStatus(UGC_CREATOR_SCRIPT_CONCEPT_STATUSES[0]);
+    }
+  }, [searchParams, pathname, router]);
+
   // Sync brand context with URL brandId
   useEffect(() => {
     if (brandId && brands.length > 0) {
@@ -261,8 +279,11 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
         setBRollShotList([]);
         setSelectedCreators(['TBD']);
         
-        // Reset to first status when brand changes
-        const firstStatus = UGC_CREATOR_SCRIPT_CONCEPT_STATUSES[0];
+        // Reset to URL status or first status when brand changes
+        const urlStatus = searchParams.get('status');
+        const firstStatus = urlStatus && UGC_CREATOR_SCRIPT_CONCEPT_STATUSES.includes(urlStatus) 
+          ? urlStatus 
+          : UGC_CREATOR_SCRIPT_CONCEPT_STATUSES[0];
         setActiveStatus(firstStatus);
         
         // Add a small delay to ensure state is cleared
@@ -292,7 +313,7 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
         
         setCreators(creatorData);
         
-        // Fetch scripts for the first status
+        // Fetch scripts for the determined status
         console.log('Fetching scripts for brand:', brandId, 'status:', firstStatus);
         const scriptsData = await getUgcCreatorScriptsByConceptStatus(brandId, firstStatus);
         console.log(`Fetched ${scriptsData.length} scripts for brand ${brandId}:`, scriptsData.map(s => ({
@@ -854,6 +875,14 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
   // Handle status change in concept view
   const handleStatusChange = async (status: string) => {
     setActiveStatus(status);
+    
+    // Update URL with the new status
+    const current = new URLSearchParams(Array.from(searchParams.entries()));
+    current.set('status', status);
+    const search = current.toString();
+    const query = search ? `?${search}` : "";
+    router.push(`${pathname}${query}`);
+    
     // The useEffect will handle fetching the scripts for the new status
   };
 
