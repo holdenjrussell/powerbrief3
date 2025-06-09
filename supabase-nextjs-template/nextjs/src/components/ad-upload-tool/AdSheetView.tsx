@@ -160,6 +160,19 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, activeBatch, select
     draftId: ''
   });
 
+  // Manual thumbnail upload modal state
+  const [manualThumbnailModal, setManualThumbnailModal] = useState<{
+    isOpen: boolean;
+    videoAsset: AdDraftAsset | null;
+    draftId: string;
+    uploading: boolean;
+  }>({
+    isOpen: false,
+    videoAsset: null,
+    draftId: '',
+    uploading: false
+  });
+
   // Log active batch for debugging
   console.log('Active batch in AdSheetView:', activeBatch?.name || 'No active batch');
   console.log('Current adDrafts count:', adDrafts.length);
@@ -701,6 +714,80 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, activeBatch, select
       return;
     }
 
+    // Check for missing thumbnails in selected drafts
+    const draftsToLaunch = filteredAdDrafts.filter(draft => checkedDraftIds.has(draft.id));
+    const draftsWithMissingThumbnails = draftsToLaunch.filter(draft => 
+      draft.assets.some(asset => asset.type === 'video' && !asset.thumbnailUrl)
+    );
+
+    if (draftsWithMissingThumbnails.length > 0) {
+      const draftNames = draftsWithMissingThumbnails.map(d => d.adName).join('\n• ');
+      const shouldContinue = confirm(
+        `⚠️ Missing Video Thumbnails Detected!\n\n` +
+        `The following ad drafts have videos without thumbnails:\n• ${draftNames}\n\n` +
+        `Thumbnails are required for Meta video ads. Would you like to:\n\n` +
+        `• Click "OK" to automatically generate thumbnails now\n` +
+        `• Click "Cancel" to set custom thumbnails manually\n\n` +
+        `Tip: Use the thumbnail scrubber or manual upload options in the thumbnails column.`
+      );
+
+      if (!shouldContinue) {
+        // User wants to set thumbnails manually
+        alert(`💡 To set thumbnails:\n\n` +
+              `1. Look at the "Thumbnails" column for orange warning indicators\n` +
+              `2. Click on missing thumbnails to use the scrubber tool\n` +
+              `3. Hover over thumbnails to see the manual upload button\n` +
+              `4. Or use "Generate Thumbnails" button for automatic generation`);
+        return;
+      }
+
+      // User chose to auto-generate thumbnails
+      console.log('🔧 Auto-generating missing thumbnails before launch...');
+      setIsGeneratingThumbnails(true);
+      
+      try {
+        let totalGenerated = 0;
+        const errors: string[] = [];
+        
+        for (const draft of draftsWithMissingThumbnails) {
+          try {
+            const result = await generateThumbnailsForDraft(draft.id);
+            
+            if (result.processed > 0) {
+              totalGenerated += result.processed;
+              console.log(`✅ Generated ${result.processed} thumbnails for ${draft.adName}`);
+            }
+            
+            if (result.errors.length > 0) {
+              result.errors.forEach(error => errors.push(`${draft.adName}: ${error.error}`));
+            }
+            
+          } catch (error) {
+            console.error(`❌ Thumbnail generation failed for ${draft.adName}:`, error);
+            errors.push(`${draft.adName}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          }
+        }
+        
+        if (totalGenerated > 0) {
+          alert(`✅ Generated ${totalGenerated} thumbnails! Proceeding with launch...`);
+          // Refresh ad drafts to get updated thumbnails
+          await refreshAdDrafts();
+        }
+        
+        if (errors.length > 0 && totalGenerated === 0) {
+          alert(`❌ Thumbnail generation failed for all videos. Please set thumbnails manually before launching:\n\n${errors.join('\n')}`);
+          return;
+        }
+        
+      } catch (error) {
+        console.error('Auto thumbnail generation failed:', error);
+        alert('❌ Automatic thumbnail generation failed. Please set thumbnails manually before launching.');
+        return;
+      } finally {
+        setIsGeneratingThumbnails(false);
+      }
+    }
+
     // Exponential backoff retry logic for launch API
     const launchWithRetry = async (payload: Record<string, unknown>, maxRetries = 3): Promise<Response> => {
       let lastError: Error;
@@ -746,7 +833,6 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, activeBatch, select
     };
 
     setIsLaunching(true);
-    const draftsToLaunch = filteredAdDrafts.filter(draft => checkedDraftIds.has(draft.id));
     
     // Enhanced logging for debugging
     console.log("=== AD LAUNCH REQUEST DEBUG ===");
@@ -1054,24 +1140,35 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, activeBatch, select
                     key={i}
                     className="relative cursor-pointer group"
                     title={asset.thumbnailUrl ? "Click to change thumbnail" : "Click to generate thumbnail"}
-                    onClick={() => {
-                      // Open the thumbnail scrubber modal
-                      setThumbnailScrubberModal({
-                        isOpen: true,
-                        videoAsset: asset,
-                        allVideoAssets: draft.assets.filter(a => a.type === 'video'),
-                        draftId: draft.id
-                      });
-                    }}
                   >
                     {asset.thumbnailUrl ? (
                       <img
                         src={asset.thumbnailUrl}
                         alt={`Thumbnail for ${asset.name}`}
                         className="w-12 h-12 object-cover rounded border-2 border-gray-200 hover:border-blue-400 transition-colors"
+                        onClick={() => {
+                          // Open the thumbnail scrubber modal
+                          setThumbnailScrubberModal({
+                            isOpen: true,
+                            videoAsset: asset,
+                            allVideoAssets: draft.assets.filter(a => a.type === 'video'),
+                            draftId: draft.id
+                          });
+                        }}
                       />
                     ) : (
-                      <div className="w-12 h-12 border-2 border-dashed border-gray-300 rounded flex items-center justify-center bg-gray-50 hover:border-orange-400 transition-colors">
+                      <div 
+                        className="w-12 h-12 border-2 border-dashed border-gray-300 rounded flex items-center justify-center bg-gray-50 hover:border-orange-400 transition-colors"
+                        onClick={() => {
+                          // Open the thumbnail scrubber modal
+                          setThumbnailScrubberModal({
+                            isOpen: true,
+                            videoAsset: asset,
+                            allVideoAssets: draft.assets.filter(a => a.type === 'video'),
+                            draftId: draft.id
+                          });
+                        }}
+                      >
                         <FileVideo className="h-6 w-6 text-gray-400" />
                       </div>
                     )}
@@ -1082,6 +1179,25 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, activeBatch, select
                         <span className="text-white text-xs font-bold">!</span>
                       </div>
                     )}
+                    
+                    {/* Manual upload button on hover */}
+                    <div className="absolute -bottom-1 -left-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setManualThumbnailModal({
+                            isOpen: true,
+                            videoAsset: asset,
+                            draftId: draft.id,
+                            uploading: false
+                          });
+                        }}
+                        className="w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center hover:bg-blue-600 transition-colors"
+                        title="Upload custom thumbnail"
+                      >
+                        <UploadCloud size={8} className="text-white" />
+                      </button>
+                    </div>
                     
                     {/* Thumbnail progress indicator */}
                     {thumbnailProgress[`${draft.id}_${asset.name}`] !== undefined && (
@@ -1789,6 +1905,64 @@ Are you sure you want to continue?`;
     });
   };
 
+  // Manual thumbnail upload function
+  const handleManualThumbnailUpload = async (file: File, videoAsset: AdDraftAsset, draftId: string) => {
+    setManualThumbnailModal(prev => ({ ...prev, uploading: true }));
+    
+    try {
+      const supabase = createSPAClient();
+      
+      // Upload thumbnail to Supabase
+      const timestamp = Date.now();
+      const thumbnailFileName = `${videoAsset.name.split('.')[0]}_manual_thumbnail.jpg`;
+      const thumbnailPath = `${draftId}/${timestamp}_${thumbnailFileName}`;
+      
+      const { data, error: uploadError } = await supabase.storage
+        .from('ad-creatives')
+        .upload(thumbnailPath, file, {
+          cacheControl: '3600',
+          upsert: false,
+        });
+      
+      if (uploadError || !data) {
+        throw new Error(uploadError?.message || 'Upload failed');
+      }
+      
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('ad-creatives')
+        .getPublicUrl(thumbnailPath);
+      
+      if (publicUrl) {
+        // Update the database with the thumbnail URL
+        const { error: updateError } = await supabase
+          .from('ad_draft_assets')
+          .update({ thumbnail_url: publicUrl })
+          .eq('ad_draft_id', draftId)
+          .eq('name', videoAsset.name)
+          .eq('type', 'video');
+        
+        if (updateError) {
+          throw new Error(`Database update failed: ${updateError.message}`);
+        }
+        
+        console.log(`Manual thumbnail uploaded successfully for ${videoAsset.name}: ${publicUrl}`);
+        
+        // Refresh the ad drafts to show the updated thumbnail
+        await refreshAdDrafts();
+        
+        alert('Thumbnail uploaded successfully!');
+        setManualThumbnailModal({ isOpen: false, videoAsset: null, draftId: '', uploading: false });
+      }
+      
+    } catch (error) {
+      console.error('Manual thumbnail upload failed:', error);
+      alert(`Failed to upload thumbnail: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setManualThumbnailModal(prev => ({ ...prev, uploading: false }));
+    }
+  };
+
   return (
     <div className="mt-6 pb-16">
         <div className="bg-white p-4 sm:p-6 rounded-lg shadow mb-6">
@@ -2355,6 +2529,58 @@ Are you sure you want to continue?`;
           selectedAdIds={Array.from(checkedDraftIds)}
           brandId={defaults.brandId || ''}
         />
+      )}
+
+      {/* Manual Thumbnail Upload Modal */}
+      {manualThumbnailModal.isOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-gray-800">Upload Custom Thumbnail</h2>
+                <button
+                  onClick={() => setManualThumbnailModal({ isOpen: false, videoAsset: null, draftId: '', uploading: false })}
+                  className="text-gray-400 hover:text-gray-600"
+                  aria-label="Close modal"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="mb-4">
+                <p className="text-sm text-gray-600 mb-2">
+                  Upload a custom thumbnail for: <span className="font-medium">{manualThumbnailModal.videoAsset?.name}</span>
+                </p>
+                <label htmlFor="thumbnail-upload" className="sr-only">
+                  Upload thumbnail image
+                </label>
+                <input
+                  id="thumbnail-upload"
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file && manualThumbnailModal.videoAsset) {
+                      handleManualThumbnailUpload(file, manualThumbnailModal.videoAsset, manualThumbnailModal.draftId);
+                    }
+                  }}
+                  className="w-full p-2 border border-gray-300 rounded-md"
+                  disabled={manualThumbnailModal.uploading}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Recommended: JPG or PNG images with 1:1 aspect ratio
+                </p>
+              </div>
+
+              {manualThumbnailModal.uploading && (
+                <div className="flex items-center justify-center py-4">
+                  <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
+                  <span className="ml-2 text-sm text-gray-600">Uploading thumbnail...</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

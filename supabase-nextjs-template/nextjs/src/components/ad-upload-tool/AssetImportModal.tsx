@@ -44,28 +44,44 @@ const getBaseNameAndRatio = (filename: string, identifiers: string[], suffixesTo
     }
   }
 
-  // Step 2: Look for aspect ratio identifiers at the end (right before extension)
+  // Step 2: Look for aspect ratio identifiers ANYWHERE in the filename (more flexible)
+  let detectedRatio: string | null = null;
+  let baseNameWithoutRatio = nameWorkInProgress;
+  
   for (const id of identifiers) {
-    // Check for patterns like: "_4x5", "-4x5" at the end
+    // Check for patterns like: "_4x5", "-4x5", " 4x5", "(4x5)", etc. anywhere in the name
     const patternsToTest = [
       `_${id}`,
-      `-${id}`
+      `-${id}`,
+      ` ${id}`,
+      `(${id})`,
+      `[${id}]`,
+      `.${id}`,
+      `${id}_`,
+      `${id}-`,
+      `${id} `,
+      // Also check for the ratio without separators
+      id
     ];
     
     for (const pattern of patternsToTest) {
-      if (nameWorkInProgress.endsWith(pattern)) {
-        const baseNameWithoutRatio = nameWorkInProgress.substring(0, nameWorkInProgress.length - pattern.length).trim();
-        return {
-          baseName: baseNameWithoutRatio,
-          detectedRatio: id
-        };
+      if (nameWorkInProgress.includes(pattern)) {
+        detectedRatio = id;
+        // Remove the pattern from the name to get base name
+        baseNameWithoutRatio = nameWorkInProgress.replace(pattern, '').trim();
+        // Clean up multiple consecutive separators
+        baseNameWithoutRatio = baseNameWithoutRatio.replace(/[-_\s]+/g, '_').replace(/^[_-]|[_-]$/g, '');
+        break;
       }
     }
+    if (detectedRatio) break;
   }
   
-  // If no specific ratio pattern is found after cleaning suffixes,
-  // the remaining nameWorkInProgress is the baseName.
-  return { baseName: nameWorkInProgress.trim(), detectedRatio: null };
+  // If no aspect ratio found, return the cleaned name as base name
+  return { 
+    baseName: (detectedRatio ? baseNameWithoutRatio : nameWorkInProgress).trim(), 
+    detectedRatio 
+  };
 };
 
 // Helper function to check video dimensions
@@ -531,15 +547,25 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
             <div className="flex items-start">
               <div className="flex-1">
                 <h4 className="text-sm font-semibold text-gray-800 mb-1">
-                  📝 File Naming Convention
+                  📝 File Naming Convention & Grouping Instructions
                 </h4>
                 <p className="text-sm text-gray-700 mb-2">
                   Use this format: <code className="bg-gray-200 px-1 rounded">ConceptName_v1_4x5.mp4</code>
                 </p>
                 <div className="text-xs text-gray-600 space-y-1">
-                  <p>• <strong>Aspect ratios:</strong> Only 4x5 and 9x16 (place right before file extension)</p>
-                  <p>• <strong>Version numbers:</strong> v1, v2, v3 (place before aspect ratio)</p>
-                  <p>• <strong>Examples:</strong> ProductDemo_v1_4x5.mp4, ProductDemo_v1_9x16.mp4</p>
+                  <p><strong>🎯 IMPORTANT GROUPING RULE:</strong> <span className="text-red-600">Group by VERSION (V1, V2, V3), NOT by aspect ratio!</span></p>
+                  <p>• <strong>Correct grouping:</strong> V1 folder contains both 4x5 and 9x16 versions of the same concept</p>
+                  <p>• <strong>Wrong grouping:</strong> Separate folders for all 4x5s together and all 9x16s together</p>
+                  <p>• <strong>Aspect ratios:</strong> 4x5 and 9x16 can appear anywhere in filename (ConceptName_4x5_v1.mp4 also works)</p>
+                  <p>• <strong>Version numbers:</strong> v1, v2, v3 help group the pairs together</p>
+                  <p>• <strong>Examples:</strong></p>
+                  <div className="ml-4 text-xs font-mono bg-gray-100 p-2 rounded">
+                    <div className="text-green-600">✅ Good grouping:</div>
+                    <div>ProductDemo_v1_4x5.mp4 + ProductDemo_v1_9x16.mp4 (grouped together)</div>
+                    <div>ProductDemo_v2_4x5.mp4 + ProductDemo_v2_9x16.mp4 (grouped together)</div>
+                    <div className="mt-2 text-red-600">❌ Bad grouping:</div>
+                    <div>All 4x5 files in one folder, all 9x16 files in another folder</div>
+                  </div>
                 </div>
               </div>
             </div>
