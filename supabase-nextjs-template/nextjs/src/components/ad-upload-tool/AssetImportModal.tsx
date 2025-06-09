@@ -1,12 +1,19 @@
 "use client";
 import React, { useState, useCallback, ChangeEvent, useMemo } from 'react';
-import { X, UploadCloud, Check, Trash2, Loader2, Square, CheckSquare, Zap } from 'lucide-react';
+import { X, UploadCloud, Check, Trash2, Loader2, Square, CheckSquare, Zap, Upload, FileVideo, FileImage, AlertCircle, Info } from 'lucide-react';
 import { createSPAClient } from '@/lib/supabase/client';
 import { useGlobal } from '@/lib/context/GlobalContext';
 import { ImportedAssetGroup } from './adUploadTypes';
 import { needsCompression, compressVideoWithQuality, getFileSizeMB } from '@/lib/utils/videoCompression';
 import AssetGroupingPreview from '@/components/PowerBriefAssetGroupingPreview';
 import { UploadedAssetGroup } from '@/lib/types/powerbrief';
+import { parseFilename } from '@/lib/utils/aspectRatioDetection';
+import { logger } from '@/lib/utils/logger';
+
+interface FileWithId {
+  file: File;
+  id: string;
+}
 
 interface AssetFile {
   file: File;
@@ -32,7 +39,62 @@ interface ProcessedAssetFile extends AssetFile {
   detectedRatio?: string | null;
 }
 
-// Helper function to extract base name and aspect ratio
+// Enhanced aspect ratio detection function
+const detectAspectRatioFromFilename = (filename: string): string | null => {
+  const normalizedName = filename.toLowerCase();
+  
+  // More comprehensive patterns to catch various naming conventions
+  const patterns = [
+    // Standard patterns with separators
+    /[_-]4x5[_-]?/,
+    /[_-]9x16[_-]?/,
+    /[_-]16x9[_-]?/,
+    /[_-]1x1[_-]?/,
+    
+    // With parentheses
+    /\(4x5\)/,
+    /\(9x16\)/,
+    /\(16x9\)/,
+    /\(1x1\)/,
+    
+    // With spaces
+    /\s4x5\s/,
+    /\s9x16\s/,
+    /\s16x9\s/,
+    /\s1x1\s/,
+    
+    // At end of filename (before extension)
+    /4x5$/,
+    /9x16$/,
+    /16x9$/,
+    /1x1$/,
+    
+    // With dots
+    /\.4x5\./,
+    /\.9x16\./,
+    /\.16x9\./,
+    /\.1x1\./,
+    
+    // Alternative formats with colon
+    /[_-]4:5[_-]?/,
+    /[_-]9:16[_-]?/,
+    /[_-]16:9[_-]?/,
+    /[_-]1:1[_-]?/
+  ];
+  
+  for (const pattern of patterns) {
+    const match = normalizedName.match(pattern);
+    if (match) {
+      // Extract just the ratio and normalize to x format
+      const ratio = match[0].replace(/[^0-9x:]/g, '').replace(':', 'x');
+      return ratio;
+    }
+  }
+  
+  return null;
+};
+
+// Helper function to extract base name and aspect ratio with enhanced detection
 const getBaseNameAndRatio = (filename: string, identifiers: string[], suffixesToRemove: string[]): { baseName: string; detectedRatio: string | null } => {
   let nameWorkInProgress = filename.substring(0, filename.lastIndexOf('.')) || filename;
   
@@ -44,28 +106,58 @@ const getBaseNameAndRatio = (filename: string, identifiers: string[], suffixesTo
     }
   }
 
-  // Step 2: Look for aspect ratio identifiers at the end (right before extension)
-  for (const id of identifiers) {
-    // Check for patterns like: "_4x5", "-4x5" at the end
-    const patternsToTest = [
-      `_${id}`,
-      `-${id}`
+  // Step 2: Use enhanced aspect ratio detection
+  const detectedRatio = detectAspectRatioFromFilename(nameWorkInProgress);
+  let baseNameWithoutRatio = nameWorkInProgress;
+  
+  if (detectedRatio) {
+    // Remove the detected ratio pattern from the name
+    // Escape special regex characters to prevent injection issues
+    const escapedRatio = detectedRatio.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const ratioPatterns = [
+      new RegExp(`[_-]${escapedRatio}[_-]?`, 'gi'),
+      new RegExp(`\\(${escapedRatio}\\)`, 'gi'),
+      new RegExp(`\\s${escapedRatio}\\s`, 'gi'),
+      new RegExp(`\\.${escapedRatio}\\.`, 'gi'),
+      new RegExp(`${escapedRatio}$`, 'gi')
     ];
     
-    for (const pattern of patternsToTest) {
-      if (nameWorkInProgress.endsWith(pattern)) {
-        const baseNameWithoutRatio = nameWorkInProgress.substring(0, nameWorkInProgress.length - pattern.length).trim();
-        return {
-          baseName: baseNameWithoutRatio,
-          detectedRatio: id
-        };
+    for (const pattern of ratioPatterns) {
+      if (pattern.test(baseNameWithoutRatio)) {
+        baseNameWithoutRatio = baseNameWithoutRatio.replace(pattern, '').trim();
+        break;
       }
     }
   }
   
-  // If no specific ratio pattern is found after cleaning suffixes,
-  // the remaining nameWorkInProgress is the baseName.
-  return { baseName: nameWorkInProgress.trim(), detectedRatio: null };
+  // Extract version and prioritize version-based grouping
+  let finalBaseName = baseNameWithoutRatio;
+  
+  // More flexible version pattern matching
+  const versionPatterns = [
+    /[_-]v(\d+)/i,
+    /[_-]version(\d+)/i,
+    /[_-]ver(\d+)/i,
+    /\sv(\d+)/i,
+    /\(v(\d+)\)/i
+  ];
+  
+  let version: string | null = null;
+  for (const versionPattern of versionPatterns) {
+    const match = baseNameWithoutRatio.match(versionPattern);
+    if (match) {
+      version = `v${match[1]}`;
+      finalBaseName = baseNameWithoutRatio.replace(match[0], '').trim();
+      break;
+    }
+  }
+  
+  // If we found a version, include it in the base name for proper grouping
+  if (version) {
+    finalBaseName = `${finalBaseName}_${version}`;
+  }
+  
+  return { baseName: finalBaseName.trim(), detectedRatio };
 };
 
 // Helper function to check video dimensions
@@ -112,13 +204,12 @@ const getVideoDimensions = (file: File): Promise<{ width: number; height: number
 interface AssetImportModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onAssetsImported: (assetGroups: ImportedAssetGroup[]) => void;
-  brandId: string | null; // Added brandId prop
+  onImport: (assetGroups: UploadedAssetGroup[]) => void;
 }
 
-const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, onAssetsImported, brandId }) => {
-  const [selectedFiles, setSelectedFiles] = useState<AssetFile[]>([]);
-  const [isDragging, setIsDragging] = useState(false);
+const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, onImport }) => {
+  const [selectedFiles, setSelectedFiles] = useState<FileWithId[]>([]);
+  const [dragActive, setDragActive] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false); // For overall processing state
   const { user } = useGlobal(); // Get user from global context
   const [checkedFileIds, setCheckedFileIds] = useState<Set<string>>(new Set()); // New state for checked files
@@ -127,9 +218,30 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
   const [showGroupingPreview, setShowGroupingPreview] = useState(false);
   const [previewAssetGroups, setPreviewAssetGroups] = useState<UploadedAssetGroup[]>([]);
 
+  // Cleanup object URLs when component unmounts or preview groups change
+  React.useEffect(() => {
+    return () => {
+      // Cleanup object URLs to prevent memory leaks
+      previewAssetGroups.forEach(group => {
+        group.assets.forEach(asset => {
+          if (asset.supabaseUrl.startsWith('blob:')) {
+            URL.revokeObjectURL(asset.supabaseUrl);
+          }
+        });
+      });
+    };
+  }, [previewAssetGroups]);
+
+  // Log component initialization
+  React.useEffect(() => {
+    if (isOpen) {
+      logger.logComponentEvent('AssetImportModal', 'opened');
+    }
+  }, [isOpen]);
+
   const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
-      const newFiles: AssetFile[] = [];
+      const newFiles: FileWithId[] = [];
       
       for (let i = 0; i < event.target.files.length; i++) {
         const file = event.target.files[i];
@@ -144,12 +256,9 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
           }
         }
         
-        const assetFile: AssetFile = {
+        const assetFile: FileWithId = {
           file,
           id: `${file.name}-${file.lastModified}-${file.size}`,
-          needsCompression: needsCompression(file),
-          originalSize: file.size,
-          videoDimensions
         };
         
         newFiles.push(assetFile);
@@ -162,10 +271,10 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
   const handleDrop = useCallback(async (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     event.stopPropagation();
-    setIsDragging(false);
+    setDragActive(false);
     
     if (event.dataTransfer.files && event.dataTransfer.files.length > 0) {
-      const newFiles: AssetFile[] = [];
+      const newFiles: FileWithId[] = [];
       
       for (let i = 0; i < event.dataTransfer.files.length; i++) {
         const file = event.dataTransfer.files[i];
@@ -180,12 +289,9 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
           }
         }
         
-        const assetFile: AssetFile = {
+        const assetFile: FileWithId = {
           file,
           id: `${file.name}-${file.lastModified}-${file.size}`,
-          needsCompression: needsCompression(file),
-          originalSize: file.size,
-          videoDimensions
         };
         
         newFiles.push(assetFile);
@@ -199,13 +305,13 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
   const handleDragOver = useCallback((event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     event.stopPropagation();
-    if (!isDragging) setIsDragging(true);
-  }, [isDragging]);
+    if (!dragActive) setDragActive(true);
+  }, [dragActive]);
 
   const handleDragLeave = useCallback((event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     event.stopPropagation();
-    setIsDragging(false);
+    setDragActive(false);
   }, []);
 
   const removeFile = (fileId: string) => {
@@ -246,7 +352,7 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
 
   const showGroupingPreviewModal = () => {
     // Group files by their baseName to show preview
-    const groups: Record<string, AssetFile[]> = {};
+    const groups: Record<string, FileWithId[]> = {};
     selectedFiles.forEach(file => {
       const { baseName } = getBaseNameAndRatio(file.file.name, DEFAULT_ASPECT_RATIO_IDENTIFIERS, KNOWN_FILENAME_SUFFIXES_TO_REMOVE);
       const groupKey = baseName || file.file.name;
@@ -259,21 +365,23 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
     // Convert to UploadedAssetGroup format for the preview component
     const assetGroups: UploadedAssetGroup[] = Object.entries(groups).map(([groupKey, files]) => ({
       baseName: groupKey,
-      assets: files.map(file => {
-        const { baseName } = getBaseNameAndRatio(file.file.name, DEFAULT_ASPECT_RATIO_IDENTIFIERS, KNOWN_FILENAME_SUFFIXES_TO_REMOVE);
-        return {
-          id: file.id,
-          name: file.file.name,
-          supabaseUrl: URL.createObjectURL(file.file), // Create temporary URL for preview
-          type: file.file.type.startsWith('image/') ? 'image' as const : 'video' as const,
-          aspectRatio: file.detectedRatio || 'unknown',
-          baseName: baseName || file.file.name,
-          uploadedAt: new Date().toISOString()
-        };
-      }),
+      assets: files
+        .filter(file => file.file.type.startsWith('image/') || file.file.type.startsWith('video/')) // Only include supported file types
+        .map(file => {
+          const { baseName } = getBaseNameAndRatio(file.file.name, DEFAULT_ASPECT_RATIO_IDENTIFIERS, KNOWN_FILENAME_SUFFIXES_TO_REMOVE);
+          return {
+            id: file.id,
+            name: file.file.name,
+            supabaseUrl: URL.createObjectURL(file.file), // Create temporary URL for preview
+            type: file.file.type.startsWith('image/') ? 'image' as const : 'video' as const,
+            aspectRatio: file.detectedRatio || 'unknown',
+            baseName: baseName || file.file.name,
+            uploadedAt: new Date().toISOString()
+          };
+        }),
       aspectRatios: [...new Set(files.map(f => f.detectedRatio).filter(Boolean))],
       uploadedAt: new Date().toISOString()
-    }));
+    })).filter(group => group.assets.length > 0); // Remove groups with no valid assets
     
     setPreviewAssetGroups(assetGroups);
     setShowGroupingPreview(true);
@@ -281,7 +389,7 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
 
   const handleConfirmGrouping = (updatedGroups: UploadedAssetGroup[]) => {
     // Convert back to our internal format and update selectedFiles
-    const updatedFiles: AssetFile[] = [];
+    const updatedFiles: FileWithId[] = [];
     
     updatedGroups.forEach(group => {
       group.assets.forEach(asset => {
@@ -305,10 +413,10 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
   };
 
   const processAndImport = async () => {
-    if (!user || !brandId) {
-        console.error("User or Brand ID is missing. Cannot upload.");
+    if (!user) {
+        console.error("User is missing. Cannot upload.");
         // Optionally, show an error to the user
-        alert("User or Brand ID is missing. Please ensure you are logged in and a brand is selected.");
+        alert("User is missing. Please ensure you are logged in.");
         return;
     }
     if (selectedFiles.length === 0) return;
@@ -320,9 +428,9 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
     const processedAssetGroups: ImportedAssetGroup[] = [];
 
     // Step 1: Compress videos that need compression
-    const filesToProcess: AssetFile[] = [];
+    const filesToProcess: FileWithId[] = [];
     for (const assetFile of selectedFiles) {
-      if (assetFile.needsCompression) {
+      if (assetFile.file.type.startsWith('video/') && needsCompression(assetFile.file)) {
         try {
           console.log(`Compressing ${assetFile.file.name} (${getFileSizeMB(assetFile.file).toFixed(2)}MB)`);
           
@@ -346,7 +454,7 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
           );
 
           // Update the asset file with the compressed version
-          const updatedAssetFile: AssetFile = {
+          const updatedAssetFile: FileWithId = {
             ...assetFile,
             file: compressedFile,
             compressing: false,
@@ -408,7 +516,7 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
         for (const assetFile of filesInGroup) { // assetFile is ProcessedAssetFile here
             const file = assetFile.file;
             // Use groupNameKey for the asset group name, which is the common base name
-            const filePath = `${user.id}/${brandId}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '')}`;
+            const filePath = `${user.id}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '')}`;
 
             try {
                 // Simulate upload progress
@@ -487,7 +595,7 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
         }
     }
     
-    onAssetsImported(processedAssetGroups);
+    onImport(processedAssetGroups);
     setSelectedFiles([]); // Clear after successful import or if all failed but processed
     setIsProcessing(false);
     onClose();
@@ -545,13 +653,45 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
             </div>
           </div>
 
+          {/* Asset Grouping Guidelines */}
+          <div className="p-4 bg-blue-50 border border-blue-200 rounded-md">
+            <div className="flex items-start">
+              <div className="flex-1">
+                <h4 className="text-sm font-semibold text-blue-800 mb-2">
+                  🎯 Asset Grouping Guidelines
+                </h4>
+                <div className="text-sm text-blue-700 space-y-2">
+                  <p><strong>✅ Correct Grouping:</strong> Group by version (V1, V2, V3), not by aspect ratio</p>
+                  <div className="bg-white p-2 rounded border">
+                    <p className="font-medium text-green-700 mb-1">Example - Correct:</p>
+                    <ul className="text-xs space-y-1">
+                      <li>• <strong>Group 1:</strong> ProductDemo_v1_4x5.mp4 + ProductDemo_v1_9x16.mp4</li>
+                      <li>• <strong>Group 2:</strong> ProductDemo_v2_4x5.mp4 + ProductDemo_v2_9x16.mp4</li>
+                      <li>• <strong>Group 3:</strong> ProductDemo_v3_4x5.mp4 + ProductDemo_v3_9x16.mp4</li>
+                    </ul>
+                  </div>
+                  <div className="bg-red-50 p-2 rounded border border-red-200">
+                    <p className="font-medium text-red-700 mb-1">❌ Avoid - Incorrect:</p>
+                    <ul className="text-xs space-y-1">
+                      <li>• <strong>Group 1:</strong> All 4x5 files together</li>
+                      <li>• <strong>Group 2:</strong> All 9x16 files together</li>
+                    </ul>
+                  </div>
+                  <p className="text-xs text-blue-600 mt-2">
+                    💡 <strong>Why?</strong> Each version represents a different creative concept that should have both aspect ratios for optimal ad placement targeting.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* File Upload Area */}
           <div 
             onDrop={handleDrop} 
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             className={`border-2 border-dashed rounded-md p-8 text-center cursor-pointer 
-                        ${isDragging ? 'border-primary-500 bg-primary-50' : 'border-gray-300 hover:border-gray-400'}`}
+                        ${dragActive ? 'border-primary-500 bg-primary-50' : 'border-gray-300 hover:border-gray-400'}`}
           >
             <input
               type="file"
@@ -560,7 +700,7 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
               className="hidden"
               id="file-upload-input"
             />
-            <UploadCloud className={`mx-auto h-12 w-12 ${isDragging ? 'text-primary-600' : 'text-gray-400'}`} />
+            <UploadCloud className={`mx-auto h-12 w-12 ${dragActive ? 'text-primary-600' : 'text-gray-400'}`} />
             <label htmlFor="file-upload-input" className="mt-2 block text-sm font-medium text-primary-600 hover:text-primary-500 cursor-pointer">
               <span>Click to upload</span> or drag and drop
             </label>
@@ -581,7 +721,7 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
                 </div>
               </div>
             </div>
-            {selectedFiles.some(f => f.needsCompression) && (
+            {selectedFiles.some(f => f.file.type.startsWith('video/') && needsCompression(f.file)) && (
               <div className="mt-3 p-4 bg-amber-50 border border-amber-200 rounded-md">
                 <div className="flex items-start">
                   <Zap size={20} className="text-amber-600 mr-3 mt-0.5 flex-shrink-0" />
@@ -590,7 +730,7 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
                       Large Assets Detected - Auto-Compression Enabled
                     </h4>
                     <p className="text-sm text-amber-700 mb-2">
-                      {selectedFiles.filter(f => f.needsCompression).length} video(s) over 500MB will be automatically compressed to ensure successful upload to Meta.
+                      {selectedFiles.filter(f => f.file.type.startsWith('video/') && needsCompression(f.file)).length} video(s) over 500MB will be automatically compressed to ensure successful upload to Meta.
                       <span className="block text-xs mt-1 text-amber-600">⚡ Balanced compression - optimized for quality while maintaining reasonable file sizes</span>
                     </p>
                     <p className="text-xs text-amber-600">
@@ -633,13 +773,11 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
                 <div key={assetFile.id} className={`flex items-center justify-between p-3 rounded-lg text-sm border transition-all ${
                   checkedFileIds.has(assetFile.id) 
                     ? 'bg-primary-50 ring-2 ring-primary-300 border-primary-200' 
-                    : assetFile.needsCompression && !assetFile.compressing && !assetFile.uploadError
+                    : assetFile.file.type.startsWith('video/') && needsCompression(assetFile.file)
                       ? 'bg-amber-50 border-amber-200'
                       : assetFile.compressing
                         ? 'bg-blue-50 border-blue-200'
-                        : assetFile.originalSize && assetFile.originalSize !== assetFile.file.size
-                          ? 'bg-green-50 border-green-200'
-                          : 'bg-gray-50 border-gray-200'
+                        : 'bg-gray-50 border-gray-200'
                 }`}>
                   <div className="flex items-center flex-grow overflow-hidden">
                     <button onClick={() => toggleFileChecked(assetFile.id)} className="mr-3 p-1 focus:outline-none">
@@ -666,7 +804,7 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
                       
                       {/* Status indicators */}
                       <div className="flex items-center flex-wrap gap-2">
-                        {assetFile.needsCompression && !assetFile.compressing && !assetFile.uploadError && (
+                        {assetFile.file.type.startsWith('video/') && needsCompression(assetFile.file) && (
                           <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
                             <Zap size={12} className="mr-1" />
                             Will auto-compress (over 500MB)
@@ -694,7 +832,7 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
                           </span>
                         )}
                         
-                        {!assetFile.needsCompression && !assetFile.originalSize && assetFile.file.type.startsWith('video/') && (
+                        {!assetFile.file.type.startsWith('video/') && !assetFile.originalSize && assetFile.file.type.startsWith('video/') && (
                           <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
                             ✓ Under 500MB - No compression needed
                           </span>

@@ -1021,7 +1021,7 @@ Focus on search optimization, reader value, and conversion potential.`
     };
 
     // Upload media for a concept
-    const handleUploadMedia = async (file: File, conceptId: string) => {
+    const handleUploadMedia = async (file: File, conceptId: string, customThumbnail?: File) => {
         if (!user?.id) return;
         
         try {
@@ -1031,12 +1031,27 @@ Focus on search optimization, reader value, and conversion potential.`
             const concept = concepts.find(c => c.id === conceptId);
             const mediaType = file.type.startsWith('video/') ? 'video' : 'image';
             
+            // Handle custom thumbnail upload for videos
+            let thumbnailUrl = null;
+            if (customThumbnail && mediaType === 'video') {
+                try {
+                    const thumbnailMediaUrl = await uploadMedia(customThumbnail, user.id);
+                    thumbnailUrl = thumbnailMediaUrl;
+                    console.log('Custom thumbnail uploaded:', thumbnailUrl);
+                } catch (thumbnailError) {
+                    console.error('Failed to upload custom thumbnail:', thumbnailError);
+                    // Continue without thumbnail - don't fail the main upload
+                }
+            }
+            
             if (concept) {
                 const updatedConcept = await updateBriefConcept({
                     ...concept,
                     id: conceptId,
                     media_url: mediaUrl,
-                    media_type: mediaType
+                    media_type: mediaType,
+                    // Store thumbnail URL in a custom field if provided
+                    ...(thumbnailUrl && { custom_thumbnail_url: thumbnailUrl })
                 });
                 
                 setConcepts(prev => 
@@ -3648,6 +3663,48 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                             <p className="text-gray-500">Upload video/image</p>
                                         )}
                                     </div>
+                                    
+                                    {/* Custom Thumbnail Upload for Videos */}
+                                    {concept.media_type === 'video' && concept.media_url && (
+                                        <div className="mt-2 p-3 bg-gray-50 rounded border">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <span className="text-sm font-medium text-gray-700">Custom Thumbnail:</span>
+                                                <span className="text-xs text-gray-500">(for slow connections)</span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    onChange={(e) => {
+                                                        const thumbnailFile = e.target.files?.[0];
+                                                        if (thumbnailFile && concept.media_url) {
+                                                            // Re-upload the video with custom thumbnail
+                                                            fetch(concept.media_url)
+                                                                .then(response => response.blob())
+                                                                .then(videoBlob => {
+                                                                    const videoFile = new File([videoBlob], 'video.mp4', { type: 'video/mp4' });
+                                                                    handleUploadMedia(videoFile, concept.id, thumbnailFile);
+                                                                })
+                                                                .catch(error => {
+                                                                    console.error('Failed to re-upload with custom thumbnail:', error);
+                                                                });
+                                                        }
+                                                    }}
+                                                    className="hidden"
+                                                    id={`thumbnail-upload-${concept.id}`}
+                                                />
+                                                <label
+                                                    htmlFor={`thumbnail-upload-${concept.id}`}
+                                                    className="text-sm text-blue-600 hover:text-blue-800 cursor-pointer underline"
+                                                >
+                                                    Upload custom thumbnail
+                                                </label>
+                                            </div>
+                                            <p className="text-xs text-gray-500 mt-1">
+                                                💡 Upload a custom thumbnail if auto-generation fails due to slow connection
+                                            </p>
+                                        </div>
+                                    )}
                                     
                                     {/* Media Type Selector */}
                                     <div className="flex items-center space-x-2">
