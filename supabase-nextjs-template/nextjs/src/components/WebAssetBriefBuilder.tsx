@@ -1,122 +1,71 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Badge } from '@/components/ui/badge';
-import { 
-  Plus, 
-  X, 
-  Upload, 
-  Sparkles, 
-  Loader2, 
-  Monitor, 
-  Palette, 
-  FileText, 
-  Settings,
-  Eye,
-  Link as LinkIcon,
-  Image as ImageIcon,
-  Video,
-  Layout,
-  MousePointer,
-  Zap
-} from 'lucide-react';
-import Link from 'next/link';
-import WebAssetBriefBuilder from '@/components/WebAssetBriefBuilder';
-import CreativeAngleGenerator from '@/components/CreativeAngleGenerator';
-import AIMoodBoard from '@/components/AIMoodBoard';
-import AnimationSequenceSuggester from '@/components/AnimationSequenceSuggester';
+import { Label } from '@/components/ui/label';
+import { Sparkles, Upload, X, Plus, Loader2 } from 'lucide-react';
 
 interface WebAssetBriefData {
   // Core Configuration
-  assetType: 'landing_page' | 'web_banner_static' | 'web_banner_animated' | 'promotional_popup' | 'homepage_hero' | 'product_explainer' | 'brand_story_video' | 'animated_logo' | 'video_animation' | 'other';
+  assetType: 'landing_page' | 'web_banner' | 'promotional_popup' | 'homepage_hero' | 'product_explainer' | 'brand_story_video' | 'animated_logo' | 'video_animation' | 'custom';
   customAssetType?: string;
   dueDate: string;
   assignedDesigner: string;
+  strategist: string;
+  creativeCoordinator: string;
   projectName: string;
   finalAssetsFolder: string;
-  
-  // Core Creative Idea
-  primaryMessage: string;
-  callToAction: string;
-  offer?: string;
   
   // Inspiration & AI Control
   inspirationFiles: File[];
   inspirationLinks: string[];
+  primaryGoal: string;
+  
+  // Core Creative Idea
+  primaryMessage: string;
+  callToAction: string;
+  theOffer: string;
+  
+  // Visual Direction
   lookAndFeelKeywords: string[];
-  
-  // Visual & Sensory Direction
-  colorPalette: {
-    primary: string;
-    secondary: string;
-    accent: string;
-    avoidColors: string[];
-  };
-  typography: {
-    fontFamily: string;
-    weights: string[];
-    styles: string[];
-  };
-  
-  // Mandatory Elements
-  mandatoryElements: {
-    logo: boolean;
-    logoVersion: 'primary' | 'stacked' | 'whiteout';
-    productShots: boolean;
-    legalDisclaimer: boolean;
-    customElements: string[];
-  };
-  
-  // Asset-Specific Structure & Specs
-  assetSpecs: {
-    dimensions?: string[];
-    interactiveNotes?: string;
-    animationSequence?: string;
-    aspectRatios?: string[];
-    sectionFlow?: string[];
-  };
-  
-  // Final Instructions
+  colorPalette: string;
+  typography: string;
+  mandatoryElements: string;
   strictlyAvoid: string;
-  brandGuidelinesLink: string;
+  
+  // Asset-Specific Specs
+  assetSpecs: Record<string, unknown>;
 }
 
 interface WebAssetBriefBuilderProps {
   onGenerate: (briefData: WebAssetBriefData) => Promise<void>;
-  onAutoSave?: (briefData: WebAssetBriefData) => Promise<void>;
+  onAutoSave: (briefData: WebAssetBriefData) => Promise<void>;
   isGenerating: boolean;
   populatedData?: WebAssetBriefData | null;
   onDataPopulated?: () => void;
 }
 
 const ASSET_TYPE_OPTIONS = [
-  { value: 'landing_page', label: 'Landing Page', icon: Layout },
-  { value: 'web_banner_static', label: 'Web Banner (Static)', icon: ImageIcon },
-  { value: 'web_banner_animated', label: 'Web Banner (Animated)', icon: Video },
-  { value: 'promotional_popup', label: 'Promotional Popup/Modal', icon: MousePointer },
-  { value: 'homepage_hero', label: 'Homepage Hero', icon: Monitor },
-  { value: 'product_explainer', label: 'Product Explainer', icon: FileText },
-  { value: 'brand_story_video', label: 'Brand Story Video', icon: Video },
-  { value: 'animated_logo', label: 'Animated Logo/Bumper', icon: Zap },
-  { value: 'video_animation', label: 'Video Animation', icon: Video },
-  { value: 'other', label: 'Other (Custom)', icon: Settings }
+  { value: 'landing_page', label: 'Landing Page' },
+  { value: 'web_banner', label: 'Web Banner' },
+  { value: 'promotional_popup', label: 'Promotional Popup' },
+  { value: 'homepage_hero', label: 'Homepage Hero' },
+  { value: 'product_explainer', label: 'Product Explainer' },
+  { value: 'brand_story_video', label: 'Brand Story Video' },
+  { value: 'animated_logo', label: 'Animated Logo' },
+  { value: 'video_animation', label: 'Video Animation' },
+  { value: 'custom', label: 'Custom Asset Type' }
 ];
 
 const LOOK_AND_FEEL_OPTIONS = [
-  'Minimal & Clean', 'Bold & Energetic', 'Nostalgic & Dreamy', 'Luxurious & Sleek',
-  'Playful & Fun', 'Professional & Corporate', 'Artistic & Creative', 'Modern & Tech',
-  'Warm & Friendly', 'Dark & Moody', 'Bright & Airy', 'Elegant & Sophisticated'
+  'Modern', 'Minimalist', 'Bold', 'Elegant', 'Playful', 'Professional', 
+  'Luxurious', 'Energetic', 'Calm', 'Vibrant', 'Clean', 'Artistic',
+  'Tech-forward', 'Organic', 'Geometric', 'Vintage', 'Futuristic', 'Warm'
 ];
-
-const FONT_WEIGHTS = ['Light', 'Regular', 'Medium', 'Semi-Bold', 'Bold', 'Extra-Bold'];
-const FONT_STYLES = ['Normal', 'Italic', 'Condensed', 'Extended'];
 
 export default function WebAssetBriefBuilder({
   onGenerate,
@@ -127,62 +76,31 @@ export default function WebAssetBriefBuilder({
 }: WebAssetBriefBuilderProps) {
   const [briefData, setBriefData] = useState<WebAssetBriefData>({
     assetType: 'landing_page',
+    customAssetType: '',
     dueDate: '',
     assignedDesigner: '',
+    strategist: '',
+    creativeCoordinator: '',
     projectName: '',
     finalAssetsFolder: '',
-    primaryMessage: '',
-    callToAction: '',
-    offer: '',
     inspirationFiles: [],
     inspirationLinks: [''],
+    primaryGoal: '',
+    primaryMessage: '',
+    callToAction: '',
+    theOffer: '',
     lookAndFeelKeywords: [],
-    colorPalette: {
-      primary: '',
-      secondary: '',
-      accent: '',
-      avoidColors: []
-    },
-    typography: {
-      fontFamily: '',
-      weights: [],
-      styles: []
-    },
-    mandatoryElements: {
-      logo: false,
-      logoVersion: 'primary',
-      productShots: false,
-      legalDisclaimer: false,
-      customElements: []
-    },
-    assetSpecs: {
-      dimensions: [''],
-      aspectRatios: [''],
-      sectionFlow: ['']
-    },
+    colorPalette: '',
+    typography: '',
+    mandatoryElements: '',
     strictlyAvoid: '',
-    brandGuidelinesLink: ''
+    assetSpecs: {}
   });
 
-  const [newCustomElement, setNewCustomElement] = useState('');
-  const [newAvoidColor, setNewAvoidColor] = useState('');
-  const [newKeyword, setNewKeyword] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Auto-save functionality
-  const debouncedAutoSave = useCallback(
-    debounce((data: WebAssetBriefData) => {
-      if (onAutoSave) {
-        onAutoSave(data);
-      }
-    }, 2000),
-    [onAutoSave]
-  );
-
-  useEffect(() => {
-    debouncedAutoSave(briefData);
-  }, [briefData, debouncedAutoSave]);
-
-  // Handle populated data from AI generation
+  // Populate data when AI generates content
   useEffect(() => {
     if (populatedData) {
       setBriefData(populatedData);
@@ -192,294 +110,269 @@ export default function WebAssetBriefBuilder({
     }
   }, [populatedData, onDataPopulated]);
 
+  // Auto-save functionality
+  useEffect(() => {
+    if (autoSaveTimeoutRef.current) {
+      clearTimeout(autoSaveTimeoutRef.current);
+    }
+
+    autoSaveTimeoutRef.current = setTimeout(() => {
+      onAutoSave(briefData);
+    }, 2000);
+
+    return () => {
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current);
+      }
+    };
+  }, [briefData, onAutoSave]);
+
   const updateBriefData = (updates: Partial<WebAssetBriefData>) => {
     setBriefData(prev => ({ ...prev, ...updates }));
   };
 
-  const updateNestedData = (path: string, value: any) => {
-    setBriefData(prev => {
-      const newData = { ...prev };
-      const keys = path.split('.');
-      let current: any = newData;
-      
-      for (let i = 0; i < keys.length - 1; i++) {
-        current = current[keys[i]];
-      }
-      
-      current[keys[keys.length - 1]] = value;
-      return newData;
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    updateBriefData({
+      inspirationFiles: [...briefData.inspirationFiles, ...files]
     });
-  };
-
-  const addToArray = (path: string, value: string) => {
-    if (!value.trim()) return;
-    
-    setBriefData(prev => {
-      const newData = { ...prev };
-      const keys = path.split('.');
-      let current: any = newData;
-      
-      for (let i = 0; i < keys.length - 1; i++) {
-        current = current[keys[i]];
-      }
-      
-      const array = current[keys[keys.length - 1]] || [];
-      current[keys[keys.length - 1]] = [...array, value];
-      return newData;
-    });
-  };
-
-  const removeFromArray = (path: string, index: number) => {
-    setBriefData(prev => {
-      const newData = { ...prev };
-      const keys = path.split('.');
-      let current: any = newData;
-      
-      for (let i = 0; i < keys.length - 1; i++) {
-        current = current[keys[i]];
-      }
-      
-      const array = current[keys[keys.length - 1]] || [];
-      current[keys[keys.length - 1]] = array.filter((_: any, i: number) => i !== index);
-      return newData;
-    });
-  };
-
-  const handleFileUpload = (files: FileList | null) => {
-    if (!files) return;
-    
-    const newFiles = Array.from(files);
-    setBriefData(prev => ({
-      ...prev,
-      inspirationFiles: [...prev.inspirationFiles, ...newFiles]
-    }));
   };
 
   const removeFile = (index: number) => {
-    setBriefData(prev => ({
-      ...prev,
-      inspirationFiles: prev.inspirationFiles.filter((_, i) => i !== index)
-    }));
+    const newFiles = briefData.inspirationFiles.filter((_, i) => i !== index);
+    updateBriefData({ inspirationFiles: newFiles });
   };
 
-  const handleGenerate = async () => {
-    await onGenerate(briefData);
+  const addInspirationLink = () => {
+    updateBriefData({
+      inspirationLinks: [...briefData.inspirationLinks, '']
+    });
+  };
+
+  const updateInspirationLink = (index: number, value: string) => {
+    const newLinks = [...briefData.inspirationLinks];
+    newLinks[index] = value;
+    updateBriefData({ inspirationLinks: newLinks });
+  };
+
+  const removeInspirationLink = (index: number) => {
+    const newLinks = briefData.inspirationLinks.filter((_, i) => i !== index);
+    updateBriefData({ inspirationLinks: newLinks });
+  };
+
+  const toggleKeyword = (keyword: string) => {
+    const newKeywords = briefData.lookAndFeelKeywords.includes(keyword)
+      ? briefData.lookAndFeelKeywords.filter(k => k !== keyword)
+      : [...briefData.lookAndFeelKeywords, keyword];
+    updateBriefData({ lookAndFeelKeywords: newKeywords });
   };
 
   const getAssetSpecificFields = () => {
     switch (briefData.assetType) {
       case 'landing_page':
-      case 'homepage_hero':
         return (
           <div className="space-y-4">
             <div>
-              <Label htmlFor="sectionFlow">Section Flow / Wireframe</Label>
-              <div className="space-y-2">
-                {briefData.assetSpecs.sectionFlow?.map((section, index) => (
-                  <div key={index} className="flex gap-2">
-                    <Input
-                      value={section}
-                      onChange={(e) => {
-                        const newFlow = [...(briefData.assetSpecs.sectionFlow || [])];
-                        newFlow[index] = e.target.value;
-                        updateNestedData('assetSpecs.sectionFlow', newFlow);
-                      }}
-                      placeholder={`Section ${index + 1} (e.g., Full-width Hero Image)`}
-                    />
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => removeFromArray('assetSpecs.sectionFlow', index)}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => addToArray('assetSpecs.sectionFlow', '')}
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Section
-                </Button>
-              </div>
-            </div>
-            
-            <div>
-              <Label htmlFor="interactiveNotes">Interactive Notes</Label>
+              <Label htmlFor="sections">Page Sections</Label>
               <Textarea
-                id="interactiveNotes"
-                value={briefData.assetSpecs.interactiveNotes || ''}
-                onChange={(e) => updateNestedData('assetSpecs.interactiveNotes', e.target.value)}
-                placeholder="Describe hover states, animations, or interactive elements..."
-                rows={3}
+                id="sections"
+                placeholder="e.g., Hero, Features, Testimonials, CTA, Footer"
+                value={(briefData.assetSpecs.sections as string) || ''}
+                onChange={(e) => updateBriefData({
+                  assetSpecs: { ...briefData.assetSpecs, sections: e.target.value }
+                })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="responsiveNotes">Responsive Requirements</Label>
+              <Textarea
+                id="responsiveNotes"
+                placeholder="Mobile, tablet, desktop specific requirements"
+                value={(briefData.assetSpecs.responsiveNotes as string) || ''}
+                onChange={(e) => updateBriefData({
+                  assetSpecs: { ...briefData.assetSpecs, responsiveNotes: e.target.value }
+                })}
               />
             </div>
           </div>
         );
-        
-      case 'web_banner_static':
-      case 'web_banner_animated':
+      
+      case 'web_banner':
         return (
           <div className="space-y-4">
             <div>
-              <Label htmlFor="dimensions">Dimensions</Label>
-              <div className="space-y-2">
-                {briefData.assetSpecs.dimensions?.map((dimension, index) => (
-                  <div key={index} className="flex gap-2">
-                    <Input
-                      value={dimension}
-                      onChange={(e) => {
-                        const newDimensions = [...(briefData.assetSpecs.dimensions || [])];
-                        newDimensions[index] = e.target.value;
-                        updateNestedData('assetSpecs.dimensions', newDimensions);
-                      }}
-                      placeholder="e.g., 300x250, 728x90, 160x600"
-                    />
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => removeFromArray('assetSpecs.dimensions', index)}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => addToArray('assetSpecs.dimensions', '')}
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Dimension
-                </Button>
-              </div>
+              <Label htmlFor="dimensions">Banner Dimensions</Label>
+              <Input
+                id="dimensions"
+                placeholder="e.g., 728x90, 300x250, 320x50"
+                value={(briefData.assetSpecs.dimensions as string) || ''}
+                onChange={(e) => updateBriefData({
+                  assetSpecs: { ...briefData.assetSpecs, dimensions: e.target.value }
+                })}
+              />
             </div>
-            
-            {briefData.assetType === 'web_banner_animated' && (
-              <div>
-                <Label htmlFor="animationSequence">Animation Sequence</Label>
-                <Textarea
-                  id="animationSequence"
-                  value={briefData.assetSpecs.animationSequence || ''}
-                  onChange={(e) => updateNestedData('assetSpecs.animationSequence', e.target.value)}
-                  placeholder="Frame 1: Product appears. Frame 2: Headline animates in. Frame 3: CTA button pulses."
-                  rows={4}
-                />
-              </div>
-            )}
+            <div>
+              <Label htmlFor="animationType">Animation Type</Label>
+              <Select
+                value={(briefData.assetSpecs.animationType as string) || ''}
+                onValueChange={(value) => updateBriefData({
+                  assetSpecs: { ...briefData.assetSpecs, animationType: value }
+                })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select animation type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="static">Static</SelectItem>
+                  <SelectItem value="simple_animation">Simple Animation</SelectItem>
+                  <SelectItem value="complex_animation">Complex Animation</SelectItem>
+                  <SelectItem value="video">Video Banner</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         );
-        
+      
+      case 'promotional_popup':
+        return (
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="triggerType">Popup Trigger</Label>
+              <Select
+                value={(briefData.assetSpecs.triggerType as string) || ''}
+                onValueChange={(value) => updateBriefData({
+                  assetSpecs: { ...briefData.assetSpecs, triggerType: value }
+                })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select trigger type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="time_based">Time-based</SelectItem>
+                  <SelectItem value="scroll_based">Scroll-based</SelectItem>
+                  <SelectItem value="exit_intent">Exit Intent</SelectItem>
+                  <SelectItem value="click_triggered">Click Triggered</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="popupSize">Popup Size</Label>
+              <Input
+                id="popupSize"
+                placeholder="e.g., 500x400, fullscreen overlay"
+                value={(briefData.assetSpecs.popupSize as string) || ''}
+                onChange={(e) => updateBriefData({
+                  assetSpecs: { ...briefData.assetSpecs, popupSize: e.target.value }
+                })}
+              />
+            </div>
+          </div>
+        );
+      
       case 'brand_story_video':
-      case 'product_explainer':
       case 'video_animation':
         return (
           <div className="space-y-4">
             <div>
-              <Label htmlFor="aspectRatios">Aspect Ratios</Label>
-              <div className="space-y-2">
-                {briefData.assetSpecs.aspectRatios?.map((ratio, index) => (
-                  <div key={index} className="flex gap-2">
-                    <Input
-                      value={ratio}
-                      onChange={(e) => {
-                        const newRatios = [...(briefData.assetSpecs.aspectRatios || [])];
-                        newRatios[index] = e.target.value;
-                        updateNestedData('assetSpecs.aspectRatios', newRatios);
-                      }}
-                      placeholder="e.g., 16:9, 9:16, 1:1"
-                    />
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => removeFromArray('assetSpecs.aspectRatios', index)}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => addToArray('assetSpecs.aspectRatios', '')}
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Aspect Ratio
-                </Button>
-              </div>
+              <Label htmlFor="duration">Video Duration</Label>
+              <Input
+                id="duration"
+                placeholder="e.g., 30 seconds, 1-2 minutes"
+                value={(briefData.assetSpecs.duration as string) || ''}
+                onChange={(e) => updateBriefData({
+                  assetSpecs: { ...briefData.assetSpecs, duration: e.target.value }
+                })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="videoStyle">Video Style</Label>
+              <Select
+                value={(briefData.assetSpecs.videoStyle as string) || ''}
+                onValueChange={(value) => updateBriefData({
+                  assetSpecs: { ...briefData.assetSpecs, videoStyle: value }
+                })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select video style" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="live_action">Live Action</SelectItem>
+                  <SelectItem value="animation">Animation</SelectItem>
+                  <SelectItem value="motion_graphics">Motion Graphics</SelectItem>
+                  <SelectItem value="mixed_media">Mixed Media</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
         );
-        
+      
       default:
-        return null;
+        return (
+          <div>
+            <Label htmlFor="customSpecs">Asset Specifications</Label>
+            <Textarea
+              id="customSpecs"
+              placeholder="Describe specific requirements for this asset type"
+              value={(briefData.assetSpecs.customSpecs as string) || ''}
+              onChange={(e) => updateBriefData({
+                assetSpecs: { ...briefData.assetSpecs, customSpecs: e.target.value }
+              })}
+            />
+          </div>
+        );
     }
   };
 
   return (
-    <div className="max-w-4xl mx-auto p-6 space-y-8">
-      {/* Header */}
-      <div className="text-center">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">
-          PowerBrief Creative Execution Brief
-        </h1>
-        <p className="text-gray-600">For Designers & Video Editors</p>
-        <p className="text-sm text-gray-500 mt-2">
-          Single source of truth for exceptional web asset creation
-        </p>
-      </div>
-
+    <div className="space-y-6">
       {/* Initial Setup */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center">
-            <Settings className="h-5 w-5 mr-2 text-blue-600" />
-            Initial Setup
-          </CardTitle>
+          <CardTitle>Initial Setup</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="assetType">Select Asset Type</Label>
+              <Label htmlFor="assetType">Asset Type</Label>
               <Select
                 value={briefData.assetType}
-                onValueChange={(value) => updateBriefData({ assetType: value as any })}
+                onValueChange={(value: WebAssetBriefData['assetType']) => updateBriefData({ assetType: value })}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Choose asset type" />
+                  <SelectValue placeholder="Select asset type" />
                 </SelectTrigger>
                 <SelectContent>
-                  {ASSET_TYPE_OPTIONS.map((option) => {
-                    const IconComponent = option.icon;
-                    return (
-                      <SelectItem key={option.value} value={option.value}>
-                        <div className="flex items-center">
-                          <IconComponent className="h-4 w-4 mr-2" />
-                          {option.label}
-                        </div>
-                      </SelectItem>
-                    );
-                  })}
+                  {ASSET_TYPE_OPTIONS.map(option => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
             
-            {briefData.assetType === 'other' && (
+            {briefData.assetType === 'custom' && (
               <div>
                 <Label htmlFor="customAssetType">Custom Asset Type</Label>
                 <Input
                   id="customAssetType"
+                  placeholder="Specify custom asset type"
                   value={briefData.customAssetType || ''}
                   onChange={(e) => updateBriefData({ customAssetType: e.target.value })}
-                  placeholder="Enter custom asset type"
                 />
               </div>
             )}
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            
+            <div>
+              <Label htmlFor="projectName">Project Name</Label>
+              <Input
+                id="projectName"
+                placeholder="Enter project name"
+                value={briefData.projectName}
+                onChange={(e) => updateBriefData({ projectName: e.target.value })}
+              />
+            </div>
+            
             <div>
               <Label htmlFor="dueDate">Due Date</Label>
               <Input
@@ -489,623 +382,295 @@ export default function WebAssetBriefBuilder({
                 onChange={(e) => updateBriefData({ dueDate: e.target.value })}
               />
             </div>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <Label htmlFor="strategist">Strategist</Label>
+              <Input
+                id="strategist"
+                placeholder="Enter strategist name"
+                value={briefData.strategist}
+                onChange={(e) => updateBriefData({ strategist: e.target.value })}
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="creativeCoordinator">Creative Coordinator</Label>
+              <Input
+                id="creativeCoordinator"
+                placeholder="Enter coordinator name"
+                value={briefData.creativeCoordinator}
+                onChange={(e) => updateBriefData({ creativeCoordinator: e.target.value })}
+              />
+            </div>
             
             <div>
               <Label htmlFor="assignedDesigner">Assigned Designer</Label>
               <Input
                 id="assignedDesigner"
+                placeholder="Enter designer name"
                 value={briefData.assignedDesigner}
                 onChange={(e) => updateBriefData({ assignedDesigner: e.target.value })}
-                placeholder="Designer name"
               />
             </div>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="projectName">Project Name</Label>
-              <Input
-                id="projectName"
-                value={briefData.projectName}
-                onChange={(e) => updateBriefData({ projectName: e.target.value })}
-                placeholder="Clear, descriptive title for the asset"
-              />
-            </div>
-            
-            <div>
-              <Label htmlFor="finalAssetsFolder">Final Assets Folder</Label>
-              <Input
-                id="finalAssetsFolder"
-                value={briefData.finalAssetsFolder}
-                onChange={(e) => updateBriefData({ finalAssetsFolder: e.target.value })}
-                placeholder="Link to final assets folder"
-              />
-            </div>
+          <div>
+            <Label htmlFor="finalAssetsFolder">Final Assets Folder</Label>
+            <Input
+              id="finalAssetsFolder"
+              placeholder="Enter folder path or link"
+              value={briefData.finalAssetsFolder}
+              onChange={(e) => updateBriefData({ finalAssetsFolder: e.target.value })}
+            />
           </div>
         </CardContent>
       </Card>
 
-      {/* Section 1: The Core Creative Idea */}
+      {/* Inspiration Section */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center">
-            <Sparkles className="h-5 w-5 mr-2 text-purple-600" />
-            Section 1: The Core Creative Idea
-          </CardTitle>
+          <CardTitle>Inspiration (Optional)</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
-            <Label htmlFor="primaryMessage">Primary Message / The Hook</Label>
+            <Label>Inspiration Files</Label>
+            <div className="mt-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept="image/*,video/*"
+                onChange={handleFileUpload}
+                className="hidden"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full"
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                Upload Inspiration Files
+              </Button>
+            </div>
+            
+            {briefData.inspirationFiles.length > 0 && (
+              <div className="mt-3 space-y-2">
+                {briefData.inspirationFiles.map((file, index) => (
+                  <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                    <span className="text-sm text-gray-700">{file.name}</span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => removeFile(index)}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          
+          <div>
+            <Label>Inspiration Links</Label>
+            <div className="space-y-2 mt-2">
+              {briefData.inspirationLinks.map((link, index) => (
+                <div key={index} className="flex items-center space-x-2">
+                  <Input
+                    placeholder="https://example.com/inspiration"
+                    value={link}
+                    onChange={(e) => updateInspirationLink(index, e.target.value)}
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => removeInspirationLink(index)}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={addInspirationLink}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add Link
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Prompt Field */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Primary Goal & Prompt</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div>
+            <Label htmlFor="primaryGoal">Primary Goal</Label>
+            <Textarea
+              id="primaryGoal"
+              placeholder="Describe the primary goal and context for this web asset. What should it achieve? Who is the target audience? What's the main message?"
+              value={briefData.primaryGoal}
+              onChange={(e) => updateBriefData({ primaryGoal: e.target.value })}
+              rows={4}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Core Creative Idea */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Core Creative Idea</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <Label htmlFor="primaryMessage">Primary Message/Hook</Label>
             <Textarea
               id="primaryMessage"
+              placeholder="The main message or hook that will capture attention"
               value={briefData.primaryMessage}
               onChange={(e) => updateBriefData({ primaryMessage: e.target.value })}
-              placeholder="What is the single most important idea the viewer must see, feel, and understand?"
-              rows={3}
             />
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="callToAction">Call to Action (CTA)</Label>
-              <Input
-                id="callToAction"
-                value={briefData.callToAction}
-                onChange={(e) => updateBriefData({ callToAction: e.target.value })}
-                placeholder="e.g., Shop Now, Watch Now, Get 20% Off"
-              />
-            </div>
-            
-            <div>
-              <Label htmlFor="offer">The Offer (if applicable)</Label>
-              <Input
-                id="offer"
-                value={briefData.offer || ''}
-                onChange={(e) => updateBriefData({ offer: e.target.value })}
-                placeholder="e.g., Buy One, Get One Free"
-              />
-            </div>
+          <div>
+            <Label htmlFor="callToAction">Call to Action</Label>
+            <Input
+              id="callToAction"
+              placeholder="e.g., Shop Now, Learn More, Get Started"
+              value={briefData.callToAction}
+              onChange={(e) => updateBriefData({ callToAction: e.target.value })}
+            />
+          </div>
+          
+          <div>
+            <Label htmlFor="theOffer">The Offer</Label>
+            <Textarea
+              id="theOffer"
+              placeholder="What specific offer, value proposition, or benefit are we promoting?"
+              value={briefData.theOffer}
+              onChange={(e) => updateBriefData({ theOffer: e.target.value })}
+            />
           </div>
         </CardContent>
       </Card>
 
-      {/* Section 2: Visual & Sensory Direction */}
+      {/* Visual Direction */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center">
-            <Palette className="h-5 w-5 mr-2 text-green-600" />
-            Section 2: Visual & Sensory Direction
-          </CardTitle>
+          <CardTitle>Visual & Sensory Direction</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Inspiration Gallery */}
-          <div>
-            <Label>Inspiration Gallery</Label>
-            <div className="space-y-4">
-              {/* File Upload */}
-              <div>
-                <Label htmlFor="inspirationFiles">Upload Images</Label>
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
-                  <input
-                    type="file"
-                    id="inspirationFiles"
-                    multiple
-                    accept="image/*"
-                    onChange={(e) => handleFileUpload(e.target.files)}
-                    className="hidden"
-                  />
-                  <label
-                    htmlFor="inspirationFiles"
-                    className="cursor-pointer flex flex-col items-center"
-                  >
-                    <Upload className="h-8 w-8 text-gray-400 mb-2" />
-                    <span className="text-sm text-gray-600">
-                      Click to upload inspiration images
-                    </span>
-                  </label>
-                </div>
-                
-                {briefData.inspirationFiles.length > 0 && (
-                  <div className="mt-2 space-y-2">
-                    {briefData.inspirationFiles.map((file, index) => (
-                      <div key={index} className="flex items-center justify-between bg-gray-50 p-2 rounded">
-                        <span className="text-sm">{file.name}</span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removeFile(index)}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-              
-              {/* URL Links */}
-              <div>
-                <Label>Inspiration Links</Label>
-                <div className="space-y-2">
-                  {briefData.inspirationLinks.map((link, index) => (
-                    <div key={index} className="flex gap-2">
-                      <Input
-                        value={link}
-                        onChange={(e) => {
-                          const newLinks = [...briefData.inspirationLinks];
-                          newLinks[index] = e.target.value;
-                          updateBriefData({ inspirationLinks: newLinks });
-                        }}
-                        placeholder="https://behance.net/gallery/..."
-                      />
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => removeFromArray('inspirationLinks', index)}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => addToArray('inspirationLinks', '')}
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Link
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Look & Feel Keywords */}
+        <CardContent className="space-y-4">
           <div>
             <Label>Look & Feel Keywords</Label>
-            <div className="space-y-2">
-              <div className="flex flex-wrap gap-2">
-                {LOOK_AND_FEEL_OPTIONS.map((option) => (
-                  <Badge
-                    key={option}
-                    variant={briefData.lookAndFeelKeywords.includes(option) ? "default" : "outline"}
-                    className="cursor-pointer"
-                    onClick={() => {
-                      const keywords = briefData.lookAndFeelKeywords.includes(option)
-                        ? briefData.lookAndFeelKeywords.filter(k => k !== option)
-                        : [...briefData.lookAndFeelKeywords, option];
-                      updateBriefData({ lookAndFeelKeywords: keywords });
-                    }}
-                  >
-                    {option}
-                  </Badge>
-                ))}
-              </div>
-              
-              <div className="flex gap-2">
-                <Input
-                  value={newKeyword}
-                  onChange={(e) => setNewKeyword(e.target.value)}
-                  placeholder="Add custom keyword"
-                  onKeyPress={(e) => {
-                    if (e.key === 'Enter' && newKeyword.trim()) {
-                      updateBriefData({
-                        lookAndFeelKeywords: [...briefData.lookAndFeelKeywords, newKeyword.trim()]
-                      });
-                      setNewKeyword('');
-                    }
-                  }}
-                />
+            <div className="grid grid-cols-3 md:grid-cols-6 gap-2 mt-2">
+              {LOOK_AND_FEEL_OPTIONS.map(keyword => (
                 <Button
-                  variant="outline"
+                  key={keyword}
+                  type="button"
+                  variant={briefData.lookAndFeelKeywords.includes(keyword) ? "default" : "outline"}
                   size="sm"
-                  onClick={() => {
-                    if (newKeyword.trim()) {
-                      updateBriefData({
-                        lookAndFeelKeywords: [...briefData.lookAndFeelKeywords, newKeyword.trim()]
-                      });
-                      setNewKeyword('');
-                    }
-                  }}
+                  onClick={() => toggleKeyword(keyword)}
+                  className="text-xs"
                 >
-                  Add
+                  {keyword}
                 </Button>
-              </div>
+              ))}
             </div>
           </div>
-
-          {/* Color Palette */}
+          
           <div>
-            <Label>Color Palette</Label>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <Label htmlFor="primaryColor">Primary Color</Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="primaryColor"
-                    type="color"
-                    value={briefData.colorPalette.primary}
-                    onChange={(e) => updateNestedData('colorPalette.primary', e.target.value)}
-                    className="w-16"
-                  />
-                  <Input
-                    value={briefData.colorPalette.primary}
-                    onChange={(e) => updateNestedData('colorPalette.primary', e.target.value)}
-                    placeholder="#000000"
-                  />
-                </div>
-              </div>
-              
-              <div>
-                <Label htmlFor="secondaryColor">Secondary Color</Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="secondaryColor"
-                    type="color"
-                    value={briefData.colorPalette.secondary}
-                    onChange={(e) => updateNestedData('colorPalette.secondary', e.target.value)}
-                    className="w-16"
-                  />
-                  <Input
-                    value={briefData.colorPalette.secondary}
-                    onChange={(e) => updateNestedData('colorPalette.secondary', e.target.value)}
-                    placeholder="#000000"
-                  />
-                </div>
-              </div>
-              
-              <div>
-                <Label htmlFor="accentColor">Accent Color</Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="accentColor"
-                    type="color"
-                    value={briefData.colorPalette.accent}
-                    onChange={(e) => updateNestedData('colorPalette.accent', e.target.value)}
-                    className="w-16"
-                  />
-                  <Input
-                    value={briefData.colorPalette.accent}
-                    onChange={(e) => updateNestedData('colorPalette.accent', e.target.value)}
-                    placeholder="#000000"
-                  />
-                </div>
-              </div>
-            </div>
-            
-            <div className="mt-4">
-              <Label>Colors to Avoid</Label>
-              <div className="space-y-2">
-                <div className="flex flex-wrap gap-2">
-                  {briefData.colorPalette.avoidColors.map((color, index) => (
-                    <Badge key={index} variant="destructive" className="flex items-center gap-1">
-                      {color}
-                      <X
-                        className="h-3 w-3 cursor-pointer"
-                        onClick={() => removeFromArray('colorPalette.avoidColors', index)}
-                      />
-                    </Badge>
-                  ))}
-                </div>
-                
-                <div className="flex gap-2">
-                  <Input
-                    value={newAvoidColor}
-                    onChange={(e) => setNewAvoidColor(e.target.value)}
-                    placeholder="Color to avoid (e.g., red, #FF0000)"
-                    onKeyPress={(e) => {
-                      if (e.key === 'Enter' && newAvoidColor.trim()) {
-                        addToArray('colorPalette.avoidColors', newAvoidColor.trim());
-                        setNewAvoidColor('');
-                      }
-                    }}
-                  />
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      if (newAvoidColor.trim()) {
-                        addToArray('colorPalette.avoidColors', newAvoidColor.trim());
-                        setNewAvoidColor('');
-                      }
-                    }}
-                  >
-                    Add
-                  </Button>
-                </div>
-              </div>
-            </div>
+            <Label htmlFor="colorPalette">Color Palette</Label>
+            <Textarea
+              id="colorPalette"
+              placeholder="Describe the color scheme, specific colors, or hex codes"
+              value={briefData.colorPalette}
+              onChange={(e) => updateBriefData({ colorPalette: e.target.value })}
+            />
           </div>
-
-          {/* Typography */}
+          
           <div>
-            <Label>Typography</Label>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <Label htmlFor="fontFamily">Font Family</Label>
-                <Input
-                  id="fontFamily"
-                  value={briefData.typography.fontFamily}
-                  onChange={(e) => updateNestedData('typography.fontFamily', e.target.value)}
-                  placeholder="e.g., Helvetica, Arial, Custom Font"
-                />
-              </div>
-              
-              <div>
-                <Label>Font Weights</Label>
-                <div className="flex flex-wrap gap-1">
-                  {FONT_WEIGHTS.map((weight) => (
-                    <Badge
-                      key={weight}
-                      variant={briefData.typography.weights.includes(weight) ? "default" : "outline"}
-                      className="cursor-pointer text-xs"
-                      onClick={() => {
-                        const weights = briefData.typography.weights.includes(weight)
-                          ? briefData.typography.weights.filter(w => w !== weight)
-                          : [...briefData.typography.weights, weight];
-                        updateNestedData('typography.weights', weights);
-                      }}
-                    >
-                      {weight}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
-              
-              <div>
-                <Label>Font Styles</Label>
-                <div className="flex flex-wrap gap-1">
-                  {FONT_STYLES.map((style) => (
-                    <Badge
-                      key={style}
-                      variant={briefData.typography.styles.includes(style) ? "default" : "outline"}
-                      className="cursor-pointer text-xs"
-                      onClick={() => {
-                        const styles = briefData.typography.styles.includes(style)
-                          ? briefData.typography.styles.filter(s => s !== style)
-                          : [...briefData.typography.styles, style];
-                        updateNestedData('typography.styles', styles);
-                      }}
-                    >
-                      {style}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
-            </div>
+            <Label htmlFor="typography">Typography</Label>
+            <Textarea
+              id="typography"
+              placeholder="Font families, weights, styles, and text hierarchy"
+              value={briefData.typography}
+              onChange={(e) => updateBriefData({ typography: e.target.value })}
+            />
           </div>
-
-          {/* Mandatory Elements */}
+          
           <div>
-            <Label>Mandatory Elements</Label>
-            <div className="space-y-4">
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="logo"
-                  checked={briefData.mandatoryElements.logo}
-                  onCheckedChange={(checked) => 
-                    updateNestedData('mandatoryElements.logo', checked)
-                  }
-                />
-                <Label htmlFor="logo">Logo</Label>
-                {briefData.mandatoryElements.logo && (
-                  <Select
-                    value={briefData.mandatoryElements.logoVersion}
-                    onValueChange={(value) => 
-                      updateNestedData('mandatoryElements.logoVersion', value)
-                    }
-                  >
-                    <SelectTrigger className="w-32">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="primary">Primary</SelectItem>
-                      <SelectItem value="stacked">Stacked</SelectItem>
-                      <SelectItem value="whiteout">Whiteout</SelectItem>
-                    </SelectContent>
-                  </Select>
-                )}
-              </div>
-              
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="productShots"
-                  checked={briefData.mandatoryElements.productShots}
-                  onCheckedChange={(checked) => 
-                    updateNestedData('mandatoryElements.productShots', checked)
-                  }
-                />
-                <Label htmlFor="productShots">Specific Product Shots</Label>
-              </div>
-              
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="legalDisclaimer"
-                  checked={briefData.mandatoryElements.legalDisclaimer}
-                  onCheckedChange={(checked) => 
-                    updateNestedData('mandatoryElements.legalDisclaimer', checked)
-                  }
-                />
-                <Label htmlFor="legalDisclaimer">Legal Disclaimer / Fine Print</Label>
-              </div>
-              
-              <div>
-                <Label>Custom Elements</Label>
-                <div className="space-y-2">
-                  <div className="flex flex-wrap gap-2">
-                    {briefData.mandatoryElements.customElements.map((element, index) => (
-                      <Badge key={index} variant="secondary" className="flex items-center gap-1">
-                        {element}
-                        <X
-                          className="h-3 w-3 cursor-pointer"
-                          onClick={() => removeFromArray('mandatoryElements.customElements', index)}
-                        />
-                      </Badge>
-                    ))}
-                  </div>
-                  
-                  <div className="flex gap-2">
-                    <Input
-                      value={newCustomElement}
-                      onChange={(e) => setNewCustomElement(e.target.value)}
-                      placeholder="Add custom mandatory element"
-                      onKeyPress={(e) => {
-                        if (e.key === 'Enter' && newCustomElement.trim()) {
-                          addToArray('mandatoryElements.customElements', newCustomElement.trim());
-                          setNewCustomElement('');
-                        }
-                      }}
-                    />
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        if (newCustomElement.trim()) {
-                          addToArray('mandatoryElements.customElements', newCustomElement.trim());
-                          setNewCustomElement('');
-                        }
-                      }}
-                    >
-                      Add
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <Label htmlFor="mandatoryElements">Mandatory Elements</Label>
+            <Textarea
+              id="mandatoryElements"
+              placeholder="Required elements that must be included (logo, legal text, specific imagery, etc.)"
+              value={briefData.mandatoryElements}
+              onChange={(e) => updateBriefData({ mandatoryElements: e.target.value })}
+            />
+          </div>
+          
+          <div>
+            <Label htmlFor="strictlyAvoid">Strictly Avoid</Label>
+            <Textarea
+              id="strictlyAvoid"
+              placeholder="Elements, colors, styles, or approaches to avoid"
+              value={briefData.strictlyAvoid}
+              onChange={(e) => updateBriefData({ strictlyAvoid: e.target.value })}
+            />
           </div>
         </CardContent>
       </Card>
 
-      {/* Section 3: Asset-Specific Structure & Specs */}
+      {/* Asset-Specific Specifications */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center">
-            <FileText className="h-5 w-5 mr-2 text-orange-600" />
-            Section 3: Asset-Specific Structure & Specs
-          </CardTitle>
+          <CardTitle>Asset-Specific Specifications</CardTitle>
         </CardHeader>
         <CardContent>
           {getAssetSpecificFields()}
         </CardContent>
       </Card>
 
-      {/* Final Instructions */}
+      {/* Generate Button */}
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center">
-            <Eye className="h-5 w-5 mr-2 text-red-600" />
-            Final Instructions
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <Label htmlFor="strictlyAvoid">Strictly Avoid</Label>
-            <Textarea
-              id="strictlyAvoid"
-              value={briefData.strictlyAvoid}
-              onChange={(e) => updateBriefData({ strictlyAvoid: e.target.value })}
-              placeholder="Clear list of things not to do (e.g., No lifestyle images with faces, Avoid the color red)"
-              rows={3}
-            />
-          </div>
+        <CardContent className="pt-6">
+          <Button
+            onClick={() => onGenerate(briefData)}
+            disabled={isGenerating || !briefData.primaryGoal.trim()}
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+            size="lg"
+          >
+            {isGenerating ? (
+              <>
+                <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                Generating with Gemini 2.5...
+              </>
+            ) : (
+              <>
+                <Sparkles className="h-5 w-5 mr-2" />
+                Generate & Populate Brief
+              </>
+            )}
+          </Button>
           
-          <div>
-            <Label htmlFor="brandGuidelinesLink">Brand Guidelines Link</Label>
-            <Input
-              id="brandGuidelinesLink"
-              value={briefData.brandGuidelinesLink}
-              onChange={(e) => updateBriefData({ brandGuidelinesLink: e.target.value })}
-              placeholder="Link to brand guidelines document"
-            />
-          </div>
+          {!briefData.primaryGoal.trim() && (
+            <p className="text-sm text-gray-500 text-center mt-2">
+              Please fill in the Primary Goal to generate your brief
+            </p>
+          )}
         </CardContent>
       </Card>
-
-      {/* Generate Button */}
-      <div className="text-center">
-        <Button
-          onClick={handleGenerate}
-          disabled={isGenerating}
-          size="lg"
-          className="px-8"
-        >
-          {isGenerating ? (
-            <>
-              <Loader2 className="h-5 w-5 animate-spin mr-2" />
-              Generating Brief...
-            </>
-          ) : (
-            <>
-              <Sparkles className="h-5 w-5 mr-2" />
-              Generate & Populate Brief
-            </>
-          )}
-        </Button>
-      </div>
-
-      {/* AI Enhancement Tools */}
-      <div className="space-y-8 mt-12 border-t pt-8">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">
-            AI Enhancement Tools
-          </h2>
-          <p className="text-gray-600">
-            Use these AI-powered tools to enhance your brief with creative angles, mood boards, and animations
-          </p>
-        </div>
-
-        {/* Creative Angle Generator */}
-        <CreativeAngleGenerator
-          productInfo={briefData.primaryMessage}
-          offer={briefData.offer}
-          onAngleSelect={(angle) => {
-            updateBriefData({ primaryMessage: angle.angle });
-          }}
-        />
-
-        {/* AI Mood Board */}
-        <AIMoodBoard
-          lookAndFeelKeywords={briefData.lookAndFeelKeywords}
-          onMoodBoardSelect={(moodBoard) => {
-            // Apply mood board to brief data
-            updateBriefData({
-              lookAndFeelKeywords: [moodBoard.theme, ...briefData.lookAndFeelKeywords]
-            });
-          }}
-          onColorPaletteSelect={(colors) => {
-            if (colors.length >= 3) {
-              updateNestedData('colorPalette.primary', colors[0]);
-              updateNestedData('colorPalette.secondary', colors[1]);
-              updateNestedData('colorPalette.accent', colors[2]);
-            }
-          }}
-        />
-
-        {/* Animation Sequence Suggester - Only for animated assets */}
-        {(briefData.assetType === 'web_banner_animated' || 
-          briefData.assetType === 'video_animation' || 
-          briefData.assetType === 'animated_logo') && (
-          <AnimationSequenceSuggester
-            contentElements={briefData.mandatoryElements.customElements}
-            bannerDimensions={briefData.assetSpecs.dimensions?.join(', ')}
-            onSequenceSelect={(sequence) => {
-              updateNestedData('assetSpecs.animationSequence', sequence.description);
-            }}
-          />
-        )}
-      </div>
     </div>
   );
-}
-
-// Debounce utility function
-function debounce<T extends (...args: any[]) => any>(
-  func: T,
-  wait: number
-): (...args: Parameters<T>) => void {
-  let timeout: NodeJS.Timeout;
-  return (...args: Parameters<T>) => {
-    clearTimeout(timeout);
-    timeout = setTimeout(() => func(...args), wait);
-  };
 }
