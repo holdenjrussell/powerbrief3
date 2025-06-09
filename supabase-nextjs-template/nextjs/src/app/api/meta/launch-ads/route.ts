@@ -4,6 +4,8 @@ import { createSSRClient } from '@/lib/supabase/server';
 import { decryptToken } from '@/lib/utils/tokenEncryption';
 import { sendSlackNotification } from '@/lib/utils/slackNotifications';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { detectAspectRatioForMeta } from '@/lib/utils/aspectRatioDetection';
+import { logger } from '@/lib/utils/logger';
 
 interface LaunchAdsRequestBody {
   drafts: AdDraft[];
@@ -48,74 +50,7 @@ const META_API_VERSION = process.env.META_API_VERSION || 'v22.0';
 console.log(`[Launch API] Using Meta API version: ${META_API_VERSION}`);
 
 // Helper function to extract aspect ratio from filename as fallback
-const detectAspectRatioFromFilename = (filename: string): string | null => {
-  const normalizedName = filename.toLowerCase();
-  
-  // More comprehensive patterns to catch various naming conventions
-  const patterns = [
-    // Standard patterns with separators
-    /[_-]4x5[_-]?/,
-    /[_-]9x16[_-]?/,
-    /[_-]16x9[_-]?/,
-    /[_-]1x1[_-]?/,
-    
-    // With parentheses
-    /\(4x5\)/,
-    /\(9x16\)/,
-    /\(16x9\)/,
-    /\(1x1\)/,
-    
-    // With spaces
-    /\s4x5\s/,
-    /\s9x16\s/,
-    /\s16x9\s/,
-    /\s1x1\s/,
-    
-    // At end of filename (before extension)
-    /4x5$/,
-    /9x16$/,
-    /16x9$/,
-    /1x1$/,
-    
-    // With dots
-    /\.4x5\./,
-    /\.9x16\./,
-    /\.16x9\./,
-    /\.1x1\./,
-    
-    // Alternative formats with colon
-    /[_-]4:5[_-]?/,
-    /[_-]9:16[_-]?/,
-    /[_-]16:9[_-]?/,
-    /[_-]1:1[_-]?/,
-    
-    // Handle decimal ratios
-    /[_-]4\.0x5\.0[_-]?/,
-    /[_-]9\.0x16\.0[_-]?/,
-    /[_-]16\.0x9\.0[_-]?/,
-    /[_-]1\.0x1\.0[_-]?/
-  ];
-  
-  for (const pattern of patterns) {
-    const match = normalizedName.match(pattern);
-    if (match) {
-      // Extract just the ratio and normalize to colon format
-      let ratio = match[0].replace(/[^0-9x:.]/g, '');
-      
-      // Normalize different formats to colon format
-      if (ratio.includes('x')) {
-        ratio = ratio.replace('x', ':');
-      }
-      
-      // Remove decimal points for standard ratios
-      ratio = ratio.replace(/\.0/g, '');
-      
-      return ratio;
-    }
-  }
-  
-  return null;
-};
+// Removed - now using shared utility detectAspectRatioForMeta
 
 // Helper function to validate video dimensions and suggest missing aspect ratios
 const validateVideoForAspectRatio = (filename: string, aspectRatio: string | null): { isValid: boolean; suggestions: string[] } => {
@@ -1151,7 +1086,7 @@ export async function POST(req: NextRequest) {
             console.log(`[Launch API]     Processing video: ${asset.name}`);
             
             // Check for aspect ratio in filename and validate
-            const detectedAspectRatio = detectAspectRatioFromFilename(asset.name);
+            const detectedAspectRatio = detectAspectRatioForMeta(asset.name);
             const validation = validateVideoForAspectRatio(asset.name, detectedAspectRatio);
             
             if (!validation.isValid) {
@@ -1294,7 +1229,7 @@ export async function POST(req: NextRequest) {
         
         // Use existing aspect ratios or detect from filename as fallback
         const aspectRatios = asset.aspectRatios || [];
-        const detectedRatio = detectAspectRatioFromFilename(asset.name);
+        const detectedRatio = detectAspectRatioForMeta(asset.name);
         const ratiosToCheck = aspectRatios.length > 0 ? aspectRatios : (detectedRatio ? [detectedRatio] : []);
         
         console.log(`[Launch API]         - ${asset.name}: Using ratios ${JSON.stringify(ratiosToCheck)} (detected: ${detectedRatio})`);
@@ -1316,7 +1251,7 @@ export async function POST(req: NextRequest) {
         
         // Use existing aspect ratios or detect from filename as fallback
         const aspectRatios = asset.aspectRatios || [];
-        const detectedRatio = detectAspectRatioFromFilename(asset.name);
+        const detectedRatio = detectAspectRatioForMeta(asset.name);
         const ratiosToCheck = aspectRatios.length > 0 ? aspectRatios : (detectedRatio ? [detectedRatio] : []);
         
         // Only include 9x16 aspect ratio assets for story/reels placements

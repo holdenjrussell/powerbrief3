@@ -1,12 +1,19 @@
 "use client";
 import React, { useState, useCallback, ChangeEvent, useMemo } from 'react';
-import { X, UploadCloud, Check, Trash2, Loader2, Square, CheckSquare, Zap } from 'lucide-react';
+import { X, UploadCloud, Check, Trash2, Loader2, Square, CheckSquare, Zap, Upload, FileVideo, FileImage, AlertCircle, Info } from 'lucide-react';
 import { createSPAClient } from '@/lib/supabase/client';
 import { useGlobal } from '@/lib/context/GlobalContext';
 import { ImportedAssetGroup } from './adUploadTypes';
 import { needsCompression, compressVideoWithQuality, getFileSizeMB } from '@/lib/utils/videoCompression';
 import AssetGroupingPreview from '@/components/PowerBriefAssetGroupingPreview';
 import { UploadedAssetGroup } from '@/lib/types/powerbrief';
+import { parseFilename } from '@/lib/utils/aspectRatioDetection';
+import { logger } from '@/lib/utils/logger';
+
+interface FileWithId {
+  file: File;
+  id: string;
+}
 
 interface AssetFile {
   file: File;
@@ -197,13 +204,12 @@ const getVideoDimensions = (file: File): Promise<{ width: number; height: number
 interface AssetImportModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onAssetsImported: (assetGroups: ImportedAssetGroup[]) => void;
-  brandId: string | null; // Added brandId prop
+  onImport: (assetGroups: UploadedAssetGroup[]) => void;
 }
 
-const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, onAssetsImported, brandId }) => {
-  const [selectedFiles, setSelectedFiles] = useState<AssetFile[]>([]);
-  const [isDragging, setIsDragging] = useState(false);
+const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, onImport }) => {
+  const [selectedFiles, setSelectedFiles] = useState<FileWithId[]>([]);
+  const [dragActive, setDragActive] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false); // For overall processing state
   const { user } = useGlobal(); // Get user from global context
   const [checkedFileIds, setCheckedFileIds] = useState<Set<string>>(new Set()); // New state for checked files
@@ -226,9 +232,16 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
     };
   }, [previewAssetGroups]);
 
+  // Log component initialization
+  React.useEffect(() => {
+    if (isOpen) {
+      logger.logComponentEvent('AssetImportModal', 'opened');
+    }
+  }, [isOpen]);
+
   const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
-      const newFiles: AssetFile[] = [];
+      const newFiles: FileWithId[] = [];
       
       for (let i = 0; i < event.target.files.length; i++) {
         const file = event.target.files[i];
@@ -243,12 +256,9 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
           }
         }
         
-        const assetFile: AssetFile = {
+        const assetFile: FileWithId = {
           file,
           id: `${file.name}-${file.lastModified}-${file.size}`,
-          needsCompression: needsCompression(file),
-          originalSize: file.size,
-          videoDimensions
         };
         
         newFiles.push(assetFile);
@@ -261,10 +271,10 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
   const handleDrop = useCallback(async (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     event.stopPropagation();
-    setIsDragging(false);
+    setDragActive(false);
     
     if (event.dataTransfer.files && event.dataTransfer.files.length > 0) {
-      const newFiles: AssetFile[] = [];
+      const newFiles: FileWithId[] = [];
       
       for (let i = 0; i < event.dataTransfer.files.length; i++) {
         const file = event.dataTransfer.files[i];
@@ -279,12 +289,9 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
           }
         }
         
-        const assetFile: AssetFile = {
+        const assetFile: FileWithId = {
           file,
           id: `${file.name}-${file.lastModified}-${file.size}`,
-          needsCompression: needsCompression(file),
-          originalSize: file.size,
-          videoDimensions
         };
         
         newFiles.push(assetFile);
@@ -298,13 +305,13 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
   const handleDragOver = useCallback((event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     event.stopPropagation();
-    if (!isDragging) setIsDragging(true);
-  }, [isDragging]);
+    if (!dragActive) setDragActive(true);
+  }, [dragActive]);
 
   const handleDragLeave = useCallback((event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     event.stopPropagation();
-    setIsDragging(false);
+    setDragActive(false);
   }, []);
 
   const removeFile = (fileId: string) => {
@@ -345,7 +352,7 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
 
   const showGroupingPreviewModal = () => {
     // Group files by their baseName to show preview
-    const groups: Record<string, AssetFile[]> = {};
+    const groups: Record<string, FileWithId[]> = {};
     selectedFiles.forEach(file => {
       const { baseName } = getBaseNameAndRatio(file.file.name, DEFAULT_ASPECT_RATIO_IDENTIFIERS, KNOWN_FILENAME_SUFFIXES_TO_REMOVE);
       const groupKey = baseName || file.file.name;
@@ -382,7 +389,7 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
 
   const handleConfirmGrouping = (updatedGroups: UploadedAssetGroup[]) => {
     // Convert back to our internal format and update selectedFiles
-    const updatedFiles: AssetFile[] = [];
+    const updatedFiles: FileWithId[] = [];
     
     updatedGroups.forEach(group => {
       group.assets.forEach(asset => {
@@ -406,10 +413,10 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
   };
 
   const processAndImport = async () => {
-    if (!user || !brandId) {
-        console.error("User or Brand ID is missing. Cannot upload.");
+    if (!user) {
+        console.error("User is missing. Cannot upload.");
         // Optionally, show an error to the user
-        alert("User or Brand ID is missing. Please ensure you are logged in and a brand is selected.");
+        alert("User is missing. Please ensure you are logged in.");
         return;
     }
     if (selectedFiles.length === 0) return;
@@ -421,9 +428,9 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
     const processedAssetGroups: ImportedAssetGroup[] = [];
 
     // Step 1: Compress videos that need compression
-    const filesToProcess: AssetFile[] = [];
+    const filesToProcess: FileWithId[] = [];
     for (const assetFile of selectedFiles) {
-      if (assetFile.needsCompression) {
+      if (assetFile.file.type.startsWith('video/') && needsCompression(assetFile.file)) {
         try {
           console.log(`Compressing ${assetFile.file.name} (${getFileSizeMB(assetFile.file).toFixed(2)}MB)`);
           
@@ -447,7 +454,7 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
           );
 
           // Update the asset file with the compressed version
-          const updatedAssetFile: AssetFile = {
+          const updatedAssetFile: FileWithId = {
             ...assetFile,
             file: compressedFile,
             compressing: false,
@@ -509,7 +516,7 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
         for (const assetFile of filesInGroup) { // assetFile is ProcessedAssetFile here
             const file = assetFile.file;
             // Use groupNameKey for the asset group name, which is the common base name
-            const filePath = `${user.id}/${brandId}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '')}`;
+            const filePath = `${user.id}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '')}`;
 
             try {
                 // Simulate upload progress
@@ -588,7 +595,7 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
         }
     }
     
-    onAssetsImported(processedAssetGroups);
+    onImport(processedAssetGroups);
     setSelectedFiles([]); // Clear after successful import or if all failed but processed
     setIsProcessing(false);
     onClose();
@@ -684,7 +691,7 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             className={`border-2 border-dashed rounded-md p-8 text-center cursor-pointer 
-                        ${isDragging ? 'border-primary-500 bg-primary-50' : 'border-gray-300 hover:border-gray-400'}`}
+                        ${dragActive ? 'border-primary-500 bg-primary-50' : 'border-gray-300 hover:border-gray-400'}`}
           >
             <input
               type="file"
@@ -693,7 +700,7 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
               className="hidden"
               id="file-upload-input"
             />
-            <UploadCloud className={`mx-auto h-12 w-12 ${isDragging ? 'text-primary-600' : 'text-gray-400'}`} />
+            <UploadCloud className={`mx-auto h-12 w-12 ${dragActive ? 'text-primary-600' : 'text-gray-400'}`} />
             <label htmlFor="file-upload-input" className="mt-2 block text-sm font-medium text-primary-600 hover:text-primary-500 cursor-pointer">
               <span>Click to upload</span> or drag and drop
             </label>
@@ -714,7 +721,7 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
                 </div>
               </div>
             </div>
-            {selectedFiles.some(f => f.needsCompression) && (
+            {selectedFiles.some(f => f.file.type.startsWith('video/') && needsCompression(f.file)) && (
               <div className="mt-3 p-4 bg-amber-50 border border-amber-200 rounded-md">
                 <div className="flex items-start">
                   <Zap size={20} className="text-amber-600 mr-3 mt-0.5 flex-shrink-0" />
@@ -723,7 +730,7 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
                       Large Assets Detected - Auto-Compression Enabled
                     </h4>
                     <p className="text-sm text-amber-700 mb-2">
-                      {selectedFiles.filter(f => f.needsCompression).length} video(s) over 500MB will be automatically compressed to ensure successful upload to Meta.
+                      {selectedFiles.filter(f => f.file.type.startsWith('video/') && needsCompression(f.file)).length} video(s) over 500MB will be automatically compressed to ensure successful upload to Meta.
                       <span className="block text-xs mt-1 text-amber-600">⚡ Balanced compression - optimized for quality while maintaining reasonable file sizes</span>
                     </p>
                     <p className="text-xs text-amber-600">
@@ -766,13 +773,11 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
                 <div key={assetFile.id} className={`flex items-center justify-between p-3 rounded-lg text-sm border transition-all ${
                   checkedFileIds.has(assetFile.id) 
                     ? 'bg-primary-50 ring-2 ring-primary-300 border-primary-200' 
-                    : assetFile.needsCompression && !assetFile.compressing && !assetFile.uploadError
+                    : assetFile.file.type.startsWith('video/') && needsCompression(assetFile.file)
                       ? 'bg-amber-50 border-amber-200'
                       : assetFile.compressing
                         ? 'bg-blue-50 border-blue-200'
-                        : assetFile.originalSize && assetFile.originalSize !== assetFile.file.size
-                          ? 'bg-green-50 border-green-200'
-                          : 'bg-gray-50 border-gray-200'
+                        : 'bg-gray-50 border-gray-200'
                 }`}>
                   <div className="flex items-center flex-grow overflow-hidden">
                     <button onClick={() => toggleFileChecked(assetFile.id)} className="mr-3 p-1 focus:outline-none">
@@ -799,7 +804,7 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
                       
                       {/* Status indicators */}
                       <div className="flex items-center flex-wrap gap-2">
-                        {assetFile.needsCompression && !assetFile.compressing && !assetFile.uploadError && (
+                        {assetFile.file.type.startsWith('video/') && needsCompression(assetFile.file) && (
                           <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
                             <Zap size={12} className="mr-1" />
                             Will auto-compress (over 500MB)
@@ -827,7 +832,7 @@ const AssetImportModal: React.FC<AssetImportModalProps> = ({ isOpen, onClose, on
                           </span>
                         )}
                         
-                        {!assetFile.needsCompression && !assetFile.originalSize && assetFile.file.type.startsWith('video/') && (
+                        {!assetFile.file.type.startsWith('video/') && !assetFile.originalSize && assetFile.file.type.startsWith('video/') && (
                           <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
                             ✓ Under 500MB - No compression needed
                           </span>

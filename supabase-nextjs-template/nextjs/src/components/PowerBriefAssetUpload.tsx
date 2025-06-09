@@ -2,28 +2,17 @@
 import React, { useState, useCallback, ChangeEvent } from 'react';
 import { X, UploadCloud, Check, Trash2, Loader2, FileVideo, FileImage, AlertCircle, Info, Zap } from 'lucide-react';
 import { createSPAClient } from '@/lib/supabase/client';
-import AssetGroupingPreview from './PowerBriefAssetGroupingPreview';
+import AssetGroupingPreview from '@/components/PowerBriefAssetGroupingPreview';
 import { UploadedAssetGroup, UploadedAsset } from '@/lib/types/powerbrief';
 import { needsCompression, compressVideoWithQuality, getFileSizeMB } from '@/lib/utils/videoCompression';
 import { generateThumbnailsForAssetGroups } from '@/lib/utils/automaticThumbnailGeneration';
+import { parseFilename, TIMEOUTS } from '@/lib/utils/aspectRatioDetection';
+import { logger } from '@/lib/utils/logger';
 
-// Logging utility
-const logger = {
-  info: (message: string, data?: unknown) => {
-    console.log(`[PowerBriefAssetUpload] ${message}`, data || '');
-  },
-  warn: (message: string, data?: unknown) => {
-    console.warn(`[PowerBriefAssetUpload] ${message}`, data || '');
-  },
-  error: (message: string, error?: unknown) => {
-    console.error(`[PowerBriefAssetUpload] ${message}`, error || '');
-  },
-  debug: (message: string, data?: unknown) => {
-    if (process.env.NODE_ENV === 'development') {
-      console.debug(`[PowerBriefAssetUpload] ${message}`, data || '');
-    }
-  }
-};
+// File size and type constants
+const MAX_FILE_SIZE = 1024 * 1024 * 1024; // 1GB in bytes
+const SUPPORTED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+const SUPPORTED_VIDEO_TYPES = ['video/mp4', 'video/mov', 'video/avi', 'video/quicktime', 'video/x-msvideo'];
 
 interface AssetFile {
   file: File;
@@ -67,161 +56,14 @@ interface ToastMessage {
   message: string;
 }
 
-const ASPECT_RATIO_IDENTIFIERS = ['4x5', '9x16'];
-const KNOWN_FILENAME_SUFFIXES_TO_REMOVE = ['_compressed', '-compressed', '_comp', '-comp'];
-const MAX_FILE_SIZE = 1024 * 1024 * 1024; // 1GB in bytes (increased from 200MB)
-const SUPPORTED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
-const SUPPORTED_VIDEO_TYPES = ['video/mp4', 'video/mov', 'video/avi', 'video/quicktime', 'video/x-msvideo'];
-
-// Enhanced aspect ratio detection function
-const detectAspectRatioFromFilename = (filename: string): string | null => {
-  const normalizedName = filename.toLowerCase();
-  
-  // More comprehensive patterns to catch various naming conventions
-  const patterns = [
-    // Standard patterns with separators
-    /[_-]4x5[_-]?/,
-    /[_-]9x16[_-]?/,
-    /[_-]16x9[_-]?/,
-    /[_-]1x1[_-]?/,
-    
-    // With parentheses
-    /\(4x5\)/,
-    /\(9x16\)/,
-    /\(16x9\)/,
-    /\(1x1\)/,
-    
-    // With spaces
-    /\s4x5\s/,
-    /\s9x16\s/,
-    /\s16x9\s/,
-    /\s1x1\s/,
-    
-    // At end of filename (before extension)
-    /4x5$/,
-    /9x16$/,
-    /16x9$/,
-    /1x1$/,
-    
-    // With dots
-    /\.4x5\./,
-    /\.9x16\./,
-    /\.16x9\./,
-    /\.1x1\./,
-    
-    // Alternative formats with colon
-    /[_-]4:5[_-]?/,
-    /[_-]9:16[_-]?/,
-    /[_-]16:9[_-]?/,
-    /[_-]1:1[_-]?/
-  ];
-  
-  for (const pattern of patterns) {
-    const match = normalizedName.match(pattern);
-    if (match) {
-      // Extract just the ratio and normalize to x format
-      const ratio = match[0].replace(/[^0-9x:]/g, '').replace(':', 'x');
-      return ratio;
-    }
-  }
-  
-  return null;
-};
-
-// Enhanced grouping function that prioritizes version over aspect ratio
-const getBaseNameRatioAndVersion = (filename: string): { baseName: string; detectedRatio: string | null; version: string | null; groupKey: string } => {
-  logger.debug('Parsing filename', { filename });
-  
-  let nameWorkInProgress = filename.substring(0, filename.lastIndexOf('.')) || filename;
-  logger.debug('After removing extension', { nameWorkInProgress });
-  
-  // Remove known trailing suffixes first
-  for (const suffix of KNOWN_FILENAME_SUFFIXES_TO_REMOVE) {
-    if (nameWorkInProgress.endsWith(suffix)) {
-      nameWorkInProgress = nameWorkInProgress.substring(0, nameWorkInProgress.length - suffix.length);
-      logger.debug('Removed suffix from filename', { suffix, newName: nameWorkInProgress });
-      break; 
-    }
-  }
-
-  // Use enhanced aspect ratio detection
-  const detectedRatio = detectAspectRatioFromFilename(nameWorkInProgress);
-  let baseNameWithoutRatio = nameWorkInProgress;
-  
-  if (detectedRatio) {
-    // Remove the detected ratio pattern from the name
-    // Escape special regex characters to prevent injection issues
-    const escapedRatio = detectedRatio.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const ratioPatterns = [
-      new RegExp(`[_-]${escapedRatio}[_-]?`, 'gi'),
-      new RegExp(`\\(${escapedRatio}\\)`, 'gi'),
-      new RegExp(`\\s${escapedRatio}\\s`, 'gi'),
-      new RegExp(`\\.${escapedRatio}\\.`, 'gi'),
-      new RegExp(`${escapedRatio}$`, 'gi')
-    ];
-    
-    for (const pattern of ratioPatterns) {
-      if (pattern.test(baseNameWithoutRatio)) {
-        baseNameWithoutRatio = baseNameWithoutRatio.replace(pattern, '').trim();
-        break;
-      }
-    }
-    
-    logger.debug('Found aspect ratio', { detectedRatio, baseNameWithoutRatio });
-  }
-
-  // Extract version information (v1, v2, v3, etc.) from the remaining name
-  let version: string | null = null;
-  let finalBaseName = baseNameWithoutRatio;
-  
-  // More flexible version pattern matching
-  const versionPatterns = [
-    /[_-]v(\d+)/i,
-    /[_-]version(\d+)/i,
-    /[_-]ver(\d+)/i,
-    /\sv(\d+)/i,
-    /\(v(\d+)\)/i
-  ];
-  
-  for (const versionPattern of versionPatterns) {
-    const match = baseNameWithoutRatio.match(versionPattern);
-    if (match) {
-      version = `v${match[1]}`;
-      finalBaseName = baseNameWithoutRatio.replace(match[0], '').trim();
-      logger.debug('Found version', { version, finalBaseName, matchedPattern: match[0] });
-      break;
-    }
-  }
-
-  // Create a group key that combines base name and version
-  // This ensures assets with same version but different aspect ratios are grouped together
-  let groupKey: string;
-  if (version) {
-    groupKey = `${finalBaseName}_${version}`;
-    logger.debug('Created groupKey with version', { finalBaseName, version, groupKey });
-  } else {
-    groupKey = finalBaseName;
-    logger.debug('Created groupKey without version', { groupKey });
-  }
-  
-  const result = { 
-    baseName: finalBaseName.trim(), 
-    detectedRatio, 
-    version,
-    groupKey
-  };
-  logger.info('Final parsing result', { filename, result });
-  return result;
-};
-
 // Toast component
 const Toast: React.FC<{ toast: ToastMessage; onRemove: (id: string) => void }> = ({ toast, onRemove }) => {
   React.useEffect(() => {
-    logger.debug('Toast displayed', { type: toast.type, title: toast.title });
+    logger.logComponentEvent('Toast', 'displayed', { type: toast.type, title: toast.title });
     const timer = setTimeout(() => {
       onRemove(toast.id);
-      logger.debug('Toast auto-removed', { id: toast.id });
-    }, 5000);
+      logger.logComponentEvent('Toast', 'auto-removed', { id: toast.id });
+    }, TIMEOUTS.TOAST_AUTO_REMOVE);
     return () => clearTimeout(timer);
   }, [toast.id, onRemove]);
 
@@ -268,7 +110,7 @@ const Toast: React.FC<{ toast: ToastMessage; onRemove: (id: string) => void }> =
         <button
           onClick={() => {
             onRemove(toast.id);
-            logger.debug('Toast manually closed', { id: toast.id });
+            logger.logComponentEvent('Toast', 'manually-closed', { id: toast.id });
           }}
           className="ml-3 flex-shrink-0 text-gray-400 hover:text-gray-600"
           title="Close notification"
@@ -609,7 +451,7 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
         }
       }
       
-      const { baseName, detectedRatio, groupKey } = getBaseNameRatioAndVersion(file.name);
+      const { baseName, detectedRatio, groupKey } = parseFilename(file.name);
       
       const assetFile: AssetFile = {
         id: crypto.randomUUID(),
