@@ -122,7 +122,12 @@ export function BrandProvider({ children }: { children: ReactNode }) {
   // Only start fetching when user is ready and not loading
   useEffect(() => {
     if (!userLoading && user?.id) {
-    fetchBrands();
+      // Add a small delay to prevent race conditions with auth
+      const timer = setTimeout(() => {
+        fetchBrands();
+      }, 100);
+      
+      return () => clearTimeout(timer);
     } else if (!userLoading && !user?.id) {
       // User is not authenticated, stop loading
       setIsLoading(false);

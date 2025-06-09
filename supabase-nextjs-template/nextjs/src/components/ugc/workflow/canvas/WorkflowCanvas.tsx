@@ -200,7 +200,7 @@ const WorkflowCanvasInner: React.FC<WorkflowCanvasProps> = ({
   }, [steps, convertStepsToNodes, convertStepsToEdges, setNodes, setEdges]);
 
   // Save node positions when moved with debouncing and error handling
-  const saveTimeout = useRef<NodeJS.Timeout>();
+  const saveTimeout = useRef<NodeJS.Timeout | null>(null);
   
   const handleNodesChange = useCallback((changes: NodeChange[]) => {
     // Always apply the changes to the UI first

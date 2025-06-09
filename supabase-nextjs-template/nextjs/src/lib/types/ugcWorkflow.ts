@@ -314,7 +314,7 @@ export interface UgcMessageTemplate {
   updated_at: string;
 }
 
-export type MessageTemplateType = 'email' | 'sms' | 'slack' | 'notification';
+export type MessageTemplateType = 'email' | 'sms' | 'slack';
 
 // Human Intervention Types
 export interface UgcHumanInterventionTask {

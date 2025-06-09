@@ -1,52 +1,93 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, Button, Alert, AlertDescription, Badge, Tabs, TabsContent, TabsList, TabsTrigger, Label, Switch, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui";
-import { Bot, Brain, Mail, MessageSquare, Settings, History, Zap, AlertTriangle, CheckCircle, Clock, Users, Eye, Send, Play, FileText, UserCheck, Calendar, DollarSign, Package, Camera, Edit, Trash2, Filter, Search, MoreHorizontal } from "lucide-react";
-import { UgcCreator } from '@/lib/types/ugcCreator';
+import { 
+  Card, 
+  CardContent, 
+  CardDescription, 
+  CardHeader, 
+  CardTitle,
+  Button,
+  Badge,
+  Alert,
+  AlertDescription,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  Textarea,
+  Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "@/components/ui";
+import { 
+  Bot, 
+  Clock, 
+  CheckCircle, 
+  AlertTriangle, 
+  Play, 
+  Pause, 
+  RotateCcw,
+  Eye,
+  GitBranch,
+  BarChart3,
+  User,
+  Loader2
+} from "lucide-react";
 import { Brand } from '@/lib/types/powerbrief';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { UgcCreator } from '@/lib/types/ugcCreator';
 
 interface WorkflowExecution {
   id: string;
+  workflow_id: string;
   workflow_name: string;
   creator_id: string;
   creator_name: string;
-  status: 'running' | 'completed' | 'failed' | 'pending_human_review';
-  trigger_event: string;
+  creator_email: string;
+  brand_id: string;
+  current_step_id: string | null;
+  current_step_name: string;
+  status: 'running' | 'paused' | 'completed' | 'failed' | 'waiting_human';
   started_at: string;
-  completed_at?: string;
-  current_step: string;
-  total_steps: number;
+  completed_at: string | null;
+  error_message: string | null;
+  context: Record<string, any>;
+  completion_percentage: number;
   completed_steps: number;
-  context: {
-    creator_status?: string;
-    script_assigned?: string;
-    email_sent?: boolean;
-    human_action_required?: string;
-  };
+  total_steps: number;
+  created_at: string;
+  updated_at: string;
 }
 
 interface HumanReviewItem {
   id: string;
   workflow_execution_id: string;
+  step_id: string;
   creator_id: string;
   creator_name: string;
-  review_type: 'creator_approval' | 'script_assignment' | 'rate_negotiation' | 'content_review' | 'status_update';
+  creator_email: string;
+  brand_id: string;
+  assigned_to: string | null;
+  priority: 'low' | 'medium' | 'high' | 'urgent';
   title: string;
   description: string;
-  priority: 'high' | 'medium' | 'low';
-  created_at: string;
   context: Record<string, any>;
-  actions: Array<{
-    id: string;
-    label: string;
-    action_type: string;
-    data?: Record<string, any>;
-  }>;
+  status: 'pending' | 'in_progress' | 'completed' | 'skipped';
+  due_date: string | null;
+  completed_at: string | null;
+  completed_by: string | null;
+  resolution_notes: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 interface UgcCoordinatorDashboardProps {
@@ -55,20 +96,19 @@ interface UgcCoordinatorDashboardProps {
   onRefresh: () => void;
 }
 
-export default function UgcCoordinatorDashboard({ brand, creators, onRefresh }: UgcCoordinatorDashboardProps) {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'history' | 'human-review' | 'settings'>('dashboard');
-  const [workflowExecutions, setWorkflowExecutions] = useState<WorkflowExecution[]>([]);
+export default function UgcCoordinatorDashboard({ brand, onRefresh }: UgcCoordinatorDashboardProps) {
+  const [activeTab, setActiveTab] = useState<'overview' | 'executions' | 'human-review' | 'analytics'>('overview');
+  const [executions, setExecutions] = useState<WorkflowExecution[]>([]);
   const [humanReviewItems, setHumanReviewItems] = useState<HumanReviewItem[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
-  // Filters and search
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [searchQuery, setSearchQuery] = useState('');
+  // Human Review Dialog State
   const [selectedReviewItem, setSelectedReviewItem] = useState<HumanReviewItem | null>(null);
   const [showReviewDialog, setShowReviewDialog] = useState(false);
-  const [reviewNotes, setReviewNotes] = useState('');
-  const [processingReview, setProcessingReview] = useState(false);
+  const [reviewAction, setReviewAction] = useState<'complete' | 'skip'>('complete');
+  const [resolutionNotes, setResolutionNotes] = useState('');
+  const [submittingReview, setSubmittingReview] = useState(false);
 
   useEffect(() => {
     loadDashboardData();
@@ -78,90 +118,170 @@ export default function UgcCoordinatorDashboard({ brand, creators, onRefresh }: 
     try {
       setLoading(true);
       setError(null);
-      
-      // Load workflow executions
-      const executionsResponse = await fetch(`/api/ugc/workflow/executions?brandId=${brand.id}`);
-      if (executionsResponse.ok) {
-        const executionsData = await executionsResponse.json();
-        setWorkflowExecutions(executionsData);
+
+      const [executionsResponse, humanReviewResponse] = await Promise.all([
+        fetch(`/api/ugc/workflow/executions?brandId=${brand.id}`),
+        fetch(`/api/ugc/workflow/human-review?brandId=${brand.id}`)
+      ]);
+
+      if (!executionsResponse.ok || !humanReviewResponse.ok) {
+        throw new Error('Failed to load dashboard data');
       }
-      
-      // Load human review items
-      const reviewResponse = await fetch(`/api/ugc/workflow/human-review?brandId=${brand.id}`);
-      if (reviewResponse.ok) {
-        const reviewData = await reviewResponse.json();
-        setHumanReviewItems(reviewData);
-      }
+
+      const [executionsData, humanReviewData] = await Promise.all([
+        executionsResponse.json(),
+        humanReviewResponse.json()
+      ]);
+
+      setExecutions(executionsData.executions || []);
+      setHumanReviewItems(humanReviewData.items || []);
     } catch (err) {
       console.error('Error loading dashboard data:', err);
-      setError('Failed to load dashboard data');
+      setError(err instanceof Error ? err.message : 'Failed to load dashboard data');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleReviewAction = async (reviewItem: HumanReviewItem, actionId: string, notes?: string) => {
+  const handleReviewItem = (item: HumanReviewItem) => {
+    setSelectedReviewItem(item);
+    setResolutionNotes('');
+    setReviewAction('complete');
+    setShowReviewDialog(true);
+  };
+
+  const submitReview = async () => {
+    if (!selectedReviewItem) return;
+
     try {
-      setProcessingReview(true);
-      
-      const response = await fetch(`/api/ugc/workflow/human-review/${reviewItem.id}/action`, {
-        method: 'POST',
+      setSubmittingReview(true);
+      setError(null);
+
+      const response = await fetch(`/api/ugc/workflow/human-review/${selectedReviewItem.id}`, {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action_id: actionId,
-          notes: notes || reviewNotes,
-          brand_id: brand.id
+          action: reviewAction,
+          resolution_notes: resolutionNotes
         })
       });
-      
+
       if (!response.ok) {
-        throw new Error('Failed to process review action');
+        throw new Error('Failed to submit review');
       }
-      
-      // Refresh data
+
+      // Refresh data and close dialog
       await loadDashboardData();
-      onRefresh();
-      
-      // Close dialog
       setShowReviewDialog(false);
       setSelectedReviewItem(null);
-      setReviewNotes('');
+      onRefresh();
     } catch (err) {
-      console.error('Error processing review action:', err);
-      setError('Failed to process review action');
+      console.error('Error submitting review:', err);
+      setError(err instanceof Error ? err.message : 'Failed to submit review');
     } finally {
-      setProcessingReview(false);
+      setSubmittingReview(false);
+    }
+  };
+
+  const pauseExecution = async (executionId: string) => {
+    try {
+      const response = await fetch(`/api/ugc/workflow/executions/${executionId}/pause`, {
+        method: 'POST'
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to pause execution');
+      }
+
+      await loadDashboardData();
+    } catch (err) {
+      console.error('Error pausing execution:', err);
+      setError(err instanceof Error ? err.message : 'Failed to pause execution');
+    }
+  };
+
+  const resumeExecution = async (executionId: string) => {
+    try {
+      const response = await fetch(`/api/ugc/workflow/executions/${executionId}/resume`, {
+        method: 'POST'
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to resume execution');
+      }
+
+      await loadDashboardData();
+    } catch (err) {
+      console.error('Error resuming execution:', err);
+      setError(err instanceof Error ? err.message : 'Failed to resume execution');
+    }
+  };
+
+  const retryExecution = async (executionId: string) => {
+    try {
+      const response = await fetch(`/api/ugc/workflow/executions/${executionId}/retry`, {
+        method: 'POST'
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to retry execution');
+      }
+
+      await loadDashboardData();
+    } catch (err) {
+      console.error('Error retrying execution:', err);
+      setError(err instanceof Error ? err.message : 'Failed to retry execution');
     }
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'completed': return 'bg-green-100 text-green-800';
       case 'running': return 'bg-blue-100 text-blue-800';
+      case 'completed': return 'bg-green-100 text-green-800';
       case 'failed': return 'bg-red-100 text-red-800';
-      case 'pending_human_review': return 'bg-yellow-100 text-yellow-800';
+      case 'paused': return 'bg-yellow-100 text-yellow-800';
+      case 'waiting_human': return 'bg-purple-100 text-purple-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
-      case 'high': return 'bg-red-100 text-red-800';
+      case 'urgent': return 'bg-red-100 text-red-800';
+      case 'high': return 'bg-orange-100 text-orange-800';
       case 'medium': return 'bg-yellow-100 text-yellow-800';
       case 'low': return 'bg-green-100 text-green-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
 
-  const filteredExecutions = workflowExecutions.filter(execution => {
-    if (statusFilter !== 'all' && execution.status !== statusFilter) return false;
-    if (searchQuery && !execution.creator_name.toLowerCase().includes(searchQuery.toLowerCase()) && 
-        !execution.workflow_name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
-    return true;
-  });
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'running': return <Play className="h-4 w-4" />;
+      case 'completed': return <CheckCircle className="h-4 w-4" />;
+      case 'failed': return <AlertTriangle className="h-4 w-4" />;
+      case 'paused': return <Pause className="h-4 w-4" />;
+      case 'waiting_human': return <User className="h-4 w-4" />;
+      default: return <Clock className="h-4 w-4" />;
+    }
+  };
 
-  const pendingReviews = humanReviewItems.filter(item => item.review_type);
-  const highPriorityReviews = pendingReviews.filter(item => item.priority === 'high');
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-2" />
+          <p>Loading UGC Coordinator Dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const runningExecutions = executions.filter(e => e.status === 'running');
+  const completedExecutions = executions.filter(e => e.status === 'completed');
+  const failedExecutions = executions.filter(e => e.status === 'failed');
+  const pendingReviewItems = humanReviewItems.filter(item => item.status === 'pending');
+  const urgentReviewItems = pendingReviewItems.filter(item => item.priority === 'urgent');
 
   return (
     <div className="space-y-6">
@@ -173,29 +293,14 @@ export default function UgcCoordinatorDashboard({ brand, creators, onRefresh }: 
           </div>
           <div>
             <h2 className="text-2xl font-bold">UGC Coordinator</h2>
-            <p className="text-gray-600">Workflow automation dashboard and human review center</p>
+            <p className="text-gray-600">Workflow automation and human review dashboard</p>
           </div>
         </div>
         
-        <div className="flex items-center space-x-3">
-          <Button 
-            onClick={loadDashboardData}
-            disabled={loading}
-            variant="outline"
-          >
-            {loading ? (
-              <>
-                <Brain className="h-4 w-4 animate-pulse mr-2" />
-                Loading...
-              </>
-            ) : (
-              <>
-                <Zap className="h-4 w-4 mr-2" />
-                Refresh
-              </>
-            )}
-          </Button>
-        </div>
+        <Button onClick={loadDashboardData} variant="outline">
+          <RotateCcw className="h-4 w-4 mr-2" />
+          Refresh
+        </Button>
       </div>
 
       {error && (
@@ -205,48 +310,54 @@ export default function UgcCoordinatorDashboard({ brand, creators, onRefresh }: 
         </Alert>
       )}
 
-      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'dashboard' | 'history' | 'human-review' | 'settings')}>
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'overview' | 'executions' | 'human-review' | 'analytics')}>
         <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+          <TabsTrigger value="overview">
+            <BarChart3 className="h-4 w-4 mr-2" />
+            Overview
+          </TabsTrigger>
+          <TabsTrigger value="executions">
+            <GitBranch className="h-4 w-4 mr-2" />
+            Executions
+          </TabsTrigger>
           <TabsTrigger value="human-review">
+            <User className="h-4 w-4 mr-2" />
             Human Review
-            {highPriorityReviews.length > 0 && (
-              <Badge variant="destructive" className="ml-2 text-xs">
-                {highPriorityReviews.length}
+            {pendingReviewItems.length > 0 && (
+              <Badge className="ml-2 bg-red-500 text-white">
+                {pendingReviewItems.length}
               </Badge>
             )}
           </TabsTrigger>
-          <TabsTrigger value="history">Workflow History</TabsTrigger>
-          <TabsTrigger value="settings">Settings</TabsTrigger>
+          <TabsTrigger value="analytics">
+            <BarChart3 className="h-4 w-4 mr-2" />
+            Analytics
+          </TabsTrigger>
         </TabsList>
 
-        {/* Dashboard Tab */}
-        <TabsContent value="dashboard" className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        {/* Overview Tab */}
+        <TabsContent value="overview" className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Active Workflows</CardTitle>
                 <Play className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">
-                  {workflowExecutions.filter(w => w.status === 'running').length}
-                </div>
-                <p className="text-xs text-muted-foreground">Currently executing</p>
+                <div className="text-2xl font-bold">{runningExecutions.length}</div>
+                <p className="text-xs text-muted-foreground">Currently running</p>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Pending Reviews</CardTitle>
-                <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm font-medium">Awaiting Review</CardTitle>
+                <User className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-yellow-600">
-                  {pendingReviews.length}
-                </div>
+                <div className="text-2xl font-bold">{pendingReviewItems.length}</div>
                 <p className="text-xs text-muted-foreground">
-                  {highPriorityReviews.length} high priority
+                  {urgentReviewItems.length} urgent
                 </p>
               </CardContent>
             </Card>
@@ -257,10 +368,9 @@ export default function UgcCoordinatorDashboard({ brand, creators, onRefresh }: 
                 <CheckCircle className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-green-600">
-                  {workflowExecutions.filter(w => 
-                    w.status === 'completed' && 
-                    new Date(w.completed_at || '').toDateString() === new Date().toDateString()
+                <div className="text-2xl font-bold">
+                  {completedExecutions.filter(e => 
+                    new Date(e.completed_at || '').toDateString() === new Date().toDateString()
                   ).length}
                 </div>
                 <p className="text-xs text-muted-foreground">Workflows completed</p>
@@ -269,12 +379,12 @@ export default function UgcCoordinatorDashboard({ brand, creators, onRefresh }: 
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Creators</CardTitle>
-                <Users className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm font-medium">Failed Workflows</CardTitle>
+                <AlertTriangle className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{creators.length}</div>
-                <p className="text-xs text-muted-foreground">In pipeline</p>
+                <div className="text-2xl font-bold">{failedExecutions.length}</div>
+                <p className="text-xs text-muted-foreground">Need attention</p>
               </CardContent>
             </Card>
           </div>
@@ -282,53 +392,125 @@ export default function UgcCoordinatorDashboard({ brand, creators, onRefresh }: 
           {/* Recent Activity */}
           <Card>
             <CardHeader>
-              <CardTitle>Recent Workflow Activity</CardTitle>
-              <CardDescription>Latest workflow executions and status updates</CardDescription>
+              <CardTitle>Recent Activity</CardTitle>
+              <CardDescription>Latest workflow executions and human reviews</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {filteredExecutions.slice(0, 5).map((execution) => (
-                  <div key={execution.id} className="flex items-center justify-between border rounded-lg p-4">
+                {executions.slice(0, 5).map((execution) => (
+                  <div key={execution.id} className="flex items-center justify-between p-4 border rounded-lg">
                     <div className="flex items-center space-x-4">
-                      <div className="flex-shrink-0">
-                        <Badge className={getStatusColor(execution.status)}>
-                          {execution.status.replace('_', ' ')}
-                        </Badge>
-                      </div>
+                      {getStatusIcon(execution.status)}
                       <div>
                         <p className="font-medium">{execution.workflow_name}</p>
-                        <p className="text-sm text-gray-600">
-                          Creator: {execution.creator_name} • Step: {execution.current_step}
-                        </p>
+                        <p className="text-sm text-gray-600">{execution.creator_name}</p>
                         <p className="text-xs text-gray-500">
-                          {new Date(execution.started_at).toLocaleString()}
+                          Step: {execution.current_step_name} ({execution.completed_steps}/{execution.total_steps})
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-3">
                       <div className="text-right">
-                        <p className="text-sm font-medium">
-                          {execution.completed_steps}/{execution.total_steps} steps
+                        <Badge className={getStatusColor(execution.status)}>
+                          {execution.status.replace('_', ' ')}
+                        </Badge>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {execution.completion_percentage}% complete
                         </p>
-                        <div className="w-20 bg-gray-200 rounded-full h-2">
-                          <div 
-                            className="bg-blue-600 h-2 rounded-full" 
-                            style={{ width: `${(execution.completed_steps / execution.total_steps) * 100}%` }}
-                          ></div>
-                        </div>
                       </div>
-                      <Button variant="outline" size="sm">
+                      <Button size="sm" variant="outline">
                         <Eye className="h-4 w-4" />
                       </Button>
                     </div>
                   </div>
                 ))}
                 
-                {filteredExecutions.length === 0 && (
+                {executions.length === 0 && (
                   <div className="text-center py-8 text-gray-500">
-                    <History className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <GitBranch className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>No workflow executions yet</p>
+                    <p className="text-sm">Workflows will appear here when they start running</p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Executions Tab */}
+        <TabsContent value="executions" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Workflow Executions</CardTitle>
+              <CardDescription>Monitor and manage all workflow executions</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {executions.map((execution) => (
+                  <div key={execution.id} className="border rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center space-x-4">
+                        {getStatusIcon(execution.status)}
+                        <div>
+                          <h4 className="font-medium">{execution.workflow_name}</h4>
+                          <p className="text-sm text-gray-600">{execution.creator_name} • {execution.creator_email}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-3">
+                        <Badge className={getStatusColor(execution.status)}>
+                          {execution.status.replace('_', ' ')}
+                        </Badge>
+                        {execution.status === 'running' && (
+                          <Button size="sm" variant="outline" onClick={() => pauseExecution(execution.id)}>
+                            <Pause className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {execution.status === 'paused' && (
+                          <Button size="sm" variant="outline" onClick={() => resumeExecution(execution.id)}>
+                            <Play className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {execution.status === 'failed' && (
+                          <Button size="sm" variant="outline" onClick={() => retryExecution(execution.id)}>
+                            <RotateCcw className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-sm">
+                        <span>Progress: {execution.current_step_name}</span>
+                        <span>{execution.completed_steps}/{execution.total_steps} steps</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                          className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                          style={{ width: `${execution.completion_percentage}%` }}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between text-xs text-gray-500">
+                        <span>Started: {new Date(execution.started_at).toLocaleString()}</span>
+                        {execution.completed_at && (
+                          <span>Completed: {new Date(execution.completed_at).toLocaleString()}</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {execution.error_message && (
+                      <Alert variant="destructive" className="mt-4">
+                        <AlertTriangle className="h-4 w-4" />
+                        <AlertDescription>{execution.error_message}</AlertDescription>
+                      </Alert>
+                    )}
+                  </div>
+                ))}
+                
+                {executions.length === 0 && (
+                  <div className="text-center py-8 text-gray-500">
+                    <GitBranch className="h-12 w-12 mx-auto mb-4 opacity-50" />
                     <p>No workflow executions found</p>
-                    <p className="text-sm">Workflows will appear here as they run</p>
+                    <p className="text-sm">Executions will appear here when workflows are triggered</p>
                   </div>
                 )}
               </div>
@@ -338,220 +520,95 @@ export default function UgcCoordinatorDashboard({ brand, creators, onRefresh }: 
 
         {/* Human Review Tab */}
         <TabsContent value="human-review" className="space-y-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-semibold">Human Review Queue</h3>
-              <p className="text-gray-600">Items requiring manual review and approval</p>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-40">
-                  <SelectValue placeholder="Filter by priority" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Priorities</SelectItem>
-                  <SelectItem value="high">High Priority</SelectItem>
-                  <SelectItem value="medium">Medium Priority</SelectItem>
-                  <SelectItem value="low">Low Priority</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            {pendingReviews.map((reviewItem) => (
-              <Card key={reviewItem.id} className="border-l-4 border-l-yellow-400">
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <CardTitle className="text-lg">{reviewItem.title}</CardTitle>
-                      <CardDescription className="mt-1">
-                        Creator: {reviewItem.creator_name} • {reviewItem.description}
-                      </CardDescription>
-                      <div className="flex items-center gap-2 mt-2">
-                        <Badge className={getPriorityColor(reviewItem.priority)}>
-                          {reviewItem.priority} priority
-                        </Badge>
-                        <Badge variant="outline">
-                          {reviewItem.review_type.replace('_', ' ')}
-                        </Badge>
-                        <span className="text-xs text-gray-500">
-                          {new Date(reviewItem.created_at).toLocaleString()}
-                        </span>
+          <Card>
+            <CardHeader>
+              <CardTitle>Human Review Queue</CardTitle>
+              <CardDescription>Items requiring human attention and decision-making</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {humanReviewItems.map((item) => (
+                  <div key={item.id} className="border rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center space-x-4">
+                        <User className="h-5 w-5 text-gray-500" />
+                        <div>
+                          <h4 className="font-medium">{item.title}</h4>
+                          <p className="text-sm text-gray-600">{item.creator_name} • {item.creator_email}</p>
+                        </div>
                       </div>
-                    </div>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="outline" size="sm">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem 
-                          onClick={() => {
-                            setSelectedReviewItem(reviewItem);
-                            setShowReviewDialog(true);
-                          }}
-                        >
-                          <Eye className="h-4 w-4 mr-2" />
-                          Review Details
-                        </DropdownMenuItem>
-                        {reviewItem.actions.map((action) => (
-                          <DropdownMenuItem 
-                            key={action.id}
-                            onClick={() => handleReviewAction(reviewItem, action.id)}
-                          >
-                            {action.label}
-                          </DropdownMenuItem>
-                        ))}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                </CardHeader>
-              </Card>
-            ))}
-            
-            {pendingReviews.length === 0 && (
-              <Card>
-                <CardContent className="text-center py-12">
-                  <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">All caught up!</h3>
-                  <p className="text-gray-500">No items pending human review</p>
-                </CardContent>
-              </Card>
-            )}
-          </div>
-        </TabsContent>
-
-        {/* Workflow History Tab */}
-        <TabsContent value="history" className="space-y-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-semibold">Workflow Execution History</h3>
-              <p className="text-gray-600">Complete history of workflow automations</p>
-            </div>
-            <div className="flex items-center space-x-2">
-              <div className="relative">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                <Input
-                  placeholder="Search workflows..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 w-64"
-                />
-              </div>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-40">
-                  <SelectValue placeholder="Filter by status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Statuses</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
-                  <SelectItem value="running">Running</SelectItem>
-                  <SelectItem value="failed">Failed</SelectItem>
-                  <SelectItem value="pending_human_review">Pending Review</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            {filteredExecutions.map((execution) => (
-              <Card key={execution.id}>
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <CardTitle className="text-lg">{execution.workflow_name}</CardTitle>
-                      <CardDescription className="mt-1">
-                        Creator: {execution.creator_name} • Triggered by: {execution.trigger_event}
-                      </CardDescription>
-                      <div className="flex items-center gap-2 mt-2">
-                        <Badge className={getStatusColor(execution.status)}>
-                          {execution.status.replace('_', ' ')}
+                      <div className="flex items-center space-x-3">
+                        <Badge className={getPriorityColor(item.priority)}>
+                          {item.priority}
                         </Badge>
-                        <span className="text-xs text-gray-500">
-                          Started: {new Date(execution.started_at).toLocaleString()}
-                        </span>
-                        {execution.completed_at && (
-                          <span className="text-xs text-gray-500">
-                            Completed: {new Date(execution.completed_at).toLocaleString()}
-                          </span>
+                        <Badge className={getStatusColor(item.status)}>
+                          {item.status.replace('_', ' ')}
+                        </Badge>
+                        {item.status === 'pending' && (
+                          <Button size="sm" onClick={() => handleReviewItem(item)}>
+                            Review
+                          </Button>
                         )}
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm font-medium">
-                        {execution.completed_steps}/{execution.total_steps} steps
-                      </p>
-                      <div className="w-24 bg-gray-200 rounded-full h-2 mt-1">
-                        <div 
-                          className="bg-blue-600 h-2 rounded-full" 
-                          style={{ width: `${(execution.completed_steps / execution.total_steps) * 100}%` }}
-                        ></div>
+                    
+                    <p className="text-sm text-gray-700 mb-3">{item.description}</p>
+                    
+                    <div className="flex items-center justify-between text-xs text-gray-500">
+                      <span>Created: {new Date(item.created_at).toLocaleString()}</span>
+                      {item.due_date && (
+                        <span>Due: {new Date(item.due_date).toLocaleString()}</span>
+                      )}
+                    </div>
+
+                    {item.context && Object.keys(item.context).length > 0 && (
+                      <div className="mt-3 p-3 bg-gray-50 rounded">
+                        <p className="text-xs font-medium text-gray-700 mb-2">Context:</p>
+                        <pre className="text-xs text-gray-600 whitespace-pre-wrap">
+                          {JSON.stringify(item.context, null, 2)}
+                        </pre>
                       </div>
-                    </div>
+                    )}
                   </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-sm text-gray-600">
-                    Current Step: {execution.current_step}
+                ))}
+                
+                {humanReviewItems.length === 0 && (
+                  <div className="text-center py-8 text-gray-500">
+                    <User className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>No items in review queue</p>
+                    <p className="text-sm">Human review items will appear here when workflows require manual intervention</p>
                   </div>
-                  {execution.context && Object.keys(execution.context).length > 0 && (
-                    <div className="mt-2 text-xs text-gray-500">
-                      Context: {JSON.stringify(execution.context, null, 2)}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
-        {/* Settings Tab */}
-        <TabsContent value="settings" className="space-y-6">
+        {/* Analytics Tab */}
+        <TabsContent value="analytics" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Coordinator Settings</CardTitle>
-              <CardDescription>Configure automation and notification preferences</CardDescription>
+              <CardTitle>Workflow Analytics</CardTitle>
+              <CardDescription>Performance metrics and insights</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label className="text-base">Auto-execute workflows</Label>
-                    <p className="text-sm text-gray-600">Automatically run workflows without manual approval</p>
-                  </div>
-                  <Switch />
-                </div>
-                
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label className="text-base">Slack notifications</Label>
-                    <p className="text-sm text-gray-600">Send notifications to Slack for human review items</p>
-                  </div>
-                  <Switch />
-                </div>
-                
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label className="text-base">Email notifications</Label>
-                    <p className="text-sm text-gray-600">Send email alerts for high priority reviews</p>
-                  </div>
-                  <Switch />
-                </div>
+              <div className="text-center py-8 text-gray-500">
+                <BarChart3 className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <p>Analytics coming soon</p>
+                <p className="text-sm">Detailed workflow performance metrics and insights will be available here</p>
               </div>
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
 
-      {/* Review Dialog */}
+      {/* Human Review Dialog */}
       <Dialog open={showReviewDialog} onOpenChange={setShowReviewDialog}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Human Review Required</DialogTitle>
+            <DialogTitle>Human Review: {selectedReviewItem?.title}</DialogTitle>
             <DialogDescription>
-              {selectedReviewItem?.title}
+              Review and take action on this workflow item
             </DialogDescription>
           </DialogHeader>
           
@@ -559,29 +616,46 @@ export default function UgcCoordinatorDashboard({ brand, creators, onRefresh }: 
             <div className="space-y-4">
               <div>
                 <Label className="text-sm font-medium">Creator</Label>
-                <p className="text-sm">{selectedReviewItem.creator_name}</p>
+                <p className="text-sm text-gray-600">
+                  {selectedReviewItem.creator_name} ({selectedReviewItem.creator_email})
+                </p>
               </div>
               
               <div>
                 <Label className="text-sm font-medium">Description</Label>
-                <p className="text-sm">{selectedReviewItem.description}</p>
+                <p className="text-sm text-gray-600">{selectedReviewItem.description}</p>
+              </div>
+              
+              {selectedReviewItem.context && Object.keys(selectedReviewItem.context).length > 0 && (
+                <div>
+                  <Label className="text-sm font-medium">Context</Label>
+                  <pre className="text-xs bg-gray-50 p-3 rounded border mt-1 whitespace-pre-wrap">
+                    {JSON.stringify(selectedReviewItem.context, null, 2)}
+                  </pre>
+                </div>
+              )}
+              
+              <div>
+                <Label htmlFor="review-action">Action</Label>
+                <Select value={reviewAction} onValueChange={(value) => setReviewAction(value as 'complete' | 'skip')}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="complete">Complete & Continue Workflow</SelectItem>
+                    <SelectItem value="skip">Skip This Step</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               
               <div>
-                <Label className="text-sm font-medium">Context</Label>
-                <pre className="text-xs bg-gray-50 p-3 rounded border">
-                  {JSON.stringify(selectedReviewItem.context, null, 2)}
-                </pre>
-              </div>
-              
-              <div>
-                <Label htmlFor="review-notes">Review Notes</Label>
+                <Label htmlFor="resolution-notes">Resolution Notes</Label>
                 <Textarea
-                  id="review-notes"
-                  value={reviewNotes}
-                  onChange={(e) => setReviewNotes(e.target.value)}
-                  placeholder="Add notes about your decision..."
-                  rows={3}
+                  id="resolution-notes"
+                  value={resolutionNotes}
+                  onChange={(e) => setResolutionNotes(e.target.value)}
+                  placeholder="Add notes about your decision and any actions taken..."
+                  rows={4}
                 />
               </div>
             </div>
@@ -591,16 +665,16 @@ export default function UgcCoordinatorDashboard({ brand, creators, onRefresh }: 
             <Button variant="outline" onClick={() => setShowReviewDialog(false)}>
               Cancel
             </Button>
-            {selectedReviewItem?.actions.map((action) => (
-              <Button 
-                key={action.id}
-                onClick={() => handleReviewAction(selectedReviewItem, action.id)}
-                disabled={processingReview}
-                variant={action.action_type === 'approve' ? 'default' : 'outline'}
-              >
-                {processingReview ? 'Processing...' : action.label}
-              </Button>
-            ))}
+            <Button onClick={submitReview} disabled={submittingReview}>
+              {submittingReview ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Submitting...
+                </>
+              ) : (
+                'Submit Review'
+              )}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
