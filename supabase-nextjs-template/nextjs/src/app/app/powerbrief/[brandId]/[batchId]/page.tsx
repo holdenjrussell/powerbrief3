@@ -9,7 +9,7 @@ import { Brand, BriefBatch, BriefConcept, Scene, Hook, AiBriefingRequest, ShareS
 import { 
     Sparkles, Plus, X, FileUp, Trash2, Share2, MoveUp, MoveDown, 
     Loader2, Check, Pencil, Bug, Film, FileImage, ArrowLeft, Copy, LinkIcon, Mail,
-    Filter, SortAsc, RotateCcw, ExternalLink, XCircle, FileText
+    Filter, SortAsc, RotateCcw, ExternalLink, XCircle, FileText, ChevronDown, Settings
 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -22,6 +22,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogD
 import MarkdownTextarea from '@/components/ui/markdown-textarea';
 import ConceptVoiceGenerator from '@/components/ConceptVoiceGenerator';
 import { v4 as uuidv4 } from 'uuid';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 // Helper to unwrap params safely
 type ParamsType = { brandId: string, batchId: string };
@@ -2755,7 +2756,8 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
 
     return (
         <div className="p-6 space-y-6">
-            <div className="flex justify-between items-center">
+            {/* Header Section */}
+            <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4">
                 <div className="flex items-center space-x-4">
                     <Link href="/app/powerbrief">
                         <Button variant="outline">
@@ -2765,95 +2767,115 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                     </Link>
                     <h1 className="text-2xl font-bold">{batch.name}</h1>
                 </div>
-                <div className="flex space-x-2">
-                    <Button
-                        variant="outline"
-                        onClick={() => setShowBatchSettingsDialog(true)}
-                    >
-                        Batch Settings
-                    </Button>
-                    <Button
-                        variant="outline"
-                        onClick={() => setShowShareBatchDialog(true)}
-                    >
-                        <Share2 className="h-4 w-4 mr-2" />
-                        Share Batch
-                    </Button>
-                    <Button
-                        variant="outline"
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                        onClick={() => setShowDeleteBatchDialog(true)}
-                    >
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Delete Batch
-                    </Button>
-                    <Button
-                        className="bg-red-600 text-white hover:bg-red-700"
-                        onClick={handleGenerateAllAI}
-                        disabled={generatingAI || concepts.length === 0}
-                    >
-                        {generatingAI ? (
-                            <>
-                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                Generating...
-                            </>
-                        ) : (
-                            <>
-                                <Sparkles className="h-4 w-4 mr-2" />
-                                EZ - BRIEF - ALL
-                            </>
-                        )}
-                    </Button>
-                    <Button
-                        className="bg-green-600 text-white hover:bg-green-700"
-                        onClick={() => {
-                            console.log("EZ UPLOAD: Button clicked, opening file selector");
-                            if (multipleFileInputRef.current) {
-                                multipleFileInputRef.current.click();
-                            } else {
-                                console.error("EZ UPLOAD: File input reference is null");
-                                setError("Cannot open file selector. Please try again.");
-                            }
-                        }}
-                        disabled={generatingAI}
-                    >
-                        {generatingAI ? (
-                            <>
-                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                Uploading...
-                            </>
-                        ) : (
-                            <>
-                                <FileUp className="h-4 w-4 mr-2" />
-                                EZ UPLOAD
-                            </>
-                        )}
-                    </Button>
-                    <Button
-                        className="bg-purple-600 text-white hover:bg-purple-700"
-                        onClick={() => {
-                            console.log("PDF IMPORT: Button clicked, opening file selector");
-                            if (pdfInputRef.current) {
-                                pdfInputRef.current.click();
-                            } else {
-                                console.error("PDF IMPORT: File input reference is null");
-                                setError("Cannot open file selector. Please try again.");
-                            }
-                        }}
-                        disabled={importingPDF || generatingAI}
-                    >
-                        {importingPDF ? (
-                            <>
-                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                Importing...
-                            </>
-                        ) : (
-                            <>
-                                <FileText className="h-4 w-4 mr-2" />
-                                Import Concept from PDF
-                            </>
-                        )}
-                    </Button>
+                
+                {/* Action Buttons - Responsive Layout */}
+                <div className="flex flex-col sm:flex-row gap-2">
+                    {/* Primary Actions Row */}
+                    <div className="flex gap-2">
+                        <Button
+                            className="bg-red-600 text-white hover:bg-red-700 flex-1 sm:flex-none"
+                            onClick={handleGenerateAllAI}
+                            disabled={generatingAI || concepts.length === 0}
+                        >
+                            {generatingAI ? (
+                                <>
+                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                    Generating...
+                                </>
+                            ) : (
+                                <>
+                                    <Sparkles className="h-4 w-4 mr-2" />
+                                    <span className="hidden sm:inline">EZ - BRIEF - ALL</span>
+                                    <span className="sm:hidden">Generate All</span>
+                                </>
+                            )}
+                        </Button>
+                        
+                        <Button
+                            className="bg-green-600 text-white hover:bg-green-700 flex-1 sm:flex-none"
+                            onClick={() => {
+                                console.log("EZ UPLOAD: Button clicked, opening file selector");
+                                if (multipleFileInputRef.current) {
+                                    multipleFileInputRef.current.click();
+                                } else {
+                                    console.error("EZ UPLOAD: File input reference is null");
+                                    setError("Cannot open file selector. Please try again.");
+                                }
+                            }}
+                            disabled={generatingAI}
+                        >
+                            {generatingAI ? (
+                                <>
+                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                    <span className="hidden sm:inline">Uploading...</span>
+                                    <span className="sm:hidden">Upload</span>
+                                </>
+                            ) : (
+                                <>
+                                    <FileUp className="h-4 w-4 mr-2" />
+                                    <span className="hidden sm:inline">EZ UPLOAD</span>
+                                    <span className="sm:hidden">Upload</span>
+                                </>
+                            )}
+                        </Button>
+                        
+                        <Button
+                            className="bg-purple-600 text-white hover:bg-purple-700 flex-1 sm:flex-none"
+                            onClick={() => {
+                                console.log("PDF IMPORT: Button clicked, opening file selector");
+                                if (pdfInputRef.current) {
+                                    pdfInputRef.current.click();
+                                } else {
+                                    console.error("PDF IMPORT: File input reference is null");
+                                    setError("Cannot open file selector. Please try again.");
+                                }
+                            }}
+                            disabled={importingPDF || generatingAI}
+                        >
+                            {importingPDF ? (
+                                <>
+                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                    <span className="hidden sm:inline">Importing...</span>
+                                    <span className="sm:hidden">Import</span>
+                                </>
+                            ) : (
+                                <>
+                                    <FileText className="h-4 w-4 mr-2" />
+                                    <span className="hidden lg:inline">Import from PDF</span>
+                                    <span className="lg:hidden">PDF Import</span>
+                                </>
+                            )}
+                        </Button>
+                    </div>
+                    
+                    {/* Secondary Actions Dropdown */}
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="outline" className="flex-1 sm:flex-none">
+                                <span className="hidden sm:inline mr-2">More Actions</span>
+                                <span className="sm:hidden mr-2">Menu</span>
+                                <ChevronDown className="h-4 w-4" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-48">
+                            <DropdownMenuItem onClick={() => setShowBatchSettingsDialog(true)}>
+                                <Settings className="h-4 w-4 mr-2" />
+                                Batch Settings
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setShowShareBatchDialog(true)}>
+                                <Share2 className="h-4 w-4 mr-2" />
+                                Share Batch
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem 
+                                onClick={() => setShowDeleteBatchDialog(true)}
+                                className="text-red-600 focus:text-red-600"
+                            >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Delete Batch
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                 </div>
             </div>
             
