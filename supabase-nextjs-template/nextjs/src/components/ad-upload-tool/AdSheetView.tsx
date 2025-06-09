@@ -1146,15 +1146,15 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, activeBatch, select
                         src={asset.thumbnailUrl}
                         alt={`Thumbnail for ${asset.name}`}
                         className="w-12 h-12 object-cover rounded border-2 border-gray-200 hover:border-blue-400 transition-colors"
-                        onClick={() => {
-                          // Open the thumbnail scrubber modal
-                          setThumbnailScrubberModal({
-                            isOpen: true,
-                            videoAsset: asset,
-                            allVideoAssets: draft.assets.filter(a => a.type === 'video'),
-                            draftId: draft.id
-                          });
-                        }}
+                    onClick={() => {
+                      // Open the thumbnail scrubber modal
+                      setThumbnailScrubberModal({
+                        isOpen: true,
+                        videoAsset: asset,
+                        allVideoAssets: draft.assets.filter(a => a.type === 'video'),
+                        draftId: draft.id
+                      });
+                    }}
                       />
                     ) : (
                       <div 
