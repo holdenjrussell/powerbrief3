@@ -1471,48 +1471,81 @@ export async function POST(req: NextRequest) {
         const hasVideos = [...feedAssets, ...storyAssets].some(asset => asset.type === 'video');
         
         if (hasVideos) {
-          console.log(`[Launch API]     Videos detected - using object_story_spec instead of asset_feed_spec`);
+          console.log(`[Launch API]     Videos detected - using asset_feed_spec for proper placement targeting`);
           
-          // Use the first available asset (prefer story assets for vertical content, then feed assets)
-          const primaryAsset = storyAssets.length > 0 ? storyAssets[0] : feedAssets[0];
-          
-          if (primaryAsset.type === 'image' && primaryAsset.metaHash) {
-            creativeSpec.object_story_spec.link_data = {
-              message: draft.primaryText,
-              link: draft.destinationUrl,
-              call_to_action: {
-                type: draft.callToAction?.toUpperCase().replace(/\s+/g, '_'),
-                value: { link: draft.destinationUrl },
-              },
-              name: draft.headline,
-              ...(draft.description && { description: draft.description }),
-              image_hash: primaryAsset.metaHash
-            };
-          } else if (primaryAsset.type === 'video' && primaryAsset.metaVideoId) {
-            // Use pre-processed thumbnail from cache
-            const thumbnailHash = videoThumbnailCache[primaryAsset.metaVideoId];
-            
-            if (thumbnailHash) {
-              console.log(`[Launch API]     Using cached thumbnail for primary video: ${primaryAsset.name}`);
-            } else {
-              console.warn(`[Launch API]     No thumbnail available for primary video: ${primaryAsset.name}`);
+          // Add feed videos with placement targeting for Facebook Feed
+          feedAssets.forEach((asset: ProcessedAdDraftAsset, index: number) => {
+            const assetLabel = `feed_asset_${index}`;
+            if (asset.type === 'video' && asset.metaVideoId) {
+              // Use pre-processed thumbnail from cache
+              const thumbnailHash = videoThumbnailCache[asset.metaVideoId];
+              
+                             creativeSpec.asset_feed_spec.videos.push({
+                 video_id: asset.metaVideoId,
+                 adlabels: [{ name: assetLabel }],
+                 ...(thumbnailHash && { thumbnail_image_hash: thumbnailHash })
+               });
+               if (!creativeSpec.asset_feed_spec.ad_formats.includes('SINGLE_VIDEO')) {
+                 creativeSpec.asset_feed_spec.ad_formats.push('SINGLE_VIDEO');
+               }
+                         } else if (asset.type === 'image' && asset.metaHash) {
+               creativeSpec.asset_feed_spec.images.push({
+                 hash: asset.metaHash,
+                 adlabels: [{ name: assetLabel }]
+               });
+               if (!creativeSpec.asset_feed_spec.ad_formats.includes('SINGLE_IMAGE')) {
+                 creativeSpec.asset_feed_spec.ad_formats.push('SINGLE_IMAGE');
+               }
             }
-            
-            creativeSpec.object_story_spec.video_data = {
-              video_id: primaryAsset.metaVideoId,
-              message: draft.primaryText,
-              call_to_action: {
-                type: draft.callToAction?.toUpperCase().replace(/\s+/g, '_'),
-                value: { link: draft.destinationUrl },
+
+            // Add customization rule for feed placements - CRITICAL for 4x5 videos to show in Facebook Feed!
+            creativeSpec.asset_feed_spec.asset_customization_rules.push({
+              customization_spec: {
+                publisher_platforms: ['facebook', 'instagram'],
+                facebook_positions: ['feed', 'video_feeds', 'marketplace', 'profile_feed', 'instream_video'],
+                instagram_positions: ['stream', 'explore']
               },
-              title: draft.headline,
-              ...(thumbnailHash && { image_hash: thumbnailHash })
-            };
-          }
+              [asset.type === 'video' ? 'video_label' : 'image_label']: { name: assetLabel }
+            });
+          });
+
+          // Add story videos with placement targeting
+          storyAssets.forEach((asset: ProcessedAdDraftAsset, index: number) => {
+            const assetLabel = `story_asset_${index}`;
+            if (asset.type === 'video' && asset.metaVideoId) {
+              // Use pre-processed thumbnail from cache
+              const thumbnailHash = videoThumbnailCache[asset.metaVideoId];
+              
+              creativeSpec.asset_feed_spec.videos.push({
+                video_id: asset.metaVideoId,
+                adlabels: [{ name: assetLabel }],
+                ...(thumbnailHash && { thumbnail_image_hash: thumbnailHash })
+              });
+              if (!creativeSpec.asset_feed_spec.ad_formats.includes('SINGLE_VIDEO')) {
+                creativeSpec.asset_feed_spec.ad_formats.push('SINGLE_VIDEO');
+              }
+            } else if (asset.type === 'image' && asset.metaHash) {
+              creativeSpec.asset_feed_spec.images.push({
+                hash: asset.metaHash,
+                adlabels: [{ name: assetLabel }]
+              });
+              if (!creativeSpec.asset_feed_spec.ad_formats.includes('SINGLE_IMAGE')) {
+                creativeSpec.asset_feed_spec.ad_formats.push('SINGLE_IMAGE');
+              }
+            }
+
+            // Add customization rule for story placements
+            creativeSpec.asset_feed_spec.asset_customization_rules.push({
+              customization_spec: {
+                publisher_platforms: ['facebook', 'instagram'],
+                facebook_positions: ['story'],
+                instagram_positions: ['story']
+              },
+              [asset.type === 'video' ? 'video_label' : 'image_label']: { name: assetLabel }
+            });
+          });
           
-          // Remove asset_feed_spec for video compatibility
-          delete creativeSpec.asset_feed_spec;
-          console.log(`[Launch API]     Using primary asset: ${primaryAsset.name} (${primaryAsset.type})`);
+          console.log(`[Launch API]     Added ${feedAssets.length} feed assets and ${storyAssets.length} story assets with explicit placement targeting for videos`);
           
         } else {
           // No videos - use original asset_feed_spec approach for images
@@ -1566,49 +1599,115 @@ export async function POST(req: NextRequest) {
         }
 
       } else if (feedAssets.length > 0 || storyAssets.length > 0) {
-        // Use the first available asset (prefer story assets for vertical content, then feed assets)
-        const availableAssets = storyAssets.length > 0 ? storyAssets : feedAssets;
-        const selectedAsset = availableAssets[0];
+        const totalAssets = feedAssets.length + storyAssets.length;
+        const hasSingleVideoAsset = totalAssets === 1 && 
+          ([...feedAssets, ...storyAssets].some(asset => asset.type === 'video'));
         
-        console.log(`[Launch API]     Using single asset approach with: ${selectedAsset.name}`);
-        
-        // Use the traditional object_story_spec approach for single asset
-        if (selectedAsset.type === 'image' && selectedAsset.metaHash) {
-          creativeSpec.object_story_spec.link_data = {
-            message: draft.primaryText,
-            link: draft.destinationUrl,
-            call_to_action: {
-              type: draft.callToAction?.toUpperCase().replace(/\s+/g, '_'),
-              value: { link: draft.destinationUrl },
-            },
-            name: draft.headline,
-            ...(draft.description && { description: draft.description }),
-            image_hash: selectedAsset.metaHash
-          };
-        } else if (selectedAsset.type === 'video' && selectedAsset.metaVideoId) {
-          // Use pre-processed thumbnail from cache
-          const thumbnailHash = videoThumbnailCache[selectedAsset.metaVideoId];
+        if (hasSingleVideoAsset) {
+          // For single video assets, use asset_feed_spec to maintain placement targeting
+          console.log(`[Launch API]     Single video asset - using asset_feed_spec for placement targeting`);
           
-          if (thumbnailHash) {
-            console.log(`[Launch API]     Using cached thumbnail for selected video: ${selectedAsset.name}`);
-          } else {
-            console.warn(`[Launch API]     No thumbnail available for selected video: ${selectedAsset.name}`);
+          if (feedAssets.length > 0) {
+            const feedAsset = feedAssets[0];
+            const assetLabel = 'single_feed_video';
+            
+            if (feedAsset.type === 'video' && feedAsset.metaVideoId) {
+              const thumbnailHash = videoThumbnailCache[feedAsset.metaVideoId];
+              
+                             creativeSpec.asset_feed_spec.videos.push({
+                 video_id: feedAsset.metaVideoId,
+                 adlabels: [{ name: assetLabel }],
+                 ...(thumbnailHash && { thumbnail_image_hash: thumbnailHash })
+               });
+               if (!creativeSpec.asset_feed_spec.ad_formats.includes('SINGLE_VIDEO')) {
+                 creativeSpec.asset_feed_spec.ad_formats.push('SINGLE_VIDEO');
+               }
+              
+              // CRITICAL: Add placement targeting for 4x5 videos to ensure Facebook Feed placement
+              creativeSpec.asset_feed_spec.asset_customization_rules.push({
+                customization_spec: {
+                  publisher_platforms: ['facebook', 'instagram'],
+                  facebook_positions: ['feed', 'video_feeds', 'marketplace', 'profile_feed', 'instream_video'],
+                  instagram_positions: ['stream', 'explore']
+                },
+                video_label: { name: assetLabel }
+              });
+              
+              console.log(`[Launch API]     Single 4x5 video configured for Facebook Feed placement: ${feedAsset.name}`);
+            }
+          } else if (storyAssets.length > 0) {
+            const storyAsset = storyAssets[0];
+            const assetLabel = 'single_story_video';
+            
+            if (storyAsset.type === 'video' && storyAsset.metaVideoId) {
+              const thumbnailHash = videoThumbnailCache[storyAsset.metaVideoId];
+              
+                             creativeSpec.asset_feed_spec.videos.push({
+                 video_id: storyAsset.metaVideoId,
+                 adlabels: [{ name: assetLabel }],
+                 ...(thumbnailHash && { thumbnail_image_hash: thumbnailHash })
+               });
+               if (!creativeSpec.asset_feed_spec.ad_formats.includes('SINGLE_VIDEO')) {
+                 creativeSpec.asset_feed_spec.ad_formats.push('SINGLE_VIDEO');
+               }
+              
+              // Add placement targeting for story/reels placements
+              creativeSpec.asset_feed_spec.asset_customization_rules.push({
+                customization_spec: {
+                  publisher_platforms: ['facebook', 'instagram'],
+                  facebook_positions: ['story'],
+                  instagram_positions: ['story']
+                },
+                video_label: { name: assetLabel }
+              });
+              
+              console.log(`[Launch API]     Single 9x16 video configured for story placement: ${storyAsset.name}`);
+            }
+          }
+        } else {
+          // For single images or mixed single assets, use traditional object_story_spec
+          const availableAssets = storyAssets.length > 0 ? storyAssets : feedAssets;
+          const selectedAsset = availableAssets[0];
+          
+          console.log(`[Launch API]     Using single asset approach with: ${selectedAsset.name}`);
+          
+          if (selectedAsset.type === 'image' && selectedAsset.metaHash) {
+            creativeSpec.object_story_spec.link_data = {
+              message: draft.primaryText,
+              link: draft.destinationUrl,
+              call_to_action: {
+                type: draft.callToAction?.toUpperCase().replace(/\s+/g, '_'),
+                value: { link: draft.destinationUrl },
+              },
+              name: draft.headline,
+              ...(draft.description && { description: draft.description }),
+              image_hash: selectedAsset.metaHash
+            };
+          } else if (selectedAsset.type === 'video' && selectedAsset.metaVideoId) {
+            // Use pre-processed thumbnail from cache
+            const thumbnailHash = videoThumbnailCache[selectedAsset.metaVideoId];
+            
+            if (thumbnailHash) {
+              console.log(`[Launch API]     Using cached thumbnail for selected video: ${selectedAsset.name}`);
+            } else {
+              console.warn(`[Launch API]     No thumbnail available for selected video: ${selectedAsset.name}`);
+            }
+            
+            creativeSpec.object_story_spec.video_data = {
+              video_id: selectedAsset.metaVideoId,
+              message: draft.primaryText,
+              call_to_action: {
+                type: draft.callToAction?.toUpperCase().replace(/\s+/g, '_'),
+                value: { link: draft.destinationUrl },
+              },
+              title: draft.headline,
+              ...(thumbnailHash && { image_hash: thumbnailHash })
+            };
           }
           
-          creativeSpec.object_story_spec.video_data = {
-            video_id: selectedAsset.metaVideoId,
-            message: draft.primaryText,
-            call_to_action: {
-              type: draft.callToAction?.toUpperCase().replace(/\s+/g, '_'),
-              value: { link: draft.destinationUrl },
-            },
-            title: draft.headline,
-            ...(thumbnailHash && { image_hash: thumbnailHash })
-          };
+          // Remove asset_feed_spec for traditional single asset approach
+          delete creativeSpec.asset_feed_spec;
         }
-        
-        // Remove asset_feed_spec for single asset approach
-        delete creativeSpec.asset_feed_spec;
       } else {
         throw new Error('No valid assets found for creative creation');
       }

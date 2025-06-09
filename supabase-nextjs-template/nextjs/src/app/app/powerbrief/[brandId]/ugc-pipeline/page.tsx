@@ -53,6 +53,7 @@ import { CreatorCard, ScriptCard, CreatorForm } from '@/components/ugc-creator';
 import UgcAiCoordinatorPanel from '@/components/ugc-coordinator/UgcAiCoordinatorPanel';
 import EmailTemplateGenerator from '@/components/ugc/EmailTemplateGenerator';
 import AdvancedEmailInbox from '@/components/ugc/AdvancedEmailInbox';
+import ContractsTab from '@/components/ugc/ContractsTab';
 import { Brand } from '@/lib/types/powerbrief';
 import { createClient } from '@/utils/supabase/client';
 import { v4 as uuidv4 } from 'uuid';
@@ -77,7 +78,7 @@ import {
 
 // Helper to unwrap params safely
 type ParamsType = { brandId: string };
-type ViewType = 'concept' | 'script' | 'creator' | 'settings' | 'ai-agent' | 'inbox' | 'templates' | 'workflow' | 'fields';
+type ViewType = 'concept' | 'script' | 'creator' | 'settings' | 'ai-agent' | 'inbox' | 'templates' | 'workflow' | 'fields' | 'contracts';
 
 const navigationItems = [
   {
@@ -93,6 +94,7 @@ const navigationItems = [
     icon: Users,
     items: [
       { view: 'creator' as ViewType, label: 'Creator Management', icon: Users },
+      { view: 'contracts' as ViewType, label: 'Contracts', icon: Shield },
       { view: 'inbox' as ViewType, label: 'Creator Inbox', icon: Mail },
     ],
   },
@@ -2276,6 +2278,18 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
         <>
           {brandId && (
             <CreatorFieldManager brandId={brandId} />
+          )}
+        </>
+      )}
+
+      {activeView === 'contracts' && (
+        <>
+          {brandId && (
+            <ContractsTab 
+              brandId={brandId}
+              creators={creators}
+              onRefresh={handleRefresh}
+            />
           )}
         </>
       )}

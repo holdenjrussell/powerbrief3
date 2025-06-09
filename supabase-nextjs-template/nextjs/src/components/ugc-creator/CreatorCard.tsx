@@ -14,10 +14,22 @@ import {
   SelectContent,
   SelectItem,
   SelectGroup,
-  SelectLabel
+  SelectLabel,
+  SelectValue,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+  Input,
+  Label,
+  Textarea
 } from "@/components/ui";
-import { ChevronRight, User2, ShoppingBag, FileVideo, AtSign, Package, ExternalLink, Instagram } from 'lucide-react';
+import { ChevronRight, User2, ShoppingBag, FileVideo, AtSign, Package, ExternalLink, Instagram, FileText, Send } from 'lucide-react';
 import { UgcCreator, UGC_CREATOR_ONBOARDING_STATUSES, UGC_CREATOR_CONTRACT_STATUSES, UGC_CREATOR_PRODUCT_SHIPMENT_STATUSES } from '@/lib/types/ugcCreator';
+import { ContractTemplate } from '@/lib/types/contracts';
 import { updateUgcCreator } from '@/lib/services/ugcCreatorService';
 
 interface CreatorCardProps {
@@ -28,6 +40,16 @@ interface CreatorCardProps {
 
 export default function CreatorCard({ creator, brandId, onUpdate }: CreatorCardProps) {
   const [isUpdating, setIsUpdating] = useState(false);
+  const [showContractDialog, setShowContractDialog] = useState(false);
+  const [contractTemplates, setContractTemplates] = useState<ContractTemplate[]>([]);
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
+  const [sendingContract, setSendingContract] = useState(false);
+  const [contractData, setContractData] = useState({
+    title: '',
+    templateId: '',
+    customDocument: null as File | null,
+    message: ''
+  });
   
   // Function to get badge variant based on status
   const getStatusVariant = (status: string | undefined) => {
@@ -149,6 +171,99 @@ export default function CreatorCard({ creator, brandId, onUpdate }: CreatorCardP
     } finally {
       setIsUpdating(false);
     }
+  };
+
+  // Fetch contract templates
+  const fetchContractTemplates = async () => {
+    try {
+      setLoadingTemplates(true);
+      const response = await fetch(`/api/contracts/templates?brandId=${brandId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setContractTemplates(data.templates || []);
+      }
+    } catch (error) {
+      console.error('Error fetching contract templates:', error);
+    } finally {
+      setLoadingTemplates(false);
+    }
+  };
+
+  // Handle sending contract to creator
+  const handleSendContract = async () => {
+    if (!contractData.title || (!contractData.templateId && !contractData.customDocument)) {
+      return;
+    }
+
+    try {
+      setSendingContract(true);
+      
+      // Create contract
+      const formData = new FormData();
+      formData.append('brandId', brandId);
+      formData.append('title', contractData.title);
+      formData.append('creatorId', creator.id);
+      formData.append('recipients', JSON.stringify([{
+        name: creator.name,
+        email: creator.email,
+        role: 'signer'
+      }]));
+      
+      if (contractData.templateId) {
+        formData.append('templateId', contractData.templateId);
+      } else if (contractData.customDocument) {
+        formData.append('document', contractData.customDocument);
+      }
+
+      const createResponse = await fetch('/api/contracts', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!createResponse.ok) {
+        throw new Error('Failed to create contract');
+      }
+
+      const { contract } = await createResponse.json();
+
+      // Send the contract
+      const sendResponse = await fetch(`/api/contracts/${contract.id}/send`, {
+        method: 'POST',
+      });
+
+      if (!sendResponse.ok) {
+        throw new Error('Failed to send contract');
+      }
+
+      // Update creator's contract status
+      await handleContractStatusChange('contract sent');
+
+      // Reset form and close dialog
+      setContractData({
+        title: '',
+        templateId: '',
+        customDocument: null,
+        message: ''
+      });
+      setShowContractDialog(false);
+
+    } catch (error) {
+      console.error('Error sending contract:', error);
+    } finally {
+      setSendingContract(false);
+    }
+  };
+
+  // Open contract dialog and fetch templates
+  const handleOpenContractDialog = () => {
+    setShowContractDialog(true);
+    setContractData({
+      title: `UGC Creator Agreement - ${creator.name}`,
+      templateId: '',
+      customDocument: null,
+      message: `Hi ${creator.name},\n\nPlease review and sign the attached contract. Let us know if you have any questions!\n\nBest regards,`
+    });
+    fetchContractTemplates();
   };
 
   return (
@@ -311,13 +426,117 @@ export default function CreatorCard({ creator, brandId, onUpdate }: CreatorCardP
           )}
         </div>
       </CardContent>
-      <CardFooter>
-        <Link href={`/app/powerbrief/${brandId}/ugc-pipeline/creators/${creator.id}`} className="w-full">
+      <CardFooter className="flex gap-2">
+        <Link href={`/app/powerbrief/${brandId}/ugc-pipeline/creators/${creator.id}`} className="flex-1">
           <Button variant="outline" className="w-full justify-between">
             View Creator
             <ChevronRight className="h-4 w-4" />
           </Button>
         </Link>
+        
+        {creator.contract_status === 'not signed' && (
+          <Dialog open={showContractDialog} onOpenChange={setShowContractDialog}>
+            <DialogTrigger asChild>
+              <Button 
+                variant="default" 
+                size="sm" 
+                onClick={handleOpenContractDialog}
+                className="px-3"
+              >
+                <FileText className="h-4 w-4" />
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>Send Contract to {creator.name}</DialogTitle>
+                <DialogDescription>
+                  Send a contract for digital signature
+                </DialogDescription>
+              </DialogHeader>
+              
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="contract-title">Contract Title</Label>
+                  <Input
+                    id="contract-title"
+                    value={contractData.title}
+                    onChange={(e) => setContractData(prev => ({ ...prev, title: e.target.value }))}
+                    placeholder="Enter contract title"
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="template-select">Use Template</Label>
+                  <Select 
+                    value={contractData.templateId} 
+                    onValueChange={(value) => setContractData(prev => ({ ...prev, templateId: value, customDocument: null }))}
+                    disabled={loadingTemplates}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={loadingTemplates ? "Loading templates..." : "Select a template"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">No template (upload custom document)</SelectItem>
+                      {contractTemplates.map((template) => (
+                        <SelectItem key={template.id} value={template.id}>
+                          {template.title}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {!contractData.templateId && (
+                  <div>
+                    <Label htmlFor="custom-document">Upload Custom Document</Label>
+                    <Input
+                      id="custom-document"
+                      type="file"
+                      accept=".pdf"
+                      onChange={(e) => setContractData(prev => ({ 
+                        ...prev, 
+                        customDocument: e.target.files?.[0] || null 
+                      }))}
+                    />
+                  </div>
+                )}
+
+                <div>
+                  <Label htmlFor="message">Email Message</Label>
+                  <Textarea
+                    id="message"
+                    value={contractData.message}
+                    onChange={(e) => setContractData(prev => ({ ...prev, message: e.target.value }))}
+                    placeholder="Enter message to include in the email"
+                    rows={4}
+                  />
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowContractDialog(false)}>
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={handleSendContract} 
+                  disabled={sendingContract || !contractData.title || (!contractData.templateId && !contractData.customDocument)}
+                >
+                  {sendingContract ? (
+                    <>
+                      <Send className="h-4 w-4 mr-2 animate-pulse" />
+                      Sending...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="h-4 w-4 mr-2" />
+                      Send Contract
+                    </>
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
       </CardFooter>
     </Card>
   );
