@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerAdminClient } from '@/lib/supabase/serverAdminClient';
+import { PdfSigningService } from '@/lib/services/pdfSigningService';
+import { FieldType } from '@/lib/types/contracts';
 import sgMail from '@sendgrid/mail';
 
 interface SubmitSigningRequest {
@@ -151,6 +153,139 @@ This email was sent by ${brand.name} via PowerBrief Contract System.
   }
 }
 
+// Function to generate flattened PDF with all signed fields
+async function generateFlattenedPdf(
+  supabase: Awaited<ReturnType<typeof createServerAdminClient>>,
+  contractId: string
+): Promise<void> {
+  console.log('[PDF Flatten] Starting PDF flattening for contract:', contractId);
+  
+  // Get contract and original document data
+  const { data: contract, error: contractError } = await supabase
+    .from('contracts')
+    .select('document_data, title, document_name')
+    .eq('id', contractId)
+    .single();
+
+  if (contractError || !contract) {
+    throw new Error(`Failed to fetch contract: ${contractError?.message}`);
+  }
+
+  // Parse the document data
+  const rawDocumentData = contract.document_data;
+  let documentDataBuffer: Buffer;
+
+  try {
+    if (typeof rawDocumentData === 'string') {
+      if (rawDocumentData.startsWith('\\x')) {
+        // Hex-encoded data
+        const hexContent = rawDocumentData.substring(2);
+        const decodedHex = Buffer.from(hexContent, 'hex');
+        const decodedString = decodedHex.toString('latin1');
+        
+        if (decodedString.startsWith('%PDF-')) {
+          documentDataBuffer = decodedHex;
+        } else {
+          // Check for JSON Buffer format
+          try {
+            const parsedData = JSON.parse(decodedString);
+            if (parsedData.type === 'Buffer' && Array.isArray(parsedData.data)) {
+              documentDataBuffer = Buffer.from(parsedData.data);
+            } else {
+              throw new Error('Invalid document data format');
+            }
+          } catch {
+            throw new Error('Unable to parse document data');
+          }
+        }
+      } else if (rawDocumentData.startsWith('%PDF-')) {
+        documentDataBuffer = Buffer.from(rawDocumentData, 'latin1');
+      } else {
+        throw new Error('Unrecognized document data format');
+      }
+    } else if (Buffer.isBuffer(rawDocumentData)) {
+      documentDataBuffer = rawDocumentData;
+    } else if (rawDocumentData && typeof rawDocumentData === 'object' && 'length' in rawDocumentData) {
+      documentDataBuffer = Buffer.from(rawDocumentData as Uint8Array);
+    } else {
+      throw new Error('Unhandled document data type: ' + typeof rawDocumentData);
+    }
+  } catch (error) {
+    throw new Error(`Failed to parse document data: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+
+  // Get all signed field values for this contract
+  const { data: signedFields, error: fieldsError } = await supabase
+    .from('contract_fields')
+    .select(`
+      id,
+      type,
+      value,
+      page,
+      position_x,
+      position_y,
+      width,
+      height,
+      contract_recipients!inner(name, email, signed_at)
+    `)
+    .eq('contract_id', contractId)
+    .not('value', 'is', null);
+
+  if (fieldsError) {
+    throw new Error(`Failed to fetch signed fields: ${fieldsError.message}`);
+  }
+
+  console.log('[PDF Flatten] Found signed fields:', signedFields?.length || 0);
+
+  if (!signedFields || signedFields.length === 0) {
+    console.log('[PDF Flatten] No signed fields found, skipping PDF flattening');
+    return;
+  }
+
+  // Convert to PdfSigningService format
+  const signatures = signedFields.map(field => ({
+    fieldId: field.id,
+    type: field.type as FieldType,
+    value: field.value || '',
+    signedAt: field.contract_recipients.signed_at || new Date().toISOString(),
+    signerName: field.contract_recipients.name || 'Unknown Signer',
+    signerEmail: field.contract_recipients.email || '',
+    page: field.page,
+    positionX: field.position_x,
+    positionY: field.position_y,
+    width: field.width,
+    height: field.height,
+  }));
+
+  // Generate flattened PDF
+  const pdfSigningService = new PdfSigningService();
+  const result = await pdfSigningService.signPdf(
+    new Uint8Array(documentDataBuffer),
+    signatures,
+    contractId,
+    contract.title
+  );
+
+  // Store the flattened PDF as signed_document_data
+  const signedPdfBuffer = Buffer.from(result.signedPdfBytes);
+  
+  // Convert to the same format as original document_data for consistency
+  const signedDataAsHex = '\\x' + signedPdfBuffer.toString('hex');
+
+  const { error: updateError } = await supabase
+    .from('contracts')
+    .update({ 
+      signed_document_data: signedDataAsHex
+    })
+    .eq('id', contractId);
+
+  if (updateError) {
+    throw new Error(`Failed to save flattened PDF: ${updateError.message}`);
+  }
+
+  console.log('[PDF Flatten] Flattened PDF saved successfully, size:', signedPdfBuffer.length);
+}
+
 export async function POST(request: NextRequest) {
   try {
     console.log('[Contract Submit] Starting contract submission process...');
@@ -283,6 +418,17 @@ export async function POST(request: NextRequest) {
       console.log('[Contract Submit] All recipients signed:', allSigned);
       
       if (allSigned) {
+        console.log('[Contract Submit] All recipients signed - generating flattened PDF...');
+        
+        // Generate flattened PDF with all signatures
+        try {
+          await generateFlattenedPdf(supabase, contractId);
+          console.log('[Contract Submit] Flattened PDF generated successfully');
+        } catch (pdfError) {
+          console.error('[Contract Submit] Error generating flattened PDF:', pdfError);
+          // Continue with completion even if PDF flattening fails
+        }
+
         console.log('[Contract Submit] Updating contract to completed status...');
         const { error: contractUpdateError } = await supabase
           .from('contracts')
