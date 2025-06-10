@@ -9,7 +9,7 @@
 import React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ArrowRight, Sparkles, Users, MessageSquare, Upload, CheckCircle, LibraryBig, DraftingCompass, BarChartBig, LocateFixed, ScrollText, FileSignature, Workflow as WorkflowIcon, Bot, Lightbulb, ListChecks, MessageCircle as MessageCircleIcon, Rocket, Edit3, ScanSearch, LayoutDashboard, TrendingUp, Megaphone as MegaphoneIcon, AlertOctagon as AlertOctagonIcon, ClipboardList as ClipboardListIcon, Film, FlaskConical, Swords, Calculator, Store, ShoppingCart, CalendarDays, Presentation as PresentationIcon } from 'lucide-react';
+import { ArrowRight, Sparkles, Users, MessageSquare, Upload, CheckCircle, LibraryBig, DraftingCompass, BarChartBig, LocateFixed, ScrollText, FileSignature, Workflow as WorkflowIcon, Bot, Lightbulb, ListChecks, MessageCircle as MessageCircleIcon, Rocket, Edit3, ScanSearch, LayoutDashboard, TrendingUp, Megaphone as MegaphoneIcon, AlertOctagon as AlertOctagonIcon, ClipboardList as ClipboardListIcon, Film, FlaskConical, Swords, Calculator, Store, ShoppingCart, CalendarDays, Presentation as PresentationIcon, Twitter, Linkedin, Instagram, Youtube, Shapes } from 'lucide-react';
 import AuthAwareButtons from '@/components/AuthAwareButtons';
 import HomePricing from "@/components/HomePricing";
 
@@ -189,6 +189,12 @@ export default function Home() {
       title: 'PowerCalendar: Integrated Scheduling',
       description: "Calendly-like scheduling, seamlessly integrated within PowerBrief for all your team, client, and creator meeting needs.",
       color: 'text-indigo-500'
+    },
+    {
+      icon: Shapes,
+      title: 'AI Ideation Whiteboard',
+      description: 'A Poppy AI replacement for creative brainstorming. Upload assets or links for context, then chat with AI on a React Flow style whiteboard interface to spark and develop new ideas collaboratively.',
+      color: 'text-pink-500'
     }
   ];
 
@@ -252,13 +258,15 @@ export default function Home() {
         </nav>
 
         {/* Hero Section */}
-        <section className="relative pt-32 pb-24 overflow-hidden">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <section className="relative pt-32 pb-24 overflow-hidden bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50">
+          <div className="absolute inset-0 bg-grid-slate-900/[0.04] [mask-image:linear-gradient(0deg,#fff,rgba(255,255,255,0))]" style={{ backgroundPosition: '10px 10px' }}></div>
+          <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 z-10">
             <div className="text-center">
-              <h1 className="text-5xl md:text-6xl font-bold tracking-tight">
-                The AI-Powered Platform For Modern<span className="block text-primary-600">Marketing Teams</span> 
+              <h1 className="text-5xl md:text-6xl font-bold tracking-tight text-gray-900">
+                The AI-Powered Platform For Modern
+                <span className="block text-primary-600 font-extrabold mt-1 md:mt-2">Marketing Teams</span>
               </h1>
-              <p className="mt-6 text-xl text-gray-600 max-w-4xl mx-auto">
+              <p className="mt-6 text-xl text-gray-700 max-w-4xl mx-auto">
                 {productName} centralizes your entire marketing workflow. From multi-channel briefing (ads, email, web, social) 
                 and AI wireframing with PowerFrame, to team collaboration, ad creation, UGC management, and direct Meta uploads.
               </p>
@@ -266,32 +274,21 @@ export default function Home() {
                 <AuthAwareButtons />
               </div>
               
-              {/* Key Benefits */}
-              <div className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-                <div className="flex items-center justify-center space-x-3 text-gray-600">
-                  <CheckCircle className="h-5 w-5 text-green-500" />
-                  <span>Brief Any Asset Type</span>
-                </div>
-                <div className="flex items-center justify-center space-x-3 text-gray-600">
-                  <CheckCircle className="h-5 w-5 text-green-500" />
-                  <span>AI-Powered Wireframing</span>
-                </div>
-                <div className="flex items-center justify-center space-x-3 text-gray-600">
-                  <CheckCircle className="h-5 w-5 text-green-500" />
-                  <span>Streamline Team Collaboration</span>
-                </div>
-                <div className="flex items-center justify-center space-x-3 text-gray-600 md:col-span-1">
-                  <CheckCircle className="h-5 w-5 text-green-500" />
-                  <span>Automate UGC Workflows</span>
-                </div>
-                <div className="flex items-center justify-center space-x-3 text-gray-600 md:col-span-1">
-                  <CheckCircle className="h-5 w-5 text-green-500" />
-                  <span>Replace Multiple Tools</span>
-                </div>
-                <div className="flex items-center justify-center space-x-3 text-gray-600 md:col-span-1">
-                  <CheckCircle className="h-5 w-5 text-green-500" />
-                  <span>Launch Ads in Minutes</span>
-                </div>
+              {/* Key Benefits - Enhanced Styling */}
+              <div className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+                {[
+                  { text: 'Brief Any Asset Type' },
+                  { text: 'AI-Powered Wireframing' },
+                  { text: 'Streamline Team Collaboration' },
+                  { text: 'Automate UGC Workflows' },
+                  { text: 'Replace Multiple Tools' },
+                  { text: 'Launch Ads in Minutes' }
+                ].map((benefit, index) => (
+                  <div key={index} className="bg-white/60 backdrop-blur-md p-5 rounded-xl shadow-lg hover:shadow-xl transition-shadow text-center ring-1 ring-inset ring-gray-900/5">
+                    <CheckCircle className="h-6 w-6 text-green-500 mx-auto mb-3" />
+                    <span className="font-medium text-gray-800 text-sm">{benefit.text}</span>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
@@ -312,7 +309,7 @@ export default function Home() {
         </section>
 
         {/* Workflow Section */}
-        <section id="workflow" className="py-24 bg-white">
+        <section id="workflow" className="py-24 bg-gray-50">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-16">
               <h2 className="text-3xl font-bold">Your Seamless Path from Idea to Impact</h2>
@@ -332,6 +329,21 @@ export default function Home() {
                   </div>
               ))}
             </div>
+          </div>
+        </section>
+
+        {/* Vision Section - New */}
+        <section className="py-16 bg-white">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+            <h2 className="text-3xl md:text-4xl font-bold text-gray-900">
+              Stop Juggling Tools. <span className="text-primary-600">Start Dominating Your Marketing.</span>
+            </h2>
+            <p className="mt-4 text-lg md:text-xl text-gray-700 leading-relaxed">
+              Traditional project management is janky, disjointed, and disconnected from your critical platforms—ad managers, email, e-commerce. Marketing teams are forced to fit square pegs into round holes, wrestling with a patchwork of Sheets, ClickUp, Asana, Notion, and manually bridging gaps with VAs. Reviews are scattered across Frame.io, Google Drive, and Slack. Influencer hiring means tedious searches on Backstage. Teams work in silos, and brilliant ideas get lost in the chaos.
+            </p>
+            <p className="mt-6 text-xl md:text-2xl text-gray-800 font-semibold">
+              {productName} is built to change that. We are the <span className="text-primary-600">all-in-one, AI-powered command center</span> where modern marketing teams unite to run their entire operation—from ideation to execution and analysis—seamlessly.
+            </p>
           </div>
         </section>
 
@@ -359,7 +371,7 @@ export default function Home() {
           </div>
         </section>
 
-        {/* PowerFrame AI Wireframing Highlight - New Section */}
+        {/* PowerFrame AI Wireframing Highlight */}
         <section id="powerframe" className="py-24 bg-white">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="grid lg:grid-cols-2 gap-12 items-center">
@@ -423,7 +435,7 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Team Sync & Performance Highlight - New Section */}
+        {/* Team Sync & Performance Highlight */}
         <section id="teamsync" className="py-24 bg-gray-50">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="grid lg:grid-cols-2 gap-12 items-center">
@@ -697,94 +709,124 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Footer Section */}
-        <footer className="bg-gray-50 border-t border-gray-200">
-          <div className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+        {/* Footer Section - Enhanced */}
+        <footer className="bg-gray-900 text-gray-400">
+          <div className="max-w-7xl mx-auto py-16 px-4 sm:px-6 lg:px-8">
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-8 mb-12">
+              <div className="col-span-2 md:col-span-4 lg:col-span-1 mb-8 lg:mb-0">
+                <Link href="/" className="inline-block mb-6">
+                  <Image 
+                    src="/images/powerbrief-logo.png"
+                    alt={`${productName} Logo`}
+                    width={150} 
+                    height={36}
+                    className="object-contain filter invert brightness-0 saturate-100%"
+                  />
+                </Link>
+                <p className="text-sm mb-6">
+                  The AI-Powered Platform For Modern Marketing Teams.
+                </p>
+                <div className="flex space-x-5">
+                  <Link href="#" className="text-gray-400 hover:text-white"><span className="sr-only">Twitter</span><Twitter size={20}/></Link>
+                  <Link href="#" className="text-gray-400 hover:text-white"><span className="sr-only">LinkedIn</span><Linkedin size={20}/></Link>
+                  <Link href="#" className="text-gray-400 hover:text-white"><span className="sr-only">Instagram</span><Instagram size={20}/></Link>
+                  <Link href="#" className="text-gray-400 hover:text-white"><span className="sr-only">YouTube</span><Youtube size={20}/></Link>
+                </div>
+              </div>
               <div>
-                <h4 className="text-sm font-semibold text-gray-900">Product</h4>
-                <ul className="mt-4 space-y-2">
+                <h4 className="text-sm font-semibold text-gray-200 tracking-wider uppercase mb-4">Product</h4>
+                <ul className="space-y-3">
                   <li>
-                    <Link href="#features" className="text-gray-600 hover:text-gray-900">
+                    <Link href="#features" className="hover:text-white transition-colors duration-200">
                       All Features
                     </Link>
                   </li>
                   <li>
-                    <Link href="#workflow" className="text-gray-600 hover:text-gray-900">
+                    <Link href="#workflow" className="hover:text-white transition-colors duration-200">
                       Workflow
                     </Link>
                   </li>
                   <li>
-                    <Link href="#pricing" className="text-gray-600 hover:text-gray-900">
+                    <Link href="#pricing" className="hover:text-white transition-colors duration-200">
                       Pricing
+                    </Link>
+                  </li>
+                   <li>
+                    <Link href="#coming-soon" className="hover:text-white transition-colors duration-200">
+                      Coming Soon
                     </Link>
                   </li>
                 </ul>
               </div>
               <div>
-                <h4 className="text-sm font-semibold text-gray-900">Key Solutions</h4>
-                <ul className="mt-4 space-y-2">
+                <h4 className="text-sm font-semibold text-gray-200 tracking-wider uppercase mb-4">Key Solutions</h4>
+                <ul className="space-y-3">
                   <li>
-                    <Link href="#powerframe" className="text-gray-600 hover:text-gray-900">
+                    <Link href="#powerframe" className="hover:text-white transition-colors duration-200">
                       PowerFrame AI
                     </Link>
                   </li>
                   <li>
-                    <Link href="#teamsync" className="text-gray-600 hover:text-gray-900">
+                    <Link href="#teamsync" className="hover:text-white transition-colors duration-200">
                       Team Sync
                     </Link>
                   </li>
                   <li>
-                    <Link href="#ugc-pipeline" className="text-gray-600 hover:text-gray-900">
+                    <Link href="#ugc-pipeline" className="hover:text-white transition-colors duration-200">
                       UGC Platform
                     </Link>
                   </li>
                   <li>
-                    <Link href="#review-upload" className="text-gray-600 hover:text-gray-900">
+                    <Link href="#review-upload" className="hover:text-white transition-colors duration-200">
                       Ad Management
                     </Link>
                   </li>
                 </ul>
               </div>
               <div>
-                <h4 className="text-sm font-semibold text-gray-900">Resources</h4>
-                <ul className="mt-4 space-y-2">
+                <h4 className="text-sm font-semibold text-gray-200 tracking-wider uppercase mb-4">Resources</h4>
+                <ul className="space-y-3">
                   <li>
-                    <Link href="#" className="text-gray-600 hover:text-gray-900">
+                    <Link href="#" className="hover:text-white transition-colors duration-200">
                       Documentation
                     </Link>
                   </li>
                   <li>
-                    <Link href="#" className="text-gray-600 hover:text-gray-900">
+                    <Link href="#" className="hover:text-white transition-colors duration-200">
                       Help Center
                     </Link>
                   </li>
                   <li>
-                    <Link href="#" className="text-gray-600 hover:text-gray-900">
+                    <Link href="#" className="hover:text-white transition-colors duration-200">
                       API Reference
+                    </Link>
+                  </li>
+                   <li>
+                    <Link href="#" className="hover:text-white transition-colors duration-200">
+                      Blog
                     </Link>
                   </li>
                 </ul>
               </div>
               <div>
-                <h4 className="text-sm font-semibold text-gray-900">Legal</h4>
-                <ul className="mt-4 space-y-2">
+                <h4 className="text-sm font-semibold text-gray-200 tracking-wider uppercase mb-4">Legal</h4>
+                <ul className="space-y-3">
                   <li>
-                    <Link href="/legal/privacy" className="text-gray-600 hover:text-gray-900">
+                    <Link href="/legal/privacy" className="hover:text-white transition-colors duration-200">
                       Privacy
                     </Link>
                   </li>
                   <li>
-                    <Link href="/legal/terms" className="text-gray-600 hover:text-gray-900">
+                    <Link href="/legal/terms" className="hover:text-white transition-colors duration-200">
                       Terms
                     </Link>
                   </li>
                 </ul>
               </div>
             </div>
-            <div className="mt-8 pt-8 border-t border-gray-200">
-              <p className="text-center text-gray-600">
-                © {new Date().getFullYear()} {productName}. All rights reserved.
+            <div className="mt-12 pt-8 border-t border-gray-700 text-center">
+              <p className="text-sm">
+                &copy; {new Date().getFullYear()} {productName}. All rights reserved.
               </p>
             </div>
           </div>
