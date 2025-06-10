@@ -398,9 +398,91 @@ export default function PowerBriefSigningInterface({
   const progress = requiredFields.length > 0 ? (completedRequiredFields.length / requiredFields.length) * 100 : 100;
 
   return (
-    <div className={`grid grid-cols-12 gap-6 ${className}`}>
-      {/* Left Panel - Progress & Instructions */}
-      <div className="col-span-4 space-y-6">
+    <div className={`flex flex-col lg:grid lg:grid-cols-12 gap-4 lg:gap-6 ${className}`}>
+      {/* Mobile Header - Compact Progress & Info */}
+      <div className="lg:hidden">
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h3 className="font-medium text-base">{contractData.title}</h3>
+                <p className="text-xs text-gray-600">Welcome, {recipientInfo.name}</p>
+              </div>
+              <div className="text-right">
+                <div className="text-xs text-gray-500">Progress</div>
+                <div className="text-sm font-medium">{completedRequiredFields.length} of {requiredFields.length}</div>
+              </div>
+            </div>
+            
+            <div className="w-full bg-gray-200 rounded-full h-2 mb-3">
+              <div 
+                className="bg-blue-600 h-2 rounded-full transition-all"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+
+            <Alert className="mb-3">
+              <AlertDescription className="text-xs">
+                Fill in the highlighted fields on the document, then complete your signature.
+              </AlertDescription>
+            </Alert>
+
+            {/* Complete Button for Mobile */}
+            <Button 
+              className="w-full h-12 text-base"
+              onClick={handleCompleteSigning}
+              disabled={isCompleting || completedRequiredFields.length < requiredFields.length}
+            >
+              {isCompleting ? (
+                'Completing...'
+              ) : (
+                <div className="flex items-center">
+                  <Send className="h-5 w-5 mr-2" />
+                  Complete Contract
+                </div>
+              )}
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Document Panel - Takes full width on mobile, 8 cols on desktop */}
+      <div className="lg:col-span-8 lg:order-2">
+        <Card className="overflow-hidden">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg lg:text-xl">Document</CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="h-[50vh] lg:h-[80vh]">
+              <PowerBriefPDFViewer
+                documentData={pdfViewerDocumentData}
+                className="h-full"
+                showToolbar={true}
+                enableFieldPlacement={false}
+                fields={recipientFields.map(field => ({
+                  id: field.id,
+                  type: field.type,
+                  page: field.page,
+                  positionX: field.positionX,
+                  positionY: field.positionY,
+                  width: field.width,
+                  height: field.height,
+                  recipientId: field.recipientId,
+                  recipientEmail: field.recipientEmail,
+                  value: fieldValues[field.id],
+                  placeholder: field.placeholder,
+                  required: field.required,
+                }))}
+                isSigningMode={true}
+                renderInteractiveElement={renderFieldInput}
+              />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Desktop Sidebar - Hidden on mobile */}
+      <div className="hidden lg:block lg:col-span-4 lg:order-1 space-y-6">
         <Card>
           <CardHeader>
             <CardTitle>PowerBrief Contract</CardTitle>
@@ -494,36 +576,36 @@ export default function PowerBriefSigningInterface({
         </Card>
       </div>
 
-      {/* Right Panel - Document with Fields */}
-      <div className="col-span-8">
-        <Card className="h-full overflow-hidden">
-          <CardHeader>
-            <CardTitle>Document</CardTitle>
+      {/* Mobile Field List - Collapsible */}
+      <div className="lg:hidden">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Required Fields ({completedRequiredFields.length}/{requiredFields.length})</CardTitle>
           </CardHeader>
-          <CardContent className="p-0 h-full">
-            {/* Use memoized document data to prevent reloads */}
-            <PowerBriefPDFViewer
-              documentData={pdfViewerDocumentData}
-              className="h-full"
-              showToolbar={true}
-              enableFieldPlacement={false}
-              fields={recipientFields.map(field => ({
-                id: field.id,
-                type: field.type,
-                page: field.page,
-                positionX: field.positionX,
-                positionY: field.positionY,
-                width: field.width,
-                height: field.height,
-                recipientId: field.recipientId,
-                recipientEmail: field.recipientEmail,
-                value: fieldValues[field.id],
-                placeholder: field.placeholder,
-                required: field.required,
-              }))}
-              isSigningMode={true}
-              renderInteractiveElement={renderFieldInput}
-            />
+          <CardContent>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {recipientFields.map((field) => {
+                const Icon = getFieldIcon(field.type);
+                const isCompleted = !!fieldValues[field.id];
+                
+                return (
+                  <div
+                    key={field.id}
+                    className={`flex items-center p-2 rounded-lg border text-xs ${
+                      isCompleted ? 'border-green-200 bg-green-50' : 'border-gray-200'
+                    }`}
+                  >
+                    <Icon className={`h-3 w-3 mr-2 ${isCompleted ? 'text-green-600' : 'text-gray-400'}`} />
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium capitalize truncate">{field.type}</div>
+                    </div>
+                    {isCompleted && (
+                      <CheckCircle className="h-3 w-3 text-green-600 ml-1" />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </CardContent>
         </Card>
       </div>
