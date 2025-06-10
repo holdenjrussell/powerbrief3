@@ -877,6 +877,10 @@ This email was sent by ${brandName} via PowerBrief Contract System.
     recipient: ContractRecipient,
     brandName: string
   ): { html: string; text: string } {
+    // Construct proper download URL
+    const baseUrl = process.env.NEXT_PUBLIC_WEBAPP_URL || process.env.VERCEL_URL || 'http://localhost:3000';
+    const downloadUrl = `${baseUrl}/public/contracts/download/${contract.id}?token=${contract.share_token}`;
+    
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <h2>✅ Contract Completed</h2>
@@ -886,7 +890,7 @@ This email was sent by ${brandName} via PowerBrief Contract System.
         <p><strong>Completed on:</strong> ${contract.completed_at ? new Date(contract.completed_at).toLocaleDateString() : 'N/A'}</p>
         <p>You can download a copy of the completed contract using the secure link below:</p>
         <div style="text-align: center; margin: 30px 0;">
-          <a href="${process.env.NEXT_PUBLIC_WEBAPP_URL}/public/contracts/download/${contract.id}?token=${contract.share_token}" 
+          <a href="${downloadUrl}" 
              style="background-color: #28a745; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block;">
             Download Completed Contract
           </a>
@@ -912,7 +916,7 @@ All required signatures have been collected and the document is now legally bind
 Completed on: ${contract.completed_at ? new Date(contract.completed_at).toLocaleDateString() : 'N/A'}
 
 You can download a copy of the completed contract using this link:
-${process.env.NEXT_PUBLIC_WEBAPP_URL}/public/contracts/download/${contract.id}?token=${contract.share_token}
+${downloadUrl}
 
 Thank you for your participation in this contract signing process.
 

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerAdminClient } from '@/lib/supabase/serverAdminClient';
-import { ContractService } from '@/lib/services/contractService';
 import sgMail from '@sendgrid/mail';
 
 interface SubmitSigningRequest {
@@ -63,8 +62,11 @@ async function sendFallbackCompletionEmail(supabase: Awaited<ReturnType<typeof c
       ? `${brand.email_identifier}@mail.powerbrief.ai`
       : 'noreply@powerbrief.ai';
 
-    const downloadUrl = `${process.env.NEXT_PUBLIC_WEBAPP_URL}/public/contracts/download/${contractId}?token=${contract.share_token}`;
+    // Construct proper download URL
+    const baseUrl = process.env.NEXT_PUBLIC_WEBAPP_URL || process.env.VERCEL_URL || 'http://localhost:3000';
+    const downloadUrl = `${baseUrl}/public/contracts/download/${contractId}?token=${contract.share_token}`;
 
+    console.log('[Contract Submit] Download URL constructed:', downloadUrl);
     console.log('[Contract Submit] Sending email from:', fromEmail, 'reply-to:', replyToEmail, 'to:', recipient.email);
 
     const html = `
@@ -255,88 +257,41 @@ export async function POST(request: NextRequest) {
       console.error('Error marking token as used:', tokenUpdateError);
     }
 
-    // 6. Get field types from database and use ContractService for completion
-    console.log('[Contract Submit] Starting ContractService integration...');
-    try {
-      // Get field types from database
-      console.log('[Contract Submit] Fetching field types from database...');
-      const { data: contractFields, error: fieldsError } = await supabase
-        .from('contract_fields')
-        .select('id, type')
-        .eq('contract_id', contractId)
-        .eq('recipient_id', recipientId);
+    // 6. Skip ContractService for now due to token system mismatch, use fallback completion
+    console.log('[Contract Submit] Skipping ContractService integration due to token system mismatch...');
+    
+    // Use fallback completion logic directly
+    console.log('[Contract Submit] Using manual completion logic...');
+    
+    // Check if all recipients have signed
+    const { data: allRecipients, error: recipientsError } = await supabase
+      .from('contract_recipients')
+      .select('status')
+      .eq('contract_id', contractId);
 
-      if (fieldsError) {
-        console.error('[Contract Submit] Error fetching field types:', fieldsError);
-        throw new Error(`Failed to get field types: ${fieldsError.message}`);
-      }
+    console.log('[Contract Submit] Checking completion status, recipients:', allRecipients?.map(r => r.status));
 
-      console.log('[Contract Submit] Field types fetched:', contractFields?.map(f => ({ id: f.id, type: f.type })));
-
-      // Map field values with their correct types
-      const signatures = Object.entries(fieldValues).map(([fieldId, value]) => {
-        const field = contractFields?.find(f => f.id === fieldId);
-        const signature = {
-          fieldId,
-          value,
-          type: field?.type || 'signature'
-        };
-        console.log(`[Contract Submit] Mapped signature:`, { fieldId, type: signature.type, valueLength: value?.length });
-        return signature;
-      });
-
-      console.log('[Contract Submit] Creating ContractService instance...');
-      const contractService = ContractService.getInstance();
+    if (!recipientsError && allRecipients) {
+      const allSigned = allRecipients.every(r => r.status === 'signed');
+      console.log('[Contract Submit] All recipients signed:', allSigned);
       
-      console.log('[Contract Submit] Calling ContractService.submitSignature...');
-      // This will handle PDF flattening, completion status, and email sending
-      await contractService.submitSignature(
-        contractId,
-        recipientId,
-        token,
-        signatures,
-        ipAddress,
-        userAgent
-      );
-      
-      console.log(`[Contract Submit] Contract completion handled successfully by ContractService for ${contractId}`);
-    } catch (contractServiceError) {
-      console.error('[Contract Submit] Error with ContractService completion:', contractServiceError);
-      console.error('[Contract Submit] ContractService error stack:', contractServiceError.stack);
-      
-      // Fallback to manual completion if ContractService fails
-      console.log('[Contract Submit] Using fallback completion logic...');
-      
-      // Check if all recipients have signed
-      const { data: allRecipients, error: recipientsError } = await supabase
-        .from('contract_recipients')
-        .select('status')
-        .eq('contract_id', contractId);
+      if (allSigned) {
+        console.log('[Contract Submit] Updating contract to completed status...');
+        const { error: contractUpdateError } = await supabase
+          .from('contracts')
+          .update({ 
+            status: 'completed',
+            completed_at: new Date().toISOString()
+          })
+          .eq('id', contractId);
 
-      console.log('[Contract Submit] Checking completion status, recipients:', allRecipients?.map(r => r.status));
-
-      if (!recipientsError && allRecipients) {
-        const allSigned = allRecipients.every(r => r.status === 'signed');
-        console.log('[Contract Submit] All recipients signed:', allSigned);
-        
-        if (allSigned) {
-          console.log('[Contract Submit] Updating contract to completed status...');
-          const { error: contractUpdateError } = await supabase
-            .from('contracts')
-            .update({ 
-              status: 'completed',
-              completed_at: new Date().toISOString()
-            })
-            .eq('id', contractId);
-
-          if (contractUpdateError) {
-            console.error('[Contract Submit] Error updating contract status:', contractUpdateError);
-          } else {
-            console.log('[Contract Submit] Contract marked as completed');
-            
-            // Attempt to send completion email as fallback
-            await sendFallbackCompletionEmail(supabase, contractId, recipientId);
-          }
+        if (contractUpdateError) {
+          console.error('[Contract Submit] Error updating contract status:', contractUpdateError);
+        } else {
+          console.log('[Contract Submit] Contract marked as completed');
+          
+          // Send completion email
+          await sendFallbackCompletionEmail(supabase, contractId, recipientId);
         }
       }
     }
