@@ -9,13 +9,13 @@
 import React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ArrowRight, Sparkles, FileText, Briefcase, Share2, Users, Video, MessageSquare, Upload, Zap, CheckCircle, Play, Eye, Send } from 'lucide-react';
+import { ArrowRight, Sparkles, Users, MessageSquare, Upload, CheckCircle, LibraryBig, DraftingCompass, BarChartBig, LocateFixed, ScrollText, FileSignature, Workflow as WorkflowIcon, Bot, Lightbulb, ListChecks, MessageCircle as MessageCircleIcon, Rocket, Edit3, ScanSearch, LayoutDashboard, TrendingUp, Megaphone as MegaphoneIcon, AlertOctagon as AlertOctagonIcon, ClipboardList as ClipboardListIcon, Film, FlaskConical, Swords, Calculator, Store, ShoppingCart, CalendarDays, Presentation as PresentationIcon } from 'lucide-react';
 import AuthAwareButtons from '@/components/AuthAwareButtons';
 import HomePricing from "@/components/HomePricing";
 
 export default function Home() {
   // Get product name from environment variables or use default
-  const productName = process.env.NEXT_PUBLIC_PRODUCTNAME || 'PowerBrief';
+  const productName = process.env.NEXT_PUBLIC_PRODUCTNAME || 'PowerBrief AI';
 
   /**
    * Core feature cards configuration
@@ -24,52 +24,76 @@ export default function Home() {
    */
   const coreFeatures = [
     {
-      icon: Briefcase,
-      title: 'Brand Management',
-      description: 'Organize all your brand information, guidelines, and audience details in one centralized hub',
-      color: 'text-blue-600'
+      icon: LibraryBig,
+      title: 'Unified Content Briefing',
+      description: 'Brief everything: ads, emails, SMS, web assets, organic social, and more, all in one place.',
+      color: 'text-sky-600'
     },
     {
       icon: Sparkles,
       title: 'AI-Powered Concepts',
-      description: 'Generate compelling ad concepts with AI assistance to speed up your creative process',
+      description: 'Generate compelling ad concepts with AI assistance to speed up your creative process.',
       color: 'text-purple-600'
     },
     {
-      icon: FileText,
-      title: 'Structured Briefs',
-      description: 'Create detailed, structured ad briefs with scene-by-scene descriptions for video production',
-      color: 'text-green-600'
+      icon: DraftingCompass,
+      title: 'PowerFrame AI Wireframing',
+      description: 'Instantly turn competitor sites into wireframes with our unique AI-powered whiteboard tool.',
+      color: 'text-amber-600'
     },
     {
       icon: Users,
-      title: 'UGC Creator Pipeline',
-      description: 'Seamlessly onboard, manage, and assign scripts to UGC creators with automated workflows',
+      title: 'Advanced UGC Pipeline',
+      description: 'Onboard, manage, communicate (Email/SMS), sign contracts, and automate UGC workflows with AI assistance.',
       color: 'text-pink-600'
     },
     {
-      icon: Video,
-      title: 'Video Editor Submissions',
-      description: 'Streamlined submission and upload process for video editors with asset management',
-      color: 'text-indigo-600'
-    },
-    {
       icon: MessageSquare,
-      title: 'Ad Review & Feedback',
-      description: 'Advanced review tool with timeline comments - a complete Frame.io replacement',
+      title: 'Asset Review & Collaboration',
+      description: 'Advanced review for all asset types with timeline comments. A complete Frame.io replacement.',
       color: 'text-orange-600'
     },
     {
       icon: Upload,
-      title: 'Meta Ad Uploader',
-      description: 'Bulk upload hundreds of approved ads directly to Meta with one click',
+      title: 'Smart Ad Uploader',
+      description: 'Bulk upload ads to Meta with AI copy generation, thumbnail selection, and more.',
       color: 'text-red-600'
     },
     {
-      icon: Share2,
-      title: 'Public UGC Scripts',
-      description: 'Auto-formatted public scripts that creators can access and use immediately',
-      color: 'text-teal-600'
+      icon: BarChartBig,
+      title: 'Team Sync & Performance',
+      description: 'Align your team with scorecards, announcements, issue tracking, and to-dos. The Ninety.io alternative.',
+      color: 'text-lime-600'
+    },
+    {
+      icon: LocateFixed,
+      title: 'AdRipper',
+      description: 'Gain competitive insights by analyzing successful ad creatives in your market.',
+      color: 'text-cyan-600'
+    },
+    {
+      icon: ScrollText,
+      title: 'SOP Management',
+      description: 'Create, store, and manage your Standard Operating Procedures directly within the platform.',
+      color: 'text-slate-600'
+    },
+    {
+      icon: FileSignature,
+      title: 'Integrated Document Signing',
+      description: 'Replace DocuSign/PandaDoc with built-in, legally binding document signing for creators.',
+      color: 'text-emerald-600'
+    },
+    {
+      icon: WorkflowIcon,
+      title: 'AI Workflow Automation',
+      description: 'Build custom, AI-driven drag-and-drop workflows for your UGC and creative processes.',
+      color: 'text-violet-600'
+    },
+    {
+      icon: Bot,
+      title: 'AI Task Assistant',
+      description: 'Your virtual paid influencer manager: handles communication, contracts, shipments, and reviews.',
+      color: 'text-rose-600'
     }
   ];
 
@@ -79,30 +103,37 @@ export default function Home() {
   const workflowSteps = [
     {
       step: '01',
-      title: 'Create & Generate',
-      description: 'Use AI to generate compelling ad concepts and structured briefs',
-      icon: Sparkles,
+      title: 'Ideate & Brief',
+      description: 'Spark creativity with AI concept generation and create detailed multi-channel briefs.',
+      icon: Lightbulb,
       color: 'bg-purple-100 text-purple-600'
     },
     {
       step: '02',
-      title: 'Assign to Creators',
-      description: 'Seamlessly assign scripts to UGC creators through our management pipeline',
-      icon: Users,
+      title: 'Manage & Assign',
+      description: 'Organize projects, assign tasks to team members or UGC creators, and track progress seamlessly.',
+      icon: ListChecks,
       color: 'bg-pink-100 text-pink-600'
     },
     {
       step: '03',
-      title: 'Review & Feedback',
-      description: 'Use our advanced review tool with timeline comments for precise feedback',
-      icon: Eye,
+      title: 'Collaborate & Revise',
+      description: 'Utilize advanced review tools for feedback, comments, and revisions on all asset types.',
+      icon: MessageCircleIcon,
       color: 'bg-orange-100 text-orange-600'
     },
     {
       step: '04',
-      title: 'Bulk Upload to Meta',
-      description: 'Upload hundreds of approved ads to Meta advertising platform instantly',
-      icon: Send,
+      title: 'Approve & Deliver',
+      description: 'Finalize assets, secure approvals, and prepare for launch with integrated delivery tools.',
+      icon: CheckCircle,
+      color: 'bg-green-100 text-green-600'
+    },
+    {
+      step: '05',
+      title: 'Launch to Meta Fast',
+      description: 'Export approved ads directly to the Ad Uploader and go live on Meta in minutes.',
+      icon: Rocket,
       color: 'bg-red-100 text-red-600'
     }
   ];
@@ -113,10 +144,70 @@ export default function Home() {
    * KEYWORDS: stats, statistics, metrics
    */
   const stats = [
-    { label: 'Ad Concepts Created', value: '10K+' },
-    { label: 'UGC Creators Managed', value: '500+' },
-    { label: 'Hours Saved Weekly', value: '2000+' },
-    { label: 'Ads Uploaded to Meta', value: '50K+' }
+    { label: 'Content Types Briefed', value: '12+' },
+    { label: 'Marketing Workflows Automated', value: '1000s' },
+    { label: 'Teams Operating Efficiently', value: '500+' },
+    { label: 'Assets Managed & Delivered', value: '1M+' }
+  ];
+
+  /**
+   * Coming Soon features configuration
+   */
+  const comingSoonFeatures = [
+    {
+      icon: Film,
+      title: 'VEO 3 AI Video Integration',
+      description: "Harness Google's cutting-edge video generation. VEO 3 will be integrated directly into briefs, allowing AI to automatically generate B-roll for editors and create hyper-realistic draft visuals, revolutionizing your video production workflow.",
+      color: 'text-blue-500'
+    },
+    {
+      icon: FlaskConical,
+      title: 'Product Development Suite',
+      description: 'Unlock advanced tools for product innovation, including in-depth ingredient and formulation research, development tracking, and analysis to bring your next groundbreaking product to market faster and smarter.',
+      color: 'text-teal-500'
+    },
+    {
+      icon: Swords,
+      title: 'PowerKombat™ Competitor Intel',
+      description: 'Gain a decisive edge with deep-dive competitor analysis. PowerKombat™ will offer detailed comparisons of competitor products, ingredients, components, features, and overall market strategies.',
+      color: 'text-red-500'
+    },
+    {
+      icon: Calculator,
+      title: 'Integrated Financial Planning',
+      description: 'Forecast success with a comprehensive suite of financial tools: MSRP & break-even point analysis, sales projections, demand forecasting, and robust financial modeling capabilities, all within PowerBrief.',
+      color: 'text-green-500'
+    },
+    {
+      icon: Store,
+      title: 'UGC Creator Marketplace & Hub',
+      description: "A dedicated public database where UGC creators can apply and build profiles. Brands can discover, vet, and hire top talent directly, similar to Backstage, but seamlessly integrated with PowerBrief's UGC pipeline and management tools.",
+      color: 'text-purple-500'
+    },
+    {
+      icon: CalendarDays,
+      title: 'PowerCalendar: Integrated Scheduling',
+      description: "Calendly-like scheduling, seamlessly integrated within PowerBrief for all your team, client, and creator meeting needs.",
+      color: 'text-indigo-500'
+    }
+  ];
+
+  /**
+   * Ecosystem features configuration
+   */
+  const ecosystemFeatures = [
+    {
+      icon: ShoppingCart,
+      title: 'PowerShop.ai: AI-Powered Commerce',
+      description: "The AI-first Shopify alternative: AI-generated themes (via PowerFrame), an AI coding assistant in a browser-based IDE, plus integrated e-commerce essentials for effortless scaling.",
+      color: 'text-orange-500'
+    },
+    {
+      icon: PresentationIcon,
+      title: 'PowerReports & PowerInsights: Deep Analytics',
+      description: "Gain Motion/Atria-level insights with customizable, Meta-integrated reports. Features flexible timeframes, advanced filtering, and clear data visualizations for actionable ad performance and team productivity data.",
+      color: 'text-cyan-500'
+    }
   ];
 
   return (
@@ -165,30 +256,41 @@ export default function Home() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center">
               <h1 className="text-5xl md:text-6xl font-bold tracking-tight">
-                Complete UGC & Ad Creative
-                <span className="block text-primary-600">Management Platform</span>
+                The AI-Powered Platform For Modern<span className="block text-primary-600">Marketing Teams</span> 
               </h1>
               <p className="mt-6 text-xl text-gray-600 max-w-4xl mx-auto">
-                From AI-powered concept generation to UGC creator management, video review, and bulk Meta ad uploads. 
-                The only platform you need for your entire creative workflow.
+                {productName} centralizes your entire marketing workflow. From multi-channel briefing (ads, email, web, social) 
+                and AI wireframing with PowerFrame, to team collaboration, ad creation, UGC management, and direct Meta uploads.
               </p>
               <div className="mt-10 flex gap-4 justify-center">
                 <AuthAwareButtons />
               </div>
               
               {/* Key Benefits */}
-              <div className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto">
+              <div className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
                 <div className="flex items-center justify-center space-x-3 text-gray-600">
                   <CheckCircle className="h-5 w-5 text-green-500" />
-                  <span>Replace Frame.io</span>
+                  <span>Brief Any Asset Type</span>
                 </div>
                 <div className="flex items-center justify-center space-x-3 text-gray-600">
                   <CheckCircle className="h-5 w-5 text-green-500" />
-                  <span>Manage 500+ UGC Creators</span>
+                  <span>AI-Powered Wireframing</span>
                 </div>
                 <div className="flex items-center justify-center space-x-3 text-gray-600">
                   <CheckCircle className="h-5 w-5 text-green-500" />
-                  <span>Bulk Upload to Meta</span>
+                  <span>Streamline Team Collaboration</span>
+                </div>
+                <div className="flex items-center justify-center space-x-3 text-gray-600 md:col-span-1">
+                  <CheckCircle className="h-5 w-5 text-green-500" />
+                  <span>Automate UGC Workflows</span>
+                </div>
+                <div className="flex items-center justify-center space-x-3 text-gray-600 md:col-span-1">
+                  <CheckCircle className="h-5 w-5 text-green-500" />
+                  <span>Replace Multiple Tools</span>
+                </div>
+                <div className="flex items-center justify-center space-x-3 text-gray-600 md:col-span-1">
+                  <CheckCircle className="h-5 w-5 text-green-500" />
+                  <span>Launch Ads in Minutes</span>
                 </div>
               </div>
             </div>
@@ -213,12 +315,12 @@ export default function Home() {
         <section id="workflow" className="py-24 bg-white">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-16">
-              <h2 className="text-3xl font-bold">Complete Creative Workflow</h2>
+              <h2 className="text-3xl font-bold">Your Seamless Path from Idea to Impact</h2>
               <p className="mt-4 text-xl text-gray-600">
-                From concept to Meta ads in 4 simple steps
+                PowerBrief AI streamlines your entire marketing lifecycle, from initial concept to live campaigns.
               </p>
             </div>
-            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+            <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-8">
               {workflowSteps.map((step, index) => (
                   <div key={index} className="text-center">
                     <div className={`inline-flex items-center justify-center w-16 h-16 rounded-full ${step.color} mb-4`}>
@@ -237,9 +339,9 @@ export default function Home() {
         <section id="features" className="py-24 bg-gray-50">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-16">
-              <h2 className="text-3xl font-bold">Everything You Need in One Platform</h2>
+              <h2 className="text-3xl font-bold">A Full Suite of AI-Powered Marketing Tools</h2>
               <p className="mt-4 text-xl text-gray-600">
-                Powerful features that replace multiple tools and streamline your entire creative process
+                {productName} replaces a dozen tools, bringing all your marketing creation, collaboration, and management into one intelligent platform.
               </p>
             </div>
             <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
@@ -257,48 +359,63 @@ export default function Home() {
           </div>
         </section>
 
-        {/* UGC Pipeline Highlight */}
-        <section className="py-24 bg-gradient-to-r from-pink-50 to-purple-50">
+        {/* PowerFrame AI Wireframing Highlight - New Section */}
+        <section id="powerframe" className="py-24 bg-white">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="grid lg:grid-cols-2 gap-12 items-center">
               <div>
-                <h2 className="text-3xl font-bold mb-6">UGC Creator Pipeline</h2>
+                <h2 className="text-3xl font-bold mb-6">Visualize Success with PowerFrame AI</h2>
                 <p className="text-xl text-gray-600 mb-8">
-                  Seamlessly manage hundreds of UGC creators with automated onboarding, script assignment, 
-                  and submission handling. Public-facing scripts are automatically formatted for easy creator access.
+                  Revolutionize your web design process. Upload competitor sites or existing designs, and let PowerFrame AI instantly generate interactive wireframes. 
+                  Collaborate on our unique digital whiteboard for rapid prototyping.
                 </p>
                 <ul className="space-y-4">
                   <li className="flex items-center space-x-3">
                     <CheckCircle className="h-5 w-5 text-green-500" />
-                    <span>Automated creator onboarding</span>
+                    <span>AI-Powered Competitor Site Analysis</span>
                   </li>
                   <li className="flex items-center space-x-3">
                     <CheckCircle className="h-5 w-5 text-green-500" />
-                    <span>Script assignment & tracking</span>
+                    <span>Instant Wireframe Generation</span>
                   </li>
                   <li className="flex items-center space-x-3">
                     <CheckCircle className="h-5 w-5 text-green-500" />
-                    <span>Public script formatting</span>
+                    <span>Interactive Digital Whiteboard Tool</span>
                   </li>
                   <li className="flex items-center space-x-3">
                     <CheckCircle className="h-5 w-5 text-green-500" />
-                    <span>Submission review process</span>
+                    <span>Streamlined Web Asset Briefing</span>
                   </li>
                 </ul>
               </div>
-              <div className="bg-white p-8 rounded-2xl shadow-lg">
-                <div className="space-y-4">
-                  <div className="flex items-center space-x-3">
-                    <Users className="h-6 w-6 text-pink-600" />
-                    <span className="font-semibold">500+ Active Creators</span>
+              <div className="bg-gradient-to-br from-amber-50 to-yellow-100 p-8 rounded-2xl">
+                <div className="space-y-6">
+                  <div className="flex items-start space-x-4">
+                    <div className="flex-shrink-0">
+                      <ScanSearch className="h-8 w-8 text-amber-600" />
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-lg">Competitor to Wireframe</h4>
+                      <p className="text-gray-500">Turn any URL into a detailed wireframe in seconds.</p>
+                    </div>
                   </div>
-                  <div className="flex items-center space-x-3">
-                    <FileText className="h-6 w-6 text-purple-600" />
-                    <span className="font-semibold">Auto-formatted Scripts</span>
+                  <div className="flex items-start space-x-4">
+                    <div className="flex-shrink-0">
+                      <DraftingCompass className="h-8 w-8 text-yellow-700" />
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-lg">Unique Whiteboard Canvas</h4>
+                      <p className="text-gray-500">Collaborate and iterate on designs with intuitive tools.</p>
+                    </div>
                   </div>
-                  <div className="flex items-center space-x-3">
-                    <Zap className="h-6 w-6 text-orange-600" />
-                    <span className="font-semibold">Instant Assignment</span>
+                  <div className="flex items-start space-x-4">
+                    <div className="flex-shrink-0">
+                      <LayoutDashboard className="h-8 w-8 text-amber-800" />
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-lg">Rapid Prototyping</h4>
+                      <p className="text-gray-500">Visualize user flows and site structures faster than ever.</p>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -306,56 +423,233 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Review & Upload Highlight */}
-        <section className="py-24 bg-white">
+        {/* Team Sync & Performance Highlight - New Section */}
+        <section id="teamsync" className="py-24 bg-gray-50">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="grid lg:grid-cols-2 gap-12 items-center">
-              <div className="bg-gradient-to-br from-orange-50 to-red-50 p-8 rounded-2xl">
+              <div className="bg-gradient-to-br from-lime-50 to-green-100 p-8 rounded-2xl order-last lg:order-first">
                 <div className="space-y-6">
-                  <div className="flex items-center space-x-3">
-                    <MessageSquare className="h-8 w-8 text-orange-600" />
-                    <span className="text-xl font-semibold">Frame.io Replacement</span>
+                  <div className="flex items-start space-x-4">
+                    <div className="flex-shrink-0">
+                      <TrendingUp className="h-8 w-8 text-lime-600" />
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-lg">Data-Driven Scorecards</h4>
+                      <p className="text-gray-500">Track KPIs and measure team performance effectively.</p>
+                    </div>
                   </div>
-                  <div className="flex items-center space-x-3">
-                    <Play className="h-6 w-6 text-red-600" />
-                    <span>Timeline-based comments</span>
+                  <div className="flex items-start space-x-4">
+                    <div className="flex-shrink-0">
+                      <AlertOctagonIcon className="h-8 w-8 text-green-600" />
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-lg">Proactive Issue Tracking</h4>
+                      <p className="text-gray-500">Identify, discuss, and resolve roadblocks collaboratively.</p>
+                    </div>
                   </div>
-                  <div className="flex items-center space-x-3">
-                    <Eye className="h-6 w-6 text-red-600" />
-                    <span>Advanced review tools</span>
+                  <div className="flex items-start space-x-4">
+                    <div className="flex-shrink-0">
+                      <ClipboardListIcon className="h-8 w-8 text-lime-700" />
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-lg">Organized To-Dos</h4>
+                      <p className="text-gray-500">Manage tasks and ensure accountability across projects.</p>
+                    </div>
                   </div>
-                  <div className="flex items-center space-x-3">
-                    <Upload className="h-6 w-6 text-red-600" />
-                    <span>Direct Meta upload</span>
+                   <div className="flex items-start space-x-4">
+                    <div className="flex-shrink-0">
+                      <MegaphoneIcon className="h-8 w-8 text-green-700" />
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-lg">Clear Announcements</h4>
+                      <p className="text-gray-500">Keep everyone informed and aligned with team updates.</p>
+                    </div>
                   </div>
                 </div>
               </div>
-              <div>
-                <h2 className="text-3xl font-bold mb-6">Review & Upload in One Flow</h2>
+              <div className="lg:order-last">
+                <h2 className="text-3xl font-bold mb-6">Align Your Team, Amplify Results</h2>
                 <p className="text-xl text-gray-600 mb-8">
-                  Our advanced review tool with timeline comments replaces Frame.io completely. 
-                  Once assets are approved, send them directly to the ad uploader and bulk upload 
-                  hundreds of ads to Meta at once.
+                  Bring focus and accountability to your marketing operations. Our Team Sync feature helps you manage scorecards, 
+                  track issues, organize to-dos, and share announcements—a powerful alternative to Ninety.io.
                 </p>
                 <ul className="space-y-4">
                   <li className="flex items-center space-x-3">
                     <CheckCircle className="h-5 w-5 text-green-500" />
-                    <span>Timeline-based video comments</span>
+                    <span>Customizable Scorecards & KPIs</span>
                   </li>
                   <li className="flex items-center space-x-3">
                     <CheckCircle className="h-5 w-5 text-green-500" />
-                    <span>Approval workflow automation</span>
+                    <span>Centralized Issue & Bottleneck Tracking</span>
                   </li>
                   <li className="flex items-center space-x-3">
                     <CheckCircle className="h-5 w-5 text-green-500" />
-                    <span>Bulk Meta ad upload (100s at once)</span>
+                    <span>Actionable To-Do Lists & Task Management</span>
                   </li>
                   <li className="flex items-center space-x-3">
                     <CheckCircle className="h-5 w-5 text-green-500" />
-                    <span>Seamless asset management</span>
+                    <span>Team-Wide Announcements & Updates</span>
                   </li>
                 </ul>
               </div>
+            </div>
+          </div>
+        </section>
+
+        {/* UGC Pipeline Highlight */}
+        <section id="ugc-pipeline" className="py-24 bg-gradient-to-r from-pink-50 to-purple-50">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="grid lg:grid-cols-2 gap-12 items-center">
+              <div>
+                <h2 className="text-3xl font-bold mb-6">Next-Gen UGC Creator Hub</h2>
+                <p className="text-xl text-gray-600 mb-8">
+                  Transform your UGC operations with an AI-powered pipeline. Manage everything from initial outreach 
+                  and contract signing to workflow automation and AI-assisted creator management, all in one place.
+                </p>
+                <ul className="space-y-4">
+                  <li className="flex items-center space-x-3">
+                    <CheckCircle className="h-5 w-5 text-green-500" />
+                    <span>Integrated Email & SMS Communication</span>
+                  </li>
+                  <li className="flex items-center space-x-3">
+                    <CheckCircle className="h-5 w-5 text-green-500" />
+                    <span>Built-in Document Signing (Replaces DocuSign)</span>
+                  </li>
+                  <li className="flex items-center space-x-3">
+                    <CheckCircle className="h-5 w-5 text-green-500" />
+                    <span>AI-Powered Drag & Drop Workflow Builder</span>
+                  </li>
+                  <li className="flex items-center space-x-3">
+                    <CheckCircle className="h-5 w-5 text-green-500" />
+                    <span>AI Agent for Virtual Influencer Management</span>
+                  </li>
+                   <li className="flex items-center space-x-3">
+                    <CheckCircle className="h-5 w-5 text-green-500" />
+                    <span>Automated Onboarding & Product Shipment Tracking</span>
+                  </li>
+                </ul>
+              </div>
+              <div className="bg-white p-8 rounded-2xl shadow-lg">
+                <div className="space-y-6">
+                  <div className="flex items-start space-x-4">
+                    <div className="flex-shrink-0">
+                      <WorkflowIcon className="h-8 w-8 text-violet-600" />
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-lg">Automate Your Process</h4>
+                      <p className="text-gray-500">Design custom UGC workflows with our intuitive drag-and-drop AI builder.</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start space-x-4">
+                    <div className="flex-shrink-0">
+                      <Bot className="h-8 w-8 text-rose-600" />
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-lg">AI Creator Assistant</h4>
+                      <p className="text-gray-500">Let our AI agent handle communications, contracts, and guide creators.</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start space-x-4">
+                    <div className="flex-shrink-0">
+                      <FileSignature className="h-8 w-8 text-emerald-600" />
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-lg">Seamless Contract Signing</h4>
+                      <p className="text-gray-500">No more third-party tools. Handle all creator agreements in-app.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Review & Upload Highlight - Updated */}
+        <section id="review-upload" className="py-24 bg-white">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="grid lg:grid-cols-2 gap-12 items-center">
+              <div className="bg-gradient-to-br from-sky-50 to-blue-100 p-8 rounded-2xl order-last lg:order-first">
+                <div className="space-y-6">
+                  <div className="flex items-start space-x-4">
+                    <div className="flex-shrink-0">
+                        <MessageSquare className="h-8 w-8 text-sky-600" />
+                    </div>
+                    <div>
+                        <h4 className="font-semibold text-lg">Universal Asset Review</h4>
+                        <p className="text-gray-500">Collaborate on ads, emails, web assets, social posts & more with precision feedback tools.</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start space-x-4">
+                    <div className="flex-shrink-0">
+                        <Edit3 className="h-8 w-8 text-blue-600" />
+                    </div>
+                    <div>
+                        <h4 className="font-semibold text-lg">AI-Enhanced Ad Uploader</h4>
+                        <p className="text-gray-500">Generate ad copy, select optimal thumbnails, and prepare campaigns efficiently.</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start space-x-4">
+                    <div className="flex-shrink-0">
+                        <Rocket className="h-8 w-8 text-red-600" />
+                    </div>
+                    <div>
+                        <h4 className="font-semibold text-lg">Direct-to-Meta Launch</h4>
+                        <p className="text-gray-500">Push approved ads live to Meta in minutes, streamlining your campaign deployment.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="lg:order-last">
+                <h2 className="text-3xl font-bold mb-6">Seamless Reviews & Smart Delivery</h2>
+                <p className="text-xl text-gray-600 mb-8">
+                  Review all your creative assets in one collaborative space. Then, leverage our AI-powered Ad Uploader 
+                  for rapid, intelligent campaign launches directly to Meta.
+                </p>
+                <ul className="space-y-4">
+                  <li className="flex items-center space-x-3">
+                    <CheckCircle className="h-5 w-5 text-green-500" />
+                    <span>Centralized review for all marketing assets</span>
+                  </li>
+                  <li className="flex items-center space-x-3">
+                    <CheckCircle className="h-5 w-5 text-green-500" />
+                    <span>Timeline comments & version control</span>
+                  </li>
+                  <li className="flex items-center space-x-3">
+                    <CheckCircle className="h-5 w-5 text-green-500" />
+                    <span>AI Ad Copy Generation & Thumbnail Selection</span>
+                  </li>
+                  <li className="flex items-center space-x-3">
+                    <CheckCircle className="h-5 w-5 text-green-500" />
+                    <span>Bulk ad uploads directly to Meta</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Coming Soon Section - New */}
+        <section id="coming-soon" className="py-24 bg-gray-50">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center mb-16">
+              <h2 className="text-3xl font-bold">What&apos;s Next: The Future of {productName}</h2>
+              <p className="mt-4 text-xl text-gray-600">
+                We&apos;re constantly innovating. Get a sneak peek at some incredible new capabilities coming soon!
+              </p>
+            </div>
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {comingSoonFeatures.map((feature, index) => (
+                  <div
+                      key={index}
+                      className="bg-white p-6 rounded-xl shadow-sm hover:shadow-lg transition-shadow border border-gray-200"
+                  >
+                    <div className="flex items-center space-x-4 mb-4">
+                      <feature.icon className={`h-10 w-10 ${feature.color}`} />
+                      <h3 className="text-xl font-semibold">{feature.title}</h3>
+                    </div>
+                    <p className="text-gray-600">{feature.description}</p>
+                  </div>
+              ))}
             </div>
           </div>
         </section>
@@ -363,14 +657,35 @@ export default function Home() {
         {/* Pricing Section */}
         <HomePricing />
 
+        {/* Ecosystem Vision Section - New */}
+        <section id="ecosystem-vision" className="py-24 bg-white">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center mb-16">
+              <h2 className="text-4xl font-bold tracking-tight text-gray-900">Beyond Briefs: Our Expanding Ecosystem</h2>
+              <p className="mt-4 text-xl text-gray-600 max-w-3xl mx-auto">
+                Our vision extends to a fully integrated suite of AI-powered tools designed to revolutionize how you manage marketing, commerce, and team operations.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-1 lg:grid-cols-2 gap-10">
+              {ecosystemFeatures.map((feature, index) => (
+                <div key={index} className="flex flex-col items-center text-center p-8 bg-gray-50 rounded-2xl shadow-lg hover:shadow-xl transition-shadow">
+                  <feature.icon className={`h-12 w-12 mb-6 ${feature.color}`} />
+                  <h3 className="text-2xl font-semibold text-gray-800 mb-3">{feature.title}</h3>
+                  <p className="text-gray-600 leading-relaxed">{feature.description}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
         {/* Call-to-Action Section */}
         <section className="py-24 bg-primary-600">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
             <h2 className="text-3xl font-bold text-white">
-              Ready to Transform Your Creative Workflow?
+              Ready to Supercharge Your Entire Marketing Lifecycle?
             </h2>
             <p className="mt-4 text-xl text-primary-100">
-              Join marketing teams using {productName} to manage UGC creators, review content, and upload thousands of ads to Meta
+              From AI-powered briefing and wireframing to team sync, UGC automation, and rapid ad deployment—{productName} has you covered.
             </p>
             <Link
                 href="/auth/register"
@@ -391,7 +706,7 @@ export default function Home() {
                 <ul className="mt-4 space-y-2">
                   <li>
                     <Link href="#features" className="text-gray-600 hover:text-gray-900">
-                      Features
+                      All Features
                     </Link>
                   </li>
                   <li>
@@ -407,26 +722,26 @@ export default function Home() {
                 </ul>
               </div>
               <div>
-                <h4 className="text-sm font-semibold text-gray-900">Features</h4>
+                <h4 className="text-sm font-semibold text-gray-900">Key Solutions</h4>
                 <ul className="mt-4 space-y-2">
                   <li>
-                    <Link href="#" className="text-gray-600 hover:text-gray-900">
-                      UGC Pipeline
+                    <Link href="#powerframe" className="text-gray-600 hover:text-gray-900">
+                      PowerFrame AI
                     </Link>
                   </li>
                   <li>
-                    <Link href="#" className="text-gray-600 hover:text-gray-900">
-                      Creator Management
+                    <Link href="#teamsync" className="text-gray-600 hover:text-gray-900">
+                      Team Sync
                     </Link>
                   </li>
                   <li>
-                    <Link href="#" className="text-gray-600 hover:text-gray-900">
-                      Review Tools
+                    <Link href="#ugc-pipeline" className="text-gray-600 hover:text-gray-900">
+                      UGC Platform
                     </Link>
                   </li>
                   <li>
-                    <Link href="#" className="text-gray-600 hover:text-gray-900">
-                      Meta Upload
+                    <Link href="#review-upload" className="text-gray-600 hover:text-gray-900">
+                      Ad Management
                     </Link>
                   </li>
                 </ul>

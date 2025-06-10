@@ -21,7 +21,7 @@ const modules = [
     title: 'PowerBrief: Brand Config',
     description: 'Learn how to set up and configure brand settings, guidelines, and preferences in PowerBrief.',
     icon: Settings,
-    duration: '12 min',
+    duration: '6 min',
     difficulty: 'Beginner',
     topics: ['Brand Setup', 'Guidelines', 'Preferences', 'Assets Management']
   },
@@ -30,7 +30,7 @@ const modules = [
     title: 'Briefs: Creative Strategist Version',
     description: 'Complete guide for creative strategists on creating, managing, and optimizing briefs.',
     icon: FileText,
-    duration: '18 min',
+    duration: '7 min',
     difficulty: 'Intermediate',
     topics: ['Brief Creation', 'Strategy Framework', 'Concept Development', 'Client Communication']
   },

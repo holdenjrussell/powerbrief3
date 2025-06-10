@@ -2,6 +2,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Star, Clock, CheckCircle, AlertCircle, Info, Eye, MessageSquare, RefreshCw, CheckSquare } from 'lucide-react';
+import SOPVideoUpload from '@/components/sops/SOPVideoUpload';
 
 export default function AssetReviewsSOPPage() {
   return (
@@ -40,15 +41,10 @@ export default function AssetReviewsSOPPage() {
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-8">
           <div className="p-6">
             <h2 className="text-xl font-semibold text-gray-900 mb-4">Training Video</h2>
-            <div className="aspect-video bg-gray-100 rounded-lg flex items-center justify-center border-2 border-dashed border-gray-300">
-              <div className="text-center">
-                <div className="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Star className="h-8 w-8 text-primary-600" />
-                </div>
-                <p className="text-gray-600 font-medium">Asset Reviews Training Video</p>
-                <p className="text-gray-500 text-sm mt-1">Review process and quality standards for all content types</p>
-              </div>
-            </div>
+            <SOPVideoUpload 
+              sopId="asset-reviews"
+              isAdmin={true} // TODO: Replace with actual admin check
+            />
           </div>
         </div>
 
