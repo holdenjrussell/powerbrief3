@@ -134,6 +134,12 @@ export default function ContractEditorPage() {
           const result = await response.json();
           console.log('[useEffect] Template fetched successfully. Full response:', JSON.stringify(result, null, 2));
           
+          console.log('[useEffect] === SIMPLE FIELD CHECK ===');
+          console.log('[useEffect] result.template.fields exists?', !!result.template.fields);
+          console.log('[useEffect] result.template.fields value:', result.template.fields);
+          console.log('[useEffect] result.template.fields type:', typeof result.template.fields);
+          console.log('[useEffect] === END SIMPLE FIELD CHECK ===');
+          
           // Process the template data to ensure proper format
           let documentDataBuffer: Uint8Array;
           const rawDocumentData = result.template.document_data;

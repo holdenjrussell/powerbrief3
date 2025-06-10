@@ -28,6 +28,23 @@ export async function GET(
       .eq('id', templateId)
       .single();
 
+    console.log('[API Template GET] === TEMPLATE FETCH DEBUGGING ===');
+    console.log('[API Template GET] Raw template from database:', {
+      id: template?.id,
+      title: template?.title,
+      fields: template?.fields,
+      fieldsType: typeof template?.fields,
+      fieldsExists: !!template?.fields
+    });
+    
+    if (template?.fields) {
+      console.log('[API Template GET] Fields raw value:', template.fields);
+      console.log('[API Template GET] Fields as JSON string:', JSON.stringify(template.fields));
+    } else {
+      console.log('[API Template GET] No fields found in database');
+    }
+    console.log('[API Template GET] === END TEMPLATE FETCH DEBUGGING ===');
+
     if (templateError) {
       console.error('Error fetching template:', templateError);
       return NextResponse.json({ 

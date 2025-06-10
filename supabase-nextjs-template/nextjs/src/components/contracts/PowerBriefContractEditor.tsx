@@ -158,6 +158,8 @@ function SaveTemplateForm({ onSave, fields }: SaveTemplateFormProps) {
         recipientEmail: field.recipientEmail
       });
     });
+    console.log('[SaveTemplateForm] Fields array length:', fields.length);
+    console.log('[SaveTemplateForm] Fields as JSON string:', JSON.stringify(fields, null, 2));
 
     setSaving(true);
     try {
