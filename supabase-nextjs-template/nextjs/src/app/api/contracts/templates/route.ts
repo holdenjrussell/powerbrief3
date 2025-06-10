@@ -51,11 +51,22 @@ export async function POST(request: NextRequest) {
     const brandId = formData.get('brandId') as string;
     const title = formData.get('title') as string;
     const description = formData.get('description') as string;
+    const fields = formData.get('fields') as string;
     const document = formData.get('document') as File;
 
     if (!brandId || !title || !document) {
       return NextResponse.json({ 
         error: 'Brand ID, title, and document file are required' 
+      }, { status: 400 });
+    }
+
+    // Parse fields
+    let parsedFields;
+    try {
+      parsedFields = JSON.parse(fields || '[]');
+    } catch {
+      return NextResponse.json({ 
+        error: 'Invalid fields format' 
       }, { status: 400 });
     }
 
@@ -85,6 +96,7 @@ export async function POST(request: NextRequest) {
         document_data: documentData,
         document_name: document.name,
         document_size: documentData.length,
+        fields: parsedFields,
       },
       brandId,
       user.id

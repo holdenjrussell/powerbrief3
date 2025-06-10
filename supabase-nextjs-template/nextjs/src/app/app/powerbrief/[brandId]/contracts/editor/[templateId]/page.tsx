@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Card, CardContent, CardHeader, CardTitle, Button, Alert, AlertDescription } from '@/components/ui';
-import { ArrowLeft } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle, Button, Alert, AlertDescription, Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, Input, Label, Textarea } from '@/components/ui';
+import { ArrowLeft, FileText } from 'lucide-react';
 import PowerBriefContractEditor from '@/components/contracts/PowerBriefContractEditor';
 
 interface SimpleRecipient {
@@ -45,6 +45,7 @@ interface ContractTemplate {
   description?: string;
   document_data: Uint8Array; // Template data is already Uint8Array
   document_name: string;
+  fields?: SimpleField[];
   created_at: string;
 }
 
@@ -60,6 +61,14 @@ export default function ContractEditorPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+
+  // Save as Template dialog state
+  const [showSaveTemplateDialog, setShowSaveTemplateDialog] = useState(false);
+  const [templateData, setTemplateData] = useState({
+    title: '',
+    description: ''
+  });
+  const [savingTemplate, setSavingTemplate] = useState(false);
 
   // Effect to process new file for viewer data (populates newFileViewerData)
   useEffect(() => {
@@ -113,33 +122,272 @@ export default function ContractEditorPage() {
     return null;
   }, [templateId, uploadedOriginalFile, template, newFileViewerData]);
 
-  // Fetch template logic (simplified for brevity, ensure it sets `template` state)
+  // Fetch template logic
   useEffect(() => {
     setLoading(true);
+    setError(null);
+    
     if (templateId !== 'new') {
-      // Simulate fetching template data
-      // const fetchTemplateData = async () => { // Commenting out unused function
-      //   console.log('[useEffect] Fetching template:', templateId);
-      //   // Replace with actual API call: const fetchedTemplate = await api.fetchTemplate(templateId, brandId);
-      //   // For now, using placeholder if you have one, or ensure `template` state is managed
-      //   // Example: 
-      //   // setTemplate({ id: templateId, title: 'Fetched Template', document_data: new Uint8Array([...]), document_name: 'template.pdf', created_at: new Date().toISOString() });
-      //   setError(null);
-      //   setLoading(false);
-      // };
-      // fetchTemplateData();
-      console.log('[useEffect] In template mode, ensure template state is set. Currently:', template);
-      setLoading(false); // Assume loaded or handled
+      const fetchTemplateData = async () => {
+        try {
+          console.log('[useEffect] Fetching template:', templateId);
+          
+          const response = await fetch(`/api/contracts/templates/${templateId}`);
+          
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || `Failed to fetch template (HTTP ${response.status})`);
+          }
+          
+          const result = await response.json();
+          console.log('[useEffect] Template fetched successfully. Full response:', JSON.stringify(result, null, 2));
+          
+          // Process the template data to ensure proper format
+          let documentDataBuffer: Uint8Array;
+          const rawDocumentData = result.template.document_data;
+          
+          console.log('[useEffect] === PDF DATA DEBUGGING ===');
+          console.log('[useEffect] Raw document_data type:', typeof rawDocumentData);
+          console.log('[useEffect] Raw document_data:', rawDocumentData);
+          
+          if (rawDocumentData === null || rawDocumentData === undefined) {
+            throw new Error('Document data is null or undefined');
+          }
+          
+          if (typeof rawDocumentData === 'string') {
+            console.log('[useEffect] Processing as STRING');
+            console.log('[useEffect] String length:', rawDocumentData.length);
+            console.log('[useEffect] First 100 chars:', rawDocumentData.substring(0, 100));
+            
+            // Check if it's a hex-encoded string (starts with \x)
+            if (rawDocumentData.startsWith('\\x')) {
+              console.log('[useEffect] Detected hex-encoded string, converting...');
+              try {
+                // Remove \x prefixes and convert hex pairs to string
+                const hexString = rawDocumentData.replace(/\\x/g, '');
+                console.log('[useEffect] Cleaned hex string length:', hexString.length);
+                console.log('[useEffect] First 100 hex chars:', hexString.substring(0, 100));
+                
+                // Convert hex to string
+                let jsonString = '';
+                for (let i = 0; i < hexString.length; i += 2) {
+                  const hexPair = hexString.substr(i, 2);
+                  const charCode = parseInt(hexPair, 16);
+                  jsonString += String.fromCharCode(charCode);
+                }
+                
+                console.log('[useEffect] Converted to JSON string, length:', jsonString.length);
+                console.log('[useEffect] JSON string preview:', jsonString.substring(0, 200));
+                
+                // Parse the JSON to get the Buffer object
+                const bufferObject = JSON.parse(jsonString);
+                console.log('[useEffect] Parsed JSON object:', {
+                  type: bufferObject.type,
+                  dataLength: bufferObject.data?.length
+                });
+                
+                if (bufferObject.type === 'Buffer' && Array.isArray(bufferObject.data)) {
+                  documentDataBuffer = new Uint8Array(bufferObject.data);
+                  console.log('[useEffect] Successfully converted hex-encoded Buffer, length:', documentDataBuffer.length);
+                } else {
+                  throw new Error('Parsed object is not a valid Buffer format');
+                }
+              } catch (error) {
+                console.log('[useEffect] Hex decode failed:', error);
+                throw new Error(`Failed to decode hex-encoded document data: ${error}`);
+              }
+            } else {
+              // Check if it looks like base64
+              const isBase64 = /^[A-Za-z0-9+/]*={0,2}$/.test(rawDocumentData);
+              console.log('[useEffect] Looks like base64?', isBase64);
+              
+              if (isBase64 && rawDocumentData.length > 100) {
+                console.log('[useEffect] Attempting base64 decode...');
+                try {
+                  documentDataBuffer = new Uint8Array(Buffer.from(rawDocumentData, 'base64'));
+                  console.log('[useEffect] Base64 decode successful, length:', documentDataBuffer.length);
+                } catch (error) {
+                  console.log('[useEffect] Base64 decode failed:', error);
+                  console.log('[useEffect] Falling back to binary string conversion...');
+                  const binaryString = rawDocumentData;
+                  documentDataBuffer = new Uint8Array(binaryString.length);
+                  for (let i = 0; i < binaryString.length; i++) {
+                    documentDataBuffer[i] = binaryString.charCodeAt(i);
+                  }
+                  console.log('[useEffect] Binary string conversion complete, length:', documentDataBuffer.length);
+                }
+              } else {
+                console.log('[useEffect] Treating as binary string...');
+                const binaryString = rawDocumentData;
+                documentDataBuffer = new Uint8Array(binaryString.length);
+                for (let i = 0; i < binaryString.length; i++) {
+                  documentDataBuffer[i] = binaryString.charCodeAt(i);
+                }
+                console.log('[useEffect] Binary string conversion complete, length:', documentDataBuffer.length);
+              }
+            }
+          } else if (rawDocumentData && typeof rawDocumentData === 'object' && Array.isArray(rawDocumentData.data)) {
+            console.log('[useEffect] Processing as JSON Buffer object');
+            console.log('[useEffect] Buffer type:', rawDocumentData.type);
+            console.log('[useEffect] Data array length:', rawDocumentData.data.length);
+            console.log('[useEffect] First 10 bytes:', rawDocumentData.data.slice(0, 10));
+            
+            documentDataBuffer = new Uint8Array(rawDocumentData.data);
+            console.log('[useEffect] JSON Buffer conversion complete, length:', documentDataBuffer.length);
+          } else if (rawDocumentData instanceof ArrayBuffer || rawDocumentData instanceof Uint8Array) {
+            console.log('[useEffect] Processing as direct binary data');
+            documentDataBuffer = new Uint8Array(rawDocumentData);
+            console.log('[useEffect] Direct binary conversion complete, length:', documentDataBuffer.length);
+          } else {
+            console.log('[useEffect] UNKNOWN FORMAT!');
+            console.log('[useEffect] rawDocumentData constructor:', rawDocumentData.constructor.name);
+            console.log('[useEffect] rawDocumentData keys:', Object.keys(rawDocumentData));
+            throw new Error(`Unknown document data format received from API: ${typeof rawDocumentData}`);
+          }
+          
+          console.log('[useEffect] Final document_data length:', documentDataBuffer.length);
+          
+          if (documentDataBuffer.length === 0) {
+            throw new Error('Document data is empty - PDF file has no content');
+          }
+          
+          // Check if it starts with PDF magic bytes
+          const pdfMagic = documentDataBuffer.slice(0, 4);
+          const pdfMagicString = String.fromCharCode.apply(null, Array.from(pdfMagic));
+          console.log('[useEffect] First 4 bytes (should be %PDF):', pdfMagicString);
+          console.log('[useEffect] First 10 bytes as hex:', Array.from(documentDataBuffer.slice(0, 10)).map(b => b.toString(16).padStart(2, '0')).join(' '));
+          
+          if (pdfMagicString !== '%PDF') {
+            console.error('[useEffect] WARNING: Document does not start with PDF magic bytes!');
+            console.log('[useEffect] This might not be a valid PDF file');
+          } else {
+            console.log('[useEffect] ✓ Document starts with PDF magic bytes - looks like valid PDF');
+          }
+          
+          console.log('[useEffect] === END PDF DATA DEBUGGING ===');
+          
+          const templateData: ContractTemplate = {
+            id: result.template.id,
+            title: result.template.title,
+            description: result.template.description,
+            document_data: documentDataBuffer,
+            document_name: result.template.document_name,
+            created_at: result.template.created_at,
+          };
+          
+          setTemplate(templateData);
+          setError(null);
+          
+        } catch (err) {
+          const errorMessage = err instanceof Error ? err.message : 'Failed to load template';
+          console.error('[useEffect] Error fetching template:', errorMessage, err);
+          setError(errorMessage);
+          setTemplate(null);
+        } finally {
+          setLoading(false);
+        }
+      };
+      
+      fetchTemplateData();
     } else {
       console.log('[useEffect] In new contract mode.');
       setTemplate(null); // Ensure no stale template data
       setLoading(false);
     }
-  }, [brandId, templateId]); // Removed router from deps unless used in actual fetch
+  }, [brandId, templateId]);
 
+
+
+  // Handle save as template callback from editor
   const handleSaveAsTemplate = async (data: { title: string; description?: string; fields: SimpleField[] }) => {
-    console.log('Save as template requested:', data);
-    alert('Template saving functionality will be implemented here.');
+    setSavingTemplate(true);
+    setError(null);
+
+    try {
+      let documentBlobForTemplate: Blob;
+      let documentNameForTemplate: string;
+
+      if (templateId === 'new') {
+        const uof = uploadedOriginalFile;
+        if (!uof || !uof.file || uof.file.size === 0) {
+          const msg = 'No document data found. Please ensure a document is uploaded.';
+          console.error('[handleSaveAsTemplate] Error:', msg);
+          setError(msg);
+          alert(msg);
+          setSavingTemplate(false);
+          return;
+        }
+
+        documentNameForTemplate = uof.name;
+        const arrayBuffer = await uof.file.arrayBuffer();
+        documentBlobForTemplate = new Blob([arrayBuffer], { type: 'application/pdf' });
+
+        if (documentBlobForTemplate.size === 0) {
+          const msg = 'Failed to process the uploaded file. Please try again.';
+          console.error('[handleSaveAsTemplate] Error creating Blob:', msg);
+          setError(msg);
+          alert(msg);
+          setSavingTemplate(false);
+          return;
+        }
+      } else if (template) {
+        documentNameForTemplate = template.document_name || template.title;
+        documentBlobForTemplate = new Blob([template.document_data], { type: 'application/pdf' });
+      } else {
+        const msg = 'No document source available for template creation.';
+        console.error('[handleSaveAsTemplate] Error:', msg);
+        setError(msg);
+        alert(msg);
+        setSavingTemplate(false);
+        return;
+      }
+
+      // Create FormData for the API including fields
+      const formData = new FormData();
+      formData.append('brandId', brandId as string);
+      formData.append('title', data.title);
+      if (data.description) {
+        formData.append('description', data.description);
+      }
+      formData.append('fields', JSON.stringify(data.fields));
+      formData.append('document', documentBlobForTemplate, documentNameForTemplate);
+
+      console.log('[handleSaveAsTemplate] Saving template to /api/contracts/templates with fields:', data.fields);
+      const response = await fetch('/api/contracts/templates', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Failed to save template (HTTP ${response.status})`);
+      }
+
+      const result = await response.json();
+      console.log('[handleSaveAsTemplate] Template saved successfully:', result);
+
+      alert('Template saved successfully! It will appear in your Templates list.');
+
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred while saving the template.';
+      console.error('[handleSaveAsTemplate] Error:', errorMessage, err);
+      setError(errorMessage);
+      alert(`Failed to save template: ${errorMessage}`);
+    } finally {
+      setSavingTemplate(false);
+    }
+  };
+
+  // Handle save template from header button - triggers editor's save dialog
+  const handleSaveTemplateFromHeader = () => {
+    if (!templateData.title.trim()) {
+      alert('Please enter a template title');
+      return;
+    }
+    // This will be handled by the editor's internal save template dialog
+    // which should call handleSaveAsTemplate with the fields
+    setShowSaveTemplateDialog(false);
+    alert('Please use the Save as Template button in the editor to include field positions.');
   };
 
   // Updated handleSend
@@ -401,7 +649,48 @@ export default function ContractEditorPage() {
                     <Button variant="outline" size="sm" onClick={() => { setUploadedOriginalFile(null); setNewFileViewerData(null); /* Clear relevant states */ }} title="Upload a different document">
                     📄 Change Document
                     </Button>
-                    {/* Save as Template and Send buttons are inside PowerBriefContractEditor */}
+                    <Dialog open={showSaveTemplateDialog} onOpenChange={setShowSaveTemplateDialog}>
+                      <DialogTrigger asChild>
+                        <Button variant="outline" size="sm">
+                          <FileText className="h-4 w-4 mr-2" /> Save as Template
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Save as Template</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4">
+                          <div>
+                            <Label htmlFor="template-title">Template Title</Label>
+                            <Input
+                              id="template-title"
+                              value={templateData.title}
+                              onChange={(e) => setTemplateData(prev => ({ ...prev, title: e.target.value }))}
+                              placeholder="Enter template title"
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="template-description">Description (Optional)</Label>
+                            <Textarea
+                              id="template-description"
+                              value={templateData.description}
+                              onChange={(e) => setTemplateData(prev => ({ ...prev, description: e.target.value }))}
+                              placeholder="Enter template description"
+                              rows={3}
+                            />
+                          </div>
+                        </div>
+                        <DialogFooter>
+                          <Button variant="outline" onClick={() => setShowSaveTemplateDialog(false)}>
+                            Cancel
+                          </Button>
+                          <Button onClick={handleSaveTemplateFromHeader} disabled={savingTemplate}>
+                            {savingTemplate ? 'Saving...' : 'Save Template'}
+                    </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+                    {/* Send button is inside PowerBriefContractEditor */}
                 </div>
                 </div>
             </div>
@@ -410,8 +699,9 @@ export default function ContractEditorPage() {
                 <PowerBriefContractEditor
                 documentData={documentPropsForEditor} // This now has {id, name, dataForViewer}
                 brandId={brandId as string}
-                onSaveAsTemplate={handleSaveAsTemplate}
+                initialFields={[]}
                 onSend={handleSend} // handleSend in Page will use its own state for file data
+                onSaveAsTemplate={handleSaveAsTemplate}
                 className="min-h-[calc(100vh-150px)]" // Adjusted height
                 />
             </div>
@@ -442,7 +732,50 @@ export default function ContractEditorPage() {
                     <p className="text-sm text-gray-600">Using Template: {template.title}</p>
                 </div>
                 </div>
-                {/* Actions for template mode might differ, e.g., no 'Change Document' */}
+                <div className="flex items-center gap-2">
+                    <Dialog open={showSaveTemplateDialog} onOpenChange={setShowSaveTemplateDialog}>
+                      <DialogTrigger asChild>
+                        <Button variant="outline" size="sm">
+                          <FileText className="h-4 w-4 mr-2" /> Save as Template
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Save as Template</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4">
+                          <div>
+                            <Label htmlFor="template-title-2">Template Title</Label>
+                            <Input
+                              id="template-title-2"
+                              value={templateData.title}
+                              onChange={(e) => setTemplateData(prev => ({ ...prev, title: e.target.value }))}
+                              placeholder="Enter template title"
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="template-description-2">Description (Optional)</Label>
+                            <Textarea
+                              id="template-description-2"
+                              value={templateData.description}
+                              onChange={(e) => setTemplateData(prev => ({ ...prev, description: e.target.value }))}
+                              placeholder="Enter template description"
+                              rows={3}
+                            />
+                          </div>
+                        </div>
+                        <DialogFooter>
+                          <Button variant="outline" onClick={() => setShowSaveTemplateDialog(false)}>
+                            Cancel
+                          </Button>
+                          <Button onClick={handleSaveTemplateFromHeader} disabled={savingTemplate}>
+                            {savingTemplate ? 'Saving...' : 'Save Template'}
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+                    {/* Send button is inside PowerBriefContractEditor */}
+                </div>
             </div>
         </div>
         {/* Main Editor */}
@@ -450,8 +783,9 @@ export default function ContractEditorPage() {
             <PowerBriefContractEditor
             documentData={documentPropsForEditor} // This will have template data
             brandId={brandId as string}
-            onSaveAsTemplate={handleSaveAsTemplate}
+            initialFields={template?.fields || []}
             onSend={handleSend}
+            onSaveAsTemplate={handleSaveAsTemplate}
             className="min-h-[calc(100vh-150px)]" // Adjusted height
             />
         </div>

@@ -32,23 +32,23 @@ async function sendFallbackCompletionEmail(
     sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
     // Get contract, recipient, and brand details
-    const { data: contract, error: contractFetchError } = await supabase
-      .from('contracts')
-      .select(`
-        title, 
-        document_name, 
-        share_token, 
-        completed_at,
-        brand:brands!inner(name, email_identifier)
-      `)
-      .eq('id', contractId)
-      .single();
+      const { data: contract, error: contractFetchError } = await supabase
+        .from('contracts')
+        .select(`
+          title, 
+          document_name, 
+          share_token, 
+          completed_at,
+          brand:brands!inner(name, email_identifier)
+        `)
+        .eq('id', contractId)
+        .single();
 
-    const { data: recipient, error: recipientFetchError } = await supabase
-      .from('contract_recipients')
-      .select('name, email')
-      .eq('id', recipientId)
-      .single();
+      const { data: recipient, error: recipientFetchError } = await supabase
+        .from('contract_recipients')
+        .select('name, email')
+        .eq('id', recipientId)
+        .single();
 
     console.log('[Contract Submit] Email data fetch results:', {
       contractFetched: !contractFetchError,
@@ -62,12 +62,12 @@ async function sendFallbackCompletionEmail(
       return;
     }
 
-    const brand = contract.brand;
+        const brand = contract.brand;
     // Use verified sender address and brand-specific reply-to
     const fromEmail = 'noreply@powerbrief.ai';
     const replyToEmail = brand.email_identifier 
-      ? `${brand.email_identifier}@mail.powerbrief.ai`
-      : 'noreply@powerbrief.ai';
+          ? `${brand.email_identifier}@mail.powerbrief.ai`
+          : 'noreply@powerbrief.ai';
 
     // Construct download URL automatically from request headers
     const host = request.headers.get('host') || 'localhost:3000';
@@ -78,30 +78,30 @@ async function sendFallbackCompletionEmail(
     console.log('[Contract Submit] Download URL constructed from request headers:', downloadUrl);
     console.log('[Contract Submit] Sending email from:', fromEmail, 'reply-to:', replyToEmail, 'to:', recipient.email);
 
-    const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2>✅ Contract Completed</h2>
-        <p>Hello ${recipient.name},</p>
-        <p>Great news! The contract <strong>${contract.title}</strong> has been completed.</p>
-        <p>All required signatures have been collected and the document is now legally binding.</p>
-        <p><strong>Completed on:</strong> ${contract.completed_at ? new Date(contract.completed_at).toLocaleDateString() : new Date().toLocaleDateString()}</p>
-        <p>You can download a copy of the completed contract using the secure link below:</p>
-        <div style="text-align: center; margin: 30px 0;">
-          <a href="${downloadUrl}" 
-             style="background-color: #28a745; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block;">
-            Download Completed Contract
-          </a>
-        </div>
-        <p>Thank you for your participation in this contract signing process.</p>
-        <p>Best regards,<br>${brand.name}</p>
-        <hr style="margin: 30px 0;">
-        <p style="font-size: 12px; color: #666;">
-          This email was sent by ${brand.name} via PowerBrief Contract System.
-        </p>
-      </div>
-    `;
+        const html = `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2>✅ Contract Completed</h2>
+            <p>Hello ${recipient.name},</p>
+            <p>Great news! The contract <strong>${contract.title}</strong> has been completed.</p>
+            <p>All required signatures have been collected and the document is now legally binding.</p>
+            <p><strong>Completed on:</strong> ${contract.completed_at ? new Date(contract.completed_at).toLocaleDateString() : new Date().toLocaleDateString()}</p>
+            <p>You can download a copy of the completed contract using the secure link below:</p>
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${downloadUrl}" 
+                 style="background-color: #28a745; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block;">
+                Download Completed Contract
+              </a>
+            </div>
+            <p>Thank you for your participation in this contract signing process.</p>
+            <p>Best regards,<br>${brand.name}</p>
+            <hr style="margin: 30px 0;">
+            <p style="font-size: 12px; color: #666;">
+              This email was sent by ${brand.name} via PowerBrief Contract System.
+            </p>
+          </div>
+        `;
 
-    const text = `
+        const text = `
 Contract Completed
 
 Hello ${recipient.name},
@@ -122,22 +122,22 @@ ${brand.name}
 
 ---
 This email was sent by ${brand.name} via PowerBrief Contract System.
-    `.trim();
+        `.trim();
 
-    const msg = {
-      to: recipient.email,
-      from: {
-        email: fromEmail,
-        name: brand.name
-      },
+        const msg = {
+          to: recipient.email,
+          from: {
+            email: fromEmail,
+            name: brand.name
+          },
       replyTo: {
         email: replyToEmail,
         name: brand.name
       },
-      subject: `Contract Completed: ${contract.title}`,
-      html,
-      text,
-    };
+          subject: `Contract Completed: ${contract.title}`,
+          html,
+          text,
+        };
 
     console.log('[Contract Submit] Sending email with message:', {
       to: msg.to,
@@ -145,7 +145,7 @@ This email was sent by ${brand.name} via PowerBrief Contract System.
       subject: msg.subject
     });
 
-    await sgMail.send(msg);
+        await sgMail.send(msg);
     console.log(`[Contract Submit] Fallback completion email sent successfully to ${recipient.email}`);
   } catch (emailError) {
     console.error('[Contract Submit] Error sending fallback completion email:', emailError);

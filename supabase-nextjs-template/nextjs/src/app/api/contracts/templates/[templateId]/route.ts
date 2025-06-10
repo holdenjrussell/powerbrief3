@@ -3,7 +3,7 @@ import { createSSRClient } from '@/lib/supabase/server';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { templateId: string } }
+  { params }: { params: Promise<{ templateId: string }> }
 ) {
   try {
     const supabase = await createSSRClient();
@@ -13,7 +13,7 @@ export async function GET(
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
 
-    const { templateId } = params;
+    const { templateId } = await params;
 
     if (!templateId) {
       return NextResponse.json({ 
@@ -35,6 +35,35 @@ export async function GET(
       }, { status: 404 });
     }
 
+    // DEBUG: Log what Supabase returns for document_data
+    console.log('[API] === SUPABASE DOCUMENT_DATA DEBUGGING ===');
+    console.log('[API] Raw template from Supabase:', {
+      id: template.id,
+      title: template.title,
+      document_size: template.document_size,
+      document_data_type: typeof template.document_data,
+      document_data_length: template.document_data?.length || 'N/A',
+      document_data_constructor: template.document_data?.constructor?.name || 'N/A'
+    });
+
+    if (template.document_data) {
+      const docData = template.document_data as any;
+      if (typeof docData === 'string') {
+        console.log('[API] Document data is STRING, length:', docData.length);
+        console.log('[API] First 100 chars:', docData.substring(0, 100));
+      } else if (docData && typeof docData === 'object') {
+        console.log('[API] Document data is OBJECT');
+        console.log('[API] Object keys:', Object.keys(docData));
+        if (Array.isArray(docData.data)) {
+          console.log('[API] Has data array, length:', docData.data.length);
+          console.log('[API] First 10 bytes:', docData.data.slice(0, 10));
+        }
+      } else {
+        console.log('[API] Document data is OTHER TYPE:', typeof docData);
+      }
+    }
+    console.log('[API] === END SUPABASE DEBUGGING ===');
+
     return NextResponse.json({ 
       template: {
         id: template.id,
@@ -43,6 +72,7 @@ export async function GET(
         document_data: template.document_data,
         document_name: template.document_name,
         document_size: template.document_size,
+        fields: template.fields || [],
         created_at: template.created_at,
         updated_at: template.updated_at
       }
@@ -58,7 +88,7 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { templateId: string } }
+  { params }: { params: Promise<{ templateId: string }> }
 ) {
   try {
     const supabase = await createSSRClient();
@@ -68,7 +98,7 @@ export async function PUT(
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
 
-    const { templateId } = params;
+    const { templateId } = await params;
     const formData = await request.formData();
     const brandId = formData.get('brandId') as string;
     const title = formData.get('title') as string;
@@ -100,7 +130,7 @@ export async function PUT(
       title: string;
       description: string | null;
       updated_at: string;
-      document_data?: Uint8Array;
+      document_data?: Buffer;
       document_name?: string;
       document_size?: number;
     } = {
@@ -124,7 +154,8 @@ export async function PUT(
       }
 
       const documentBuffer = await documentFile.arrayBuffer();
-      updateData.document_data = new Uint8Array(documentBuffer);
+      // Convert to Buffer for Supabase bytea conversion
+      updateData.document_data = Buffer.from(documentBuffer) as any;
       updateData.document_name = documentFile.name;
       updateData.document_size = documentFile.size;
     }
@@ -159,7 +190,7 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { templateId: string } }
+  { params }: { params: Promise<{ templateId: string }> }
 ) {
   try {
     const supabase = await createSSRClient();
@@ -169,7 +200,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
 
-    const { templateId } = params;
+    const { templateId } = await params;
 
     // Verify user owns this template
     const { data: existingTemplate, error: templateError } = await supabase

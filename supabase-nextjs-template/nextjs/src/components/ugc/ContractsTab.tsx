@@ -40,7 +40,8 @@ import {
   AlertCircle, 
   Upload,
   Eye,
-  Edit
+  Edit,
+  Trash2
 } from 'lucide-react';
 import { Contract, ContractTemplate, getContractStatusColor } from '@/lib/types/contracts';
 import { UgcCreator } from '@/lib/types/ugcCreator';
@@ -81,6 +82,14 @@ export default function ContractsTab({ brandId, creators, onRefresh }: Contracts
     file: null as File | null,
   });
   const [updatingTemplate, setUpdatingTemplate] = useState(false);
+
+  // Delete confirmation state
+  const [showDeleteContractDialog, setShowDeleteContractDialog] = useState(false);
+  const [showDeleteTemplateDialog, setShowDeleteTemplateDialog] = useState(false);
+  const [deleteContractId, setDeleteContractId] = useState('');
+  const [deleteTemplateId, setDeleteTemplateId] = useState('');
+  const [deletingContract, setDeletingContract] = useState(false);
+  const [deletingTemplate, setDeletingTemplate] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -258,6 +267,72 @@ export default function ContractsTab({ brandId, creators, onRefresh }: Contracts
       console.error('Error sending contract:', error);
       setError(error instanceof Error ? error.message : 'Failed to send contract');
     }
+  };
+
+  const handleDeleteContract = async () => {
+    if (!deleteContractId) return;
+
+    try {
+      setDeletingContract(true);
+      setError('');
+
+      const response = await fetch(`/api/contracts/${deleteContractId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete contract');
+      }
+
+      setShowDeleteContractDialog(false);
+      setDeleteContractId('');
+      await fetchData();
+      onRefresh?.();
+    } catch (error) {
+      console.error('Error deleting contract:', error);
+      setError(error instanceof Error ? error.message : 'Failed to delete contract');
+    } finally {
+      setDeletingContract(false);
+    }
+  };
+
+  const handleDeleteTemplate = async () => {
+    if (!deleteTemplateId) return;
+
+    try {
+      setDeletingTemplate(true);
+      setError('');
+
+      const response = await fetch(`/api/contracts/templates/${deleteTemplateId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete template');
+      }
+
+      setShowDeleteTemplateDialog(false);
+      setDeleteTemplateId('');
+      await fetchData();
+      onRefresh?.();
+    } catch (error) {
+      console.error('Error deleting template:', error);
+      setError(error instanceof Error ? error.message : 'Failed to delete template');
+    } finally {
+      setDeletingTemplate(false);
+    }
+  };
+
+  const confirmDeleteContract = (contractId: string) => {
+    setDeleteContractId(contractId);
+    setShowDeleteContractDialog(true);
+  };
+
+  const confirmDeleteTemplate = (templateId: string) => {
+    setDeleteTemplateId(templateId);
+    setShowDeleteTemplateDialog(true);
   };
 
   const getStatusIcon = (status: string) => {
@@ -483,6 +558,13 @@ export default function ContractsTab({ brandId, creators, onRefresh }: Contracts
                               <Eye className="h-4 w-4 mr-1" />
                               View
                             </Button>
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => confirmDeleteContract(contract.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           </div>
                         </div>
                       </div>
@@ -537,6 +619,14 @@ export default function ContractsTab({ brandId, creators, onRefresh }: Contracts
                           onClick={() => handleEditTemplate(template.id)}
                         >
                           <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => confirmDeleteTemplate(template.id)}
+                          title="Delete Template"
+                        >
+                          <Trash2 className="h-4 w-4" />
                         </Button>
                         <Button 
                           size="sm" 
@@ -610,6 +700,59 @@ export default function ContractsTab({ brandId, creators, onRefresh }: Contracts
               </Button>
               <Button onClick={handleUpdateTemplate} disabled={updatingTemplate}>
                 {updatingTemplate ? 'Updating...' : 'Update Template'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete Contract Confirmation Dialog */}
+        <Dialog open={showDeleteContractDialog} onOpenChange={setShowDeleteContractDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Delete Contract</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to delete this contract? This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowDeleteContractDialog(false)}>
+                Cancel
+              </Button>
+              <Button 
+                variant="destructive" 
+                onClick={handleDeleteContract} 
+                disabled={deletingContract}
+              >
+                {deletingContract ? 'Deleting...' : 'Delete Contract'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete Template Confirmation Dialog */}
+        <Dialog open={showDeleteTemplateDialog} onOpenChange={setShowDeleteTemplateDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Delete Template</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to delete this template? This action cannot be undone.
+                {deleteTemplateId && (
+                  <span className="block mt-2 text-sm">
+                    Note: Templates currently used by contracts cannot be deleted.
+                  </span>
+                )}
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowDeleteTemplateDialog(false)}>
+                Cancel
+              </Button>
+              <Button 
+                variant="destructive" 
+                onClick={handleDeleteTemplate} 
+                disabled={deletingTemplate}
+              >
+                {deletingTemplate ? 'Deleting...' : 'Delete Template'}
               </Button>
             </DialogFooter>
           </DialogContent>

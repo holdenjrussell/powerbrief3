@@ -10,8 +10,6 @@ import {
   Badge,
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -21,8 +19,7 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
-  Textarea
+  SelectValue
 } from "@/components/ui";
 import { 
   Plus, 
@@ -103,6 +100,7 @@ interface ContractEditorProps {
     dataForViewer: Uint8Array | null;
   } | null;
   brandId: string;
+  initialFields?: SimpleField[];
   onSend?: (data: { recipients: SimpleRecipient[]; fields: SimpleField[] }) => void;
   onSaveAsTemplate?: (data: { title: string; description?: string; fields: SimpleField[] }) => void;
   className?: string;
@@ -121,12 +119,13 @@ const FIELD_TOOLS = [
 export default function PowerBriefContractEditor({
   documentData,
   brandId,
+  initialFields = [],
   onSend,
   onSaveAsTemplate,
   className = ''
 }: ContractEditorProps) {
   const [recipients, setRecipients] = useState<SimpleRecipient[]>([]);
-  const [fields, setFields] = useState<SimpleField[]>([]);
+  const [fields, setFields] = useState<SimpleField[]>(initialFields);
   const [selectedFieldType, setSelectedFieldType] = useState<string | null>(null);
   const [selectedRecipient, setSelectedRecipient] = useState<SimpleRecipient | null>(null);
   const [currentStep, setCurrentStep] = useState<'recipients' | 'fields' | 'send'>('recipients');
@@ -146,12 +145,14 @@ export default function PowerBriefContractEditor({
   const [creatorSearchTerm, setCreatorSearchTerm] = useState('');
   const [isLoadingCreators, setIsLoadingCreators] = useState(false);
 
-  // Save as Template dialog state
-  const [showSaveAsTemplateDialog, setShowSaveAsTemplateDialog] = useState(false);
-  const [templateData, setTemplateData] = useState({
-    title: '',
-    description: ''
-  });
+  // Update fields when initialFields prop changes
+  useEffect(() => {
+    if (initialFields.length > 0) {
+      setFields(initialFields);
+    }
+  }, [initialFields]);
+
+
 
   // Fetch creators
   useEffect(() => {
@@ -426,23 +427,7 @@ export default function PowerBriefContractEditor({
     onSend?.({ recipients, fields });
   };
 
-  // Handle save as template
-  const handleSaveAsTemplate = () => {
-    if (!templateData.title.trim()) {
-      alert('Please enter a template title');
-      return;
-    }
-    
-    onSaveAsTemplate?.({
-      title: templateData.title,
-      description: templateData.description || undefined,
-      fields
-    });
-    
-    // Reset form and close dialog
-    setTemplateData({ title: '', description: '' });
-    setShowSaveAsTemplateDialog(false);
-  };
+
 
   // Memoize the documentData object for PowerBriefPDFViewer to prevent unnecessary reloads
   const pdfViewerDocumentData = useMemo(() => {
@@ -710,61 +695,10 @@ export default function PowerBriefContractEditor({
                     </div>
                   </div>
                   
-                  <div className="flex space-x-2">
-                    <Dialog open={showSaveAsTemplateDialog} onOpenChange={setShowSaveAsTemplateDialog}>
-                      <DialogTrigger asChild>
-                        <Button variant="outline" className="flex-1">
-                          <FileText className="h-4 w-4 mr-2" />
-                          Save as Template
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent>
-                        <DialogHeader>
-                          <DialogTitle>Save as Template</DialogTitle>
-                          <DialogDescription>
-                            Save this document layout as a reusable template with field placements
-                          </DialogDescription>
-                        </DialogHeader>
-                        <div className="space-y-4">
-                          <div>
-                            <Label htmlFor="template-title">Template Title</Label>
-                            <Input
-                              id="template-title"
-                              value={templateData.title}
-                              onChange={(e) => setTemplateData(prev => ({ ...prev, title: e.target.value }))}
-                              placeholder="Enter template title"
-                            />
-                          </div>
-                          <div>
-                            <Label htmlFor="template-description">Description (Optional)</Label>
-                            <Textarea
-                              id="template-description"
-                              value={templateData.description}
-                              onChange={(e) => setTemplateData(prev => ({ ...prev, description: e.target.value }))}
-                              placeholder="Enter template description"
-                              rows={3}
-                            />
-                          </div>
-                          <div className="text-sm text-gray-600">
-                            <p>This will save the document with {fields.length} field(s) positioned for future use.</p>
-                          </div>
-                        </div>
-                        <DialogFooter>
-                          <Button variant="outline" onClick={() => setShowSaveAsTemplateDialog(false)}>
-                            Cancel
-                          </Button>
-                          <Button onClick={handleSaveAsTemplate}>
-                            Save Template
-                          </Button>
-                        </DialogFooter>
-                      </DialogContent>
-                    </Dialog>
-                    
-                    <Button onClick={handleSend} className="flex-1">
+                    <Button onClick={handleSend} className="w-full">
                       <Send className="h-4 w-4 mr-2" />
                       Send
                     </Button>
-                  </div>
                 </div>
               </CardContent>
             </Card>
