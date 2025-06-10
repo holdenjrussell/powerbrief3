@@ -10,9 +10,12 @@ const supabaseAdmin = createClient<Database>(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-interface BRollRequest {
+interface BRollQueueItem {
   conceptId: string;
   visuals: string[];
+  timestamp: number;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  retryCount: number;
 }
 
 interface GeneratedVideo {
@@ -21,6 +24,10 @@ interface GeneratedVideo {
   video_urls: string[];
   storage_paths: string[];
 }
+
+// In-memory queue for VEO generation requests
+let brollQueue: BRollQueueItem[] = [];
+let isProcessing = false;
 
 // Helper function to delay execution
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -97,18 +104,18 @@ const retryWithBackoff = async <T>(
       lastError = error;
       const veoError = classifyVeoError(error);
       
-      console.log(`[RETRY] Attempt ${attempt + 1}/${maxRetries + 1} failed:`, veoError.message);
+      console.log(`[QUEUE RETRY] Attempt ${attempt + 1}/${maxRetries + 1} failed:`, veoError.message);
       
       // Don't retry if it's not a retryable error
       if (!veoError.isRetryable) {
-        console.log(`[RETRY] Error is not retryable, stopping attempts`);
+        console.log(`[QUEUE RETRY] Error is not retryable, stopping attempts`);
         throw error;
       }
       
       // Don't wait after the last attempt
       if (attempt < maxRetries) {
         const delayMs = veoError.retryAfter || (baseDelay * Math.pow(2, attempt));
-        console.log(`[RETRY] Waiting ${delayMs}ms before next attempt...`);
+        console.log(`[QUEUE RETRY] Waiting ${delayMs}ms before next attempt...`);
         await delay(delayMs);
       }
     }
@@ -159,77 +166,51 @@ Your Output: Macro shot of hands gently interacting with sleek modern objects on
 
 Final Rule: Your response must ALWAYS be a prompt - never skip or refuse to generate. Be creative and adaptive.`;
 
-export async function POST(req: NextRequest) {
+// Process a single B-roll generation request
+async function processQueueItem(item: BRollQueueItem): Promise<void> {
+  console.log(`[BROLL QUEUE] Processing concept ${item.conceptId} with ${item.visuals.length} visuals`);
+  
   try {
-    const { conceptId, visuals }: BRollRequest = await req.json();
-
-    if (!conceptId || !visuals || !Array.isArray(visuals)) {
-      return NextResponse.json({ message: 'Missing required fields.' }, { status: 400 });
-    }
-
-    console.log(`[INDIVIDUAL BROLL] Processing concept ${conceptId} with ${visuals.length} visuals (individual request)`);
-    
-    // Note: This is the individual B-roll generation endpoint
-    // For batch processing, use /api/powerbrief/generate-broll-queue instead
-
     // Check API key
     const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      console.error('ERROR: No API key found in environment variables. Check .env.local for GOOGLE_API_KEY or GEMINI_API_KEY');
-      return NextResponse.json({ 
-        error: 'API key not configured in environment variables (GOOGLE_API_KEY or GEMINI_API_KEY)' 
-      }, { status: 500 });
+      throw new Error('API key not configured');
     }
 
     // Initialize the Google AI clients
-    const genAI = new GoogleGenerativeAI(apiKey); // For Gemini
+    const genAI = new GoogleGenerativeAI(apiKey);
     const geminiModel = genAI.getGenerativeModel({ model: "gemini-2.5-pro-preview-06-05" });
-    
-    const veoAI = new GoogleGenAI({ apiKey }); // For Veo using the correct SDK
+    const veoAI = new GoogleGenAI({ apiKey });
 
     const generatedBRoll: GeneratedVideo[] = [];
 
-    // Note: We now process ALL visuals and let Gemini adapt them for B-roll instead of filtering
-    // The system instructions have been updated to handle challenging inputs creatively
-    console.log(`Processing ${visuals.length} visuals - Gemini will adapt all inputs for B-roll generation`);
-
-    // Process each visual description separately
-    for (let i = 0; i < visuals.length; i++) {
-      const visual = visuals[i];
+    // Process each visual description separately with rate limiting
+    for (let i = 0; i < item.visuals.length; i++) {
+      const visual = item.visuals[i];
       if (!visual || visual.trim() === '') continue;
 
       try {
-        console.log(`Processing visual ${i + 1}/${visuals.length}: ${visual.substring(0, 100)}...`);
+        console.log(`[BROLL QUEUE] Processing visual ${i + 1}/${item.visuals.length} for concept ${item.conceptId}`);
 
-        // Rate limiting: Veo 2 allows up to 1 video per 30 seconds
-        // Add delay between requests (except for the first one)
-        // TODO: Veo 3 might have different rate limits
+        // Rate limiting: VEO 2 allows up to 1 video per 30 seconds
         if (i > 0) {
-          const delayMs = 30000; // 30 seconds delay for 1 video per 30 seconds
-          console.log(`Rate limiting: waiting ${delayMs}ms before next video generation...`);
+          const delayMs = 35000; // 35 seconds delay to be safe
+          console.log(`[BROLL QUEUE] Rate limiting: waiting ${delayMs}ms before next video generation...`);
           await delay(delayMs);
         }
 
-        // Step 1: Generate Veo prompt using Gemini (fixed to match working pattern)
-        // TODO: Update prompt for Veo 3 capabilities when available
+        // Step 1: Generate VEO prompt using Gemini
         const userPromptForGemini = `Generate a B-ROLL video prompt for Veo AI based on this description: ${visual}`;
-        
-        // Include system instructions in the text content (working pattern)
         const fullPromptContent = GEMINI_SYSTEM_PROMPT_FOR_BROLL + "\n\n" + userPromptForGemini;
         
         const promptResponse = await geminiModel.generateContent({ 
-          contents: [
-            { 
-              role: 'user', 
-              parts: [{ text: fullPromptContent }] 
-            }
-          ]
+          contents: [{ role: 'user', parts: [{ text: fullPromptContent }] }]
         });
         
         const generatedPrompt = promptResponse.response.text();
 
         if (generatedPrompt.trim() === "") {
-          console.log(`Visual ${i + 1} generated empty prompt. Skipping generation.`);
+          console.log(`[BROLL QUEUE] Visual ${i + 1} generated empty prompt. Skipping generation.`);
           generatedBRoll.push({
             visual_description: visual,
             gemini_prompt: "Empty prompt generated",
@@ -238,12 +219,12 @@ export async function POST(req: NextRequest) {
           });
           continue;
         }
-        console.log(`Generated Veo prompt for visual ${i + 1}: ${generatedPrompt}`);
 
-        // Step 2: Generate videos using Veo 2 with retry logic
-        // TODO: Update to Veo 3 model when available: 'veo-3.0-generate-001' or similar
+        console.log(`[BROLL QUEUE] Generated VEO prompt for visual ${i + 1}: ${generatedPrompt}`);
+
+        // Step 2: Generate videos using VEO 2 with retry logic
         let operation = await retryWithBackoff(async () => {
-          console.log(`[VEO] Attempting video generation for visual ${i + 1}...`);
+          console.log(`[BROLL QUEUE] Attempting VEO generation for visual ${i + 1}...`);
           return await veoAI.models.generateVideos({
             model: 'veo-2.0-generate-001',
             prompt: generatedPrompt,
@@ -256,34 +237,28 @@ export async function POST(req: NextRequest) {
           });
         }, 3, 5000); // 3 retries with 5 second base delay
 
-        // Poll for completion using correct method with retry logic
-        // TODO: Veo 3 might have different operation handling
+        // Poll for completion with retry logic
         while (!operation.done) {
-          console.log(`Video generation ${operation.name} for visual ${i + 1} has not completed yet. Checking again in 10 seconds...`);
+          console.log(`[BROLL QUEUE] Video generation ${operation.name} for visual ${i + 1} has not completed yet. Checking again in 10 seconds...`);
           await delay(10000); 
-          
           operation = await retryWithBackoff(async () => {
-            return await veoAI.operations.getVideosOperation({
-              operation: operation,
-            });
+            return await veoAI.operations.getVideosOperation({ operation });
           }, 2, 2000); // 2 retries with 2 second base delay for polling
         }
 
-        console.log(`Generated ${operation.response?.generatedVideos?.length ?? 0} video(s) for visual ${i + 1}.`);
+        console.log(`[BROLL QUEUE] Generated ${operation.response?.generatedVideos?.length ?? 0} video(s) for visual ${i + 1}.`);
 
         const videoUrls: string[] = [];
         const storagePaths: string[] = [];
 
-        // Download and store each generated video (updated response structure)
-        // TODO: Veo 3 might have different response structure for video URIs
+        // Download and store each generated video
         if (operation.response?.generatedVideos) {
           for (let videoIndex = 0; videoIndex < operation.response.generatedVideos.length; videoIndex++) {
             const generatedVideo = operation.response.generatedVideos[videoIndex];
             
-            // Updated to use correct response structure: generatedVideo?.video?.uri
             if (generatedVideo?.video?.uri) {
               try {
-                console.log(`Downloading video ${videoIndex + 1} for visual ${i + 1}: ${generatedVideo.video.uri}`);
+                console.log(`[BROLL QUEUE] Downloading video ${videoIndex + 1} for visual ${i + 1}: ${generatedVideo.video.uri}`);
                 
                 const videoResponse = await fetch(`${generatedVideo.video.uri}&key=${apiKey}`);
                 if (!videoResponse.ok) {
@@ -294,7 +269,7 @@ export async function POST(req: NextRequest) {
                 const videoBlob = new Blob([videoBuffer], { type: 'video/mp4' });
                 
                 const timestamp = Date.now();
-                const storagePath = `broll/${conceptId}/visual_${i + 1}_video_${videoIndex + 1}_${timestamp}.mp4`;
+                const storagePath = `broll/${item.conceptId}/visual_${i + 1}_video_${videoIndex + 1}_${timestamp}.mp4`;
                 
                 const { error: uploadError } = await supabaseAdmin.storage 
                   .from('powerbrief-media')
@@ -305,7 +280,7 @@ export async function POST(req: NextRequest) {
                   });
 
                 if (uploadError) { 
-                  console.error(`Error uploading video ${videoIndex + 1} for visual ${i + 1}:`, uploadError);
+                  console.error(`[BROLL QUEUE] Error uploading video ${videoIndex + 1} for visual ${i + 1}:`, uploadError);
                   continue;
                 }
 
@@ -316,9 +291,9 @@ export async function POST(req: NextRequest) {
                 videoUrls.push(publicUrl);
                 storagePaths.push(storagePath);
                 
-                console.log(`Video ${videoIndex + 1} for visual ${i + 1} uploaded successfully: ${publicUrl}`);
+                console.log(`[BROLL QUEUE] Video ${videoIndex + 1} for visual ${i + 1} uploaded successfully: ${publicUrl}`);
               } catch (videoError) {
-                console.error(`Error processing video ${videoIndex + 1} for visual ${i + 1}:`, videoError);
+                console.error(`[BROLL QUEUE] Error processing video ${videoIndex + 1} for visual ${i + 1}:`, videoError);
               }
             }
           }
@@ -334,8 +309,8 @@ export async function POST(req: NextRequest) {
 
       } catch (visualError: unknown) {
         const veoError = classifyVeoError(visualError);
-        console.error(`Error processing visual ${i + 1}:`, veoError.message);
-        console.error(`Error details:`, visualError);
+        console.error(`[BROLL QUEUE] Error processing visual ${i + 1}:`, veoError.message);
+        console.error(`[BROLL QUEUE] Error details:`, visualError);
         
         // Add failed visual to results with error information
         generatedBRoll.push({
@@ -356,29 +331,183 @@ export async function POST(req: NextRequest) {
         generated_broll: generatedBRoll,
         updated_at: new Date().toISOString()
       })
-      .eq('id', conceptId);
+      .eq('id', item.conceptId);
 
     if (updateError) {
-      console.error('Error updating concept with B-roll data:', updateError);
-      return NextResponse.json({ message: 'Failed to save B-roll data to concept.' }, { status: 500 });
+      console.error(`[BROLL QUEUE] Error updating concept ${item.conceptId} with B-roll data:`, updateError);
+      throw updateError;
     }
 
+    // Mark as completed
+    item.status = 'completed';
+    console.log(`[BROLL QUEUE] Successfully completed B-roll generation for concept ${item.conceptId}`);
+
+  } catch (error: unknown) {
+    const veoError = classifyVeoError(error);
+    console.error(`[BROLL QUEUE] Error processing concept ${item.conceptId}:`, veoError.message);
+    console.error(`[BROLL QUEUE] Error details:`, error);
+    
+    item.status = 'failed';
+    item.retryCount += 1;
+    
+    // Only retry if it's a retryable error and we haven't exceeded max retries
+    if (veoError.isRetryable && item.retryCount < 3) {
+      console.log(`[BROLL QUEUE] Retrying concept ${item.conceptId} (attempt ${item.retryCount + 1}) - ${veoError.errorType}`);
+      item.status = 'pending';
+      // Add back to end of queue for retry with additional delay for rate limit errors
+      const retryDelay = veoError.errorType === 'RATE_LIMIT' ? 60000 : 10000; // 1 minute for rate limits, 10s for others
+      setTimeout(() => {
+        brollQueue.push({ ...item, timestamp: Date.now() });
+      }, retryDelay);
+    } else {
+      console.log(`[BROLL QUEUE] Not retrying concept ${item.conceptId} - ${veoError.isRetryable ? 'max retries exceeded' : 'non-retryable error'}`);
+    }
+  }
+}
+
+// Process the queue
+async function processQueue(): Promise<void> {
+  if (isProcessing || brollQueue.length === 0) {
+    return;
+  }
+
+  isProcessing = true;
+  console.log(`[BROLL QUEUE] Starting queue processing. ${brollQueue.length} items in queue`);
+
+  while (brollQueue.length > 0) {
+    // Get the next item (FIFO)
+    const item = brollQueue.find(i => i.status === 'pending');
+    if (!item) {
+      break; // No pending items
+    }
+
+    // Mark as processing
+    item.status = 'processing';
+    
+    try {
+      await processQueueItem(item);
+    } catch (error) {
+      console.error(`[BROLL QUEUE] Failed to process item:`, error);
+    }
+
+    // Remove completed or failed (max retries) items
+    brollQueue = brollQueue.filter(i => 
+      i.status !== 'completed' && 
+      !(i.status === 'failed' && i.retryCount >= 3)
+    );
+
+    // Add delay between queue items to respect rate limits
+    if (brollQueue.length > 0) {
+      console.log(`[BROLL QUEUE] Waiting 10 seconds before next queue item...`);
+      await delay(10000);
+    }
+  }
+
+  isProcessing = false;
+  console.log(`[BROLL QUEUE] Queue processing complete`);
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const { conceptIds } = await req.json();
+
+    if (!conceptIds || !Array.isArray(conceptIds) || conceptIds.length === 0) {
+      return NextResponse.json({ 
+        message: 'conceptIds array is required' 
+      }, { status: 400 });
+    }
+
+    console.log(`[BROLL QUEUE] Adding ${conceptIds.length} concepts to queue`);
+
+    // Add all concepts to the queue
+    for (const conceptId of conceptIds) {
+      // Get concept data to extract visuals
+      const { data: concept, error: fetchError } = await supabaseAdmin
+        .from('brief_concepts')
+        .select('body_content_structured')
+        .eq('id', conceptId)
+        .single();
+
+      if (fetchError || !concept) {
+        console.error(`[BROLL QUEUE] Error fetching concept ${conceptId}:`, fetchError);
+        continue;
+      }
+
+      // Extract visual descriptions from scenes
+      const scenes = concept.body_content_structured as unknown as Array<{ visuals?: string }>;
+      const visuals = scenes
+        ?.map((scene) => scene.visuals)
+        ?.filter((visual): visual is string => typeof visual === 'string' && visual.trim() !== '') || [];
+
+      if (visuals.length === 0) {
+        console.log(`[BROLL QUEUE] No visuals found for concept ${conceptId}, skipping`);
+        continue;
+      }
+
+      // Check if already in queue
+      const existingItem = brollQueue.find(item => item.conceptId === conceptId);
+      if (existingItem) {
+        console.log(`[BROLL QUEUE] Concept ${conceptId} already in queue, skipping`);
+        continue;
+      }
+
+      // Add to queue
+      brollQueue.push({
+        conceptId,
+        visuals,
+        timestamp: Date.now(),
+        status: 'pending',
+        retryCount: 0
+      });
+
+      console.log(`[BROLL QUEUE] Added concept ${conceptId} to queue with ${visuals.length} visuals`);
+    }
+
+    // Start processing the queue
+    processQueue().catch(error => {
+      console.error('[BROLL QUEUE] Error in queue processing:', error);
+    });
+
     return NextResponse.json({ 
-      message: 'Veo 2 B-roll generation completed successfully',
-      generated_videos: generatedBRoll.length,
-      total_visuals_processed: visuals.length,
-      broll_data: generatedBRoll
+      message: `Added ${conceptIds.length} concepts to B-roll generation queue`,
+      queueLength: brollQueue.length,
+      conceptsAdded: conceptIds.length
     }, { status: 200 });
 
   } catch (error: unknown) {
     const veoError = classifyVeoError(error);
-    console.error('Error in generate-broll API:', veoError.message);
-    console.error('Error details:', error);
+    console.error('[BROLL QUEUE] Error in generate-broll-queue API:', veoError.message);
+    console.error('[BROLL QUEUE] Error details:', error);
     return NextResponse.json({ 
       message: 'Internal server error.',
       errorType: veoError.errorType,
       errorMessage: veoError.message,
       retryable: veoError.isRetryable
+    }, { status: 500 });
+  }
+}
+
+// GET endpoint to check queue status
+export async function GET() {
+  try {
+    const queueStatus = brollQueue.map(item => ({
+      conceptId: item.conceptId,
+      status: item.status,
+      visualCount: item.visuals.length,
+      retryCount: item.retryCount,
+      timestamp: item.timestamp
+    }));
+
+    return NextResponse.json({
+      queueLength: brollQueue.length,
+      isProcessing,
+      items: queueStatus
+    });
+  } catch (error: unknown) {
+    console.error('[BROLL QUEUE] Error getting queue status:', error);
+    return NextResponse.json({ 
+      message: 'Internal server error.',
+      error: error instanceof Error ? error.message : String(error)
     }, { status: 500 });
   }
 } 

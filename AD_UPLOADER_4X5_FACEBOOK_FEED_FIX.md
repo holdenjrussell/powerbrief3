@@ -45,7 +45,7 @@ if (hasVideos) {
       creativeSpec.asset_feed_spec.videos.push({
         video_id: asset.metaVideoId,
         adlabels: [{ name: assetLabel }],
-        ...(thumbnailHash && { thumbnail_image_hash: thumbnailHash })
+        ...(thumbnailHash && { thumbnail_hash: thumbnailHash })
       });
       
       // CRITICAL: Add placement targeting for 4x5 videos to show in Facebook Feed!

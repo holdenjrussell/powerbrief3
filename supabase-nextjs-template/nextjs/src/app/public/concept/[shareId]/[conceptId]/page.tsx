@@ -16,8 +16,16 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import SharedVoiceGenerator from '@/components/SharedVoiceGenerator';
 import PowerBriefAssetUpload from '@/components/PowerBriefAssetUpload';
+import BRollViewer from '@/components/BRollViewer';
 
 // Extended BriefConcept interface to include the properties we need
+interface GeneratedVideo {
+  visual_description: string;
+  gemini_prompt: string;
+  video_urls: string[];
+  storage_paths: string[];
+}
+
 interface ExtendedBriefConcept extends Omit<BriefConcept, 'review_status'> {
   review_status?: 'pending' | 'ready_for_review' | 'approved' | 'needs_revisions' | string;
   review_link?: string;
@@ -26,6 +34,7 @@ interface ExtendedBriefConcept extends Omit<BriefConcept, 'review_status'> {
   uploaded_assets?: UploadedAssetGroup[];
   asset_upload_status?: string;
   product_id?: string;
+  generated_broll?: GeneratedVideo[];
 }
 
 // Extend the batch type to include share_settings
@@ -667,6 +676,10 @@ export default function SharedSingleConceptPage({ params }: { params: ParamsType
   const [commenterName, setCommenterName] = useState('');
   const [commenterEmail, setCommenterEmail] = useState('');
   
+  // Video modal state for B-roll videos
+  const [videoModalOpen, setVideoModalOpen] = useState(false);
+  const [videoModalUrl, setVideoModalUrl] = useState('');
+  
   // Login form states
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -1034,6 +1047,18 @@ export default function SharedSingleConceptPage({ params }: { params: ParamsType
   const closeModal = () => {
     setModalOpen(false);
     setModalMedia(null);
+  };
+
+  // Function to open video modal (for B-roll videos)
+  const openVideoModal = (url: string) => {
+    setVideoModalUrl(url);
+    setVideoModalOpen(true);
+  };
+
+  // Function to close video modal
+  const closeVideoModal = () => {
+    setVideoModalOpen(false);
+    setVideoModalUrl('');
   };
 
   // Function to fetch comments for a concept
@@ -1646,6 +1671,46 @@ export default function SharedSingleConceptPage({ params }: { params: ParamsType
             </Card>
           )}
 
+          {/* AI Generated B-roll Section - Prominent dropdown after video instructions */}
+          {concept.generated_broll && Array.isArray(concept.generated_broll) && concept.generated_broll.length > 0 && (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg flex items-center space-x-2">
+                    <span>Generated VEO 2 B-roll Videos</span>
+                    <span className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded">VEO 2 AI</span>
+                  </CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded">
+                  <p className="text-sm text-amber-800 mb-2">
+                    ⚠️ <strong>AI Generated Content Disclaimer</strong>
+                  </p>
+                  <p className="text-xs text-amber-700 mb-2">
+                    <strong>Important:</strong> These videos are AI-generated content created by Google's VEO 2 technology. 
+                    AI can make mistakes and may not accurately represent scenes, products, people, or brands. 
+                    Please review carefully and do not use if the content renders incorrectly or inappropriately.
+                  </p>
+                </div>
+                <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded">
+                  <p className="text-sm text-blue-800 mb-2">
+                    ✨ <strong>Optional Auto-Generated Content</strong>
+                  </p>
+                  <p className="text-xs text-blue-700">
+                    These B-roll clips were automatically generated using Google's VEO 2 AI based on your concept visuals. 
+                    You can use them as-is, download them for editing, or simply use them as creative inspiration.
+                  </p>
+                </div>
+                <BRollViewer 
+                  brollData={concept.generated_broll}
+                  conceptTitle={concept.concept_title}
+                  isPublicView={true}
+                />
+              </CardContent>
+            </Card>
+          )}
+
           {/* Designer Instructions - only show for image media type */}
           {concept.designerInstructions && concept.media_type === 'image' && (
             <Card>
@@ -1702,21 +1767,77 @@ export default function SharedSingleConceptPage({ params }: { params: ParamsType
               </CardHeader>
               <CardContent>
                 <div className="space-y-6">
-                  {concept.body_content_structured.map((scene: Scene, index: number) => (
-                    <div key={index} className="p-4 border rounded space-y-3">
-                      <h3 className="font-medium">{scene.scene_title || `Scene ${index + 1}`}</h3>
-                      
-                      <div>
-                        <h4 className="text-sm font-medium text-gray-500 mb-1">Script:</h4>
-                        <p className="whitespace-pre-wrap text-sm bg-gray-50 p-3 rounded">{scene.script}</p>
+                  {concept.body_content_structured.map((scene: Scene, index: number) => {
+                    // Find matching B-roll videos for this scene's visuals
+                    const matchingBRollVideos = concept.generated_broll?.filter(broll => 
+                      broll.visual_description === scene.visuals
+                    ) || [];
+
+                    return (
+                      <div key={index} className="p-4 border rounded space-y-3">
+                        <h3 className="font-medium">{scene.scene_title || `Scene ${index + 1}`}</h3>
+                        
+                        <div>
+                          <h4 className="text-sm font-medium text-gray-500 mb-1">Script:</h4>
+                          <p className="whitespace-pre-wrap text-sm bg-gray-50 p-3 rounded">{scene.script}</p>
+                        </div>
+                        
+                        <div>
+                          <h4 className="text-sm font-medium text-gray-500 mb-1">Visuals:</h4>
+                          <p className="whitespace-pre-wrap text-sm bg-gray-50 p-3 rounded">{scene.visuals}</p>
+                          
+                          {/* Auto-generated B-roll videos for this visual */}
+                          {matchingBRollVideos.length > 0 && (
+                            <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded">
+                              <div className="flex items-center justify-between mb-2">
+                                <h5 className="text-sm font-medium text-blue-800">Optional Auto-Generated B-roll</h5>
+                                <span className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded">VEO 2 AI</span>
+                              </div>
+                              <div className="mb-2 p-2 bg-amber-50 border border-amber-200 rounded text-xs">
+                                <span className="text-amber-800">
+                                  ⚠️ <strong>AI Generated:</strong> Review carefully for accuracy before use.
+                                </span>
+                              </div>
+                              <p className="text-xs text-blue-700 mb-3">
+                                These B-roll clips were automatically generated for this visual. You can use them as-is or as inspiration.
+                              </p>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                {matchingBRollVideos.map((broll, brollIndex) => 
+                                  broll.video_urls.map((videoUrl, videoIndex) => (
+                                    <div 
+                                      key={`${brollIndex}-${videoIndex}`} 
+                                      className="relative cursor-pointer hover:opacity-80"
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        openMediaModal(videoUrl, 'video', `B-roll ${brollIndex + 1}.${videoIndex + 1}`, concept.id);
+                                      }}
+                                    >
+                                      <video
+                                        src={videoUrl}
+                                        className="w-full h-32 object-cover rounded border pointer-events-none"
+                                        preload="metadata"
+                                      />
+                                      <div className="absolute bottom-1 right-1 bg-black bg-opacity-75 text-white text-xs px-1 rounded pointer-events-none">
+                                        B-roll {brollIndex + 1}.{videoIndex + 1}
+                                      </div>
+                                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                        <div className="bg-black bg-opacity-50 rounded-full p-2">
+                                          <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+                                          </svg>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      
-                      <div>
-                        <h4 className="text-sm font-medium text-gray-500 mb-1">Visuals:</h4>
-                        <p className="whitespace-pre-wrap text-sm bg-gray-50 p-3 rounded">{scene.visuals}</p>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </CardContent>
             </Card>
@@ -1747,6 +1868,8 @@ export default function SharedSingleConceptPage({ params }: { params: ParamsType
               </CardContent>
             </Card>
           )}
+
+
 
           {/* Voice Generator Section */}
           {concept.media_type === 'video' && (
@@ -1941,6 +2064,30 @@ export default function SharedSingleConceptPage({ params }: { params: ParamsType
           setCommenterName={setCommenterName}
           setCommenterEmail={setCommenterEmail}
         />
+      )}
+
+      {/* Video Modal for B-roll videos */}
+      {videoModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50" onClick={closeVideoModal}>
+          <div className="relative max-w-4xl max-h-[90vh] w-full h-full flex items-center justify-center p-4">
+            <button
+              onClick={closeVideoModal}
+              className="absolute top-4 right-4 text-white hover:text-gray-300 z-10"
+            >
+              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            <video
+              src={videoModalUrl}
+              controls
+              autoPlay
+              crossOrigin="anonymous"
+              className="max-w-full max-h-full"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+        </div>
       )}
     </div>
   );

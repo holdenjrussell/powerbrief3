@@ -672,6 +672,7 @@ export type Database = {
           designerinstructions: string | null
           designerInstructions: string | null
           editor_id: string | null
+          generated_broll: Json | null
           hook_count: number | null
           hook_type: string | null
           id: string
@@ -723,6 +724,7 @@ export type Database = {
           designerinstructions?: string | null
           designerInstructions?: string | null
           editor_id?: string | null
+          generated_broll?: Json | null
           hook_count?: number | null
           hook_type?: string | null
           id?: string
@@ -774,6 +776,7 @@ export type Database = {
           designerinstructions?: string | null
           designerInstructions?: string | null
           editor_id?: string | null
+          generated_broll?: Json | null
           hook_count?: number | null
           hook_type?: string | null
           id?: string
@@ -1982,6 +1985,54 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      sop_videos: {
+        Row: {
+          created_at: string
+          description: string | null
+          duration: number | null
+          file_name: string
+          file_size: number | null
+          id: string
+          is_active: boolean | null
+          original_name: string | null
+          sop_id: string
+          title: string | null
+          updated_at: string
+          uploaded_by: string | null
+          video_url: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          duration?: number | null
+          file_name: string
+          file_size?: number | null
+          id?: string
+          is_active?: boolean | null
+          original_name?: string | null
+          sop_id: string
+          title?: string | null
+          updated_at?: string
+          uploaded_by?: string | null
+          video_url: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          duration?: number | null
+          file_name?: string
+          file_size?: number | null
+          id?: string
+          is_active?: boolean | null
+          original_name?: string | null
+          sop_id?: string
+          title?: string | null
+          updated_at?: string
+          uploaded_by?: string | null
+          video_url?: string
+        }
+        Relationships: []
       }
       todo_issues: {
         Row: {

@@ -44,6 +44,12 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
     const [generatingAI, setGeneratingAI] = useState<boolean>(false);
     const [generatingConceptIds, setGeneratingConceptIds] = useState<Record<string, boolean>>({});
     const [generatingBRollIds, setGeneratingBRollIds] = useState<Record<string, boolean>>({});
+    const [generatingAllBRoll, setGeneratingAllBRoll] = useState<boolean>(false);
+    const [brollQueueStatus, setBrollQueueStatus] = useState<{
+        queueLength: number;
+        isProcessing: boolean;
+        items: Array<{ conceptId: string; status: string; visualCount: number; retryCount: number; timestamp: number }>;
+    } | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const multipleFileInputRef = useRef<HTMLInputElement>(null);
     const pdfInputRef = useRef<HTMLInputElement>(null);
@@ -96,7 +102,19 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
     const [importingPDF, setImportingPDF] = useState<boolean>(false);
     const [pdfImportProgress, setPdfImportProgress] = useState<number>(0);
     const [showPdfImportDialog, setShowPdfImportDialog] = useState<boolean>(false);
-    const [pdfImportResults, setPdfImportResults] = useState<any[]>([]);
+    const [pdfImportResults, setPdfImportResults] = useState<{
+        fileName: string;
+        success: boolean;
+        error?: string;
+        rawResponse?: string;
+        conceptData?: {
+            text_hook_options?: string;
+            spoken_hook_options?: string;
+            body_content_structured_scenes?: Scene[];
+            cta_script?: string;
+            cta_text_overlay?: string;
+        };
+    }[]>([]);
 
     // Filtering and sorting state
     const [filterStatus, setFilterStatus] = useState<string>('all');
@@ -1429,6 +1447,162 @@ Focus on search optimization, reader value, and conversion potential.`
         }
     };
 
+    // Generate B-roll videos for a concept using Google Veo 2
+    const handleGenerateBRoll = async (conceptId: string) => {
+        if (!conceptId) return;
+        
+        const concept = concepts.find(c => c.id === conceptId);
+        if (!concept || !concept.body_content_structured?.length) {
+            setError('No scenes found to generate B-roll. Please add some scene descriptions first.');
+            return;
+        }
+        
+        try {
+            setGeneratingBRollIds(prev => ({
+                ...prev,
+                [conceptId]: true
+            }));
+            setError(null);
+            
+            // Extract visual descriptions from scenes
+            const visuals = concept.body_content_structured
+                .map(scene => scene.visuals)
+                .filter(visual => visual && visual.trim() !== '');
+                
+            if (visuals.length === 0) {
+                setError('No visual descriptions found in scenes. Please add visual descriptions to generate B-roll.');
+                return;
+            }
+            
+            console.log(`Generating B-roll for concept ${conceptId} with ${visuals.length} visuals`);
+            
+            const response = await fetch('/api/powerbrief/generate-broll', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    conceptId,
+                    visuals
+                }),
+            });
+            
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => null);
+                throw new Error(errorData?.message || `Failed to generate B-roll (HTTP ${response.status})`);
+            }
+            
+            const result = await response.json();
+            console.log('B-roll generation completed:', result);
+            
+            // Refresh the concept data to get the updated generated_broll
+            const updatedConcepts = await getBriefConcepts(batchId);
+            setConcepts(updatedConcepts);
+            
+        } catch (err: unknown) {
+            console.error('Failed to generate Veo 2 B-roll:', err);
+            setError(`Veo 2 B-roll generation failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        } finally {
+            setGeneratingBRollIds(prev => {
+                const updated = { ...prev };
+                delete updated[conceptId];
+                return updated;
+            });
+        }
+    };
+
+    // Generate B-roll for all concepts using queue system
+    const handleGenerateAllBRoll = async () => {
+        if (!concepts.length) return;
+        
+        try {
+            setGeneratingAllBRoll(true);
+            setError(null);
+            
+            // Filter concepts that have scenes with visuals
+            const conceptsWithVisuals = concepts.filter(concept => 
+                concept.body_content_structured?.some(scene => 
+                    scene.visuals && scene.visuals.trim() !== ''
+                )
+            );
+            
+            if (conceptsWithVisuals.length === 0) {
+                setError('No concepts found with visual descriptions. Please add scene descriptions first.');
+                return;
+            }
+            
+            const conceptIds = conceptsWithVisuals.map(c => c.id);
+            console.log(`Adding ${conceptIds.length} concepts to B-roll generation queue`);
+            
+            const response = await fetch('/api/powerbrief/generate-broll-queue', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ conceptIds }),
+            });
+            
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => null);
+                throw new Error(errorData?.message || `Failed to queue B-roll generation (HTTP ${response.status})`);
+            }
+            
+            const result = await response.json();
+            console.log('B-roll queue response:', result);
+            
+            // Start polling for queue status
+            startQueueStatusPolling();
+            
+        } catch (err: unknown) {
+            console.error('Failed to queue B-roll generation:', err);
+            setError(`B-roll queue failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        } finally {
+            setGeneratingAllBRoll(false);
+        }
+    };
+
+    // Poll queue status
+    const pollQueueStatus = async () => {
+        try {
+            const response = await fetch('/api/powerbrief/generate-broll-queue');
+            if (response.ok) {
+                const status = await response.json();
+                setBrollQueueStatus(status);
+                return status;
+            }
+        } catch (error) {
+            console.error('Error polling queue status:', error);
+        }
+        return null;
+    };
+
+    // Start polling queue status
+    const startQueueStatusPolling = () => {
+        const interval = setInterval(async () => {
+            const status = await pollQueueStatus();
+            
+            // Stop polling if queue is empty and not processing
+            if (status && status.queueLength === 0 && !status.isProcessing) {
+                clearInterval(interval);
+                setBrollQueueStatus(null);
+                
+                // Refresh concepts to get updated B-roll data
+                try {
+                    const updatedConcepts = await getBriefConcepts(batchId);
+                    setConcepts(updatedConcepts);
+                } catch (error) {
+                    console.error('Error refreshing concepts after queue completion:', error);
+                }
+            }
+        }, 5000); // Poll every 5 seconds
+        
+        // Clean up interval after 30 minutes to prevent memory leaks
+        setTimeout(() => {
+            clearInterval(interval);
+            setBrollQueueStatus(null);
+        }, 30 * 60 * 1000);
+    };
+
     // Generate AI briefs for all concepts
     const handleGenerateAllAI = async () => {
         if (!brand || !user?.id || concepts.length === 0) return;
@@ -2552,28 +2726,7 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
         handleUpdateConcept(updatedConcept);
     };
 
-    const handleTogglePrerequisiteCompletion = (conceptId: string, prerequisiteId: string) => {
-        const concept = concepts.find(c => c.id === conceptId);
-        if (!concept) return;
 
-        const currentPrerequisites = localPrerequisites[conceptId] || concept.prerequisites || [];
-        const updatedPrerequisites = currentPrerequisites.map(prereq =>
-            prereq.id === prerequisiteId ? { ...prereq, completed: !prereq.completed } : prereq
-        );
-
-        // Update local state
-        setLocalPrerequisites(prev => ({
-            ...prev,
-            [concept.id]: updatedPrerequisites
-        }));
-
-        // Update concept in database
-        const updatedConcept = {
-            ...concept,
-            prerequisites: updatedPrerequisites
-        };
-        handleUpdateConcept(updatedConcept);
-    };
 
     const getIncompletePrerequisites = (conceptId: string): string[] => {
         const currentPrerequisites = localPrerequisites[conceptId] || [];
@@ -2630,7 +2783,7 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
             setShowPdfImportDialog(true);
             
             // Create concepts for successful imports
-            const successfulImports = results.results.filter((r: any) => r.success);
+            const successfulImports = results.results.filter((r) => r.success);
             
             for (let i = 0; i < successfulImports.length; i++) {
                 const result = successfulImports[i];
@@ -2638,7 +2791,6 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                 
                 try {
                     // Create a new concept with the extracted data
-                    const conceptNumber = startingConceptNumber + concepts.length + i;
                     
                     // Process text hooks with proper structure
                     const textHooks = result.conceptData.text_hook_options ? 
@@ -2794,6 +2946,26 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                         </Button>
                         
                         <Button
+                            className="bg-purple-600 text-white hover:bg-purple-700 flex-1 sm:flex-none"
+                            onClick={handleGenerateAllBRoll}
+                            disabled={generatingAllBRoll || concepts.length === 0 || (brollQueueStatus && brollQueueStatus.queueLength > 0)}
+                        >
+                            {generatingAllBRoll || (brollQueueStatus && brollQueueStatus.isProcessing) ? (
+                                <>
+                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                    <span className="hidden sm:inline">Queueing...</span>
+                                    <span className="sm:hidden">Queue</span>
+                                </>
+                            ) : (
+                                <>
+                                    <Film className="h-4 w-4 mr-2" />
+                                    <span className="hidden sm:inline">EZ B-ROLL ALL</span>
+                                    <span className="sm:hidden">B-roll All</span>
+                                </>
+                            )}
+                        </Button>
+                        
+                        <Button
                             className="bg-green-600 text-white hover:bg-green-700 flex-1 sm:flex-none"
                             onClick={() => {
                                 console.log("EZ UPLOAD: Button clicked, opening file selector");
@@ -2885,6 +3057,88 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                 <Alert variant="destructive">
                     <AlertDescription>{error}</AlertDescription>
                 </Alert>
+            )}
+
+            {/* B-roll Queue Status */}
+            {brollQueueStatus && brollQueueStatus.queueLength > 0 && (
+                <Card className="border-purple-200 bg-purple-50">
+                    <CardHeader className="pb-3">
+                        <CardTitle className="text-lg flex items-center text-purple-800">
+                            <Film className="h-5 w-5 mr-2" />
+                            VEO 2 B-roll Generation Queue
+                            {brollQueueStatus.isProcessing && (
+                                <Loader2 className="h-4 w-4 ml-2 animate-spin" />
+                            )}
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                                <span className="text-sm font-medium text-purple-700">
+                                    Status: {brollQueueStatus.isProcessing ? 'Processing' : 'Queued'}
+                                </span>
+                                <span className="text-sm text-purple-600">
+                                    {brollQueueStatus.queueLength} concept{brollQueueStatus.queueLength !== 1 ? 's' : ''} in queue
+                                </span>
+                            </div>
+                            
+                            {brollQueueStatus.items.length > 0 && (
+                                <div className="space-y-2">
+                                    <h4 className="text-sm font-medium text-purple-700">Queue Items:</h4>
+                                    <div className="grid gap-2">
+                                        {brollQueueStatus.items.map((item, index) => {
+                                            const concept = concepts.find(c => c.id === item.conceptId);
+                                            return (
+                                                <div key={item.conceptId} className="flex items-center justify-between p-2 bg-white rounded border border-purple-200">
+                                                    <div className="flex items-center space-x-2">
+                                                        <span className="text-xs font-medium text-gray-500">
+                                                            #{index + 1}
+                                                        </span>
+                                                        <div className="flex flex-col">
+                                                            <span className="text-sm font-medium">
+                                                                {concept?.concept_title || item.conceptId}
+                                                            </span>
+                                                            <span className="text-xs text-gray-500">
+                                                                {item.visualCount} visual{item.visualCount !== 1 ? 's' : ''}
+                                                                {item.status === 'failed' && item.retryCount >= 3 && (
+                                                                    <span className="text-red-600 ml-1">• Max retries exceeded</span>
+                                                                )}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center space-x-2">
+                                                        {item.retryCount > 0 && (
+                                                            <span className="text-xs text-amber-600 bg-amber-100 px-2 py-1 rounded">
+                                                                Retry {item.retryCount}
+                                                            </span>
+                                                        )}
+                                                        <span className={`text-xs px-2 py-1 rounded font-medium ${
+                                                            item.status === 'processing' ? 'bg-blue-100 text-blue-800' :
+                                                            item.status === 'completed' ? 'bg-green-100 text-green-800' :
+                                                            item.status === 'failed' ? 'bg-red-100 text-red-800' :
+                                                            'bg-gray-100 text-gray-800'
+                                                        }`}>
+                                                            {item.status}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+                            
+                            <div className="text-xs text-purple-600 bg-purple-100 p-2 rounded">
+                                💡 <strong>Note:</strong> VEO 2 has rate limits (1 video/30 seconds). The queue processes concepts one at a time to avoid hitting these limits.
+                                {brollQueueStatus.items.some(item => item.status === 'failed' && item.retryCount >= 3) && (
+                                    <div className="mt-2 text-red-600 bg-red-50 p-2 rounded border border-red-200">
+                                        ⚠️ <strong>Rate limit errors detected:</strong> If you see failed items with max retries, you may have hit your VEO 2 API quota. Check your Google Cloud billing and usage limits.
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
             )}
 
             {/* Filtering and Sorting Controls */}
@@ -3743,6 +3997,36 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                         Debug Prompt
                                     </Button>
                                     
+                                    {/* B-roll Generation Button - only for video concepts */}
+                                    {localMediaTypes[concept.id] === 'video' && concept.body_content_structured?.length > 0 && (
+                                        <Button
+                                            size="sm"
+                                            className="ml-2 bg-purple-600 text-white hover:bg-purple-700 flex items-center"
+                                            disabled={generatingBRollIds[concept.id] || (brollQueueStatus && brollQueueStatus.items.some(item => item.conceptId === concept.id))}
+                                            onClick={() => handleGenerateBRoll(concept.id)}
+                                            title={brollQueueStatus && brollQueueStatus.items.some(item => item.conceptId === concept.id) ? 
+                                                "This concept is already in the B-roll generation queue" : 
+                                                "Generate B-roll videos for this concept using VEO 2"}
+                                        >
+                                            {generatingBRollIds[concept.id] ? (
+                                                <>
+                                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                                    Generating VEO 2 B-roll...
+                                                </>
+                                            ) : brollQueueStatus && brollQueueStatus.items.some(item => item.conceptId === concept.id) ? (
+                                                <>
+                                                    <Film className="h-4 w-4 mr-2" />
+                                                    In Queue
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Film className="h-4 w-4 mr-2" />
+                                                    Generate VEO 2 B-roll
+                                                </>
+                                            )}
+                                        </Button>
+                                    )}
+                                    
                                     {/* Hook Options UI - only for videos */}
                                     {localMediaTypes[concept.id] !== 'image' && (
                                         <div className="space-y-2 mt-4">
@@ -4337,6 +4621,18 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                             brandId={brandId}
                                         />
                                     </div>
+                                    
+                                    {/* B-roll Viewer - show generated B-roll videos */}
+                                    {concept.generated_broll && Array.isArray(concept.generated_broll) && concept.generated_broll.length > 0 && (
+                                        <div className="mt-4 pt-4 border-t border-gray-100">
+                                            <h3 className="font-medium text-sm mb-2">Generated VEO 2 B-roll Videos</h3>
+                                            <BRollViewer 
+                                                brollData={concept.generated_broll}
+                                                conceptTitle={concept.concept_title}
+                                                isPublicView={false}
+                                            />
+                                        </div>
+                                    )}
                                     
                                     {/* Creative Instructions Section */}
                                     <div className="space-y-2 mt-4 pt-4 border-t border-gray-100">

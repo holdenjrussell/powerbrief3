@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { TimelineComment, CommentModal } from '@/components/CommentModal';
 import { toast } from '@/components/ui/use-toast';
+import { GeneratedVideo } from '@/lib/types/powerbrief';
 
 interface BrandData {
   id: string;
@@ -61,6 +62,7 @@ interface ConceptData {
   text_hook_options?: Hook[];
   product_id?: string;
   order_in_batch: number;
+  generated_broll?: GeneratedVideo[];
 }
 
 export default function SharedBriefPage({ params }: { params: { shareId: string } }) {
@@ -873,6 +875,8 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
                           </div>
                         </div>
                       )}
+                      
+
                       
                       {/* View full concept link */}
                       <div className="pt-2">

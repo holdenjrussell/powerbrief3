@@ -158,6 +158,14 @@ export interface Prerequisite {
   completed: boolean;
 }
 
+// Generated B-roll video interface for Google Veo 2 integration
+export interface GeneratedVideo {
+  visual_description: string;
+  gemini_prompt: string;
+  video_urls: string[];
+  storage_paths: string[];
+}
+
 export interface BriefConcept {
   id: string;
   brief_batch_id: string;
@@ -195,6 +203,7 @@ export interface BriefConcept {
   hook_type: 'text' | 'verbal' | 'both' | null;
   hook_count: number | null;
   product_id: string | null;
+  generated_broll?: GeneratedVideo[] | null;
 }
 
 // AI Generation models
@@ -314,6 +323,7 @@ export type DbBriefConcept = {
   review_link?: string | null;
   reviewer_notes?: string | null;
   brief_revision_comments?: string | null;
+  generated_broll?: Json | null;
   created_at: string;
   updated_at: string;
 };
@@ -423,4 +433,5 @@ export interface CreateBriefConceptInput {
   hook_type: 'text' | 'verbal' | 'both' | null;
   hook_count: number | null;
   product_id: string | null;
+  generated_broll?: GeneratedVideo[] | null;
 } 
