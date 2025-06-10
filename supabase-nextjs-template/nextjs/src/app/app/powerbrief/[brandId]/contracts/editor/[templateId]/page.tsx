@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, Button, Alert, AlertDescription } from '@/components/ui';
-import { ArrowLeft, Save } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import PowerBriefContractEditor from '@/components/contracts/PowerBriefContractEditor';
 
 interface SimpleRecipient {
@@ -137,10 +137,9 @@ export default function ContractEditorPage() {
     }
   }, [brandId, templateId]); // Removed router from deps unless used in actual fetch
 
-  const handleSave = async (data: { recipients: SimpleRecipient[]; fields: SimpleField[] }) => {
-    // Implementation for saving draft
-    console.log('Save draft requested:', data);
-    alert('Save draft functionality not fully implemented yet.');
+  const handleSaveAsTemplate = async (data: { title: string; description?: string; fields: SimpleField[] }) => {
+    console.log('Save as template requested:', data);
+    alert('Template saving functionality will be implemented here.');
   };
 
   // Updated handleSend
@@ -402,10 +401,7 @@ export default function ContractEditorPage() {
                     <Button variant="outline" size="sm" onClick={() => { setUploadedOriginalFile(null); setNewFileViewerData(null); /* Clear relevant states */ }} title="Upload a different document">
                     📄 Change Document
                     </Button>
-                    <Button variant="outline" size="sm" onClick={() => handleSave({ recipients: [], fields: [] } /* Pass actual data from editor if needed */)}>
-                    <Save className="h-4 w-4 mr-2" /> Save Draft (mock)
-                    </Button>
-                    {/* The actual Send button is inside PowerBriefContractEditor */}
+                    {/* Save as Template and Send buttons are inside PowerBriefContractEditor */}
                 </div>
                 </div>
             </div>
@@ -414,7 +410,7 @@ export default function ContractEditorPage() {
                 <PowerBriefContractEditor
                 documentData={documentPropsForEditor} // This now has {id, name, dataForViewer}
                 brandId={brandId as string}
-                onSave={handleSave} // Ensure handleSave is correctly implemented to use editor's internal state
+                onSaveAsTemplate={handleSaveAsTemplate}
                 onSend={handleSend} // handleSend in Page will use its own state for file data
                 className="min-h-[calc(100vh-150px)]" // Adjusted height
                 />
@@ -454,7 +450,7 @@ export default function ContractEditorPage() {
             <PowerBriefContractEditor
             documentData={documentPropsForEditor} // This will have template data
             brandId={brandId as string}
-            onSave={handleSave}
+            onSaveAsTemplate={handleSaveAsTemplate}
             onSend={handleSend}
             className="min-h-[calc(100vh-150px)]" // Adjusted height
             />
