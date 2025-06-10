@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSSRClient } from '@/lib/supabase/server';
+import { Buffer } from 'buffer';
 
 export async function GET(
   request: NextRequest,
@@ -36,16 +37,67 @@ export async function GET(
     }
 
     // Get the document data
-    const documentData = contract.signed_document_data || contract.document_data;
+    const rawDocumentData = contract.signed_document_data || contract.document_data;
     
-    if (!documentData) {
+    if (!rawDocumentData) {
       return NextResponse.json({ 
         error: 'Document not available' 
       }, { status: 404 });
     }
 
-    // Convert Uint8Array to Buffer for response
-    const buffer = Buffer.from(documentData);
+    // Handle document_data parsing (same logic as verify-token route)
+    let documentDataBuffer: Buffer;
+
+    try {
+      if (typeof rawDocumentData === 'string') {
+        if (rawDocumentData.startsWith('\\x')) {
+          // Hex-encoded data
+          console.log('[preview] Detected hex-encoded PDF data');
+          const hexContent = rawDocumentData.substring(2);
+          
+          // First decode
+          const decodedHex = Buffer.from(hexContent, 'hex');
+          const decodedString = decodedHex.toString('utf-8');
+          
+          // Check if already valid PDF
+          if (decodedString.startsWith('%PDF-')) {
+            console.log('[preview] Decoded hex is already a valid PDF');
+            documentDataBuffer = decodedHex;
+          } else if (decodedString.match(/^[0-9a-fA-F]+$/)) {
+            // Double hex-encoded
+            console.log('[preview] Detected double hex-encoded data');
+            const doubleDecodedHex = Buffer.from(decodedString, 'hex');
+            const doubleDecodedString = doubleDecodedHex.toString('utf-8');
+            
+            if (doubleDecodedString.startsWith('%PDF-')) {
+              console.log('[preview] Double decoded hex is a valid PDF');
+              documentDataBuffer = doubleDecodedHex;
+            } else {
+              throw new Error('Double decoded data is not a valid PDF');
+            }
+          } else {
+            throw new Error('Unknown hex data format');
+          }
+        } else {
+          throw new Error('Unrecognized string format for document data');
+        }
+      } else if (Buffer.isBuffer(rawDocumentData)) {
+        console.log('[preview] Data is already a Buffer');
+        documentDataBuffer = rawDocumentData;
+      } else if (rawDocumentData && typeof rawDocumentData === 'object' && 'length' in rawDocumentData && 'buffer' in rawDocumentData) {
+        console.log('[preview] Data is Uint8Array');
+        documentDataBuffer = Buffer.from(rawDocumentData as Uint8Array);
+      } else {
+        throw new Error('Unhandled document data type: ' + typeof rawDocumentData);
+      }
+    } catch (error) {
+      console.error('[preview] Error processing document data:', error);
+      return NextResponse.json({ 
+        error: 'Failed to process document data' 
+      }, { status: 500 });
+    }
+
+    const buffer = documentDataBuffer;
 
     // Create response with PDF headers for inline viewing
     const response = new NextResponse(buffer, {

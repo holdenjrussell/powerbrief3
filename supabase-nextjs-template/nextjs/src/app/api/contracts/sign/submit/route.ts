@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerAdminClient } from '@/lib/supabase/serverAdminClient';
+import { EmailService } from '@/lib/services/emailService';
 
 interface SubmitSigningRequest {
   contractId: string;
@@ -126,8 +127,34 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 7. TODO: Send confirmation email to the signer
-    // This would include a copy of the signed document
+    // 7. Send confirmation email to the signer
+    try {
+      // Get contract and recipient details for email
+      const { data: contract, error: contractFetchError } = await supabase
+        .from('contracts')
+        .select('title, document_name')
+        .eq('id', contractId)
+        .single();
+
+      const { data: recipient, error: recipientFetchError } = await supabase
+        .from('contract_recipients')
+        .select('name, email')
+        .eq('id', recipientId)
+        .single();
+
+      if (!contractFetchError && !recipientFetchError && contract && recipient) {
+        await EmailService.sendContractCompletionEmail({
+          contractId,
+          contractTitle: contract.title,
+          recipientName: recipient.name,
+          recipientEmail: recipient.email,
+          // TODO: Add download URL when download functionality is ready
+        });
+      }
+    } catch (emailError) {
+      console.error('Error sending confirmation email:', emailError);
+      // Don't fail the entire request if email fails
+    }
 
     return NextResponse.json({ 
       success: true, 
