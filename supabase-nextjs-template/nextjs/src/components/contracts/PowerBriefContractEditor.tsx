@@ -375,8 +375,9 @@ export default function PowerBriefContractEditor({
 
     // Set default value for date fields to today's date
     if (fieldPlacement.type === 'date') {
-      const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
-      newField.value = today; // Adding value property for date fields
+      const today = new Date();
+      const todayFormatted = `${(today.getMonth() + 1).toString().padStart(2, '0')}/${today.getDate().toString().padStart(2, '0')}/${today.getFullYear()}`; // MM/DD/YYYY format
+      newField.value = todayFormatted; // Adding value property for date fields
     }
 
     setFields(prev => [...prev, newField]);

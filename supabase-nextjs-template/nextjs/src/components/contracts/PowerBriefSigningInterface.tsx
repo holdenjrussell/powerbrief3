@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { 
   Button, 
   Card, 
@@ -87,6 +87,30 @@ export default function PowerBriefSigningInterface({
     id: contractData.id,
     data: contractData.documentData,
   }), [contractData.id, contractData.documentData]);
+
+  // Initialize default values for date and name fields
+  useEffect(() => {
+    const today = new Date();
+    const todayFormatted = `${(today.getMonth() + 1).toString().padStart(2, '0')}/${today.getDate().toString().padStart(2, '0')}/${today.getFullYear()}`; // MM/DD/YYYY format
+    
+    const newFieldValues: Record<string, string> = {};
+    let hasUpdates = false;
+    
+    recipientFields.forEach(field => {
+      if (field.type === 'date' && !fieldValues[field.id]) {
+        newFieldValues[field.id] = todayFormatted;
+        hasUpdates = true;
+      }
+      if (field.type === 'name' && !fieldValues[field.id]) {
+        newFieldValues[field.id] = recipientInfo.name;
+        hasUpdates = true;
+      }
+    });
+    
+    if (hasUpdates) {
+      setFieldValues(prev => ({ ...prev, ...newFieldValues }));
+    }
+  }, [recipientFields.map(f => f.id).join(','), recipientInfo.name, Object.keys(fieldValues).length]); // Run when fields or recipient name changes
 
   // Handle field value change
   const handleFieldChange = (fieldId: string, value: string) => {
@@ -287,20 +311,12 @@ export default function PowerBriefSigningInterface({
           );
 
         case 'date':
-          // Default to today's date if no value is set
-          const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
-          const dateValue = value || today;
-          
-          // If this is the first render and no value was set, initialize with today's date
-          if (!value && fieldValues[field.id] !== today) {
-            handleFieldChange(field.id, today);
-          }
-          
           return (
             <Input
-              type="date"
-              value={dateValue}
+              type="text"
+              value={value}
               onChange={(e) => handleFieldChange(field.id, e.target.value)}
+              placeholder="MM/DD/YYYY"
               className={baseInputClasses}
             />
           );
