@@ -266,6 +266,7 @@ export class ContractService {
       }));
     } else {
       // Create default signature fields for each signer (fallback behavior)
+      // TODO: In the future, we could extract fields from templates here
       console.log('No fields provided, creating default signature fields');
       fields = recipientResults
         .filter(r => r.role === 'signer')
@@ -813,7 +814,11 @@ export class ContractService {
       return;
     }
 
-    const signingUrl = `${process.env.NEXT_PUBLIC_WEBAPP_URL}/public/contracts/sign/${contract.id}?token=${authToken}`;
+    // Construct signing URL with smart defaults
+    const baseUrl = process.env.NEXT_PUBLIC_WEBAPP_URL || 
+                   process.env.VERCEL_URL ||
+                   (process.env.NODE_ENV === 'production' ? 'https://app.powerbrief.ai' : 'http://localhost:3000');
+    const signingUrl = `${baseUrl}/public/contracts/sign/${contract.id}?token=${authToken}`;
     
     // Use verified sender and brand-specific reply-to
     const fromEmail = 'noreply@powerbrief.ai';
