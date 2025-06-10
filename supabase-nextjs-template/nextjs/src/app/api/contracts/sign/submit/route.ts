@@ -214,8 +214,8 @@ async function generateFlattenedPdf(
     throw new Error(`Failed to parse document data: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 
-  // Get all fields for this contract (including those with null values)
-  const { data: allFields, error: fieldsError } = await supabase
+  // Get all signed field values for this contract
+  const { data: signedFields, error: fieldsError } = await supabase
     .from('contract_fields')
     .select(`
       id,
@@ -228,54 +228,34 @@ async function generateFlattenedPdf(
       height,
       contract_recipients!inner(name, email, signed_at)
     `)
-    .eq('contract_id', contractId);
+    .eq('contract_id', contractId)
+    .not('value', 'is', null);
 
   if (fieldsError) {
-    throw new Error(`Failed to fetch contract fields: ${fieldsError.message}`);
+    throw new Error(`Failed to fetch signed fields: ${fieldsError.message}`);
   }
 
-  console.log('[PDF Flatten] Found contract fields:', allFields?.length || 0);
+  console.log('[PDF Flatten] Found signed fields:', signedFields?.length || 0);
 
-  if (!allFields || allFields.length === 0) {
-    console.log('[PDF Flatten] No contract fields found, skipping PDF flattening');
+  if (!signedFields || signedFields.length === 0) {
+    console.log('[PDF Flatten] No signed fields found, skipping PDF flattening');
     return;
   }
 
-  // Convert to PdfSigningService format, handling prefilled values
-  const signatures = allFields.map(field => {
-    let fieldValue = field.value || '';
-    
-    // Handle prefilled name fields that might not have been saved to the database
-    if (field.type === 'name' && !fieldValue) {
-      fieldValue = field.contract_recipients.name || '';
-      console.log(`[PDF Flatten] Using prefilled name for field ${field.id}: "${fieldValue}"`);
-    }
-    
-    // Handle prefilled date fields that might not have been saved to the database
-    if (field.type === 'date' && !fieldValue) {
-      fieldValue = new Date().toLocaleDateString();
-      console.log(`[PDF Flatten] Using prefilled date for field ${field.id}: "${fieldValue}"`);
-    }
-    
-    return {
-      fieldId: field.id,
-      type: field.type as FieldType,
-      value: fieldValue,
-      signedAt: field.contract_recipients.signed_at || new Date().toISOString(),
-      signerName: field.contract_recipients.name || 'Unknown Signer',
-      signerEmail: field.contract_recipients.email || '',
-      page: field.page,
-      positionX: field.position_x,
-      positionY: field.position_y,
-      width: field.width,
-      height: field.height,
-    };
-     }).filter(sig => sig.value); // Only include fields that have values (including prefilled ones)
-
-  console.log('[PDF Flatten] Processing signatures for PDF:', signatures.length);
-  signatures.forEach(sig => {
-    console.log(`[PDF Flatten] Field ${sig.fieldId} (${sig.type}): "${sig.value}"`);
-  });
+  // Convert to PdfSigningService format
+  const signatures = signedFields.map(field => ({
+    fieldId: field.id,
+    type: field.type as FieldType,
+    value: field.value || '',
+    signedAt: field.contract_recipients.signed_at || new Date().toISOString(),
+    signerName: field.contract_recipients.name || 'Unknown Signer',
+    signerEmail: field.contract_recipients.email || '',
+    page: field.page,
+    positionX: field.position_x,
+    positionY: field.position_y,
+    width: field.width,
+    height: field.height,
+  }));
 
   // Generate flattened PDF
   const pdfSigningService = new PdfSigningService();
@@ -462,6 +442,31 @@ export async function POST(request: NextRequest) {
           console.error('[Contract Submit] Error updating contract status:', contractUpdateError);
         } else {
           console.log('[Contract Submit] Contract marked as completed');
+          
+          // Update UGC creator contract status to 'contract signed' if linked
+          try {
+            const { data: contractDetails, error: contractDetailsError } = await supabase
+              .from('contracts')
+              .select('creator_id')
+              .eq('id', contractId)
+              .single();
+
+            if (!contractDetailsError && contractDetails?.creator_id) {
+              const { error: creatorUpdateError } = await supabase
+                .from('ugc_creators')
+                .update({ contract_status: 'contract signed' })
+                .eq('id', contractDetails.creator_id);
+
+              if (creatorUpdateError) {
+                console.error(`[Contract Submit] Failed to update creator contract status for creator ${contractDetails.creator_id}:`, creatorUpdateError);
+              } else {
+                console.log(`[Contract Submit] Updated creator ${contractDetails.creator_id} contract status to 'contract signed'`);
+              }
+            }
+          } catch (error) {
+            console.error('[Contract Submit] Error updating creator contract status:', error);
+            // Don't fail the overall operation if creator status update fails
+          }
           
           // Send completion email
           await sendFallbackCompletionEmail(supabase, contractId, recipientId, request);

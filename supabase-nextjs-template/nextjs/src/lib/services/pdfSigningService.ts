@@ -137,7 +137,6 @@ export class PdfSigningService {
         await this.drawDate(page, signature, x, y, fieldWidth, fieldHeight, helveticaFont);
         break;
       case 'text':
-      case 'name': // Handle name fields the same as text fields
         await this.drawText(page, signature, x, y, fieldWidth, fieldHeight, helveticaFont);
         break;
       case 'checkbox':
@@ -145,10 +144,6 @@ export class PdfSigningService {
         break;
       case 'initial':
         await this.drawInitial(page, signature, x, y, fieldWidth, fieldHeight, helveticaBoldFont);
-        break;
-      default:
-        console.warn(`[PDF Field] Unknown field type: ${signature.type}, treating as text`);
-        await this.drawText(page, signature, x, y, fieldWidth, fieldHeight, helveticaFont);
         break;
     }
   }

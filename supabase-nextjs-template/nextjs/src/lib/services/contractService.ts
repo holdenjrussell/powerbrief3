@@ -292,6 +292,20 @@ export class ContractService {
       recipient_count: recipients.length,
     });
 
+    // Update contract status
+    await supabase
+      .from('contracts')
+      .update({ status: 'sent' })
+      .eq('id', contractResult.id);
+
+    // Update UGC creator contract status if linked
+    if (contractResult.creator_id) {
+      await supabase
+        .from('ugc_creators')
+        .update({ contract_status: 'contract sent' })
+        .eq('id', contractResult.creator_id);
+    }
+
     return contractResult;
   }
 
@@ -368,6 +382,14 @@ export class ContractService {
       .from('contracts')
       .update({ status: 'sent' })
       .eq('id', contractId);
+
+    // Update UGC creator contract status if linked
+    if (contract.creator_id) {
+      await supabase
+        .from('ugc_creators')
+        .update({ contract_status: 'contract sent' })
+        .eq('id', contract.creator_id);
+    }
   }
 
   /**

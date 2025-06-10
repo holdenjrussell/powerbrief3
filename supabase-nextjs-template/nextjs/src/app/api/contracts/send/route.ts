@@ -244,6 +244,37 @@ export async function POST(request: NextRequest) {
     const emailResults = await Promise.all(emailPromises);
     const allSent = emailResults.every(r => r.status === 'sent');
 
+    // Update UGC creator contract status to 'contract sent' if any recipients were sent emails
+    if (emailResults.some(r => r.status === 'sent')) {
+      try {
+        const supabase = await createServerAdminClient();
+        
+        // Get the contract to check if it's linked to a creator
+        const { data: contract, error: contractError } = await supabase
+          .from('contracts')
+          .select('creator_id')
+          .eq('id', contractId)
+          .single();
+
+        if (!contractError && contract?.creator_id) {
+          // Update the creator's contract status
+          const { error: creatorUpdateError } = await supabase
+            .from('ugc_creators')
+            .update({ contract_status: 'contract sent' })
+            .eq('id', contract.creator_id);
+
+          if (creatorUpdateError) {
+            console.error(`Failed to update creator contract status for creator ${contract.creator_id}:`, creatorUpdateError);
+          } else {
+            console.log(`Updated creator ${contract.creator_id} contract status to 'contract sent'`);
+          }
+        }
+      } catch (error) {
+        console.error('Error updating creator contract status:', error);
+        // Don't fail the overall operation if creator status update fails
+      }
+    }
+
     if (allSent) {
       return NextResponse.json({ message: 'Contract emails sent successfully', results: emailResults });
     } else {
