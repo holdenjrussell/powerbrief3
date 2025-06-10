@@ -233,35 +233,35 @@ export default function PublicContractSigningPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Mobile-friendly header */}
-      <div className="bg-white shadow-sm border-b sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-3 sm:px-4 py-3 sm:py-4">
+      <div className="bg-white shadow-sm border-b">
+        <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 min-w-0">
-              <FileText className="h-4 w-4 sm:h-5 sm:w-5 text-purple-600 flex-shrink-0" />
-              <h1 className="text-sm sm:text-lg font-semibold truncate">PowerBrief Contract</h1>
+            <div className="flex items-center gap-2">
+              <FileText className="h-5 w-5 text-purple-600" />
+              <h1 className="text-lg font-semibold">PowerBrief Contract</h1>
             </div>
-            <div className="text-right min-w-0 flex-shrink-0 ml-2">
-              <p className="text-xs sm:text-sm font-medium text-gray-700 truncate">{recipientInfo.name}</p>
-              <p className="text-xs text-gray-500 truncate hidden sm:block">{recipientInfo.email}</p>
+            <div className="text-right">
+              <p className="text-sm font-medium text-gray-700">{recipientInfo.name}</p>
+              <p className="text-xs text-gray-500">{recipientInfo.email}</p>
             </div>
           </div>
         </div>
       </div>
 
       {/* Main content */}
-      <div className="max-w-7xl mx-auto p-2 sm:p-4">
+      <div className="max-w-7xl mx-auto p-4">
         <PowerBriefSigningInterface
           contractData={contractData}
           fields={fields}
           recipientInfo={recipientInfo}
           onComplete={handleComplete}
-          className="min-h-[calc(100vh-80px)] sm:min-h-[calc(100vh-120px)]"
+          className="min-h-[calc(100vh-120px)]"
         />
       </div>
 
       {/* Footer */}
-      <div className="bg-white border-t mt-4 sm:mt-8">
-        <div className="max-w-7xl mx-auto px-3 sm:px-4 py-3 sm:py-4 text-center">
+      <div className="bg-white border-t mt-8">
+        <div className="max-w-7xl mx-auto px-4 py-4 text-center">
           <p className="text-xs text-gray-500">
             This document is secured and powered by PowerBrief. 
             Your signature is legally binding.

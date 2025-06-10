@@ -80,7 +80,20 @@ export async function GET(
               throw new Error('Double decoded data is not a valid PDF');
             }
           } else {
-            throw new Error('Unknown hex data format');
+            // Check if it's a JSON Buffer object
+            console.log('[public-download] Checking for JSON Buffer format');
+            try {
+              const parsedData = JSON.parse(decodedString);
+              if (parsedData.type === 'Buffer' && Array.isArray(parsedData.data)) {
+                console.log('[public-download] Found JSON Buffer format, data length:', parsedData.data.length);
+                documentDataBuffer = Buffer.from(parsedData.data);
+                console.log('[public-download] Converted JSON Buffer to Buffer, starts with PDF:', documentDataBuffer.toString('latin1', 0, 5) === '%PDF-');
+              } else {
+                throw new Error('Not a valid Buffer JSON format');
+              }
+            } catch {
+              throw new Error('Unknown hex data format');
+            }
           }
         } else {
           throw new Error('Unrecognized string format for document data');

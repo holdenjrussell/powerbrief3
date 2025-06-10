@@ -83,15 +83,28 @@ export async function GET(
               throw new Error('Double decoded data is not a valid PDF');
             }
           } else {
-            // Try direct binary interpretation
-            console.log('[preview] Trying direct binary interpretation');
-            if (decodedHex.length > 4 && decodedHex.readUInt32BE(0) === 0x25504446) { // %PDF in hex
-              console.log('[preview] Found PDF header in binary data');
-              documentDataBuffer = decodedHex;
-            } else {
-              console.error('[preview] Unknown hex data format, first 50 chars of decoded:', decodedString.substring(0, 50));
-              console.error('[preview] First 20 bytes as hex:', decodedHex.subarray(0, 20).toString('hex'));
-              throw new Error('Unknown hex data format');
+            // Check if it's a JSON Buffer object
+            console.log('[preview] Checking for JSON Buffer format');
+            try {
+              const parsedData = JSON.parse(decodedString);
+              if (parsedData.type === 'Buffer' && Array.isArray(parsedData.data)) {
+                console.log('[preview] Found JSON Buffer format, data length:', parsedData.data.length);
+                documentDataBuffer = Buffer.from(parsedData.data);
+                console.log('[preview] Converted JSON Buffer to Buffer, starts with PDF:', documentDataBuffer.toString('latin1', 0, 5) === '%PDF-');
+              } else {
+                throw new Error('Not a valid Buffer JSON format');
+              }
+            } catch {
+              // Try direct binary interpretation
+              console.log('[preview] Not JSON Buffer, trying direct binary interpretation');
+              if (decodedHex.length > 4 && decodedHex.readUInt32BE(0) === 0x25504446) { // %PDF in hex
+                console.log('[preview] Found PDF header in binary data');
+                documentDataBuffer = decodedHex;
+              } else {
+                console.error('[preview] Unknown hex data format, first 50 chars of decoded:', decodedString.substring(0, 50));
+                console.error('[preview] First 20 bytes as hex:', decodedHex.subarray(0, 20).toString('hex'));
+                throw new Error('Unknown hex data format');
+              }
             }
           }
         } else if (rawDocumentData.startsWith('%PDF-')) {
