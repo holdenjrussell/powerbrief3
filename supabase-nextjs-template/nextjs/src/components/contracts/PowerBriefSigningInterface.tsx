@@ -204,23 +204,30 @@ export default function PowerBriefSigningInterface({
           return (
             <Dialog open={showSignatureDialog && currentSignatureField === field.id} onOpenChange={setShowSignatureDialog}>
               <DialogTrigger asChild>
-                <Button 
-                  variant={value ? "default" : "outline"} 
-                  className="w-full h-full"
+                <div 
+                  className="w-full h-full cursor-pointer border border-gray-300 rounded bg-white hover:bg-gray-50 transition-colors"
                   onClick={() => handleCreateSignature(field.id)}
                 >
                   {value ? (
-                    <div className="flex items-center">
-                      <CheckCircle className="h-4 w-4 mr-2" />
-                      Signed
+                    <div className="w-full h-full p-1 flex items-center justify-center">
+                      <img 
+                        src={value} 
+                        alt="Signature" 
+                        className="max-w-full max-h-full object-contain"
+                        style={{
+                          filter: 'invert(0%)', // Ensure signature shows in original color
+                        }}
+                      />
                     </div>
                   ) : (
-                    <div className="flex items-center">
-                      <PenTool className="h-4 w-4 mr-2" />
-                      Click to Sign
+                    <div className="w-full h-full flex items-center justify-center text-gray-500 hover:text-gray-700">
+                      <div className="flex items-center">
+                        <PenTool className="h-4 w-4 mr-2" />
+                        Click to Sign
+                      </div>
                     </div>
                   )}
-                </Button>
+                </div>
               </DialogTrigger>
               <DialogContent className="z-[9999]">
                 <DialogHeader>
