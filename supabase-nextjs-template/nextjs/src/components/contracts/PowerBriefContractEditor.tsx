@@ -71,6 +71,7 @@ interface SimpleField {
   height: number;
   recipientId: string;
   recipientEmail: string;
+  value?: string; // Optional value for field defaults (e.g., today's date for date fields)
 }
 
 interface Creator {
@@ -371,6 +372,12 @@ export default function PowerBriefContractEditor({
       recipientId: recipientForField.id,
       recipientEmail: recipientForField.email,
     };
+
+    // Set default value for date fields to today's date
+    if (fieldPlacement.type === 'date') {
+      const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+      newField.value = today; // Adding value property for date fields
+    }
 
     setFields(prev => [...prev, newField]);
     // After placing a field, deselect the tool type so the user isn't stuck in click-to-place mode

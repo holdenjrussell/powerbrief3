@@ -661,8 +661,8 @@ function PowerBriefFieldOverlay({
     // Do NOT call e.stopPropagation() here if RND needs to process the mousedown to start a drag.
     // Let RND's internal handlers for drag initiation process the event.
     
-    // We can still do our selection logic.
-    if (onFieldSelect && enableFieldPlacement) {
+    // Field selection should work in editing mode (when onFieldSelect is provided)
+    if (onFieldSelect && !isSigningMode) {
       console.log(`[FieldOverlay ${field.id}] Calling onFieldSelect with field.id: ${field.id}`);
       onFieldSelect(field.id);
     }

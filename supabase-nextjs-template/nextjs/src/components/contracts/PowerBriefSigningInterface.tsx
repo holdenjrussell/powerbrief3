@@ -287,10 +287,19 @@ export default function PowerBriefSigningInterface({
           );
 
         case 'date':
+          // Default to today's date if no value is set
+          const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+          const dateValue = value || today;
+          
+          // If this is the first render and no value was set, initialize with today's date
+          if (!value && fieldValues[field.id] !== today) {
+            handleFieldChange(field.id, today);
+          }
+          
           return (
             <Input
               type="date"
-              value={value}
+              value={dateValue}
               onChange={(e) => handleFieldChange(field.id, e.target.value)}
               className={baseInputClasses}
             />
