@@ -292,19 +292,8 @@ export class ContractService {
       recipient_count: recipients.length,
     });
 
-    // Update contract status
-    await supabase
-      .from('contracts')
-      .update({ status: 'sent' })
-      .eq('id', contractResult.id);
-
-    // Update UGC creator contract status if linked
-    if (contractResult.creator_id) {
-      await supabase
-        .from('ugc_creators')
-        .update({ contract_status: 'contract sent' })
-        .eq('id', contractResult.creator_id);
-    }
+    // Keep contract in draft status - it should only be sent when explicitly requested
+    // The contract will be updated to 'sent' status when the sendContract method is called
 
     return contractResult;
   }

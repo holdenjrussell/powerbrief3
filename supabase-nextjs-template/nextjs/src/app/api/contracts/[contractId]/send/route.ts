@@ -4,7 +4,7 @@ import { ContractService } from '@/lib/services/contractService';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { contractId: string } }
+  { params }: { params: Promise<{ contractId: string }> }
 ) {
   try {
     const supabase = await createSSRClient();
@@ -14,7 +14,7 @@ export async function POST(
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
 
-    const { contractId } = params;
+    const { contractId } = await params;
 
     if (!contractId) {
       return NextResponse.json({ error: 'Contract ID is required' }, { status: 400 });
