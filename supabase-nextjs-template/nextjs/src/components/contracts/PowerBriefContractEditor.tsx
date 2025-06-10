@@ -509,7 +509,6 @@ export default function PowerBriefContractEditor({
                   size="sm" 
                   variant={currentStep === 'send' ? 'default' : 'outline'}
                   onClick={() => setCurrentStep('send')}
-                  disabled={fields.length === 0}
                 >
                   <Send className="h-4 w-4 mr-1" />
                   Send
