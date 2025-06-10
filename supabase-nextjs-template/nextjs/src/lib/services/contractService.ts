@@ -31,7 +31,11 @@ if (process.env.SENDGRID_API_KEY) {
 
 // Utility function to auto-detect webapp URL from request context
 function getWebappUrl(): string {
-  // Try environment variables first
+  // Try existing environment variables first
+  if (process.env.NEXT_PUBLIC_APP_URL) {
+    return process.env.NEXT_PUBLIC_APP_URL;
+  }
+  
   if (process.env.NEXT_PUBLIC_WEBAPP_URL) {
     return process.env.NEXT_PUBLIC_WEBAPP_URL;
   }
