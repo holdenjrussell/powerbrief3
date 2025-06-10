@@ -39,6 +39,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  console.log('[API Templates POST] === ENDPOINT REACHED ===');
+  console.log('[API Templates POST] Request received at:', new Date().toISOString());
+  
   try {
     const supabase = await createSSRClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();

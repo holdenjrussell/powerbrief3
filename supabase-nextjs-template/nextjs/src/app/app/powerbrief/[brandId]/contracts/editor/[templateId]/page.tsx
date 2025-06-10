@@ -258,12 +258,42 @@ export default function ContractEditorPage() {
           
           console.log('[useEffect] === END PDF DATA DEBUGGING ===');
           
+          // Process template fields
+          console.log('[useEffect] === TEMPLATE FIELDS DEBUGGING ===');
+          console.log('[useEffect] Raw template fields from API:', result.template.fields);
+          console.log('[useEffect] Fields type:', typeof result.template.fields);
+          
+          let processedFields: SimpleField[] = [];
+          if (result.template.fields) {
+            try {
+              if (typeof result.template.fields === 'string') {
+                console.log('[useEffect] Fields is string, parsing JSON...');
+                processedFields = JSON.parse(result.template.fields);
+              } else if (Array.isArray(result.template.fields)) {
+                console.log('[useEffect] Fields is already an array');
+                processedFields = result.template.fields;
+              } else {
+                console.log('[useEffect] Fields is object, using as-is');
+                processedFields = result.template.fields;
+              }
+              console.log('[useEffect] Processed fields:', processedFields);
+              console.log('[useEffect] Processed fields count:', processedFields.length);
+            } catch (fieldError) {
+              console.error('[useEffect] Error parsing template fields:', fieldError);
+              processedFields = [];
+            }
+          } else {
+            console.log('[useEffect] No fields found in template');
+          }
+          console.log('[useEffect] === END TEMPLATE FIELDS DEBUGGING ===');
+          
           const templateData: ContractTemplate = {
             id: result.template.id,
             title: result.template.title,
             description: result.template.description,
             document_data: documentDataBuffer,
             document_name: result.template.document_name,
+            fields: processedFields,
             created_at: result.template.created_at,
           };
           
@@ -381,13 +411,21 @@ export default function ContractEditorPage() {
         body: formData,
       });
 
+      console.log('[handleSaveAsTemplate] Response received:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
+        headers: Object.fromEntries(response.headers.entries())
+      });
+
       if (!response.ok) {
         const errorData = await response.json();
+        console.error('[handleSaveAsTemplate] API Error Response:', errorData);
         throw new Error(errorData.error || `Failed to save template (HTTP ${response.status})`);
       }
 
       const result = await response.json();
-      console.log('[handleSaveAsTemplate] Template saved successfully:', result);
+      console.log('[handleSaveAsTemplate] Success Response:', result);
 
       alert('Template saved successfully! It will appear in your Templates list.');
 
