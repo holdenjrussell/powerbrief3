@@ -28,7 +28,6 @@ import {
   Label
 } from "@/components/ui";
 import { UgcCreatorScript, UgcCreator, UGC_SCRIPT_PAYMENT_STATUSES } from '@/lib/types/ugcCreator';
-import { ContractTemplate } from '@/lib/types/contracts';
 import { ChevronRight, CheckCircle, AlertCircle, User, PenSquare, Trash2, Edit, Package, FileText, Sparkles, DollarSign, Calendar, Send, ExternalLink } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
@@ -91,10 +90,6 @@ export default function ScriptCard({
 
   // Contract template state
   const [showSendContractDialog, setShowSendContractDialog] = useState(false);
-  const [contractTemplates, setContractTemplates] = useState<ContractTemplate[]>([]);
-  const [selectedTemplateId, setSelectedTemplateId] = useState('');
-  const [loadingTemplates, setLoadingTemplates] = useState(false);
-  const [sendingContract, setSendingContract] = useState(false);
 
   // Function to get badge variant based on status
   const getStatusVariant = (status: string | undefined) => {
@@ -329,119 +324,19 @@ export default function ScriptCard({
   };
 
   // Contract template handlers
-  const fetchContractTemplates = async () => {
-    if (!brandId) return;
-    
-    setLoadingTemplates(true);
-    try {
-      const response = await fetch(`/api/contracts/templates?brandId=${brandId}`);
-      if (!response.ok) throw new Error('Failed to fetch templates');
-      
-      const data = await response.json();
-      setContractTemplates(data.templates || []);
-    } catch (error) {
-      console.error('Error fetching contract templates:', error);
-      setContractTemplates([]);
-    } finally {
-      setLoadingTemplates(false);
-    }
-  };
-
   const handleOpenSendContractDialog = () => {
     setShowSendContractDialog(true);
-    fetchContractTemplates();
   };
 
   const handleSendContract = async () => {
-    // Temporarily redirect to contracts dashboard instead of sending
+    // Redirect to contracts dashboard
     if (!brandId) return;
     
     // Close dialog first
     setShowSendContractDialog(false);
-    setSelectedTemplateId('');
     
     // Redirect to contracts tab in UGC pipeline (default to templates tab)
     window.open(`/app/powerbrief/${brandId}/ugc-pipeline?status=Send+Script+to+Creator&view=contracts&tab=templates`, '_blank');
-    
-    /* COMMENTED OUT - Contract sending temporarily disabled
-    if (!selectedTemplateId || !brandId) return;
-    
-    const assignedCreator = creators.find(c => c.id === script.creator_id);
-    if (!assignedCreator?.email) return;
-
-    setSendingContract(true);
-    try {
-      // First, fetch the template to get its fields
-      const templateResponse = await fetch(`/api/contracts/templates/${selectedTemplateId}`);
-      if (!templateResponse.ok) {
-        throw new Error('Failed to fetch template');
-      }
-      
-      const { template } = await templateResponse.json();
-      console.log('Template fetched:', template);
-      
-      // Convert template fields to contract fields format
-      const contractFields = (template.template_fields || []).map((field: any) => ({
-        type: field.type,
-        page: field.page,
-        positionX: field.position_x,
-        positionY: field.position_y,
-        width: field.width,
-        height: field.height,
-        recipientEmail: assignedCreator.email,
-        recipientId: 'placeholder' // Will be updated by the API
-      }));
-      
-      console.log('Contract fields prepared:', contractFields);
-
-      // Create contract from template with fields
-      const formData = new FormData();
-      formData.append('brandId', brandId);
-      formData.append('title', `UGC Script Contract - ${script.title}`);
-      formData.append('creatorId', assignedCreator.id);
-      formData.append('scriptId', script.id);
-      formData.append('templateId', selectedTemplateId);
-      formData.append('recipients', JSON.stringify([{
-        name: assignedCreator.name,
-        email: assignedCreator.email,
-        role: 'signer'
-      }]));
-      formData.append('fields', JSON.stringify(contractFields));
-
-      const createResponse = await fetch('/api/contracts', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!createResponse.ok) {
-        throw new Error('Failed to create contract');
-      }
-
-      const { contract } = await createResponse.json();
-
-      // Send the contract
-      const sendResponse = await fetch(`/api/contracts/${contract.id}/send`, {
-        method: 'POST',
-      });
-
-      if (!sendResponse.ok) {
-        throw new Error('Failed to send contract');
-      }
-
-      // Close dialog and reset state
-      setShowSendContractDialog(false);
-      setSelectedTemplateId('');
-      
-      // Refresh the page or update creator data
-      window.location.reload();
-      
-    } catch (error) {
-      console.error('Error sending contract:', error);
-      alert('Failed to send contract. Please try again.');
-    } finally {
-      setSendingContract(false);
-    }
-    */
   };
 
   const handleResendContract = async () => {

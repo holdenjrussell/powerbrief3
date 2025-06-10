@@ -3,15 +3,17 @@
 import React, { useState, useEffect } from 'react';
 import { useGlobal } from '@/lib/context/GlobalContext';
 import { useRouter } from 'next/navigation';
-import { getBrandById, getBriefBatches, createBriefBatch } from '@/lib/services/powerbriefService';
+import { getBrandById, getBriefBatches, createBriefBatch, updateBriefBatch, deleteBriefBatch } from '@/lib/services/powerbriefService';
 import { Brand, BriefBatch } from '@/lib/types/powerbrief';
-import { Loader2, Plus, Folder } from 'lucide-react';
+import { Loader2, Plus, Folder, Edit, Trash2, MoreVertical } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import Link from 'next/link';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 // Helper to unwrap params safely
 type ParamsType = { brandId: string };
@@ -26,6 +28,14 @@ export default function BriefsPage({ params }: { params: ParamsType | Promise<Pa
     const [showNewBatchDialog, setShowNewBatchDialog] = useState<boolean>(false);
     const [newBatchName, setNewBatchName] = useState<string>('');
     const [creatingBatch, setCreatingBatch] = useState<boolean>(false);
+
+    // CRUD operation states
+    const [showRenameBatchDialog, setShowRenameBatchDialog] = useState(false);
+    const [showDeleteBatchDialog, setShowDeleteBatchDialog] = useState(false);
+    const [selectedBatch, setSelectedBatch] = useState<BriefBatch | null>(null);
+    const [renameBatchValue, setRenameBatchValue] = useState('');
+    const [renamingBatch, setRenamingBatch] = useState(false);
+    const [deletingBatch, setDeletingBatch] = useState(false);
 
     // Extract params using React.use()
     const unwrappedParams = params instanceof Promise ? React.use(params) : params;
@@ -87,6 +97,68 @@ export default function BriefsPage({ params }: { params: ParamsType | Promise<Pa
         } finally {
             setCreatingBatch(false);
         }
+    };
+
+    // CRUD operations
+    const handleRenameBatch = async () => {
+        if (!selectedBatch || !renameBatchValue.trim()) return;
+        
+        try {
+            setRenamingBatch(true);
+            const updatedBatch = await updateBriefBatch({
+                id: selectedBatch.id,
+                name: renameBatchValue.trim()
+            });
+            
+            // Update the batches list
+            setBatches(prev => 
+                prev.map(batch => 
+                    batch.id === updatedBatch.id ? updatedBatch : batch
+                )
+            );
+            
+            setShowRenameBatchDialog(false);
+            setSelectedBatch(null);
+            setRenameBatchValue('');
+        } catch (err) {
+            console.error('Error renaming batch:', err);
+            setError('Failed to rename batch. Please try again.');
+        } finally {
+            setRenamingBatch(false);
+        }
+    };
+
+    const handleDeleteBatch = async () => {
+        if (!selectedBatch) return;
+        
+        try {
+            setDeletingBatch(true);
+            await deleteBriefBatch(selectedBatch.id);
+            
+            // Remove from batches list
+            setBatches(prev => 
+                prev.filter(batch => batch.id !== selectedBatch.id)
+            );
+            
+            setShowDeleteBatchDialog(false);
+            setSelectedBatch(null);
+        } catch (err) {
+            console.error('Error deleting batch:', err);
+            setError('Failed to delete batch. Please try again.');
+        } finally {
+            setDeletingBatch(false);
+        }
+    };
+
+    const openRenameBatchDialog = (batch: BriefBatch) => {
+        setSelectedBatch(batch);
+        setRenameBatchValue(batch.name);
+        setShowRenameBatchDialog(true);
+    };
+
+    const openDeleteBatchDialog = (batch: BriefBatch) => {
+        setSelectedBatch(batch);
+        setShowDeleteBatchDialog(true);
     };
 
     if (loading) {
@@ -172,29 +244,68 @@ export default function BriefsPage({ params }: { params: ParamsType | Promise<Pa
                             };
 
                             return (
-                                <Link href={getConceptEditorRoute(batch)} key={batch.id}>
-                                    <Card className="cursor-pointer hover:shadow-md transition-shadow h-full">
-                                        <CardHeader>
-                                            <CardTitle className="flex items-center">
-                                                <Folder className="h-5 w-5 mr-2 text-primary-600" />
-                                                {batch.name}
-                                            </CardTitle>
-                                            <CardDescription>
-                                                Created: {new Date(batch.created_at).toLocaleDateString()}
-                                                {batch.content_type && (
-                                                    <span className="ml-2 px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">
-                                                        {batch.content_type.replace('-', ' ').replace('_', ' ').toUpperCase()}
-                                                    </span>
-                                                )}
-                                            </CardDescription>
-                                        </CardHeader>
-                                        <CardContent>
-                                            <div className="flex items-center justify-center h-20 bg-gray-50 rounded-md">
-                                                <Folder className="h-8 w-8 text-gray-400" />
-                                            </div>
-                                        </CardContent>
-                                    </Card>
-                                </Link>
+                                <div key={batch.id} className="relative group">
+                                    <Link href={getConceptEditorRoute(batch)}>
+                                        <Card className="cursor-pointer hover:shadow-md transition-shadow h-full">
+                                            <CardHeader>
+                                                <CardTitle className="flex items-center justify-between">
+                                                    <div className="flex items-center">
+                                                        <Folder className="h-5 w-5 mr-2 text-primary-600" />
+                                                        {batch.name}
+                                                    </div>
+                                                </CardTitle>
+                                                <CardDescription>
+                                                    Created: {new Date(batch.created_at).toLocaleDateString()}
+                                                    {batch.content_type && (
+                                                        <span className="ml-2 px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">
+                                                            {batch.content_type.replace('-', ' ').replace('_', ' ').toUpperCase()}
+                                                        </span>
+                                                    )}
+                                                </CardDescription>
+                                            </CardHeader>
+                                            <CardContent>
+                                                <div className="flex items-center justify-center h-20 bg-gray-50 rounded-md">
+                                                    <Folder className="h-8 w-8 text-gray-400" />
+                                                </div>
+                                            </CardContent>
+                                        </Card>
+                                    </Link>
+                                    
+                                    {/* Batch Actions Menu */}
+                                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="h-8 w-8 p-0 bg-white/90 hover:bg-white shadow-sm"
+                                                    onClick={(e) => e.preventDefault()}
+                                                >
+                                                    <MoreVertical className="h-4 w-4" />
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end">
+                                                <DropdownMenuItem onClick={(e) => {
+                                                    e.preventDefault();
+                                                    openRenameBatchDialog(batch);
+                                                }}>
+                                                    <Edit className="h-4 w-4 mr-2" />
+                                                    Rename
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem 
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        openDeleteBatchDialog(batch);
+                                                    }}
+                                                    className="text-red-600"
+                                                >
+                                                    <Trash2 className="h-4 w-4 mr-2" />
+                                                    Delete
+                                                </DropdownMenuItem>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+                                    </div>
+                                </div>
                             );
                         })}
                     </div>
@@ -246,6 +357,90 @@ export default function BriefsPage({ params }: { params: ParamsType | Promise<Pa
                                     <Plus className="h-4 w-4 mr-2" />
                                     Create Batch
                                 </>
+                            )}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+            
+            {/* Rename Batch Dialog */}
+            <Dialog open={showRenameBatchDialog} onOpenChange={setShowRenameBatchDialog}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Rename Batch</DialogTitle>
+                        <DialogDescription>
+                            Enter a new name for the batch &quot;{selectedBatch?.name}&quot;
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="py-4">
+                        <Label htmlFor="batch-name">Batch Name</Label>
+                        <Input
+                            id="batch-name"
+                            value={renameBatchValue}
+                            onChange={(e) => setRenameBatchValue(e.target.value)}
+                            placeholder="Enter new batch name..."
+                            disabled={renamingBatch}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' && renameBatchValue.trim() && !renamingBatch) {
+                                    handleRenameBatch();
+                                }
+                            }}
+                        />
+                    </div>
+                    <DialogFooter>
+                        <Button 
+                            variant="outline" 
+                            onClick={() => setShowRenameBatchDialog(false)}
+                            disabled={renamingBatch}
+                        >
+                            Cancel
+                        </Button>
+                        <Button 
+                            onClick={handleRenameBatch}
+                            disabled={!renameBatchValue.trim() || renamingBatch}
+                        >
+                            {renamingBatch ? (
+                                <>
+                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                    Renaming...
+                                </>
+                            ) : (
+                                'Rename'
+                            )}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Delete Batch Dialog */}
+            <Dialog open={showDeleteBatchDialog} onOpenChange={setShowDeleteBatchDialog}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Delete Batch</DialogTitle>
+                        <DialogDescription>
+                            Are you sure you want to delete the batch &quot;{selectedBatch?.name}&quot;? This action cannot be undone and will delete all concepts within this batch.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button 
+                            variant="outline" 
+                            onClick={() => setShowDeleteBatchDialog(false)}
+                            disabled={deletingBatch}
+                        >
+                            Cancel
+                        </Button>
+                        <Button 
+                            variant="destructive"
+                            onClick={handleDeleteBatch}
+                            disabled={deletingBatch}
+                        >
+                            {deletingBatch ? (
+                                <>
+                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                    Deleting...
+                                </>
+                            ) : (
+                                'Delete Batch'
                             )}
                         </Button>
                     </DialogFooter>
