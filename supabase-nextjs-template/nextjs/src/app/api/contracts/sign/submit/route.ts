@@ -11,7 +11,12 @@ interface SubmitSigningRequest {
 }
 
 // Fallback email function  
-async function sendFallbackCompletionEmail(supabase: Awaited<ReturnType<typeof createServerAdminClient>>, contractId: string, recipientId: string) {
+async function sendFallbackCompletionEmail(
+  supabase: Awaited<ReturnType<typeof createServerAdminClient>>, 
+  contractId: string, 
+  recipientId: string,
+  request: NextRequest
+) {
   try {
     console.log('[Contract Submit] Sending fallback completion email...');
     console.log('[Contract Submit] SendGrid API Key configured:', !!process.env.SENDGRID_API_KEY);
@@ -62,11 +67,13 @@ async function sendFallbackCompletionEmail(supabase: Awaited<ReturnType<typeof c
       ? `${brand.email_identifier}@mail.powerbrief.ai`
       : 'noreply@powerbrief.ai';
 
-    // Construct proper download URL
-    const baseUrl = process.env.NEXT_PUBLIC_WEBAPP_URL || process.env.VERCEL_URL || 'http://localhost:3000';
+    // Construct download URL automatically from request headers
+    const host = request.headers.get('host') || 'localhost:3000';
+    const protocol = request.headers.get('x-forwarded-proto') || (host.includes('localhost') ? 'http' : 'https');
+    const baseUrl = `${protocol}://${host}`;
     const downloadUrl = `${baseUrl}/public/contracts/download/${contractId}?token=${contract.share_token}`;
 
-    console.log('[Contract Submit] Download URL constructed:', downloadUrl);
+    console.log('[Contract Submit] Download URL constructed from request headers:', downloadUrl);
     console.log('[Contract Submit] Sending email from:', fromEmail, 'reply-to:', replyToEmail, 'to:', recipient.email);
 
     const html = `
@@ -291,7 +298,7 @@ export async function POST(request: NextRequest) {
           console.log('[Contract Submit] Contract marked as completed');
           
           // Send completion email
-          await sendFallbackCompletionEmail(supabase, contractId, recipientId);
+          await sendFallbackCompletionEmail(supabase, contractId, recipientId, request);
         }
       }
     }

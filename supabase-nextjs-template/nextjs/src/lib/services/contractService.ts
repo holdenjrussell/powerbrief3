@@ -877,8 +877,10 @@ This email was sent by ${brandName} via PowerBrief Contract System.
     recipient: ContractRecipient,
     brandName: string
   ): { html: string; text: string } {
-    // Construct proper download URL
-    const baseUrl = process.env.NEXT_PUBLIC_WEBAPP_URL || process.env.VERCEL_URL || 'http://localhost:3000';
+    // Construct download URL with smart defaults
+    const baseUrl = process.env.NEXT_PUBLIC_WEBAPP_URL || 
+                   process.env.VERCEL_URL ||
+                   (process.env.NODE_ENV === 'production' ? 'https://app.powerbrief.ai' : 'http://localhost:3000');
     const downloadUrl = `${baseUrl}/public/contracts/download/${contract.id}?token=${contract.share_token}`;
     
     const html = `
