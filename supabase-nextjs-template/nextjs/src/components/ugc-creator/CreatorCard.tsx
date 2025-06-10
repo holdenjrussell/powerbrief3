@@ -194,8 +194,8 @@ export default function CreatorCard({ creator, brandId, onUpdate }: CreatorCardP
     // Temporarily redirect to contracts dashboard instead of sending
     setShowContractDialog(false);
     
-    // Redirect to contracts tab in UGC pipeline
-    window.open(`/app/powerbrief/${brandId}/ugc-pipeline?status=Send+Script+to+Creator&view=contracts`, '_blank');
+    // Redirect to contracts tab in UGC pipeline (default to templates tab)
+    window.open(`/app/powerbrief/${brandId}/ugc-pipeline?status=Send+Script+to+Creator&view=contracts&tab=templates`, '_blank');
     
     /* COMMENTED OUT - Contract sending temporarily disabled
     if (!contractData.title || (!contractData.templateId && !contractData.customDocument)) {

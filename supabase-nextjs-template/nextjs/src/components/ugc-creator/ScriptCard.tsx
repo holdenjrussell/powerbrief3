@@ -360,8 +360,8 @@ export default function ScriptCard({
     setShowSendContractDialog(false);
     setSelectedTemplateId('');
     
-    // Redirect to contracts tab in UGC pipeline
-    window.open(`/app/powerbrief/${brandId}/ugc-pipeline?status=Send+Script+to+Creator&view=contracts`, '_blank');
+    // Redirect to contracts tab in UGC pipeline (default to templates tab)
+    window.open(`/app/powerbrief/${brandId}/ugc-pipeline?status=Send+Script+to+Creator&view=contracts&tab=templates`, '_blank');
     
     /* COMMENTED OUT - Contract sending temporarily disabled
     if (!selectedTemplateId || !brandId) return;
@@ -1407,19 +1407,19 @@ export default function ScriptCard({
           <DialogHeader>
             <DialogTitle>Create Contract for Creator</DialogTitle>
             <DialogDescription>
-              This will open the contracts tab where you can create and send a contract to the creator.
+              This will open the contract templates section where you can create and send a contract to the creator.
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
             <div className="p-4 bg-blue-50 border border-blue-200 rounded-md">
               <p className="text-sm text-blue-800 font-medium mb-2">Quick Contract Creation</p>
               <p className="text-sm text-blue-700">
-                You will be redirected to the contracts tab where you can:
+                You will be redirected to the contract templates where you can:
               </p>
               <ul className="text-sm text-blue-700 mt-2 ml-4 list-disc">
-                <li>Select or create a contract template</li>
-                <li>Add the creator details</li>
-                <li>Send the contract for digital signature</li>
+                <li>Use the PowerBrief editor to create templates</li>
+                <li>Create contracts from existing templates</li>
+                <li>Send contracts for digital signature</li>
               </ul>
             </div>
           </div>
@@ -1434,7 +1434,7 @@ export default function ScriptCard({
               onClick={handleSendContract}
             >
               <ExternalLink className="h-4 w-4 mr-2" />
-              Open Contracts Tab
+              Open Contract Templates
             </Button>
           </DialogFooter>
         </DialogContent>

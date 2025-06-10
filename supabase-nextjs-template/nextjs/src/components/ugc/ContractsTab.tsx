@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { 
   Card, 
   CardHeader, 
@@ -53,7 +54,9 @@ interface ContractsTabProps {
 }
 
 export default function ContractsTab({ brandId, creators, onRefresh }: ContractsTabProps) {
-  const [activeTab, setActiveTab] = useState('contracts');
+  const searchParams = useSearchParams();
+  const defaultTab = searchParams.get('tab') || 'contracts';
+  const [activeTab, setActiveTab] = useState(defaultTab);
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [templates, setTemplates] = useState<ContractTemplate[]>([]);
   const [loading, setLoading] = useState(true);
