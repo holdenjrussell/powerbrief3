@@ -360,8 +360,8 @@ export default function ScriptCard({
     setShowSendContractDialog(false);
     setSelectedTemplateId('');
     
-    // Redirect to contracts dashboard
-    window.open(`/app/powerbrief/${brandId}/contracts`, '_blank');
+    // Redirect to contracts tab in UGC pipeline
+    window.open(`/app/powerbrief/${brandId}/ugc-pipeline?status=Send+Script+to+Creator&view=contracts`, '_blank');
     
     /* COMMENTED OUT - Contract sending temporarily disabled
     if (!selectedTemplateId || !brandId) return;
@@ -1407,14 +1407,14 @@ export default function ScriptCard({
           <DialogHeader>
             <DialogTitle>Create Contract for Creator</DialogTitle>
             <DialogDescription>
-              This will open the contracts dashboard where you can create and send a contract to the creator.
+              This will open the contracts tab where you can create and send a contract to the creator.
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
             <div className="p-4 bg-blue-50 border border-blue-200 rounded-md">
               <p className="text-sm text-blue-800 font-medium mb-2">Quick Contract Creation</p>
               <p className="text-sm text-blue-700">
-                You will be redirected to the contracts dashboard where you can:
+                You will be redirected to the contracts tab where you can:
               </p>
               <ul className="text-sm text-blue-700 mt-2 ml-4 list-disc">
                 <li>Select or create a contract template</li>
@@ -1434,7 +1434,7 @@ export default function ScriptCard({
               onClick={handleSendContract}
             >
               <ExternalLink className="h-4 w-4 mr-2" />
-              Open Contracts Dashboard
+              Open Contracts Tab
             </Button>
           </DialogFooter>
         </DialogContent>
