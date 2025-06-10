@@ -198,6 +198,31 @@ export default function CreatorCard({ creator, brandId, onUpdate }: CreatorCardP
     try {
       setSendingContract(true);
       
+      let contractFields: any[] = [];
+      
+      // If using a template, fetch its fields first
+      if (contractData.templateId) {
+        const templateResponse = await fetch(`/api/contracts/templates/${contractData.templateId}`);
+        if (templateResponse.ok) {
+          const { template } = await templateResponse.json();
+          console.log('Template fetched:', template);
+          
+          // Convert template fields to contract fields format
+          contractFields = (template.template_fields || []).map((field: any) => ({
+            type: field.type,
+            page: field.page,
+            positionX: field.position_x,
+            positionY: field.position_y,
+            width: field.width,
+            height: field.height,
+            recipientEmail: creator.email,
+            recipientId: 'placeholder' // Will be updated by the API
+          }));
+          
+          console.log('Contract fields prepared:', contractFields);
+        }
+      }
+      
       // Create contract
       const formData = new FormData();
       formData.append('brandId', brandId);
@@ -208,6 +233,7 @@ export default function CreatorCard({ creator, brandId, onUpdate }: CreatorCardP
         email: creator.email,
         role: 'signer'
       }]));
+      formData.append('fields', JSON.stringify(contractFields));
       
       if (contractData.templateId) {
         formData.append('templateId', contractData.templateId);

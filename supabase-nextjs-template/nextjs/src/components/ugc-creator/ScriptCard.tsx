@@ -360,7 +360,30 @@ export default function ScriptCard({
 
     setSendingContract(true);
     try {
-      // Create contract from template
+      // First, fetch the template to get its fields
+      const templateResponse = await fetch(`/api/contracts/templates/${selectedTemplateId}`);
+      if (!templateResponse.ok) {
+        throw new Error('Failed to fetch template');
+      }
+      
+      const { template } = await templateResponse.json();
+      console.log('Template fetched:', template);
+      
+      // Convert template fields to contract fields format
+      const contractFields = (template.template_fields || []).map((field: any) => ({
+        type: field.type,
+        page: field.page,
+        positionX: field.position_x,
+        positionY: field.position_y,
+        width: field.width,
+        height: field.height,
+        recipientEmail: assignedCreator.email,
+        recipientId: 'placeholder' // Will be updated by the API
+      }));
+      
+      console.log('Contract fields prepared:', contractFields);
+
+      // Create contract from template with fields
       const formData = new FormData();
       formData.append('brandId', brandId);
       formData.append('title', `UGC Script Contract - ${script.title}`);
@@ -372,6 +395,7 @@ export default function ScriptCard({
         email: assignedCreator.email,
         role: 'signer'
       }]));
+      formData.append('fields', JSON.stringify(contractFields));
 
       const createResponse = await fetch('/api/contracts', {
         method: 'POST',

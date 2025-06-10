@@ -29,6 +29,26 @@ if (process.env.SENDGRID_API_KEY) {
   sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 }
 
+// Utility function to auto-detect webapp URL from request context
+function getWebappUrl(): string {
+  // Try environment variables first
+  if (process.env.NEXT_PUBLIC_WEBAPP_URL) {
+    return process.env.NEXT_PUBLIC_WEBAPP_URL;
+  }
+  
+  // Auto-detect based on deployment environment
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}`;
+  }
+  
+  // Smart defaults based on environment
+  if (process.env.NODE_ENV === 'production') {
+    return 'https://app.powerbrief.ai'; // Production default
+  }
+  
+  return 'http://localhost:3000'; // Development default
+}
+
 export class ContractService {
   private static instance: ContractService;
   private pdfService: PdfSigningService;
@@ -266,7 +286,6 @@ export class ContractService {
       }));
     } else {
       // Create default signature fields for each signer (fallback behavior)
-      // TODO: In the future, we could extract fields from templates here
       console.log('No fields provided, creating default signature fields');
       fields = recipientResults
         .filter(r => r.role === 'signer')
@@ -814,11 +833,7 @@ export class ContractService {
       return;
     }
 
-    // Construct signing URL with smart defaults
-    const baseUrl = process.env.NEXT_PUBLIC_WEBAPP_URL || 
-                   process.env.VERCEL_URL ||
-                   (process.env.NODE_ENV === 'production' ? 'https://app.powerbrief.ai' : 'http://localhost:3000');
-    const signingUrl = `${baseUrl}/public/contracts/sign/${contract.id}?token=${authToken}`;
+    const signingUrl = `${getWebappUrl()}/public/contracts/sign/${contract.id}?token=${authToken}`;
     
     // Use verified sender and brand-specific reply-to
     const fromEmail = 'noreply@powerbrief.ai';
@@ -955,9 +970,7 @@ This email was sent by ${brandName} via PowerBrief Contract System.
     brandName: string
   ): { html: string; text: string } {
     // Construct download URL with smart defaults
-    const baseUrl = process.env.NEXT_PUBLIC_WEBAPP_URL || 
-                   process.env.VERCEL_URL ||
-                   (process.env.NODE_ENV === 'production' ? 'https://app.powerbrief.ai' : 'http://localhost:3000');
+    const baseUrl = getWebappUrl();
     const downloadUrl = `${baseUrl}/public/contracts/download/${contract.id}?token=${contract.share_token}`;
     
     const html = `
