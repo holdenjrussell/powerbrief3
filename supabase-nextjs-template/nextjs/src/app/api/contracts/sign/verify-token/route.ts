@@ -32,17 +32,32 @@ export async function POST(request: NextRequest) {
     const supabase = await createServerAdminClient();
 
     // 1. Verify the token
-    const { data: tokenData, error: tokenError } = await supabase
+    console.log('[verify-token] Looking for token:', { contractId, token: token.substring(0, 10) + '...' });
+    
+    // First, let's check if there are multiple tokens
+    const { data: allTokens, error: checkError } = await supabase
       .from('contract_signing_tokens')
-      .select('recipient_id, expires_at, used_at')
+      .select('id, recipient_id, expires_at, used_at')
       .eq('contract_id', contractId)
-      .eq('token', token)
-      .single();
-
-    if (tokenError || !tokenData) {
-      console.error('Token verification error or token not found:', tokenError?.message);
+      .eq('token', token);
+    
+    console.log('[verify-token] Found tokens:', allTokens?.length || 0);
+    
+    if (checkError) {
+      console.error('Token check error:', checkError.message);
+      return NextResponse.json({ error: 'Error checking signing link.' }, { status: 500 });
+    }
+    
+    if (!allTokens || allTokens.length === 0) {
+      console.error('No tokens found for contract:', contractId);
       return NextResponse.json({ error: 'Invalid or expired signing link (token not found).' }, { status: 401 });
     }
+    
+    if (allTokens.length > 1) {
+      console.warn('[verify-token] Multiple tokens found, using the first one');
+    }
+    
+    const tokenData = allTokens[0];
 
     if (tokenData.used_at) {
       return NextResponse.json({ error: 'This signing link has already been used.' }, { status: 403 });
@@ -103,11 +118,43 @@ export async function POST(request: NextRequest) {
             // New correct format: \x + hex string
             console.log('[verify-token] Detected new format: \\x prefixed hex string.');
             const hexContent = rawDocumentData.substring(2);
-            documentDataBuffer = Buffer.from(hexContent, 'hex');
-             if (!(documentDataBuffer.length > 4 && documentDataBuffer.slice(0, 5).toString('utf-8') === '%PDF-')) {
-                console.warn('[verify-token] New format \\x prefixed hex string did NOT result in a valid PDF header.');
-                // Potentially throw error or log more details
-             }
+            
+            // First, try to decode the hex string
+            const decodedHex = Buffer.from(hexContent, 'hex');
+            
+            // Check if the decoded hex is actually JSON (double/triple encoding issue)
+            const decodedString = decodedHex.toString('utf-8');
+            if (decodedString.startsWith('{')) {
+                console.log('[verify-token] Detected JSON encoding in hex. Checking format...');
+                
+                // Check if it's a Buffer JSON representation
+                if (decodedString.includes('"type":"Buffer"') && decodedString.includes('"data":[')) {
+                    console.log('[verify-token] Detected Buffer JSON format. Parsing...');
+                    const bufferJson = JSON.parse(decodedString) as { type: string; data: number[] };
+                    if (bufferJson.type === 'Buffer' && Array.isArray(bufferJson.data)) {
+                        documentDataBuffer = Buffer.from(bufferJson.data);
+                        console.log('[verify-token] Successfully decoded Buffer JSON. PDF header check:', documentDataBuffer.slice(0, 5).toString('utf-8'));
+                    } else {
+                        throw new Error('Invalid Buffer JSON format');
+                    }
+                } else if (decodedString.includes('"0":')) {
+                    // Old format with numeric keys
+                    console.log('[verify-token] Detected numeric key JSON format. Parsing...');
+                    const parsedObject = JSON.parse(decodedString) as Record<string, number>;
+                    const numericKeys = Object.keys(parsedObject).map(Number).sort((a, b) => a - b);
+                    const byteArray = numericKeys.map(key => parsedObject[String(key)]);
+                    documentDataBuffer = Buffer.from(Uint8Array.from(byteArray));
+                    console.log('[verify-token] Successfully decoded numeric key JSON. PDF header check:', documentDataBuffer.slice(0, 5).toString('utf-8'));
+                } else {
+                    throw new Error('Unknown JSON format in hex data');
+                }
+            } else {
+                // Normal hex decoding
+                documentDataBuffer = decodedHex;
+                if (!(documentDataBuffer.length > 4 && documentDataBuffer.slice(0, 5).toString('utf-8') === '%PDF-')) {
+                    console.warn('[verify-token] New format \\x prefixed hex string did NOT result in a valid PDF header.');
+                }
+            }
         } else {
           console.error('[verify-token] Unrecognized string format for document_data:', rawDocumentData.substring(0, 200));
           throw new Error('Unrecognized string format for document data.');
@@ -202,6 +249,8 @@ export async function POST(request: NextRequest) {
 
 
     // 4. Fetch fields assigned to this recipient for this contract
+    console.log('[verify-token] Fetching fields for contract:', contractId, 'recipient:', recipientId);
+    
     const { data: fieldsFromDb, error: fieldsError } = await supabase
       .from('contract_fields') 
       .select('id, type, page, position_x, position_y, width, height, placeholder') // Use snake_case
@@ -212,6 +261,8 @@ export async function POST(request: NextRequest) {
       console.error('Fields fetch error:', fieldsError.message);
       return NextResponse.json({ error: 'Could not retrieve contract fields.' }, { status: 500 });
     }
+
+    console.log('[verify-token] Fields from DB:', fieldsFromDb);
 
     // Map database results (snake_case) to SigningFieldData (camelCase)
     const fieldsForSigner: SigningFieldData[] = (fieldsFromDb || []).map(field => ({
@@ -224,6 +275,8 @@ export async function POST(request: NextRequest) {
       height: field.height,
       placeholder: field.placeholder,
     }));
+
+    console.log('[verify-token] Mapped fields for signer:', fieldsForSigner);
 
     // 5. Optionally, mark the token as accessed (but not yet used for submission)
     // This is if you want to track link views. For now, we mark as used upon submission.

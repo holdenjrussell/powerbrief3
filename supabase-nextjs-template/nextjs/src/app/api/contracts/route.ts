@@ -72,6 +72,7 @@ export async function POST(request: NextRequest) {
     const scriptId = formData.get('scriptId') as string;
     const expiresInDays = formData.get('expiresInDays') as string;
     const recipients = formData.get('recipients') as string;
+    const fields = formData.get('fields') as string;
     const document = formData.get('document') as File;
 
     console.log('Received contract creation request:', {
@@ -82,7 +83,8 @@ export async function POST(request: NextRequest) {
       documentSize: document?.size,
       documentType: document?.type,
       hasDocument: !!document,
-      recipientsLength: recipients?.length
+      recipientsLength: recipients?.length,
+      fieldsLength: fields?.length
     });
 
     if (!brandId || !title) {
@@ -100,6 +102,18 @@ export async function POST(request: NextRequest) {
         error: 'Invalid recipients format' 
       }, { status: 400 });
     }
+
+    // Parse fields
+    let parsedFields;
+    try {
+      parsedFields = JSON.parse(fields || '[]');
+    } catch {
+      return NextResponse.json({ 
+        error: 'Invalid fields format' 
+      }, { status: 400 });
+    }
+
+    console.log('Parsed fields from editor:', parsedFields);
 
     if (!Array.isArray(parsedRecipients) || parsedRecipients.length === 0) {
       return NextResponse.json({ 
@@ -163,6 +177,7 @@ export async function POST(request: NextRequest) {
       creatorId: creatorId || undefined,
       scriptId: scriptId || undefined,
       recipients: parsedRecipients,
+      fields: parsedFields,
       expiresInDays: expiresInDays ? parseInt(expiresInDays) : undefined,
     };
 

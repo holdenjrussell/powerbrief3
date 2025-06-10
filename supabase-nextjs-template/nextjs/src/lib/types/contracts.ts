@@ -257,11 +257,8 @@ export interface ContractCreationData {
   templateId?: string;
   creatorId?: string;
   scriptId?: string;
-  recipients: {
-    name: string;
-    email: string;
-    role?: RecipientRole;
-  }[];
+  recipients: ContractRecipient[];
+  fields?: SimpleField[];
   expiresInDays?: number;
 }
 
@@ -273,4 +270,17 @@ export interface SigningLinkData {
   signerName: string;
   signerEmail: string;
   expiresAt?: string;
+}
+
+// Add SimpleField interface if not already defined
+export interface SimpleField {
+  id: string;
+  type: string;
+  page: number;
+  positionX: number;
+  positionY: number;
+  width: number;
+  height: number;
+  recipientId: string;
+  recipientEmail: string;
 } 

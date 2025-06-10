@@ -64,14 +64,28 @@ export default function PublicContractSigningPage() {
     }
   }, [contractId, authToken]);
 
+  // Log to debug
+  useEffect(() => {
+    console.log('[PublicSigningPage] Component mounted with:', {
+      contractId,
+      authToken,
+      loading,
+      error,
+      hasContractData: !!contractData
+    });
+  }, [contractId, authToken, loading, error, contractData]);
+
   const fetchSigningData = async () => {
+    console.log('[PublicSigningPage] fetchSigningData called with:', { contractId, authToken });
     try {
       // Verify token and get contract data
+      console.log('[PublicSigningPage] Making API call to verify-token...');
       const response = await fetch('/api/contracts/sign/verify-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contractId, token: authToken }),
       });
+      console.log('[PublicSigningPage] API response status:', response.status);
       
       if (!response.ok) {
         const errorData = await response.json();
@@ -80,6 +94,8 @@ export default function PublicContractSigningPage() {
 
       const result = await response.json();
       const { documentName, documentDataString, fieldsForSigner, recipientName, recipientEmail } = result.data;
+
+      console.log('[PublicSigningPage] Fields received from API:', fieldsForSigner);
 
       // Convert base64 string back to Uint8Array
       const documentDataArray = Uint8Array.from(atob(documentDataString), c => c.charCodeAt(0));

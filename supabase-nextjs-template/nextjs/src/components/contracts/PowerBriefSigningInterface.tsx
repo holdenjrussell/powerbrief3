@@ -185,137 +185,164 @@ export default function PowerBriefSigningInterface({
   // Render field input based on type
   const renderFieldInput = (field: SigningField) => {
     const value = fieldValues[field.id] || '';
+    const isCompleted = !!value;
 
-    switch (field.type) {
-      case 'signature':
-        return (
-          <Dialog open={showSignatureDialog && currentSignatureField === field.id} onOpenChange={setShowSignatureDialog}>
-            <DialogTrigger asChild>
-              <Button 
-                variant={value ? "default" : "outline"} 
-                className="w-full h-full"
-                onClick={() => handleCreateSignature(field.id)}
-              >
-                {value ? (
-                  <div className="flex items-center">
-                    <CheckCircle className="h-4 w-4 mr-2" />
-                    Signed
+    // Container styling for the field based on its state
+    const containerClasses = `w-full h-full border-2 rounded ${
+      isCompleted 
+        ? 'border-green-500 bg-green-50' 
+        : field.required 
+        ? 'border-red-500 bg-red-50' 
+        : 'border-blue-500 bg-blue-50'
+    } relative`;
+
+    const baseInputClasses = "w-full h-full border-0 bg-transparent focus:outline-none focus:ring-0 p-2";
+
+    const renderInput = () => {
+      switch (field.type) {
+        case 'signature':
+          return (
+            <Dialog open={showSignatureDialog && currentSignatureField === field.id} onOpenChange={setShowSignatureDialog}>
+              <DialogTrigger asChild>
+                <Button 
+                  variant={value ? "default" : "outline"} 
+                  className="w-full h-full"
+                  onClick={() => handleCreateSignature(field.id)}
+                >
+                  {value ? (
+                    <div className="flex items-center">
+                      <CheckCircle className="h-4 w-4 mr-2" />
+                      Signed
+                    </div>
+                  ) : (
+                    <div className="flex items-center">
+                      <PenTool className="h-4 w-4 mr-2" />
+                      Click to Sign
+                    </div>
+                  )}
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Create Your Signature</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <Label>Draw your signature below:</Label>
+                    <canvas
+                      ref={canvasRef}
+                      width={400}
+                      height={150}
+                      className="border-2 border-gray-300 rounded-lg cursor-crosshair w-full"
+                      onMouseDown={startDrawing}
+                      onMouseMove={draw}
+                      onMouseUp={stopDrawing}
+                      onMouseLeave={stopDrawing}
+                    />
                   </div>
-                ) : (
-                  <div className="flex items-center">
-                    <PenTool className="h-4 w-4 mr-2" />
-                    Click to Sign
-                  </div>
-                )}
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Create Your Signature</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div>
-                  <Label>Draw your signature below:</Label>
-                  <canvas
-                    ref={canvasRef}
-                    width={400}
-                    height={150}
-                    className="border-2 border-gray-300 rounded-lg cursor-crosshair w-full"
-                    onMouseDown={startDrawing}
-                    onMouseMove={draw}
-                    onMouseUp={stopDrawing}
-                    onMouseLeave={stopDrawing}
-                  />
-                </div>
-                <div className="flex justify-between">
-                  <Button variant="outline" onClick={clearSignature}>
-                    Clear
-                  </Button>
-                  <div className="space-x-2">
-                    <Button variant="outline" onClick={() => setShowSignatureDialog(false)}>
-                      Cancel
+                  <div className="flex justify-between">
+                    <Button variant="outline" onClick={clearSignature}>
+                      Clear
                     </Button>
-                    <Button onClick={handleSaveSignature} disabled={!signature}>
-                      Save Signature
-                    </Button>
+                    <div className="space-x-2">
+                      <Button variant="outline" onClick={() => setShowSignatureDialog(false)}>
+                        Cancel
+                      </Button>
+                      <Button onClick={handleSaveSignature} disabled={!signature}>
+                        Save Signature
+                      </Button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </DialogContent>
-          </Dialog>
-        );
+              </DialogContent>
+            </Dialog>
+          );
 
-      case 'text':
-        return (
-          <Input
-            value={value}
-            onChange={(e) => handleFieldChange(field.id, e.target.value)}
-            placeholder={field.placeholder || 'Enter text'}
-            className="w-full h-full"
-          />
-        );
+        case 'text':
+          return (
+            <Input
+              value={value}
+              onChange={(e) => handleFieldChange(field.id, e.target.value)}
+              placeholder={field.placeholder || 'Enter text'}
+              className={baseInputClasses}
+            />
+          );
 
-      case 'email':
-        return (
-          <Input
-            type="email"
-            value={value}
-            onChange={(e) => handleFieldChange(field.id, e.target.value)}
-            placeholder={field.placeholder || 'Enter email'}
-            className="w-full h-full"
-          />
-        );
+        case 'email':
+          return (
+            <Input
+              type="email"
+              value={value}
+              onChange={(e) => handleFieldChange(field.id, e.target.value)}
+              placeholder={field.placeholder || 'Enter email'}
+              className={baseInputClasses}
+            />
+          );
 
-      case 'date':
-        return (
-          <Input
-            type="date"
-            value={value}
-            onChange={(e) => handleFieldChange(field.id, e.target.value)}
-            className="w-full h-full"
-          />
-        );
+        case 'date':
+          return (
+            <Input
+              type="date"
+              value={value}
+              onChange={(e) => handleFieldChange(field.id, e.target.value)}
+              className={baseInputClasses}
+            />
+          );
 
-      case 'number':
-        return (
-          <Input
-            type="number"
-            value={value}
-            onChange={(e) => handleFieldChange(field.id, e.target.value)}
-            placeholder={field.placeholder || 'Enter number'}
-            className="w-full h-full"
-          />
-        );
+        case 'number':
+          return (
+            <Input
+              type="number"
+              value={value}
+              onChange={(e) => handleFieldChange(field.id, e.target.value)}
+              placeholder={field.placeholder || 'Enter number'}
+              className={baseInputClasses}
+            />
+          );
 
-      case 'checkbox':
-        return (
-          <Checkbox
-            checked={value === 'true'}
-            onCheckedChange={(checked) => handleFieldChange(field.id, checked ? 'true' : 'false')}
-            className="w-5 h-5"
-          />
-        );
+        case 'checkbox':
+          return (
+            <div className="w-full h-full flex items-center justify-center">
+              <Checkbox
+                checked={value === 'true'}
+                onCheckedChange={(checked) => handleFieldChange(field.id, checked ? 'true' : 'false')}
+                className="w-5 h-5"
+              />
+            </div>
+          );
 
-      case 'name':
-        return (
-          <Input
-            value={value}
-            onChange={(e) => handleFieldChange(field.id, e.target.value)}
-            placeholder={recipientInfo.name}
-            className="w-full h-full"
-          />
-        );
+        case 'name':
+          return (
+            <Input
+              value={value}
+              onChange={(e) => handleFieldChange(field.id, e.target.value)}
+              placeholder={recipientInfo.name}
+              className={baseInputClasses}
+            />
+          );
 
-      default:
-        return (
-          <Input
-            value={value}
-            onChange={(e) => handleFieldChange(field.id, e.target.value)}
-            placeholder={field.placeholder || 'Enter value'}
-            className="w-full h-full"
-          />
-        );
-    }
+        default:
+          return (
+            <Input
+              value={value}
+              onChange={(e) => handleFieldChange(field.id, e.target.value)}
+              placeholder={field.placeholder || 'Enter value'}
+              className={baseInputClasses}
+            />
+          );
+      }
+    };
+
+    return (
+      <div className={containerClasses}>
+        {renderInput()}
+        {field.required && !fieldValues[field.id] && (
+          <div className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
+            !
+          </div>
+        )}
+      </div>
+    );
   };
 
   const getFieldIcon = (type: string) => {
@@ -485,44 +512,11 @@ export default function PowerBriefSigningInterface({
                 recipientEmail: field.recipientEmail,
                 value: fieldValues[field.id],
                 placeholder: field.placeholder,
+                required: field.required,
               }))}
+              isSigningMode={true}
+              renderInteractiveElement={renderFieldInput}
             />
-            
-            {/* Overlay for field inputs - positioned absolutely over the PDF */}
-            <div className="absolute inset-0 pointer-events-none">
-              {recipientFields.map((field) => {
-                const isCompleted = !!fieldValues[field.id];
-                
-                return (
-                  <div
-                    key={field.id}
-                    className={`absolute border-2 rounded pointer-events-auto ${
-                      isCompleted 
-                        ? 'border-green-500 bg-green-50' 
-                        : field.required 
-                        ? 'border-red-500 bg-red-50' 
-                        : 'border-blue-500 bg-blue-50'
-                    }`}
-                    style={{
-                      left: `${field.positionX}%`,
-                      top: `${field.positionY}%`,
-                      width: `${field.width}%`,
-                      height: `${field.height}%`,
-                      minHeight: '40px',
-                    }}
-                  >
-                    <div className="w-full h-full p-1">
-                      {renderFieldInput(field)}
-                    </div>
-                    {field.required && !fieldValues[field.id] && (
-                      <div className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
-                        !
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
           </CardContent>
         </Card>
       </div>

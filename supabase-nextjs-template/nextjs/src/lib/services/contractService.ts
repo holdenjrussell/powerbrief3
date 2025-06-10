@@ -13,7 +13,10 @@ import {
   ContractCreationData,
   SigningLinkData,
   ContractStatus,
-  RecipientStatus
+  RecipientStatus,
+  RecipientRole,
+  CompletionCertificate,
+  FieldType
 } from '@/lib/types/contracts';
 import { UgcCreator } from '@/lib/types/ugcCreator';
 import { Brand } from '@/lib/types/powerbrief';
@@ -57,11 +60,20 @@ export class ContractService {
       throw new Error(`Invalid PDF: ${validation.error}`);
     }
 
+    // Convert Uint8Array to Buffer for Supabase
+    // Supabase will handle the bytea conversion automatically
+    const documentDataBuffer = Buffer.from(templateData.document_data);
+
     const template = {
-      ...templateData,
+      title: templateData.title, // Ensure only expected fields from CreateContractTemplate are used
+      description: templateData.description,
+      document_data: documentDataBuffer as any, // Let Supabase handle bytea conversion
+      document_name: templateData.document_name,
+      document_size: templateData.document_data.length, // Original length for metadata
+      fields: JSON.stringify(templateData.fields || []) as any, // Convert to JSON for JSONB field
       user_id: userId,
       brand_id: brandId,
-      fields: templateData.fields || [],
+      // is_active is managed by DB default or specific updates, not directly here unless intended
     };
 
     const { data, error } = await supabase
@@ -124,6 +136,10 @@ export class ContractService {
       ? new Date(Date.now() + contractData.expiresInDays * 24 * 60 * 60 * 1000).toISOString()
       : null;
 
+    // Convert Uint8Array to Buffer for Supabase
+    // Supabase will handle the bytea conversion automatically
+    const documentDataBuffer = Buffer.from(documentData);
+
     // Create contract
     const contract: Omit<Contract, 'id' | 'created_at' | 'updated_at'> = {
       template_id: contractData.templateId || null,
@@ -133,9 +149,9 @@ export class ContractService {
       script_id: contractData.scriptId || null,
       title: contractData.title,
       status: 'draft',
-      document_data: documentData,
+      document_data: documentDataBuffer as any, // Let Supabase handle bytea conversion
       document_name: documentName,
-      document_size: documentData.length,
+      document_size: documentData.length, // Original length is fine for metadata
       signed_document_data: null,
       completion_certificate: null,
       share_token: shareToken,
@@ -163,20 +179,47 @@ export class ContractService {
 
     const recipientResults = await this.createContractRecipients(contractResult.id, recipients);
 
-    // Create default signature fields for each signer
-    const fields: CreateContractField[] = recipientResults
-      .filter(r => r.role === 'signer')
-      .map((recipient, index) => ({
-        recipient_id: recipient.id,
-        type: 'signature' as const,
-        page: 1,
-        position_x: 0.1,
-        position_y: 0.8 - (index * 0.1), // Stack signatures vertically
-        width: 0.3,
-        height: 0.08,
+    // Create fields from contractData if provided, otherwise create default signature fields
+    let fields: CreateContractField[] = [];
+    
+    if (contractData.fields && contractData.fields.length > 0) {
+      // Use fields from editor
+      console.log('Using fields from editor:', contractData.fields);
+      
+      // Create a mapping from recipientEmail to recipient_id
+      const recipientEmailToId = recipientResults.reduce((map, recipient) => {
+        map[recipient.email] = recipient.id;
+        return map;
+      }, {} as Record<string, string>);
+      
+      fields = contractData.fields.map(field => ({
+        recipient_id: recipientEmailToId[field.recipientEmail] || recipientResults[0].id, // Fallback to first recipient
+        type: field.type as FieldType,
+        page: field.page,
+        position_x: field.positionX,
+        position_y: field.positionY,
+        width: field.width,
+        height: field.height,
         is_required: true,
-        placeholder: `Signature - ${recipient.name}`,
+        placeholder: `${field.type} field`,
       }));
+    } else {
+      // Create default signature fields for each signer (fallback behavior)
+      console.log('No fields provided, creating default signature fields');
+      fields = recipientResults
+        .filter(r => r.role === 'signer')
+        .map((recipient, index) => ({
+          recipient_id: recipient.id,
+          type: 'signature' as const,
+          page: 1,
+          position_x: 0.1,
+          position_y: 0.8 - (index * 0.1), // Stack signatures vertically
+          width: 0.3,
+          height: 0.08,
+          is_required: true,
+          placeholder: `Signature - ${recipient.name}`,
+        }));
+    }
 
     if (fields.length > 0) {
       await this.createContractFields(contractResult.id, fields);

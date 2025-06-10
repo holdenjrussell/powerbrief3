@@ -7,31 +7,6 @@ export type Json =
   | Json[]
 
 export type Database = {
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          operationName?: string
-          query?: string
-          variables?: Json
-          extensions?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
       ad_batches: {
@@ -969,6 +944,354 @@ export type Database = {
             columns: ["parent_id"]
             isOneToOne: false
             referencedRelation: "concept_comments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contract_audit_logs: {
+        Row: {
+          action: string
+          contract_id: string
+          details: Json | null
+          id: string
+          ip_address: unknown | null
+          recipient_id: string | null
+          timestamp: string
+          user_agent: string | null
+        }
+        Insert: {
+          action: string
+          contract_id: string
+          details?: Json | null
+          id?: string
+          ip_address?: unknown | null
+          recipient_id?: string | null
+          timestamp?: string
+          user_agent?: string | null
+        }
+        Update: {
+          action?: string
+          contract_id?: string
+          details?: Json | null
+          id?: string
+          ip_address?: unknown | null
+          recipient_id?: string | null
+          timestamp?: string
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contract_audit_logs_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
+            referencedRelation: "contracts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contract_audit_logs_recipient_id_fkey"
+            columns: ["recipient_id"]
+            isOneToOne: false
+            referencedRelation: "contract_recipients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contract_fields: {
+        Row: {
+          contract_id: string
+          created_at: string
+          height: number
+          id: string
+          is_required: boolean | null
+          page: number
+          placeholder: string | null
+          position_x: number
+          position_y: number
+          recipient_id: string
+          type: string
+          updated_at: string
+          value: string | null
+          width: number
+        }
+        Insert: {
+          contract_id: string
+          created_at?: string
+          height: number
+          id?: string
+          is_required?: boolean | null
+          page: number
+          placeholder?: string | null
+          position_x: number
+          position_y: number
+          recipient_id: string
+          type: string
+          updated_at?: string
+          value?: string | null
+          width: number
+        }
+        Update: {
+          contract_id?: string
+          created_at?: string
+          height?: number
+          id?: string
+          is_required?: boolean | null
+          page?: number
+          placeholder?: string | null
+          position_x?: number
+          position_y?: number
+          recipient_id?: string
+          type?: string
+          updated_at?: string
+          value?: string | null
+          width?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contract_fields_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
+            referencedRelation: "contracts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contract_fields_recipient_id_fkey"
+            columns: ["recipient_id"]
+            isOneToOne: false
+            referencedRelation: "contract_recipients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contract_recipients: {
+        Row: {
+          auth_token: string | null
+          contract_id: string
+          created_at: string
+          email: string
+          id: string
+          ip_address: unknown | null
+          name: string
+          role: string | null
+          signed_at: string | null
+          signing_order: number | null
+          status: string | null
+          updated_at: string
+          user_agent: string | null
+          viewed_at: string | null
+        }
+        Insert: {
+          auth_token?: string | null
+          contract_id: string
+          created_at?: string
+          email: string
+          id?: string
+          ip_address?: unknown | null
+          name: string
+          role?: string | null
+          signed_at?: string | null
+          signing_order?: number | null
+          status?: string | null
+          updated_at?: string
+          user_agent?: string | null
+          viewed_at?: string | null
+        }
+        Update: {
+          auth_token?: string | null
+          contract_id?: string
+          created_at?: string
+          email?: string
+          id?: string
+          ip_address?: unknown | null
+          name?: string
+          role?: string | null
+          signed_at?: string | null
+          signing_order?: number | null
+          status?: string | null
+          updated_at?: string
+          user_agent?: string | null
+          viewed_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contract_recipients_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
+            referencedRelation: "contracts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contract_signing_tokens: {
+        Row: {
+          contract_id: string
+          created_at: string
+          expires_at: string
+          id: string
+          recipient_id: string
+          token: string
+          used_at: string | null
+        }
+        Insert: {
+          contract_id: string
+          created_at?: string
+          expires_at: string
+          id?: string
+          recipient_id: string
+          token: string
+          used_at?: string | null
+        }
+        Update: {
+          contract_id?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          recipient_id?: string
+          token?: string
+          used_at?: string | null
+        }
+        Relationships: []
+      }
+      contract_templates: {
+        Row: {
+          brand_id: string
+          created_at: string
+          description: string | null
+          document_data: string
+          document_name: string
+          document_size: number
+          fields: Json | null
+          id: string
+          is_active: boolean | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          brand_id: string
+          created_at?: string
+          description?: string | null
+          document_data: string
+          document_name: string
+          document_size: number
+          fields?: Json | null
+          id?: string
+          is_active?: boolean | null
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          brand_id?: string
+          created_at?: string
+          description?: string | null
+          document_data?: string
+          document_name?: string
+          document_size?: number
+          fields?: Json | null
+          id?: string
+          is_active?: boolean | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contract_templates_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contracts: {
+        Row: {
+          brand_id: string
+          completed_at: string | null
+          completion_certificate: Json | null
+          created_at: string
+          creator_id: string | null
+          document_data: string
+          document_name: string
+          document_size: number
+          expires_at: string | null
+          id: string
+          script_id: string | null
+          share_token: string | null
+          signed_document_data: string | null
+          status: string | null
+          template_id: string | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          brand_id: string
+          completed_at?: string | null
+          completion_certificate?: Json | null
+          created_at?: string
+          creator_id?: string | null
+          document_data: string
+          document_name: string
+          document_size: number
+          expires_at?: string | null
+          id?: string
+          script_id?: string | null
+          share_token?: string | null
+          signed_document_data?: string | null
+          status?: string | null
+          template_id?: string | null
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          brand_id?: string
+          completed_at?: string | null
+          completion_certificate?: Json | null
+          created_at?: string
+          creator_id?: string | null
+          document_data?: string
+          document_name?: string
+          document_size?: number
+          expires_at?: string | null
+          id?: string
+          script_id?: string | null
+          share_token?: string | null
+          signed_document_data?: string | null
+          status?: string | null
+          template_id?: string | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contracts_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contracts_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "ugc_creators"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contracts_script_id_fkey"
+            columns: ["script_id"]
+            isOneToOne: false
+            referencedRelation: "ugc_creator_scripts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contracts_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "contract_templates"
             referencedColumns: ["id"]
           },
         ]
@@ -1990,6 +2313,74 @@ export type Database = {
           },
         ]
       }
+      ugc_creator_field_configs: {
+        Row: {
+          brand_id: string
+          created_at: string
+          display_order: number | null
+          field_description: string | null
+          field_group: string | null
+          field_label: string
+          field_name: string
+          field_options: Json | null
+          field_placeholder: string | null
+          field_type: string
+          id: string
+          is_protected: boolean | null
+          is_required: boolean | null
+          is_visible_in_editor: boolean | null
+          is_visible_on_form: boolean | null
+          updated_at: string
+          validation_rules: Json | null
+        }
+        Insert: {
+          brand_id: string
+          created_at?: string
+          display_order?: number | null
+          field_description?: string | null
+          field_group?: string | null
+          field_label: string
+          field_name: string
+          field_options?: Json | null
+          field_placeholder?: string | null
+          field_type: string
+          id?: string
+          is_protected?: boolean | null
+          is_required?: boolean | null
+          is_visible_in_editor?: boolean | null
+          is_visible_on_form?: boolean | null
+          updated_at?: string
+          validation_rules?: Json | null
+        }
+        Update: {
+          brand_id?: string
+          created_at?: string
+          display_order?: number | null
+          field_description?: string | null
+          field_group?: string | null
+          field_label?: string
+          field_name?: string
+          field_options?: Json | null
+          field_placeholder?: string | null
+          field_type?: string
+          id?: string
+          is_protected?: boolean | null
+          is_required?: boolean | null
+          is_visible_in_editor?: boolean | null
+          is_visible_on_form?: boolean | null
+          updated_at?: string
+          validation_rules?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ugc_creator_field_configs_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ugc_creator_scripts: {
         Row: {
           ai_custom_prompt: string | null
@@ -2239,6 +2630,7 @@ export type Database = {
           contract_status: string | null
           country: string | null
           created_at: string
+          custom_fields: Json | null
           email: string | null
           gender: string | null
           id: string
@@ -2269,6 +2661,7 @@ export type Database = {
           contract_status?: string | null
           country?: string | null
           created_at?: string
+          custom_fields?: Json | null
           email?: string | null
           gender?: string | null
           id?: string
@@ -2299,6 +2692,7 @@ export type Database = {
           contract_status?: string | null
           country?: string | null
           created_at?: string
+          custom_fields?: Json | null
           email?: string | null
           gender?: string | null
           id?: string
@@ -2379,6 +2773,8 @@ export type Database = {
       ugc_email_messages: {
         Row: {
           created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
           from_email: string
           html_content: string
           id: string
@@ -2394,6 +2790,8 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           from_email: string
           html_content: string
           id?: string
@@ -2409,6 +2807,8 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           from_email?: string
           html_content?: string
           id?: string
@@ -2611,27 +3011,39 @@ export type Database = {
       ugc_email_threads: {
         Row: {
           brand_id: string
+          close_reason: string | null
+          closed_at: string | null
+          closed_by: string | null
           created_at: string
           creator_id: string
           id: string
+          is_primary: boolean | null
           status: string | null
           thread_subject: string
           updated_at: string
         }
         Insert: {
           brand_id: string
+          close_reason?: string | null
+          closed_at?: string | null
+          closed_by?: string | null
           created_at?: string
           creator_id: string
           id?: string
+          is_primary?: boolean | null
           status?: string | null
           thread_subject: string
           updated_at?: string
         }
         Update: {
           brand_id?: string
+          close_reason?: string | null
+          closed_at?: string | null
+          closed_by?: string | null
           created_at?: string
           creator_id?: string
           id?: string
+          is_primary?: boolean | null
           status?: string | null
           thread_subject?: string
           updated_at?: string
@@ -2649,6 +3061,126 @@ export type Database = {
             columns: ["creator_id"]
             isOneToOne: false
             referencedRelation: "ugc_creators"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ugc_form_field_options: {
+        Row: {
+          created_at: string
+          display_order: number | null
+          field_name: string
+          form_config_id: string
+          id: string
+          is_active: boolean | null
+          option_label: string
+          option_value: string
+        }
+        Insert: {
+          created_at?: string
+          display_order?: number | null
+          field_name: string
+          form_config_id: string
+          id?: string
+          is_active?: boolean | null
+          option_label: string
+          option_value: string
+        }
+        Update: {
+          created_at?: string
+          display_order?: number | null
+          field_name?: string
+          form_config_id?: string
+          id?: string
+          is_active?: boolean | null
+          option_label?: string
+          option_value?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ugc_form_field_options_form_config_id_fkey"
+            columns: ["form_config_id"]
+            isOneToOne: false
+            referencedRelation: "ugc_onboarding_form_configs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ugc_form_submissions: {
+        Row: {
+          brand_id: string
+          created_at: string
+          creator_id: string | null
+          form_config_id: string
+          id: string
+          review_notes: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          submission_data: Json
+          submitted_ip: string | null
+          updated_at: string
+          user_agent: string | null
+          utm_campaign: string | null
+          utm_medium: string | null
+          utm_source: string | null
+        }
+        Insert: {
+          brand_id: string
+          created_at?: string
+          creator_id?: string | null
+          form_config_id: string
+          id?: string
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          submission_data?: Json
+          submitted_ip?: string | null
+          updated_at?: string
+          user_agent?: string | null
+          utm_campaign?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+        }
+        Update: {
+          brand_id?: string
+          created_at?: string
+          creator_id?: string | null
+          form_config_id?: string
+          id?: string
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          submission_data?: Json
+          submitted_ip?: string | null
+          updated_at?: string
+          user_agent?: string | null
+          utm_campaign?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ugc_form_submissions_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ugc_form_submissions_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "ugc_creators"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ugc_form_submissions_form_config_id_fkey"
+            columns: ["form_config_id"]
+            isOneToOne: false
+            referencedRelation: "ugc_onboarding_form_configs"
             referencedColumns: ["id"]
           },
         ]
@@ -2724,6 +3256,13 @@ export type Database = {
             columns: ["creator_id"]
             isOneToOne: false
             referencedRelation: "ugc_creators"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ugc_human_intervention_queue_execution_id_fkey"
+            columns: ["execution_id"]
+            isOneToOne: false
+            referencedRelation: "ugc_workflow_execution_view"
             referencedColumns: ["id"]
           },
           {
@@ -2942,6 +3481,212 @@ export type Database = {
           },
         ]
       }
+      ugc_monthly_budgets: {
+        Row: {
+          brand_id: string
+          budget_amount: number
+          created_at: string
+          id: string
+          month_year: string
+          notes: string | null
+          spent_amount: number | null
+          updated_at: string
+        }
+        Insert: {
+          brand_id: string
+          budget_amount?: number
+          created_at?: string
+          id?: string
+          month_year: string
+          notes?: string | null
+          spent_amount?: number | null
+          updated_at?: string
+        }
+        Update: {
+          brand_id?: string
+          budget_amount?: number
+          created_at?: string
+          id?: string
+          month_year?: string
+          notes?: string | null
+          spent_amount?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ugc_monthly_budgets_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ugc_onboarding_form_configs: {
+        Row: {
+          auto_assign_status: string | null
+          brand_id: string
+          branding: Json | null
+          collect_address: boolean | null
+          collect_demographics: boolean | null
+          collect_portfolio: boolean | null
+          collect_social_handles: boolean | null
+          created_at: string
+          custom_fields: Json | null
+          description: string | null
+          form_name: string
+          id: string
+          is_active: boolean | null
+          is_public: boolean | null
+          notification_emails: string[] | null
+          requires_approval: boolean | null
+          success_message: string | null
+          updated_at: string
+          welcome_message: string | null
+        }
+        Insert: {
+          auto_assign_status?: string | null
+          brand_id: string
+          branding?: Json | null
+          collect_address?: boolean | null
+          collect_demographics?: boolean | null
+          collect_portfolio?: boolean | null
+          collect_social_handles?: boolean | null
+          created_at?: string
+          custom_fields?: Json | null
+          description?: string | null
+          form_name?: string
+          id?: string
+          is_active?: boolean | null
+          is_public?: boolean | null
+          notification_emails?: string[] | null
+          requires_approval?: boolean | null
+          success_message?: string | null
+          updated_at?: string
+          welcome_message?: string | null
+        }
+        Update: {
+          auto_assign_status?: string | null
+          brand_id?: string
+          branding?: Json | null
+          collect_address?: boolean | null
+          collect_demographics?: boolean | null
+          collect_portfolio?: boolean | null
+          collect_social_handles?: boolean | null
+          created_at?: string
+          custom_fields?: Json | null
+          description?: string | null
+          form_name?: string
+          id?: string
+          is_active?: boolean | null
+          is_public?: boolean | null
+          notification_emails?: string[] | null
+          requires_approval?: boolean | null
+          success_message?: string | null
+          updated_at?: string
+          welcome_message?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ugc_onboarding_form_configs_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ugc_payments: {
+        Row: {
+          amount: number
+          brand_id: string
+          created_at: string
+          created_by: string | null
+          creator_id: string
+          currency: string | null
+          due_date: string | null
+          id: string
+          invoice_number: string | null
+          last_reminder_sent: string | null
+          notes: string | null
+          paid_by: string | null
+          paid_date: string | null
+          payment_method: string | null
+          payment_type: string
+          reminder_sent_count: number | null
+          script_id: string | null
+          status: string
+          transaction_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          brand_id: string
+          created_at?: string
+          created_by?: string | null
+          creator_id: string
+          currency?: string | null
+          due_date?: string | null
+          id?: string
+          invoice_number?: string | null
+          last_reminder_sent?: string | null
+          notes?: string | null
+          paid_by?: string | null
+          paid_date?: string | null
+          payment_method?: string | null
+          payment_type: string
+          reminder_sent_count?: number | null
+          script_id?: string | null
+          status?: string
+          transaction_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          brand_id?: string
+          created_at?: string
+          created_by?: string | null
+          creator_id?: string
+          currency?: string | null
+          due_date?: string | null
+          id?: string
+          invoice_number?: string | null
+          last_reminder_sent?: string | null
+          notes?: string | null
+          paid_by?: string | null
+          paid_date?: string | null
+          payment_method?: string | null
+          payment_type?: string
+          reminder_sent_count?: number | null
+          script_id?: string | null
+          status?: string
+          transaction_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ugc_payments_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ugc_payments_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "ugc_creators"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ugc_payments_script_id_fkey"
+            columns: ["script_id"]
+            isOneToOne: false
+            referencedRelation: "ugc_creator_scripts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ugc_script_shares: {
         Row: {
           brand_id: string
@@ -3054,6 +3799,160 @@ export type Database = {
             columns: ["step_id"]
             isOneToOne: false
             referencedRelation: "ugc_email_sequence_steps"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ugc_shipment_history: {
+        Row: {
+          created_at: string
+          id: string
+          location: string | null
+          notes: string | null
+          shipment_id: string
+          status: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          location?: string | null
+          notes?: string | null
+          shipment_id: string
+          status: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          location?: string | null
+          notes?: string | null
+          shipment_id?: string
+          status?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ugc_shipment_history_shipment_id_fkey"
+            columns: ["shipment_id"]
+            isOneToOne: false
+            referencedRelation: "ugc_shipments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ugc_shipments: {
+        Row: {
+          brand_id: string
+          carrier: string | null
+          created_at: string
+          created_by: string | null
+          creator_id: string
+          delivered_at: string | null
+          dimensions: Json | null
+          estimated_delivery: string | null
+          id: string
+          priority: string | null
+          processed_by: string | null
+          products: Json
+          shipment_title: string
+          shipped_at: string | null
+          shipping_address: Json
+          shipping_cost: number | null
+          shipping_method: string | null
+          slack_message_ts: string | null
+          slack_notification_sent: boolean | null
+          special_instructions: string | null
+          status: string
+          tracking_number: string | null
+          tracking_url: string | null
+          updated_at: string
+          weight_lbs: number | null
+          workflow_execution_id: string | null
+        }
+        Insert: {
+          brand_id: string
+          carrier?: string | null
+          created_at?: string
+          created_by?: string | null
+          creator_id: string
+          delivered_at?: string | null
+          dimensions?: Json | null
+          estimated_delivery?: string | null
+          id?: string
+          priority?: string | null
+          processed_by?: string | null
+          products?: Json
+          shipment_title: string
+          shipped_at?: string | null
+          shipping_address: Json
+          shipping_cost?: number | null
+          shipping_method?: string | null
+          slack_message_ts?: string | null
+          slack_notification_sent?: boolean | null
+          special_instructions?: string | null
+          status?: string
+          tracking_number?: string | null
+          tracking_url?: string | null
+          updated_at?: string
+          weight_lbs?: number | null
+          workflow_execution_id?: string | null
+        }
+        Update: {
+          brand_id?: string
+          carrier?: string | null
+          created_at?: string
+          created_by?: string | null
+          creator_id?: string
+          delivered_at?: string | null
+          dimensions?: Json | null
+          estimated_delivery?: string | null
+          id?: string
+          priority?: string | null
+          processed_by?: string | null
+          products?: Json
+          shipment_title?: string
+          shipped_at?: string | null
+          shipping_address?: Json
+          shipping_cost?: number | null
+          shipping_method?: string | null
+          slack_message_ts?: string | null
+          slack_notification_sent?: boolean | null
+          special_instructions?: string | null
+          status?: string
+          tracking_number?: string | null
+          tracking_url?: string | null
+          updated_at?: string
+          weight_lbs?: number | null
+          workflow_execution_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ugc_shipments_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ugc_shipments_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "ugc_creators"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ugc_shipments_workflow_execution_id_fkey"
+            columns: ["workflow_execution_id"]
+            isOneToOne: false
+            referencedRelation: "ugc_workflow_execution_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ugc_shipments_workflow_execution_id_fkey"
+            columns: ["workflow_execution_id"]
+            isOneToOne: false
+            referencedRelation: "ugc_workflow_executions"
             referencedColumns: ["id"]
           },
         ]
@@ -3258,6 +4157,13 @@ export type Database = {
             foreignKeyName: "ugc_workflow_step_executions_execution_id_fkey"
             columns: ["execution_id"]
             isOneToOne: false
+            referencedRelation: "ugc_workflow_execution_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ugc_workflow_step_executions_execution_id_fkey"
+            columns: ["execution_id"]
+            isOneToOne: false
             referencedRelation: "ugc_workflow_executions"
             referencedColumns: ["id"]
           },
@@ -3272,6 +4178,7 @@ export type Database = {
       }
       ugc_workflow_steps: {
         Row: {
+          canvas_position: Json | null
           config: Json | null
           created_at: string
           description: string | null
@@ -3283,6 +4190,7 @@ export type Database = {
           workflow_id: string
         }
         Insert: {
+          canvas_position?: Json | null
           config?: Json | null
           created_at?: string
           description?: string | null
@@ -3294,6 +4202,7 @@ export type Database = {
           workflow_id: string
         }
         Update: {
+          canvas_position?: Json | null
           config?: Json | null
           created_at?: string
           description?: string | null
@@ -3317,6 +4226,7 @@ export type Database = {
       ugc_workflow_templates: {
         Row: {
           brand_id: string
+          canvas_layout: Json | null
           category: string
           created_at: string
           description: string | null
@@ -3329,6 +4239,7 @@ export type Database = {
         }
         Insert: {
           brand_id: string
+          canvas_layout?: Json | null
           category: string
           created_at?: string
           description?: string | null
@@ -3341,6 +4252,7 @@ export type Database = {
         }
         Update: {
           brand_id?: string
+          canvas_layout?: Json | null
           category?: string
           created_at?: string
           description?: string | null
@@ -3548,6 +4460,188 @@ export type Database = {
           },
         ]
       }
+      ugc_human_review_queue: {
+        Row: {
+          assigned_to: string | null
+          brand_id: string | null
+          completed_at: string | null
+          completed_by: string | null
+          context: Json | null
+          created_at: string | null
+          creator_id: string | null
+          description: string | null
+          due_date: string | null
+          id: string | null
+          priority: string | null
+          resolution_notes: string | null
+          status: string | null
+          step_id: string | null
+          title: string | null
+          updated_at: string | null
+          workflow_execution_id: string | null
+        }
+        Insert: {
+          assigned_to?: string | null
+          brand_id?: string | null
+          completed_at?: string | null
+          completed_by?: string | null
+          context?: Json | null
+          created_at?: string | null
+          creator_id?: string | null
+          description?: string | null
+          due_date?: string | null
+          id?: string | null
+          priority?: string | null
+          resolution_notes?: string | null
+          status?: string | null
+          step_id?: string | null
+          title?: string | null
+          updated_at?: string | null
+          workflow_execution_id?: string | null
+        }
+        Update: {
+          assigned_to?: string | null
+          brand_id?: string | null
+          completed_at?: string | null
+          completed_by?: string | null
+          context?: Json | null
+          created_at?: string | null
+          creator_id?: string | null
+          description?: string | null
+          due_date?: string | null
+          id?: string | null
+          priority?: string | null
+          resolution_notes?: string | null
+          status?: string | null
+          step_id?: string | null
+          title?: string | null
+          updated_at?: string | null
+          workflow_execution_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ugc_human_intervention_queue_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ugc_human_intervention_queue_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "ugc_creators"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ugc_human_intervention_queue_execution_id_fkey"
+            columns: ["workflow_execution_id"]
+            isOneToOne: false
+            referencedRelation: "ugc_workflow_execution_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ugc_human_intervention_queue_execution_id_fkey"
+            columns: ["workflow_execution_id"]
+            isOneToOne: false
+            referencedRelation: "ugc_workflow_executions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ugc_human_intervention_queue_step_id_fkey"
+            columns: ["step_id"]
+            isOneToOne: false
+            referencedRelation: "ugc_workflow_steps"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ugc_workflow_execution_view: {
+        Row: {
+          brand_id: string | null
+          completed_at: string | null
+          completed_steps: number | null
+          completion_percentage: number | null
+          context: Json | null
+          created_at: string | null
+          creator_id: string | null
+          current_step_id: string | null
+          current_step_name: string | null
+          error_message: string | null
+          id: string | null
+          started_at: string | null
+          status: string | null
+          total_steps: number | null
+          updated_at: string | null
+          workflow_id: string | null
+        }
+        Insert: {
+          brand_id?: string | null
+          completed_at?: string | null
+          completed_steps?: never
+          completion_percentage?: never
+          context?: Json | null
+          created_at?: string | null
+          creator_id?: string | null
+          current_step_id?: string | null
+          current_step_name?: never
+          error_message?: string | null
+          id?: string | null
+          started_at?: string | null
+          status?: string | null
+          total_steps?: never
+          updated_at?: string | null
+          workflow_id?: string | null
+        }
+        Update: {
+          brand_id?: string | null
+          completed_at?: string | null
+          completed_steps?: never
+          completion_percentage?: never
+          context?: Json | null
+          created_at?: string | null
+          creator_id?: string | null
+          current_step_id?: string | null
+          current_step_name?: never
+          error_message?: string | null
+          id?: string | null
+          started_at?: string | null
+          status?: string | null
+          total_steps?: never
+          updated_at?: string | null
+          workflow_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ugc_workflow_executions_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ugc_workflow_executions_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "ugc_creators"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ugc_workflow_executions_current_step_id_fkey"
+            columns: ["current_step_id"]
+            isOneToOne: false
+            referencedRelation: "ugc_workflow_steps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ugc_workflow_executions_workflow_id_fkey"
+            columns: ["workflow_id"]
+            isOneToOne: false
+            referencedRelation: "ugc_workflow_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       accept_brand_share_invitation: {
@@ -3569,6 +4663,10 @@ export type Database = {
           policy_definition: string
         }[]
       }
+      close_email_thread: {
+        Args: { p_thread_id: string; p_user_id: string; p_reason?: string }
+        Returns: boolean
+      }
       create_account: {
         Args: { slug?: string; name?: string }
         Returns: Json
@@ -3585,9 +4683,17 @@ export type Database = {
         }
         Returns: Json
       }
+      create_sample_creator_onboarding_workflow: {
+        Args: { brand_uuid: string; user_uuid: string }
+        Returns: string
+      }
       current_user_account_role: {
         Args: { account_id: string }
         Returns: Json
+      }
+      delete_email_message: {
+        Args: { p_message_id: string; p_user_id: string }
+        Returns: boolean
       }
       delete_invitation: {
         Args: { invitation_id: string }
@@ -3654,6 +4760,15 @@ export type Database = {
           accepted_at: string
         }[]
       }
+      get_monthly_budget_summary: {
+        Args: { brand_uuid: string; target_month: string }
+        Returns: {
+          budget_amount: number
+          spent_amount: number
+          remaining_amount: number
+          percentage_used: number
+        }[]
+      }
       get_my_todo_list: {
         Args: {
           page_num: number
@@ -3671,6 +4786,10 @@ export type Database = {
           title: string
           urgent: boolean
         }[]
+      }
+      get_or_create_primary_email_thread: {
+        Args: { p_creator_id: string; p_brand_id: string; p_subject?: string }
+        Returns: string
       }
       get_personal_account: {
         Args: Record<PropertyKey, never>
@@ -3711,6 +4830,10 @@ export type Database = {
         Args: { lookup_invitation_token: string }
         Returns: Json
       }
+      normalize_email_subject: {
+        Args: { subject: string }
+        Returns: string
+      }
       remove_account_member: {
         Args: { account_id: string; user_id: string }
         Returns: undefined
@@ -3735,6 +4858,14 @@ export type Database = {
           user_id: string
           new_account_role: "owner" | "member"
           make_primary_owner?: boolean
+        }
+        Returns: undefined
+      }
+      update_monthly_budget_spent: {
+        Args: {
+          brand_uuid: string
+          payment_amount: number
+          payment_date: string
         }
         Returns: undefined
       }
@@ -3854,9 +4985,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {},
   },

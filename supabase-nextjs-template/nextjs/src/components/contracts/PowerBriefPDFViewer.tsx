@@ -7,25 +7,17 @@ import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
 import 'react-pdf/dist/esm/Page/TextLayer.css';
 import { Rnd, type DraggableData, type ResizableDelta, type Position } from 'react-rnd';
 import { useDroppable } from '@dnd-kit/core';
+import { createPortal } from 'react-dom';
 
 // Robust PDF.js worker setup
 if (typeof window !== 'undefined') {
-  let workerSrcToUse = null;
-  try {
-    // Attempt 1: import.meta.url (good for modern module environments if bundler supports it for workers)
-    workerSrcToUse = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString();
-    console.log(`[PDFViewer] Attempting PDF.js worker via import.meta.url: ${workerSrcToUse}`);
-  } catch (e) {
-    console.warn('[PDFViewer] Failed to set PDF.js worker using import.meta.url, trying /public path fallback:', e);
-    // Attempt 2: Path relative to the 'public' directory (standard for Next.js)
-    // Ensure pdf.worker.min.mjs is copied to nextjs/public/pdf-worker/
-    workerSrcToUse = '/pdf-worker/pdf.worker.min.mjs';
-    console.log(`[PDFViewer] Setting PDF.js worker via /public path: ${workerSrcToUse}`);
-  }
+  // Use CDN with matching version to API (4.8.69)
+  const workerSrcToUse = 'https://unpkg.com/pdfjs-dist@4.8.69/build/pdf.worker.min.mjs';
+  console.log(`[PDFViewer] Setting PDF.js worker to CDN: ${workerSrcToUse}`);
 
   if (pdfjs.GlobalWorkerOptions.workerSrc !== workerSrcToUse) {
     pdfjs.GlobalWorkerOptions.workerSrc = workerSrcToUse;
-    console.log(`[PDFViewer] PDF.js worker finally set to: ${pdfjs.GlobalWorkerOptions.workerSrc}`);
+    console.log(`[PDFViewer] PDF.js worker set successfully`);
   }
 }
 
@@ -45,6 +37,10 @@ interface PDFViewerProps {
   onFieldUpdate?: (updatedField: Partial<ContractField> & { id: string }) => void;
   onFieldSelect?: (fieldId: string | null) => void;
   selectedFieldId?: string | null;
+  
+  // New props for signing mode
+  isSigningMode?: boolean;
+  renderInteractiveElement?: (field: ContractField) => React.ReactNode;
 }
 
 interface FieldPlacement {
@@ -71,6 +67,7 @@ interface ContractField {
   recipientEmail: string;
   value?: string;
   placeholder?: string;
+  required?: boolean;
 }
 
 // For storing original page dimensions
@@ -103,6 +100,8 @@ export default function PowerBriefPDFViewer({
   onFieldUpdate,
   onFieldSelect,
   selectedFieldId,
+  isSigningMode = false,
+  renderInteractiveElement,
 }: PDFViewerProps) {
   const [numPages, setNumPages] = useState<number>(0);
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -112,6 +111,7 @@ export default function PowerBriefPDFViewer({
   const containerRef = useRef<HTMLDivElement>(null);
   const [isPlacingField, setIsPlacingField] = useState(false);
   const [pageDimensions, setPageDimensions] = useState<Record<number, PageDimensions>>({});
+  const [isPdfReady, setIsPdfReady] = useState(false);
 
   // Convert documentData to usable format with proper memoization
   const documentSource = React.useMemo(() => {
@@ -127,6 +127,7 @@ export default function PowerBriefPDFViewer({
     setIsLoading(false);
     setError(null);
     setPageDimensions({});
+    setIsPdfReady(true);
     onDocumentLoad?.();
   }, [onDocumentLoad]);
 
@@ -206,22 +207,19 @@ export default function PowerBriefPDFViewer({
     // For individual page load success, this is it.
   }, []);
 
-  // Render field overlays (now passed to DroppablePDFPage as children)
-  const renderFieldOverlaysForPage = (pageNumber: number) => {
-    const pageFields = fields.filter(field => field.page === pageNumber);
-    const originalPageDims = pageDimensions[pageNumber];
-
-    if (!originalPageDims) {
+  // Render field overlays (now using portals like Documenso)
+  const renderFieldOverlays = () => {
+    if (!fields || fields.length === 0) {
       return null;
     }
     
-    return pageFields.map(field => (
-      <DraggableField
+    return fields.map(field => (
+      <PowerBriefFieldOverlay
         key={field.id}
         field={field}
-        viewerScale={scale}
-        pageOriginalWidth={originalPageDims.width}
-        pageOriginalHeight={originalPageDims.height}
+        isSigningMode={isSigningMode}
+        renderInteractiveElement={renderInteractiveElement}
+        enableFieldPlacement={enableFieldPlacement}
         onFieldUpdate={onFieldUpdate}
         onFieldSelect={onFieldSelect}
         isSelected={field.id === selectedFieldId}
@@ -249,127 +247,263 @@ export default function PowerBriefPDFViewer({
   }
 
   return (
-    <div className={`flex flex-col bg-gray-50 rounded-lg ${className}`}>
-      {/* Toolbar */}
-      {showToolbar && (
-        <div className="flex items-center justify-between p-3 bg-white border-b border-gray-200 rounded-t-lg">
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={goToPreviousPage}
-              disabled={currentPage <= 1}
-              className="px-2 py-1 text-sm bg-gray-100 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed rounded"
-            >
-              ←
-            </button>
-            <span className="text-sm text-gray-600">
-              Page {currentPage} of {numPages}
-            </span>
-            <button
-              onClick={goToNextPage}
-              disabled={currentPage >= numPages}
-              className="px-2 py-1 text-sm bg-gray-100 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed rounded"
-            >
-              →
-            </button>
-          </div>
-
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={zoomOut}
-              className="px-2 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded"
-            >
-              −
-            </button>
-            <span className="text-sm text-gray-600 min-w-[3rem] text-center">
-              {Math.round(scale * 100)}%
-            </span>
-            <button
-              onClick={zoomIn}
-              className="px-2 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded"
-            >
-              +
-            </button>
-            <button
-              onClick={resetZoom}
-              className="px-2 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded"
-            >
-              Reset
-            </button>
-          </div>
-
-          {isPlacingField && (
-            <div className="text-sm text-blue-600 font-medium">
-              Click to place {selectedFieldType} field
+    <>
+      <div className={`flex flex-col bg-gray-50 rounded-lg ${className}`}>
+        {/* Toolbar */}
+        {showToolbar && (
+          <div className="flex items-center justify-between p-3 bg-white border-b border-gray-200 rounded-t-lg">
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={goToPreviousPage}
+                disabled={currentPage <= 1}
+                className="px-2 py-1 text-sm bg-gray-100 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed rounded"
+              >
+                ←
+              </button>
+              <span className="text-sm text-gray-600">
+                Page {currentPage} of {numPages}
+              </span>
+              <button
+                onClick={goToNextPage}
+                disabled={currentPage >= numPages}
+                className="px-2 py-1 text-sm bg-gray-100 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed rounded"
+              >
+                →
+              </button>
             </div>
-          )}
-        </div>
-      )}
 
-      {/* PDF Container */}
-      <div 
-        ref={containerRef}
-        className="flex-1 overflow-auto bg-gray-100 p-4"
-        style={{ 
-          cursor: isPlacingField ? 'crosshair' : 'default',
-          minHeight: '400px'
-        }}
-      >
-        {isLoading && (
-          <div className="flex items-center justify-center h-64">
-            <div className="text-gray-500">Loading document...</div>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={zoomOut}
+                className="px-2 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded"
+              >
+                −
+              </button>
+              <span className="text-sm text-gray-600 min-w-[3rem] text-center">
+                {Math.round(scale * 100)}%
+              </span>
+              <button
+                onClick={zoomIn}
+                className="px-2 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded"
+              >
+                +
+              </button>
+              <button
+                onClick={resetZoom}
+                className="px-2 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded"
+              >
+                Reset
+              </button>
+            </div>
+
+            {isPlacingField && (
+              <div className="text-sm text-blue-600 font-medium">
+                Click to place {selectedFieldType} field
+              </div>
+            )}
           </div>
         )}
 
-        <Document
-          file={documentSource}
-          onLoadSuccess={onDocumentLoadSuccess}
-          onLoadError={onDocumentLoadError}
-          className="flex flex-col items-center space-y-4"
+        {/* PDF Container */}
+        <div 
+          ref={containerRef}
+          className="flex-1 overflow-auto bg-gray-100 p-4"
+          style={{ 
+            cursor: isPlacingField ? 'crosshair' : 'default',
+            minHeight: '400px'
+          }}
         >
-          {Array.from(new Array(numPages), (_, index) => {
-            const pageNumber = index + 1;
-            return (
-              <DroppablePDFPage
-                key={`droppable_page_${pageNumber}`}
-                pageNumber={pageNumber}
-                scale={scale}
-                onPageLoadSuccess={onPageLoadSuccessInternal}
-                handlePageClick={handlePageClick}
-                pageDimensions={pageDimensions[pageNumber]}
-              >
-                {/* Render field overlays for this specific page */}
-                {pageDimensions[pageNumber] ? renderFieldOverlaysForPage(pageNumber) : null}
-              </DroppablePDFPage>
-            );
-          })}
-        </Document>
+          {isLoading && (
+            <div className="flex items-center justify-center h-64">
+              <div className="text-gray-500">Loading document...</div>
+            </div>
+          )}
+
+          <Document
+            file={documentSource}
+            onLoadSuccess={onDocumentLoadSuccess}
+            onLoadError={onDocumentLoadError}
+            className="flex flex-col items-center space-y-4"
+          >
+            {Array.from(new Array(numPages), (_, index) => {
+              const pageNumber = index + 1;
+              return (
+                <DroppablePDFPage
+                  key={`droppable_page_${pageNumber}`}
+                  pageNumber={pageNumber}
+                  scale={scale}
+                  onPageLoadSuccess={onPageLoadSuccessInternal}
+                  handlePageClick={handlePageClick}
+                  pageDimensions={pageDimensions[pageNumber]}
+                />
+              );
+            })}
+          </Document>
+        </div>
       </div>
+      
+      {/* Render field overlays as portals to document.body */}
+      {isPdfReady && renderFieldOverlays()}
+    </>
+  );
+}
+
+// New DroppablePDFPage component
+interface DroppablePDFPageProps {
+  pageNumber: number;
+  scale: number;
+  onPageLoadSuccess: (page: PDFPageProxy) => void;
+  handlePageClick: (event: React.MouseEvent<HTMLDivElement>) => void;
+  pageDimensions: PageDimensions | undefined;
+}
+
+function DroppablePDFPage({
+  pageNumber,
+  scale,
+  onPageLoadSuccess,
+  handlePageClick,
+  pageDimensions,
+}: DroppablePDFPageProps) {
+  const { isOver, setNodeRef: setDroppableNodeRef } = useDroppable({
+    id: `pdf-page-${pageNumber}`,
+    data: {
+      pageNumber: pageNumber,
+      isPdfPage: true,
+      // Pass original dimensions if available, for drop calculation later
+      originalWidth: pageDimensions?.width,
+      originalHeight: pageDimensions?.height,
+    }
+  });
+
+  // Create a ref for the page wrapper
+  const pageWrapperRef = useRef<HTMLDivElement>(null);
+
+  // Combine refs
+  useEffect(() => {
+    if (pageWrapperRef.current) {
+      setDroppableNodeRef(pageWrapperRef.current);
+    }
+  }, [setDroppableNodeRef]);
+
+  return (
+    <div
+      ref={pageWrapperRef}
+      key={`page_wrapper_${pageNumber}`}
+      className={`relative shadow-lg react-pdf__Page ${isOver ? 'outline outline-2 outline-blue-500 outline-offset-2' : ''}`}
+      data-page-number={pageNumber}
+      onClick={handlePageClick}
+    >
+      <Page
+        pageNumber={pageNumber}
+        scale={scale}
+        className="border border-gray-300"
+        renderTextLayer={false}
+        renderAnnotationLayer={false}
+        onLoadSuccess={onPageLoadSuccess}
+      />
     </div>
   );
 }
 
-// DraggableField component (formerly FieldOverlay)
-interface DraggableFieldProps {
+// New PowerBriefFieldOverlay component that uses Documenso's approach
+interface PowerBriefFieldOverlayProps {
   field: ContractField;
-  viewerScale: number;
-  pageOriginalWidth: number;
-  pageOriginalHeight: number;
+  isSigningMode?: boolean;
+  renderInteractiveElement?: (field: ContractField) => React.ReactNode;
+  enableFieldPlacement?: boolean;
   onFieldUpdate?: (updatedField: Partial<ContractField> & { id: string }) => void;
   onFieldSelect?: (fieldId: string | null) => void;
   isSelected?: boolean;
 }
 
-function DraggableField({
+function PowerBriefFieldOverlay({
   field,
-  viewerScale,
-  pageOriginalWidth,
-  pageOriginalHeight,
+  isSigningMode = false,
+  renderInteractiveElement,
+  enableFieldPlacement = true,
   onFieldUpdate,
   onFieldSelect,
   isSelected,
-}: DraggableFieldProps) {
+}: PowerBriefFieldOverlayProps) {
+  const [coords, setCoords] = useState({
+    x: 0,
+    y: 0,
+    height: 0,
+    width: 0,
+  });
+
+  const calculateCoords = useCallback(() => {
+    const $page = document.querySelector<HTMLElement>(
+      `.react-pdf__Page[data-page-number="${field.page}"]`,
+    );
+
+    if (!$page) {
+      return;
+    }
+
+    const { top, left, height, width } = $page.getBoundingClientRect();
+
+    // X and Y are percentages of the page's height and width
+    const fieldX = (field.positionX / 100) * width + left + window.scrollX;
+    const fieldY = (field.positionY / 100) * height + top + window.scrollY;
+
+    const fieldHeight = (field.height / 100) * height;
+    const fieldWidth = (field.width / 100) * width;
+
+    setCoords({
+      x: fieldX,
+      y: fieldY,
+      height: fieldHeight,
+      width: fieldWidth,
+    });
+  }, [field.height, field.page, field.positionX, field.positionY, field.width, field.id, field.type]);
+
+  useEffect(() => {
+    // Add a small delay to ensure DOM is ready
+    const timer = setTimeout(() => {
+      calculateCoords();
+    }, 100);
+    
+    return () => clearTimeout(timer);
+  }, [calculateCoords]);
+
+  useEffect(() => {
+    const onResize = () => {
+      calculateCoords();
+    };
+
+    window.addEventListener('resize', onResize);
+    window.addEventListener('scroll', onResize);
+
+    return () => {
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('scroll', onResize);
+    };
+  }, [calculateCoords]);
+
+  // ResizeObserver for PDF page changes
+  useEffect(() => {
+    const $page = document.querySelector<HTMLElement>(
+      `.react-pdf__Page[data-page-number="${field.page}"]`,
+    );
+
+    if (!$page) {
+      return;
+    }
+
+    const observer = new ResizeObserver(() => {
+      calculateCoords();
+    });
+
+    observer.observe($page);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [calculateCoords, field.page]);
+
   const getFieldColor = (type: string, isSelected?: boolean) => {
-    if (isSelected) return 'border-red-600 bg-red-100 ring-2 ring-red-500';
+    if (isSelected && enableFieldPlacement) return 'border-red-600 bg-red-100 ring-2 ring-red-500';
     switch (type) {
       case 'signature': return 'border-blue-500 bg-blue-50';
       case 'text': return 'border-green-500 bg-green-50';
@@ -389,19 +523,24 @@ function DraggableField({
     }
   };
 
-  const initialPixelX = (field.positionX / 100) * pageOriginalWidth;
-  const initialPixelY = (field.positionY / 100) * pageOriginalHeight;
-  const initialPixelWidth = (field.width / 100) * pageOriginalWidth;
-  const initialPixelHeight = (field.height / 100) * pageOriginalHeight;
-
   const handleDragStop = (e: MouseEvent | TouchEvent, d: DraggableData) => {
-    if (!onFieldUpdate) return;
-    const newPositionX = (d.x / pageOriginalWidth) * 100;
-    const newPositionY = (d.y / pageOriginalHeight) * 100;
+    if (!onFieldUpdate || isSigningMode || !enableFieldPlacement) return;
+    
+    const $page = document.querySelector<HTMLElement>(
+      `.react-pdf__Page[data-page-number="${field.page}"]`,
+    );
+    
+    if (!$page) return;
+    
+    const { top, left, height, width } = $page.getBoundingClientRect();
+    
+    const newPositionX = ((d.x - left - window.scrollX) / width) * 100;
+    const newPositionY = ((d.y - top - window.scrollY) / height) * 100;
+    
     onFieldUpdate({
       id: field.id,
-      positionX: Math.max(0, Math.min(100 - field.width, newPositionX)), // Basic boundary
-      positionY: Math.max(0, Math.min(100 - field.height, newPositionY)), // Basic boundary
+      positionX: Math.max(0, Math.min(100 - field.width, newPositionX)),
+      positionY: Math.max(0, Math.min(100 - field.height, newPositionY)),
     });
   };
 
@@ -412,112 +551,94 @@ function DraggableField({
     delta: ResizableDelta, 
     position: Position
   ) => {
-    if (!onFieldUpdate) return;
+    if (!onFieldUpdate || isSigningMode || !enableFieldPlacement) return;
+    
+    const $page = document.querySelector<HTMLElement>(
+      `.react-pdf__Page[data-page-number="${field.page}"]`,
+    );
+    
+    if (!$page) return;
+    
+    const { top, left, height, width } = $page.getBoundingClientRect();
+    
     const newPixelWidth = parseFloat(ref.style.width);
     const newPixelHeight = parseFloat(ref.style.height);
 
-    const newWidth = (newPixelWidth / pageOriginalWidth) * 100;
-    const newHeight = (newPixelHeight / pageOriginalHeight) * 100;
-    const newPositionX = (position.x / pageOriginalWidth) * 100;
-    const newPositionY = (position.y / pageOriginalHeight) * 100;
+    const newWidth = (newPixelWidth / width) * 100;
+    const newHeight = (newPixelHeight / height) * 100;
+    const newPositionX = ((position.x - left - window.scrollX) / width) * 100;
+    const newPositionY = ((position.y - top - window.scrollY) / height) * 100;
     
     onFieldUpdate({
       id: field.id,
       positionX: Math.max(0, newPositionX),
       positionY: Math.max(0, newPositionY),
-      width: Math.max(5, newWidth), // Min width 5%
-      height: Math.max(2, newHeight), // Min height 2%
+      width: Math.max(5, newWidth),
+      height: Math.max(2, newHeight),
     });
   };
-  
-  // Prevent click from bubbling to page for new field placement & handle selection
+
   const handleMouseDown = (e: MouseEvent) => {
     e.stopPropagation();
-    if (onFieldSelect) {
+    if (onFieldSelect && enableFieldPlacement) {
       onFieldSelect(field.id);
     }
   };
 
-  return (
-    <Rnd
-      size={{ width: initialPixelWidth, height: initialPixelHeight }}
-      position={{ x: initialPixelX, y: initialPixelY }}
-      scale={viewerScale}
-      onDragStop={handleDragStop}
-      onResizeStop={handleResizeStop}
-      onMouseDown={handleMouseDown}
-      bounds="parent" // Constrains to the parent div (absolute inset-0)
-      minWidth={(5 / 100) * pageOriginalWidth} // Min width 5% in pixels
-      minHeight={(2 / 100) * pageOriginalHeight} // Min height 2% in pixels
-      style={{
-        pointerEvents: 'auto', // Enable mouse events for this Rnd instance
-      }}
-      enableResizing={{
-        top: false, right: true, bottom: true, left: false,
-        topRight: false, bottomRight: true, bottomLeft: false, topLeft: false
-      }}
-    >
-      <div
-        className={`w-full h-full border-2 border-dashed rounded flex items-center justify-center text-xs font-medium ${getFieldColor(field.type, isSelected)} opacity-75 hover:opacity-100 cursor-move`}
-        title={`${field.type} field for ${field.recipientEmail} (ID: ${field.id})`}
-      >
-        <span className="opacity-100 select-none"> {/* Ensure icon/text are visible */}
-          {getFieldIcon(field.type)} {field.type.charAt(0).toUpperCase() + field.type.slice(1)}
-        </span>
-      </div>
-    </Rnd>
-  );
-}
+  if (coords.x === 0 && coords.y === 0) {
+    return null; // Don't render until coordinates are calculated
+  }
 
-// New DroppablePDFPage component
-interface DroppablePDFPageProps {
-  pageNumber: number;
-  scale: number;
-  onPageLoadSuccess: (page: PDFPageProxy) => void;
-  handlePageClick: (event: React.MouseEvent<HTMLDivElement>) => void;
-  pageDimensions: PageDimensions | undefined;
-  children: React.ReactNode; // For field overlays
-}
-
-function DroppablePDFPage({
-  pageNumber,
-  scale,
-  onPageLoadSuccess,
-  handlePageClick,
-  pageDimensions,
-  children
-}: DroppablePDFPageProps) {
-  const { isOver, setNodeRef: setDroppableNodeRef } = useDroppable({
-    id: `pdf-page-${pageNumber}`,
-    data: {
-      pageNumber: pageNumber,
-      isPdfPage: true,
-      // Pass original dimensions if available, for drop calculation later
-      originalWidth: pageDimensions?.width,
-      originalHeight: pageDimensions?.height,
-    }
-  });
-
-  return (
+  return createPortal(
     <div
-      ref={setDroppableNodeRef}
-      key={`page_wrapper_${pageNumber}`}
-      className={`relative shadow-lg ${isOver ? 'outline outline-2 outline-blue-500 outline-offset-2' : ''}`}
-      data-page-number={pageNumber}
-      onClick={handlePageClick}
+      style={{
+        position: 'absolute',
+        left: coords.x,
+        top: coords.y,
+        width: coords.width,
+        height: coords.height,
+        zIndex: isSigningMode ? 1000 : (isSelected ? 50 : 20),
+      }}
     >
-      <Page
-        pageNumber={pageNumber}
-        scale={scale}
-        className="border border-gray-300" 
-        renderTextLayer={false}
-        renderAnnotationLayer={false}
-        onLoadSuccess={onPageLoadSuccess}
-      />
-      {/* Field overlays container - RND components will be children here */}
-      <div className="absolute inset-0 pointer-events-none"> 
-        {children}
-      </div>
-    </div>
+      {isSigningMode && renderInteractiveElement ? (
+        <div className="w-full h-full">
+          {renderInteractiveElement(field)}
+        </div>
+      ) : enableFieldPlacement ? (
+        <Rnd
+          size={{ width: coords.width, height: coords.height }}
+          position={{ x: coords.x, y: coords.y }}
+          onDragStop={handleDragStop}
+          onResizeStop={handleResizeStop}
+          onMouseDown={handleMouseDown}
+          bounds={`.react-pdf__Page[data-page-number="${field.page}"]`}
+          minWidth={Math.max(20, (5 / 100) * coords.width)}
+          minHeight={Math.max(10, (2 / 100) * coords.height)}
+          enableResizing={{
+            top: false, right: true, bottom: true, left: false,
+            topRight: false, bottomRight: true, bottomLeft: false, topLeft: false
+          }}
+        >
+          <div
+            className={`w-full h-full border-2 border-dashed rounded flex items-center justify-center text-xs font-medium ${getFieldColor(field.type, isSelected)} opacity-75 hover:opacity-100 cursor-move`}
+            title={`${field.type} field for ${field.recipientEmail} (ID: ${field.id})`}
+          >
+            <span className="opacity-100 select-none">
+              {getFieldIcon(field.type)} {field.type.charAt(0).toUpperCase() + field.type.slice(1)}
+            </span>
+          </div>
+        </Rnd>
+      ) : (
+        <div
+          className={`w-full h-full border-2 border-dashed rounded flex items-center justify-center text-xs font-medium ${getFieldColor(field.type, isSelected)} opacity-75 hover:opacity-100 cursor-default`}
+          title={`${field.type} field for ${field.recipientEmail} (ID: ${field.id})`}
+        >
+          <span className="opacity-100 select-none">
+            {getFieldIcon(field.type)} {field.type.charAt(0).toUpperCase() + field.type.slice(1)}
+          </span>
+        </div>
+      )}
+    </div>,
+    document.body
   );
 } 
