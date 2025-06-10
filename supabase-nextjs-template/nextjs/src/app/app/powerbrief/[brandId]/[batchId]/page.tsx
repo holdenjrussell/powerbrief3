@@ -21,6 +21,7 @@ import Link from 'next/link';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import MarkdownTextarea from '@/components/ui/markdown-textarea';
 import ConceptVoiceGenerator from '@/components/ConceptVoiceGenerator';
+import BRollViewer from '@/components/BRollViewer';
 import { v4 as uuidv4 } from 'uuid';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
@@ -42,6 +43,7 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
     const [savingConceptId, setSavingConceptId] = useState<string | null>(null);
     const [generatingAI, setGeneratingAI] = useState<boolean>(false);
     const [generatingConceptIds, setGeneratingConceptIds] = useState<Record<string, boolean>>({});
+    const [generatingBRollIds, setGeneratingBRollIds] = useState<Record<string, boolean>>({});
     const fileInputRef = useRef<HTMLInputElement>(null);
     const multipleFileInputRef = useRef<HTMLInputElement>(null);
     const pdfInputRef = useRef<HTMLInputElement>(null);

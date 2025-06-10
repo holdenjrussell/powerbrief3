@@ -370,14 +370,21 @@ function MediaModal({ isOpen, onClose, mediaUrl, mediaType, mediaName, conceptId
                       {/* Comment text or edit form */}
                       {editingCommentId === comment.id ? (
                         <div className="space-y-2">
-                          <textarea
-                            value={editingCommentText}
-                            onChange={(e) => setEditingCommentText(e.target.value)}
-                            className="w-full p-2 border border-gray-300 rounded text-sm resize-none"
-                            rows={2}
-                            autoFocus
-                            placeholder="Edit your comment..."
-                          />
+                                                          <textarea
+                                  key={`edit-comment-${comment.id}`}
+                                  value={editingCommentText}
+                                  onChange={(e) => {
+                                    e.preventDefault();
+                                    const value = e.target.value;
+                                    setEditingCommentText(value);
+                                  }}
+                                  className="w-full p-2 border border-gray-300 rounded text-sm resize-none"
+                                  rows={2}
+                                  autoFocus
+                                  placeholder="Edit your comment..."
+                                  dir="ltr"
+                                  style={{ direction: 'ltr', textAlign: 'left' }}
+                                />
                           <div className="flex space-x-2">
                             <button
                               onClick={handleSaveEdit}
@@ -447,12 +454,19 @@ function MediaModal({ isOpen, onClose, mediaUrl, mediaType, mediaName, conceptId
                             {editingCommentId === reply.id ? (
                               <div className="space-y-2">
                                 <textarea
+                                  key={`edit-reply-${reply.id}`}
                                   value={editingCommentText}
-                                  onChange={(e) => setEditingCommentText(e.target.value)}
+                                  onChange={(e) => {
+                                    e.preventDefault();
+                                    const value = e.target.value;
+                                    setEditingCommentText(value);
+                                  }}
                                   className="w-full p-2 border border-gray-300 rounded text-sm resize-none"
                                   rows={2}
                                   autoFocus
                                   placeholder="Edit your reply..."
+                                  dir="ltr"
+                                  style={{ direction: 'ltr', textAlign: 'left' }}
                                 />
                                 <div className="flex space-x-2">
                                   <button
@@ -490,12 +504,19 @@ function MediaModal({ isOpen, onClose, mediaUrl, mediaType, mediaName, conceptId
                           </div>
                         </div>
                         <textarea
+                          key={`reply-${comment.id}-${replyingToId}`}
                           value={replyText}
-                          onChange={(e) => setReplyText(e.target.value)}
+                          onChange={(e) => {
+                            e.preventDefault();
+                            const value = e.target.value;
+                            setReplyText(value);
+                          }}
                           placeholder="Add your reply..."
                           className="w-full p-2 border border-gray-300 rounded text-sm resize-none"
                           rows={2}
                           autoFocus
+                          dir="ltr"
+                          style={{ direction: 'ltr', textAlign: 'left' }}
                         />
                         <div className="flex space-x-2 mt-2">
                           <button
@@ -574,12 +595,19 @@ function MediaModal({ isOpen, onClose, mediaUrl, mediaType, mediaName, conceptId
                   </div>
                 </div>
                 <textarea
+                  key={`new-comment-${conceptId}`}
                   value={newComment}
-                  onChange={(e) => setNewComment(e.target.value)}
+                  onChange={(e) => {
+                    e.preventDefault();
+                    const value = e.target.value;
+                    setNewComment(value);
+                  }}
                   placeholder="Add your feedback..."
                   className="w-full p-2 border border-gray-300 rounded text-sm resize-none"
                   rows={3}
                   autoFocus
+                  dir="ltr"
+                  style={{ direction: 'ltr', textAlign: 'left' }}
                 />
                 <div className="flex space-x-2 mt-2">
                   <button

@@ -1480,11 +1480,11 @@ export async function POST(req: NextRequest) {
               // Use pre-processed thumbnail from cache
               const thumbnailHash = videoThumbnailCache[asset.metaVideoId];
               
-                             creativeSpec.asset_feed_spec.videos.push({
-                 video_id: asset.metaVideoId,
-                 adlabels: [{ name: assetLabel }],
-                 ...(thumbnailHash && { thumbnail_image_hash: thumbnailHash })
-               });
+                                           creativeSpec.asset_feed_spec.videos.push({
+                video_id: asset.metaVideoId,
+                adlabels: [{ name: assetLabel }],
+                ...(thumbnailHash && { thumbnail_hash: thumbnailHash })
+              });
                if (!creativeSpec.asset_feed_spec.ad_formats.includes('SINGLE_VIDEO')) {
                  creativeSpec.asset_feed_spec.ad_formats.push('SINGLE_VIDEO');
                }
@@ -1519,7 +1519,7 @@ export async function POST(req: NextRequest) {
               creativeSpec.asset_feed_spec.videos.push({
                 video_id: asset.metaVideoId,
                 adlabels: [{ name: assetLabel }],
-                ...(thumbnailHash && { thumbnail_image_hash: thumbnailHash })
+                ...(thumbnailHash && { thumbnail_hash: thumbnailHash })
               });
               if (!creativeSpec.asset_feed_spec.ad_formats.includes('SINGLE_VIDEO')) {
                 creativeSpec.asset_feed_spec.ad_formats.push('SINGLE_VIDEO');
@@ -1614,11 +1614,11 @@ export async function POST(req: NextRequest) {
             if (feedAsset.type === 'video' && feedAsset.metaVideoId) {
               const thumbnailHash = videoThumbnailCache[feedAsset.metaVideoId];
               
-                             creativeSpec.asset_feed_spec.videos.push({
-                 video_id: feedAsset.metaVideoId,
-                 adlabels: [{ name: assetLabel }],
-                 ...(thumbnailHash && { thumbnail_image_hash: thumbnailHash })
-               });
+                                           creativeSpec.asset_feed_spec.videos.push({
+                video_id: feedAsset.metaVideoId,
+                adlabels: [{ name: assetLabel }],
+                ...(thumbnailHash && { thumbnail_hash: thumbnailHash })
+              });
                if (!creativeSpec.asset_feed_spec.ad_formats.includes('SINGLE_VIDEO')) {
                  creativeSpec.asset_feed_spec.ad_formats.push('SINGLE_VIDEO');
                }
@@ -1642,11 +1642,11 @@ export async function POST(req: NextRequest) {
             if (storyAsset.type === 'video' && storyAsset.metaVideoId) {
               const thumbnailHash = videoThumbnailCache[storyAsset.metaVideoId];
               
-                             creativeSpec.asset_feed_spec.videos.push({
-                 video_id: storyAsset.metaVideoId,
-                 adlabels: [{ name: assetLabel }],
-                 ...(thumbnailHash && { thumbnail_image_hash: thumbnailHash })
-               });
+                                           creativeSpec.asset_feed_spec.videos.push({
+                video_id: storyAsset.metaVideoId,
+                adlabels: [{ name: assetLabel }],
+                ...(thumbnailHash && { thumbnail_hash: thumbnailHash })
+              });
                if (!creativeSpec.asset_feed_spec.ad_formats.includes('SINGLE_VIDEO')) {
                  creativeSpec.asset_feed_spec.ad_formats.push('SINGLE_VIDEO');
                }
