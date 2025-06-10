@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { 
   Card, 
   CardHeader, 
@@ -55,12 +55,31 @@ interface ContractsTabProps {
 
 export default function ContractsTab({ brandId, creators, onRefresh }: ContractsTabProps) {
   const searchParams = useSearchParams();
-  const defaultTab = searchParams.get('tab') || 'contracts';
-  const [activeTab, setActiveTab] = useState(defaultTab);
+  const router = useRouter();
+  const pathname = usePathname();
+  const [activeTab, setActiveTab] = useState('contracts');
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [templates, setTemplates] = useState<ContractTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  // Watch for URL parameter changes and update active tab
+  useEffect(() => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam === 'templates' || tabParam === 'contracts') {
+      setActiveTab(tabParam);
+    }
+  }, [searchParams]);
+
+  // Handle tab change and update URL
+  const handleTabChange = (newTab: string) => {
+    setActiveTab(newTab);
+    
+    // Update URL with new tab parameter
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('tab', newTab);
+    router.replace(`${pathname}?${params.toString()}`);
+  };
 
 
 
@@ -381,7 +400,7 @@ export default function ContractsTab({ brandId, creators, onRefresh }: Contracts
           </Alert>
         )}
 
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <Tabs value={activeTab} onValueChange={handleTabChange}>
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="contracts">Contracts</TabsTrigger>
             <TabsTrigger value="templates">Templates</TabsTrigger>
