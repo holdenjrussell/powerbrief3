@@ -58,14 +58,7 @@ export default function ContractsTab({ brandId, creators, onRefresh }: Contracts
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  // Template creation state
-  const [showNewTemplateDialog, setShowNewTemplateDialog] = useState(false);
-  const [newTemplateData, setNewTemplateData] = useState({
-    title: '',
-    description: '',
-    file: null as File | null,
-  });
-  const [creatingTemplate, setCreatingTemplate] = useState(false);
+
 
   // Contract creation state
   const [showNewContractDialog, setShowNewContractDialog] = useState(false);
@@ -121,49 +114,7 @@ export default function ContractsTab({ brandId, creators, onRefresh }: Contracts
     }
   };
 
-  const handleCreateTemplate = async () => {
-    if (!newTemplateData.title || !newTemplateData.file) {
-      setError('Please provide a title and upload a PDF file');
-      return;
-    }
 
-    try {
-      setCreatingTemplate(true);
-      setError('');
-
-      const formData = new FormData();
-      formData.append('brandId', brandId);
-      formData.append('title', newTemplateData.title);
-      formData.append('description', newTemplateData.description);
-      formData.append('document', newTemplateData.file);
-
-      const response = await fetch('/api/contracts/templates', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to create template');
-      }
-
-      // Reset form and refresh data
-      setNewTemplateData({
-        title: '',
-        description: '',
-        file: null,
-      });
-      setShowNewTemplateDialog(false);
-      await fetchData();
-      onRefresh?.();
-
-    } catch (error) {
-      console.error('Error creating template:', error);
-      setError(error instanceof Error ? error.message : 'Failed to create template');
-    } finally {
-      setCreatingTemplate(false);
-    }
-  };
 
   const handleEditTemplate = (templateId: string) => {
     const template = templates.find(t => t.id === templateId);
@@ -364,9 +315,9 @@ export default function ContractsTab({ brandId, creators, onRefresh }: Contracts
               <div className="flex gap-2">
                 <Dialog open={showNewContractDialog} onOpenChange={setShowNewContractDialog}>
                   <DialogTrigger asChild>
-                    <Button variant="outline">
+                    <Button>
                       <Plus className="h-4 w-4 mr-2" />
-                      Quick Contract
+                      New Contract
                     </Button>
                   </DialogTrigger>
                 <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
@@ -545,67 +496,6 @@ export default function ContractsTab({ brandId, creators, onRefresh }: Contracts
           <TabsContent value="templates" className="space-y-4">
             <div className="flex justify-between items-center">
               <h3 className="text-lg font-medium">Contract Templates</h3>
-              <Dialog open={showNewTemplateDialog} onOpenChange={setShowNewTemplateDialog}>
-                <DialogTrigger asChild>
-                  <Button>
-                    <Plus className="h-4 w-4 mr-2" />
-                    New Template
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Create Contract Template</DialogTitle>
-                    <DialogDescription>
-                      Upload a PDF document to use as a reusable contract template
-                    </DialogDescription>
-                  </DialogHeader>
-                  
-                  <div className="space-y-4">
-                    <div>
-                      <Label htmlFor="template-title">Template Title</Label>
-                      <Input
-                        id="template-title"
-                        value={newTemplateData.title}
-                        onChange={(e) => setNewTemplateData(prev => ({ ...prev, title: e.target.value }))}
-                        placeholder="Enter template title"
-                      />
-                    </div>
-
-                    <div>
-                      <Label htmlFor="template-description">Description (Optional)</Label>
-                      <Textarea
-                        id="template-description"
-                        value={newTemplateData.description}
-                        onChange={(e) => setNewTemplateData(prev => ({ ...prev, description: e.target.value }))}
-                        placeholder="Enter template description"
-                        rows={3}
-                      />
-                    </div>
-
-                    <div>
-                      <Label htmlFor="template-file">Upload PDF Document</Label>
-                      <Input
-                        id="template-file"
-                        type="file"
-                        accept=".pdf"
-                        onChange={(e) => setNewTemplateData(prev => ({ 
-                          ...prev, 
-                          file: e.target.files?.[0] || null 
-                        }))}
-                      />
-                    </div>
-                  </div>
-
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => setShowNewTemplateDialog(false)}>
-                      Cancel
-                    </Button>
-                    <Button onClick={handleCreateTemplate} disabled={creatingTemplate}>
-                      {creatingTemplate ? 'Creating...' : 'Create Template'}
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
             </div>
 
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">

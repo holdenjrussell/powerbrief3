@@ -10,6 +10,8 @@ import {
   Badge,
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -19,7 +21,8 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue
+  SelectValue,
+  Textarea
 } from "@/components/ui";
 import { 
   Plus, 
@@ -102,6 +105,7 @@ interface ContractEditorProps {
   brandId: string;
   onSave?: (data: { recipients: SimpleRecipient[]; fields: SimpleField[] }) => void;
   onSend?: (data: { recipients: SimpleRecipient[]; fields: SimpleField[] }) => void;
+  onSaveAsTemplate?: (data: { title: string; description?: string; fields: SimpleField[] }) => void;
   className?: string;
 }
 
@@ -120,6 +124,7 @@ export default function PowerBriefContractEditor({
   brandId,
   onSave,
   onSend,
+  onSaveAsTemplate,
   className = ''
 }: ContractEditorProps) {
   const [recipients, setRecipients] = useState<SimpleRecipient[]>([]);
@@ -142,6 +147,13 @@ export default function PowerBriefContractEditor({
   const [creatorsList, setCreatorsList] = useState<Creator[]>([]);
   const [creatorSearchTerm, setCreatorSearchTerm] = useState('');
   const [isLoadingCreators, setIsLoadingCreators] = useState(false);
+
+  // Save as Template dialog state
+  const [showSaveAsTemplateDialog, setShowSaveAsTemplateDialog] = useState(false);
+  const [templateData, setTemplateData] = useState({
+    title: '',
+    description: ''
+  });
 
   // Fetch creators
   useEffect(() => {
@@ -233,20 +245,18 @@ export default function PowerBriefContractEditor({
     recipientId: string;
     recipientEmail: string;
   }) => {
-    if (!selectedRecipient && !activeDragItem) {
-        console.warn("handleFieldPlace: No selected recipient for click-placement.");
-        return;
-    }
     if (!fieldPlacement.type) {
         console.error("handleFieldPlace: No field type provided in placement data.");
         return;
     }
 
-    const recipientForField = selectedRecipient;
-    if (!recipientForField) {
-        console.error("handleFieldPlace: No recipient context for the field.");
-        return;
-    }
+    // Use selected recipient if available, otherwise create a placeholder
+    const recipientForField = selectedRecipient || {
+      id: 'placeholder_recipient',
+      name: 'Unassigned',
+      email: 'unassigned@placeholder.com',
+      role: 'signer'
+    };
 
     const newField: SimpleField = {
       id: fieldPlacement.id,
@@ -299,8 +309,7 @@ export default function PowerBriefContractEditor({
     if (
       over && 
       over.data.current?.isPdfPage && 
-      active.data.current?.isSidebarTool && 
-      selectedRecipient
+      active.data.current?.isSidebarTool
     ) {
       const fieldType = active.data.current.type as string;
       const pageNumber = over.data.current.pageNumber as number;
@@ -347,6 +356,14 @@ export default function PowerBriefContractEditor({
 
       console.log(`Placing new field: ${fieldType} on page ${pageNumber} at X: ${finalPercentageX.toFixed(2)}%, Y: ${finalPercentageY.toFixed(2)}%`);
 
+      // Use selected recipient if available, otherwise create a placeholder
+      const recipientForField = selectedRecipient || {
+        id: 'placeholder_recipient',
+        name: 'Unassigned',
+        email: 'unassigned@placeholder.com',
+        role: 'signer'
+      };
+
       handleFieldPlace({
         id: `field_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         type: fieldType,
@@ -355,8 +372,8 @@ export default function PowerBriefContractEditor({
         y: finalPercentageY,
         width: defaultWidth,
         height: defaultHeight,
-        recipientId: selectedRecipient.id,
-        recipientEmail: selectedRecipient.email,
+        recipientId: recipientForField.id,
+        recipientEmail: recipientForField.email,
       });
     } else {
       // console.log('Drag ended but not over a valid PDF page target or missing data/recipient.');
@@ -416,6 +433,24 @@ export default function PowerBriefContractEditor({
     onSend?.({ recipients, fields });
   };
 
+  // Handle save as template
+  const handleSaveAsTemplate = () => {
+    if (!templateData.title.trim()) {
+      alert('Please enter a template title');
+      return;
+    }
+    
+    onSaveAsTemplate?.({
+      title: templateData.title,
+      description: templateData.description || undefined,
+      fields
+    });
+    
+    // Reset form and close dialog
+    setTemplateData({ title: '', description: '' });
+    setShowSaveAsTemplateDialog(false);
+  };
+
   // Memoize the documentData object for PowerBriefPDFViewer to prevent unnecessary reloads
   const pdfViewerDocumentData = useMemo(() => {
     if (!documentData || !documentData.dataForViewer) {
@@ -440,7 +475,7 @@ export default function PowerBriefContractEditor({
     };
   }, []); // Empty dependency array, runs once on mount/unmount of ContractEditor
 
-  const isFieldPlacementMode = currentStep === 'fields' && !!selectedFieldType && !!selectedRecipient;
+  const isFieldPlacementMode = currentStep === 'fields' && !!selectedFieldType;
   console.log('[ContractEditor] Rendering PDFViewer. currentStep:', currentStep, 'selectedFieldType:', selectedFieldType, 'selectedRecipient:', selectedRecipient, 'isFieldPlacementMode (for PDF click-to-add):', isFieldPlacementMode);
 
   return (
@@ -473,7 +508,6 @@ export default function PowerBriefContractEditor({
                   size="sm" 
                   variant={currentStep === 'fields' ? 'default' : 'outline'}
                   onClick={() => setCurrentStep('fields')}
-                  disabled={recipients.length === 0}
                 >
                   <Edit3 className="h-4 w-4 mr-1" />
                   Fields
@@ -642,19 +676,22 @@ export default function PowerBriefContractEditor({
             <Card>
               <CardHeader>
                 <CardTitle>Field Tools</CardTitle>
-                {!selectedRecipient && <p className='text-sm text-red-500'>Please select a recipient first.</p>}
+                <p className='text-sm text-gray-600'>
+                  {selectedRecipient 
+                    ? `Placing fields for: ${selectedRecipient.name}` 
+                    : 'Fields will be unassigned until recipients are added'
+                  }
+                </p>
               </CardHeader>
               <CardContent className='space-y-2'>
                 {FIELD_TOOLS.map((tool) => (
                   <FieldToolDraggableItem 
                     key={tool.type} 
                     tool={tool} 
-                    disabled={!selectedRecipient} 
+                    disabled={false} 
                     onClick={() => {
-                      if (selectedRecipient) {
-                        setSelectedFieldType(tool.type);
-                        console.log(`Selected field type: ${tool.type} for ${selectedRecipient.name}`);
-                      }
+                      setSelectedFieldType(tool.type);
+                      console.log(`Selected field type: ${tool.type}${selectedRecipient ? ` for ${selectedRecipient.name}` : ' (unassigned)'}`);
                     }}
                   />
                 ))}
@@ -681,14 +718,67 @@ export default function PowerBriefContractEditor({
                     </div>
                   </div>
                   
-                  <div className="flex space-x-2">
-                    <Button variant="outline" onClick={handleSave} className="flex-1">
-                      Save Draft
-                    </Button>
-                    <Button onClick={handleSend} className="flex-1">
-                      <Send className="h-4 w-4 mr-2" />
-                      Send
-                    </Button>
+                  <div className="space-y-2">
+                    <div className="flex space-x-2">
+                      <Button variant="outline" onClick={handleSave} className="flex-1">
+                        Save Draft
+                      </Button>
+                      <Button onClick={handleSend} className="flex-1">
+                        <Send className="h-4 w-4 mr-2" />
+                        Send
+                      </Button>
+                    </div>
+                    
+                    {fields.length > 0 && (
+                      <Dialog open={showSaveAsTemplateDialog} onOpenChange={setShowSaveAsTemplateDialog}>
+                        <DialogTrigger asChild>
+                          <Button variant="outline" className="w-full">
+                            <FileText className="h-4 w-4 mr-2" />
+                            Save as Template
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>Save as Template</DialogTitle>
+                            <DialogDescription>
+                              Save this document layout as a reusable template with field placements
+                            </DialogDescription>
+                          </DialogHeader>
+                          <div className="space-y-4">
+                            <div>
+                              <Label htmlFor="template-title">Template Title</Label>
+                              <Input
+                                id="template-title"
+                                value={templateData.title}
+                                onChange={(e) => setTemplateData(prev => ({ ...prev, title: e.target.value }))}
+                                placeholder="Enter template title"
+                              />
+                            </div>
+                            <div>
+                              <Label htmlFor="template-description">Description (Optional)</Label>
+                              <Textarea
+                                id="template-description"
+                                value={templateData.description}
+                                onChange={(e) => setTemplateData(prev => ({ ...prev, description: e.target.value }))}
+                                placeholder="Enter template description"
+                                rows={3}
+                              />
+                            </div>
+                            <div className="text-sm text-gray-600">
+                              <p>This will save the document with {fields.length} field(s) positioned for future use.</p>
+                            </div>
+                          </div>
+                          <DialogFooter>
+                            <Button variant="outline" onClick={() => setShowSaveAsTemplateDialog(false)}>
+                              Cancel
+                            </Button>
+                            <Button onClick={handleSaveAsTemplate}>
+                              Save Template
+                            </Button>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
+                    )}
                   </div>
                 </div>
               </CardContent>
