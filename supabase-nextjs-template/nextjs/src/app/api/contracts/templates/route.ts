@@ -54,6 +54,16 @@ export async function POST(request: NextRequest) {
     const fields = formData.get('fields') as string;
     const document = formData.get('document') as File;
 
+    console.log('[API Templates POST] === TEMPLATE CREATION DEBUGGING ===');
+    console.log('[API Templates POST] Received FormData:', {
+      brandId,
+      title,
+      description,
+      fieldsRaw: fields,
+      documentName: document?.name,
+      documentSize: document?.size
+    });
+
     if (!brandId || !title || !document) {
       return NextResponse.json({ 
         error: 'Brand ID, title, and document file are required' 
@@ -64,7 +74,16 @@ export async function POST(request: NextRequest) {
     let parsedFields;
     try {
       parsedFields = JSON.parse(fields || '[]');
-    } catch {
+      console.log('[API Templates POST] Successfully parsed fields:', {
+        fieldsCount: parsedFields.length,
+        fields: parsedFields
+      });
+      console.log('[API Templates POST] Individual parsed fields:');
+      parsedFields.forEach((field: { id: string; type: string; page: number; positionX: number; positionY: number; width: number; height: number; recipientId: string; recipientEmail: string }, index: number) => {
+        console.log(`[API Templates POST] Field ${index}:`, field);
+      });
+    } catch (parseError) {
+      console.error('[API Templates POST] Failed to parse fields:', parseError);
       return NextResponse.json({ 
         error: 'Invalid fields format' 
       }, { status: 400 });

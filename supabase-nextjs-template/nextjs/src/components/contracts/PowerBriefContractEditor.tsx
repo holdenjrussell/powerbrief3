@@ -130,24 +130,52 @@ function SaveTemplateForm({ onSave, fields }: SaveTemplateFormProps) {
   const [saving, setSaving] = useState(false);
 
   const handleSave = async () => {
+    console.log('[SaveTemplateForm] === TEMPLATE SAVE DEBUGGING ===');
+    console.log('[SaveTemplateForm] Attempting to save template with:', {
+      title: title.trim(),
+      description: description.trim() || 'undefined',
+      fieldsCount: fields.length,
+      fields: fields
+    });
+    
     if (!title.trim()) {
       alert('Please enter a template title');
       return;
     }
 
+    console.log('[SaveTemplateForm] Fields being passed to onSave:', fields);
+    console.log('[SaveTemplateForm] Individual fields:');
+    fields.forEach((field, index) => {
+      console.log(`[SaveTemplateForm] Field ${index}:`, {
+        id: field.id,
+        type: field.type,
+        page: field.page,
+        positionX: field.positionX,
+        positionY: field.positionY,
+        width: field.width,
+        height: field.height,
+        recipientId: field.recipientId,
+        recipientEmail: field.recipientEmail
+      });
+    });
+
     setSaving(true);
     try {
-      onSave({
+      const templateData = {
         title: title.trim(),
         description: description.trim() || undefined,
         fields
-      });
+      };
+      
+      console.log('[SaveTemplateForm] Calling onSave with data:', templateData);
+      onSave(templateData);
       
       // Reset form
       setTitle('');
       setDescription('');
+      console.log('[SaveTemplateForm] Template save initiated successfully');
     } catch (error) {
-      console.error('Error saving template:', error);
+      console.error('[SaveTemplateForm] Error saving template:', error);
     } finally {
       setSaving(false);
     }

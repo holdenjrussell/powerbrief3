@@ -290,6 +290,28 @@ export default function ContractEditorPage() {
 
   // Handle save as template callback from editor
   const handleSaveAsTemplate = async (data: { title: string; description?: string; fields: SimpleField[] }) => {
+    console.log('[handleSaveAsTemplate] === TEMPLATE SAVE HANDLER DEBUGGING ===');
+    console.log('[handleSaveAsTemplate] Received data from SaveTemplateForm:', {
+      title: data.title,
+      description: data.description,
+      fieldsCount: data.fields.length,
+      fields: data.fields
+    });
+    console.log('[handleSaveAsTemplate] Individual fields received:');
+    data.fields.forEach((field, index) => {
+      console.log(`[handleSaveAsTemplate] Field ${index}:`, {
+        id: field.id,
+        type: field.type,
+        page: field.page,
+        positionX: field.positionX,
+        positionY: field.positionY,
+        width: field.width,
+        height: field.height,
+        recipientId: field.recipientId,
+        recipientEmail: field.recipientEmail
+      });
+    });
+    
     setUploading(true);
     setError(null);
 
@@ -342,7 +364,18 @@ export default function ContractEditorPage() {
       formData.append('fields', JSON.stringify(data.fields));
       formData.append('document', documentBlobForTemplate, documentNameForTemplate);
 
-      console.log('[handleSaveAsTemplate] Saving template to /api/contracts/templates with fields:', data.fields);
+      console.log('[handleSaveAsTemplate] FormData created with:', {
+        brandId: brandId as string,
+        title: data.title,
+        description: data.description,
+        fieldsJSON: JSON.stringify(data.fields),
+        fieldsStringified: JSON.stringify(data.fields),
+        documentName: documentNameForTemplate,
+        documentSize: documentBlobForTemplate.size
+      });
+      console.log('[handleSaveAsTemplate] Fields JSON being sent to API:', JSON.stringify(data.fields, null, 2));
+
+      console.log('[handleSaveAsTemplate] Sending template creation request to /api/contracts/templates...');
       const response = await fetch('/api/contracts/templates', {
         method: 'POST',
         body: formData,

@@ -52,6 +52,20 @@ export class ContractService {
     brandId: string,
     userId: string
   ): Promise<ContractTemplate> {
+    console.log('[ContractService.createTemplate] === TEMPLATE CREATION DEBUGGING ===');
+    console.log('[ContractService.createTemplate] Received templateData:', {
+      title: templateData.title,
+      description: templateData.description,
+      document_name: templateData.document_name,
+      document_size: templateData.document_data.length,
+      fieldsCount: templateData.fields?.length || 0,
+      fields: templateData.fields
+    });
+    console.log('[ContractService.createTemplate] Individual fields:');
+    (templateData.fields || []).forEach((field, index) => {
+      console.log(`[ContractService.createTemplate] Field ${index}:`, field);
+    });
+    
     const supabase = await createServerAdminClient();
 
     // Validate PDF
@@ -76,6 +90,17 @@ export class ContractService {
       // is_active is managed by DB default or specific updates, not directly here unless intended
     };
 
+    console.log('[ContractService.createTemplate] Template object before DB insert:', {
+      title: template.title,
+      description: template.description,
+      document_name: template.document_name,
+      document_size: template.document_size,
+      fieldsJSON: template.fields,
+      fieldsStringified: JSON.stringify(templateData.fields || []),
+      user_id: template.user_id,
+      brand_id: template.brand_id
+    });
+
     const { data, error } = await supabase
       .from('contract_templates')
       .insert(template)
@@ -83,8 +108,17 @@ export class ContractService {
       .single();
 
     if (error) {
+      console.error('[ContractService.createTemplate] Database insert error:', error);
       throw new Error(`Failed to create template: ${error.message}`);
     }
+
+    console.log('[ContractService.createTemplate] Template successfully created in database:', {
+      id: data.id,
+      title: data.title,
+      fieldsFromDB: data.fields,
+      fieldsType: typeof data.fields,
+      fieldsLength: Array.isArray(data.fields) ? data.fields.length : 'not array'
+    });
 
     return data;
   }
