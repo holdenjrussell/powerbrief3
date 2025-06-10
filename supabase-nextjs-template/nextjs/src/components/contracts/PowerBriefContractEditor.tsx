@@ -103,7 +103,6 @@ interface ContractEditorProps {
     dataForViewer: Uint8Array | null;
   } | null;
   brandId: string;
-  onSave?: (data: { recipients: SimpleRecipient[]; fields: SimpleField[] }) => void;
   onSend?: (data: { recipients: SimpleRecipient[]; fields: SimpleField[] }) => void;
   onSaveAsTemplate?: (data: { title: string; description?: string; fields: SimpleField[] }) => void;
   className?: string;
@@ -122,7 +121,6 @@ const FIELD_TOOLS = [
 export default function PowerBriefContractEditor({
   documentData,
   brandId,
-  onSave,
   onSend,
   onSaveAsTemplate,
   className = ''
@@ -423,11 +421,6 @@ export default function PowerBriefContractEditor({
     };
   }, [selectedFieldId, handleDeleteSelectedField]);
 
-  // Handle save
-  const handleSave = () => {
-    onSave?.({ recipients, fields });
-  };
-
   // Handle send - now only sends recipients and fields
   const handleSend = () => {
     onSend?.({ recipients, fields });
@@ -718,67 +711,60 @@ export default function PowerBriefContractEditor({
                     </div>
                   </div>
                   
-                  <div className="space-y-2">
-                    <div className="flex space-x-2">
-                      <Button variant="outline" onClick={handleSave} className="flex-1">
-                        Save Draft
-                      </Button>
-                      <Button onClick={handleSend} className="flex-1">
-                        <Send className="h-4 w-4 mr-2" />
-                        Send
-                      </Button>
-                    </div>
-                    
-                    {fields.length > 0 && (
-                      <Dialog open={showSaveAsTemplateDialog} onOpenChange={setShowSaveAsTemplateDialog}>
-                        <DialogTrigger asChild>
-                          <Button variant="outline" className="w-full">
-                            <FileText className="h-4 w-4 mr-2" />
-                            Save as Template
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                          <DialogHeader>
-                            <DialogTitle>Save as Template</DialogTitle>
-                            <DialogDescription>
-                              Save this document layout as a reusable template with field placements
-                            </DialogDescription>
-                          </DialogHeader>
-                          <div className="space-y-4">
-                            <div>
-                              <Label htmlFor="template-title">Template Title</Label>
-                              <Input
-                                id="template-title"
-                                value={templateData.title}
-                                onChange={(e) => setTemplateData(prev => ({ ...prev, title: e.target.value }))}
-                                placeholder="Enter template title"
-                              />
-                            </div>
-                            <div>
-                              <Label htmlFor="template-description">Description (Optional)</Label>
-                              <Textarea
-                                id="template-description"
-                                value={templateData.description}
-                                onChange={(e) => setTemplateData(prev => ({ ...prev, description: e.target.value }))}
-                                placeholder="Enter template description"
-                                rows={3}
-                              />
-                            </div>
-                            <div className="text-sm text-gray-600">
-                              <p>This will save the document with {fields.length} field(s) positioned for future use.</p>
-                            </div>
+                  <div className="flex space-x-2">
+                    <Dialog open={showSaveAsTemplateDialog} onOpenChange={setShowSaveAsTemplateDialog}>
+                      <DialogTrigger asChild>
+                        <Button variant="outline" className="flex-1">
+                          <FileText className="h-4 w-4 mr-2" />
+                          Save as Template
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Save as Template</DialogTitle>
+                          <DialogDescription>
+                            Save this document layout as a reusable template with field placements
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-4">
+                          <div>
+                            <Label htmlFor="template-title">Template Title</Label>
+                            <Input
+                              id="template-title"
+                              value={templateData.title}
+                              onChange={(e) => setTemplateData(prev => ({ ...prev, title: e.target.value }))}
+                              placeholder="Enter template title"
+                            />
                           </div>
-                          <DialogFooter>
-                            <Button variant="outline" onClick={() => setShowSaveAsTemplateDialog(false)}>
-                              Cancel
-                            </Button>
-                            <Button onClick={handleSaveAsTemplate}>
-                              Save Template
-                            </Button>
-                          </DialogFooter>
-                        </DialogContent>
-                      </Dialog>
-                    )}
+                          <div>
+                            <Label htmlFor="template-description">Description (Optional)</Label>
+                            <Textarea
+                              id="template-description"
+                              value={templateData.description}
+                              onChange={(e) => setTemplateData(prev => ({ ...prev, description: e.target.value }))}
+                              placeholder="Enter template description"
+                              rows={3}
+                            />
+                          </div>
+                          <div className="text-sm text-gray-600">
+                            <p>This will save the document with {fields.length} field(s) positioned for future use.</p>
+                          </div>
+                        </div>
+                        <DialogFooter>
+                          <Button variant="outline" onClick={() => setShowSaveAsTemplateDialog(false)}>
+                            Cancel
+                          </Button>
+                          <Button onClick={handleSaveAsTemplate}>
+                            Save Template
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+                    
+                    <Button onClick={handleSend} className="flex-1">
+                      <Send className="h-4 w-4 mr-2" />
+                      Send
+                    </Button>
                   </div>
                 </div>
               </CardContent>
