@@ -11,6 +11,11 @@ export interface SignatureData {
   signerEmail: string;
   ipAddress?: string;
   userAgent?: string;
+  page?: number;
+  positionX?: number;
+  positionY?: number;
+  width?: number;
+  height?: number;
 }
 
 export interface PdfSigningResult {
@@ -95,40 +100,50 @@ export class PdfSigningService {
     helveticaFont: PDFFont,
     helveticaBoldFont: PDFFont
   ): Promise<void> {
-    // Note: In a real implementation, you would get the field position from the contract_fields table
-    // For now, we'll assume the field positions are stored in a standardized way
-    
-    // This is a simplified implementation - in practice, you'd store and retrieve
-    // the exact field coordinates from your database
-    const pageIndex = 0; // This would come from the field data
+    // Use actual field positioning data
+    const pageIndex = (signature.page ?? 1) - 1; // Convert to 0-based index
     const page = pages[pageIndex];
     
     if (!page) {
-      console.warn(`Page ${pageIndex} not found for field ${signature.fieldId}`);
+      console.warn(`Page ${pageIndex + 1} not found for field ${signature.fieldId}`);
       return;
     }
 
     const { width, height } = page.getSize();
     
-    // Default position - in practice this would come from stored field coordinates
-    const x = width * 0.1; // 10% from left
-    const y = height * 0.2; // 20% from bottom
+    // Calculate actual field positions from percentage-based coordinates
+    let x, y;
+    if (signature.positionX !== undefined && signature.positionY !== undefined) {
+      // Convert from percentage coordinates to actual PDF coordinates
+      x = width * (signature.positionX / 100);
+      y = height - (height * (signature.positionY / 100)); // Flip Y coordinate (PDF uses bottom-left origin)
+      
+      console.log(`[PDF Field] Rendering ${signature.type} field ${signature.fieldId} at page ${pageIndex + 1}, position (${x.toFixed(1)}, ${y.toFixed(1)})`);
+    } else {
+      // Fallback to default position if coordinates not provided
+      x = width * 0.1; // 10% from left
+      y = height * 0.8; // 80% from bottom (flipped coordinate system)
+      console.warn(`[PDF Field] Using default position for field ${signature.fieldId} - no coordinates provided`);
+    }
+
+    const fieldWidth = signature.width ? width * (signature.width / 100) : 100;
+    const fieldHeight = signature.height ? height * (signature.height / 100) : 20;
 
     switch (signature.type) {
       case 'signature':
-        await this.drawSignature(page, signature, x, y, helveticaBoldFont);
+        await this.drawSignature(page, signature, x, y, fieldWidth, fieldHeight, helveticaBoldFont);
         break;
       case 'date':
-        await this.drawDate(page, signature, x, y, helveticaFont);
+        await this.drawDate(page, signature, x, y, fieldWidth, fieldHeight, helveticaFont);
         break;
       case 'text':
-        await this.drawText(page, signature, x, y, helveticaFont);
+        await this.drawText(page, signature, x, y, fieldWidth, fieldHeight, helveticaFont);
         break;
       case 'checkbox':
-        await this.drawCheckbox(page, signature, x, y);
+        await this.drawCheckbox(page, signature, x, y, fieldWidth, fieldHeight);
         break;
       case 'initial':
-        await this.drawInitial(page, signature, x, y, helveticaBoldFont);
+        await this.drawInitial(page, signature, x, y, fieldWidth, fieldHeight, helveticaBoldFont);
         break;
     }
   }
@@ -141,15 +156,63 @@ export class PdfSigningService {
     signature: SignatureData,
     x: number,
     y: number,
+    fieldWidth: number,
+    fieldHeight: number,
     font: PDFFont
   ): Promise<void> {
-    // For digital signatures, we'll render the signer's name in a signature style
+    const signatureValue = signature.value || signature.signerName;
+    
+    // Check if the signature is a canvas drawing (base64 data URL)
+    if (signatureValue.startsWith('data:image/')) {
+      try {
+        // Extract base64 data and embed as image
+        const base64Data = signatureValue.split(',')[1];
+        const imageBytes = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+        
+        const image = await page.doc.embedPng(imageBytes);
+        
+        // Draw the signature image within the field bounds
+        page.drawImage(image, {
+          x,
+          y: y - fieldHeight + 8, // Adjust position for image
+          width: fieldWidth,
+          height: fieldHeight - 8,
+        });
+        
+        console.log(`[PDF Field] Rendered canvas signature as image for field ${signature.fieldId}`);
+        
+      } catch (error) {
+        console.warn(`[PDF Field] Failed to render signature image for field ${signature.fieldId}, falling back to text:`, error);
+        // Fallback to text rendering
+        this.drawSignatureText(page, signature, x, y, fieldWidth, fieldHeight, font);
+      }
+    } else {
+      // Render as text signature
+      this.drawSignatureText(page, signature, x, y, fieldWidth, fieldHeight, font);
+    }
+  }
+
+  /**
+   * Draw signature as text
+   */
+  private drawSignatureText(
+    page: PDFPage,
+    signature: SignatureData,
+    x: number,
+    y: number,
+    fieldWidth: number,
+    fieldHeight: number,
+    font: PDFFont
+  ): void {
     const signatureText = signature.value || signature.signerName;
+    
+    // Calculate font size based on field dimensions
+    const fontSize = Math.min(fieldHeight * 0.4, 16);
     
     page.drawText(signatureText, {
       x,
       y,
-      size: 12,
+      size: fontSize,
       font,
       color: rgb(0, 0, 0.8), // Blue color for digital signature
     });
@@ -157,17 +220,18 @@ export class PdfSigningService {
     // Add a line underneath to indicate it's a signature
     page.drawLine({
       start: { x, y: y - 2 },
-      end: { x: x + 150, y: y - 2 },
+      end: { x: x + fieldWidth, y: y - 2 },
       thickness: 1,
       color: rgb(0, 0, 0.8),
     });
 
-    // Add signature timestamp
+    // Add signature timestamp (smaller text)
+    const timestampSize = Math.min(fontSize * 0.6, 8);
     const signedDate = new Date(signature.signedAt).toLocaleDateString();
     page.drawText(`Signed on: ${signedDate}`, {
       x,
-      y: y - 20,
-      size: 8,
+      y: y - fieldHeight + 4,
+      size: timestampSize,
       font,
       color: rgb(0.5, 0.5, 0.5),
     });
@@ -181,14 +245,17 @@ export class PdfSigningService {
     signature: SignatureData,
     x: number,
     y: number,
+    fieldWidth: number,
+    fieldHeight: number,
     font: PDFFont
   ): Promise<void> {
     const dateValue = signature.value || new Date().toLocaleDateString();
+    const fontSize = Math.min(fieldHeight * 0.6, 12);
     
     page.drawText(dateValue, {
       x,
       y,
-      size: 10,
+      size: fontSize,
       font,
       color: rgb(0, 0, 0),
     });
@@ -202,12 +269,16 @@ export class PdfSigningService {
     signature: SignatureData,
     x: number,
     y: number,
+    fieldWidth: number,
+    fieldHeight: number,
     font: PDFFont
   ): Promise<void> {
+    const fontSize = Math.min(fieldHeight * 0.6, 12);
+    
     page.drawText(signature.value, {
       x,
       y,
-      size: 10,
+      size: fontSize,
       font,
       color: rgb(0, 0, 0),
     });
@@ -220,16 +291,19 @@ export class PdfSigningService {
     page: PDFPage,
     signature: SignatureData,
     x: number,
-    y: number
+    y: number,
+    fieldWidth: number,
+    fieldHeight: number
   ): Promise<void> {
     const isChecked = signature.value === 'true' || signature.value === 'checked';
+    const checkboxSize = Math.min(fieldWidth, fieldHeight, 16);
     
     // Draw checkbox border
     page.drawRectangle({
       x,
       y,
-      width: 12,
-      height: 12,
+      width: checkboxSize,
+      height: checkboxSize,
       borderColor: rgb(0, 0, 0),
       borderWidth: 1,
     });
@@ -239,7 +313,7 @@ export class PdfSigningService {
       page.drawText('✓', {
         x: x + 2,
         y: y + 2,
-        size: 10,
+        size: checkboxSize * 0.8,
         color: rgb(0, 0.6, 0),
       });
     }
@@ -253,14 +327,17 @@ export class PdfSigningService {
     signature: SignatureData,
     x: number,
     y: number,
+    fieldWidth: number,
+    fieldHeight: number,
     font: PDFFont
   ): Promise<void> {
     const initials = signature.value || this.generateInitials(signature.signerName);
+    const fontSize = Math.min(fieldHeight * 0.6, 14);
     
     page.drawText(initials, {
       x,
       y,
-      size: 10,
+      size: fontSize,
       font,
       color: rgb(0, 0, 0.8),
     });
