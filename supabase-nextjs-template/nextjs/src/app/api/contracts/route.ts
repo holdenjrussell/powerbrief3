@@ -163,7 +163,79 @@ export async function POST(request: NextRequest) {
         }, { status: 404 });
       }
 
-      documentData = template.document_data;
+      // Convert template document data from database format to Uint8Array
+      const rawDocumentData = template.document_data;
+      console.log('[API] Template document data type:', typeof rawDocumentData);
+      console.log('[API] Template document data length:', typeof rawDocumentData === 'string' ? rawDocumentData.length : rawDocumentData?.length || 'undefined');
+      
+      if (typeof rawDocumentData === 'string') {
+        console.log('[API] Converting string document data to Uint8Array');
+        
+        if (rawDocumentData.startsWith('\\x')) {
+          console.log('[API] Detected hex-encoded string, converting...');
+          try {
+            // Remove \x prefixes and convert hex pairs to string
+            const hexString = rawDocumentData.replace(/\\x/g, '');
+            
+            // Convert hex to string
+            let jsonString = '';
+            for (let i = 0; i < hexString.length; i += 2) {
+              const hexPair = hexString.substr(i, 2);
+              const charCode = parseInt(hexPair, 16);
+              jsonString += String.fromCharCode(charCode);
+            }
+            
+            // Parse the JSON to get the Buffer object
+            const bufferObject = JSON.parse(jsonString);
+            
+            if (bufferObject.type === 'Buffer' && Array.isArray(bufferObject.data)) {
+              documentData = new Uint8Array(bufferObject.data);
+              console.log('[API] Successfully converted hex-encoded template data, length:', documentData.length);
+            } else {
+              throw new Error('Parsed object is not a valid Buffer format');
+            }
+          } catch (error) {
+            console.error('[API] Hex decode failed:', error);
+            return NextResponse.json({ 
+              error: `Failed to decode template document data: ${error}` 
+            }, { status: 400 });
+          }
+        } else {
+          // Fallback for other string formats
+          console.log('[API] Treating as binary string');
+          documentData = new Uint8Array(rawDocumentData.length);
+          for (let i = 0; i < rawDocumentData.length; i++) {
+            documentData[i] = rawDocumentData.charCodeAt(i);
+          }
+        }
+      } else if (rawDocumentData instanceof Uint8Array) {
+        console.log('[API] Document data is already Uint8Array');
+        documentData = rawDocumentData;
+      } else if (rawDocumentData && typeof rawDocumentData === 'object' && Array.isArray(rawDocumentData.data)) {
+        console.log('[API] Document data is JSON Buffer object');
+        documentData = new Uint8Array(rawDocumentData.data);
+      } else {
+        console.error('[API] Unknown document data format:', typeof rawDocumentData);
+        return NextResponse.json({ 
+          error: 'Invalid template document data format' 
+        }, { status: 400 });
+      }
+      
+      if (documentData.length === 0) {
+        return NextResponse.json({ 
+          error: 'Template document data is empty' 
+        }, { status: 400 });
+      }
+      
+      // Check if it starts with PDF magic bytes
+      const pdfMagic = documentData.slice(0, 4);
+      const pdfMagicString = String.fromCharCode.apply(null, Array.from(pdfMagic));
+      console.log('[API] PDF magic bytes check:', pdfMagicString);
+      
+      if (pdfMagicString !== '%PDF') {
+        console.warn('[API] Warning: Document does not start with PDF magic bytes');
+      }
+
       documentName = template.document_name;
     } else {
       return NextResponse.json({ 
