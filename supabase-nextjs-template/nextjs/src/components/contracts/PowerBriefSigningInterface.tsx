@@ -398,173 +398,51 @@ export default function PowerBriefSigningInterface({
   const progress = requiredFields.length > 0 ? (completedRequiredFields.length / requiredFields.length) * 100 : 100;
 
   return (
-    <div className={`flex flex-col lg:grid lg:grid-cols-12 gap-4 lg:gap-6 ${className}`}>
-      {/* Mobile Header - Compact Progress & Info */}
-      <div className="lg:hidden">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between mb-3">
+    <div className={`flex flex-col space-y-4 ${className}`}>
+      {/* Mobile-First Header with Progress and Actions */}
+      <Card className="sticky top-0 z-10 bg-white shadow-sm">
+        <CardContent className="p-4">
+          <div className="space-y-4">
+            {/* Contract Info */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
               <div>
-                <h3 className="font-medium text-base">{contractData.title}</h3>
-                <p className="text-xs text-gray-600">Welcome, {recipientInfo.name}</p>
+                <h3 className="font-semibold text-lg text-gray-900">{contractData.title}</h3>
+                <p className="text-sm text-gray-600">Welcome, {recipientInfo.name}</p>
               </div>
-              <div className="text-right">
-                <div className="text-xs text-gray-500">Progress</div>
-                <div className="text-sm font-medium">{completedRequiredFields.length} of {requiredFields.length}</div>
+              <div className="text-sm text-gray-500">
+                {completedRequiredFields.length} of {requiredFields.length} completed
               </div>
             </div>
-            
-            <div className="w-full bg-gray-200 rounded-full h-2 mb-3">
+
+            {/* Progress Bar */}
+            <div className="w-full bg-gray-200 rounded-full h-3">
               <div 
-                className="bg-blue-600 h-2 rounded-full transition-all"
+                className="bg-blue-600 h-3 rounded-full transition-all duration-300"
                 style={{ width: `${progress}%` }}
               />
             </div>
 
-            <Alert className="mb-3">
-              <AlertDescription className="text-xs">
-                Fill in the highlighted fields on the document, then complete your signature.
+            {/* Instructions */}
+            <Alert>
+              <AlertDescription className="text-sm">
+                {completedRequiredFields.length < requiredFields.length 
+                  ? "Please complete all highlighted fields below to finish signing." 
+                  : "All fields completed! You can now finalize the contract."}
               </AlertDescription>
             </Alert>
 
-            {/* Complete Button for Mobile */}
+            {/* Complete Button - Mobile First */}
             <Button 
-              className="w-full h-12 text-base"
+              className="w-full sm:w-auto sm:ml-auto"
               onClick={handleCompleteSigning}
               disabled={isCompleting || completedRequiredFields.length < requiredFields.length}
+              size="lg"
             >
               {isCompleting ? (
-                'Completing...'
-              ) : (
                 <div className="flex items-center">
-                  <Send className="h-5 w-5 mr-2" />
-                  Complete Contract
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                  Completing...
                 </div>
-              )}
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Document Panel - Takes full width on mobile, 8 cols on desktop */}
-      <div className="lg:col-span-8 lg:order-2">
-        <Card className="overflow-hidden">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg lg:text-xl">Document</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="h-[50vh] lg:h-[80vh]">
-              <PowerBriefPDFViewer
-                documentData={pdfViewerDocumentData}
-                className="h-full"
-                showToolbar={true}
-                enableFieldPlacement={false}
-                fields={recipientFields.map(field => ({
-                  id: field.id,
-                  type: field.type,
-                  page: field.page,
-                  positionX: field.positionX,
-                  positionY: field.positionY,
-                  width: field.width,
-                  height: field.height,
-                  recipientId: field.recipientId,
-                  recipientEmail: field.recipientEmail,
-                  value: fieldValues[field.id],
-                  placeholder: field.placeholder,
-                  required: field.required,
-                }))}
-                isSigningMode={true}
-                renderInteractiveElement={renderFieldInput}
-              />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Desktop Sidebar - Hidden on mobile */}
-      <div className="hidden lg:block lg:col-span-4 lg:order-1 space-y-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>PowerBrief Contract</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div>
-                <h3 className="font-medium text-lg">{contractData.title}</h3>
-                <p className="text-sm text-gray-600">
-                  Welcome, {recipientInfo.name}
-                </p>
-              </div>
-
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-sm font-medium">Progress</span>
-                  <span className="text-sm text-gray-500">
-                    {completedRequiredFields.length} of {requiredFields.length}
-                  </span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div 
-                    className="bg-blue-600 h-2 rounded-full transition-all"
-                    style={{ width: `${progress}%` }}
-                  />
-                </div>
-              </div>
-
-              <Alert>
-                <AlertDescription>
-                  Please fill in all the highlighted fields on the document, then complete your signature to finish.
-                </AlertDescription>
-              </Alert>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Field List */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Required Fields</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {recipientFields.map((field) => {
-                const Icon = getFieldIcon(field.type);
-                const isCompleted = !!fieldValues[field.id];
-                
-                return (
-                  <div
-                    key={field.id}
-                    className={`flex items-center p-3 rounded-lg border ${
-                      isCompleted ? 'border-green-200 bg-green-50' : 'border-gray-200'
-                    }`}
-                  >
-                    <Icon className={`h-4 w-4 mr-3 ${isCompleted ? 'text-green-600' : 'text-gray-400'}`} />
-                    <div className="flex-1">
-                      <div className="font-medium capitalize">{field.type}</div>
-                      {field.required && (
-                        <div className="text-xs text-red-500">Required</div>
-                      )}
-                    </div>
-                    {isCompleted && (
-                      <CheckCircle className="h-4 w-4 text-green-600" />
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Complete Button */}
-        <Card>
-          <CardContent className="pt-6">
-            <Button 
-              className="w-full"
-              onClick={handleCompleteSigning}
-              disabled={isCompleting || completedRequiredFields.length < requiredFields.length}
-            >
-              {isCompleting ? (
-                'Completing...'
               ) : (
                 <div className="flex items-center">
                   <Send className="h-4 w-4 mr-2" />
@@ -572,18 +450,18 @@ export default function PowerBriefSigningInterface({
                 </div>
               )}
             </Button>
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+        </CardContent>
+      </Card>
 
-      {/* Mobile Field List - Collapsible */}
-      <div className="lg:hidden">
+      {/* Required Fields Overview - Collapsible on Mobile */}
+      {recipientFields.length > 0 && (
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Required Fields ({completedRequiredFields.length}/{requiredFields.length})</CardTitle>
+            <CardTitle className="text-base">Required Actions</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
               {recipientFields.map((field) => {
                 const Icon = getFieldIcon(field.type);
                 const isCompleted = !!fieldValues[field.id];
@@ -591,16 +469,18 @@ export default function PowerBriefSigningInterface({
                 return (
                   <div
                     key={field.id}
-                    className={`flex items-center p-2 rounded-lg border text-xs ${
-                      isCompleted ? 'border-green-200 bg-green-50' : 'border-gray-200'
+                    className={`flex items-center p-2 rounded-lg border text-sm ${
+                      isCompleted 
+                        ? 'border-green-200 bg-green-50 text-green-800' 
+                        : 'border-orange-200 bg-orange-50 text-orange-800'
                     }`}
                   >
-                    <Icon className={`h-3 w-3 mr-2 ${isCompleted ? 'text-green-600' : 'text-gray-400'}`} />
-                    <div className="flex-1 min-w-0">
-                      <div className="font-medium capitalize truncate">{field.type}</div>
-                    </div>
-                    {isCompleted && (
-                      <CheckCircle className="h-3 w-3 text-green-600 ml-1" />
+                    <Icon className={`h-3 w-3 mr-2 ${isCompleted ? 'text-green-600' : 'text-orange-600'}`} />
+                    <div className="flex-1 capitalize font-medium">{field.type}</div>
+                    {isCompleted ? (
+                      <CheckCircle className="h-3 w-3 text-green-600" />
+                    ) : (
+                      <div className="w-3 h-3 border border-orange-400 rounded-full" />
                     )}
                   </div>
                 );
@@ -608,7 +488,40 @@ export default function PowerBriefSigningInterface({
             </div>
           </CardContent>
         </Card>
-      </div>
+      )}
+
+      {/* Document Viewer - Takes Remaining Space */}
+      <Card className="flex-1 min-h-[60vh]">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Document</CardTitle>
+        </CardHeader>
+        <CardContent className="p-0 h-full">
+          <div className="h-full min-h-[60vh]">
+            <PowerBriefPDFViewer
+              documentData={pdfViewerDocumentData}
+              className="h-full"
+              showToolbar={true}
+              enableFieldPlacement={false}
+              fields={recipientFields.map(field => ({
+                id: field.id,
+                type: field.type,
+                page: field.page,
+                positionX: field.positionX,
+                positionY: field.positionY,
+                width: field.width,
+                height: field.height,
+                recipientId: field.recipientId,
+                recipientEmail: field.recipientEmail,
+                value: fieldValues[field.id],
+                placeholder: field.placeholder,
+                required: field.required,
+              }))}
+              isSigningMode={true}
+              renderInteractiveElement={renderFieldInput}
+            />
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 } 
