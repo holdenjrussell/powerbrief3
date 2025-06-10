@@ -191,6 +191,13 @@ export default function CreatorCard({ creator, brandId, onUpdate }: CreatorCardP
 
   // Handle sending contract to creator
   const handleSendContract = async () => {
+    // Temporarily redirect to contracts dashboard instead of sending
+    setShowContractDialog(false);
+    
+    // Redirect to contracts dashboard
+    window.open(`/app/powerbrief/${brandId}/contracts`, '_blank');
+    
+    /* COMMENTED OUT - Contract sending temporarily disabled
     if (!contractData.title || (!contractData.templateId && !contractData.customDocument)) {
       return;
     }
@@ -278,6 +285,7 @@ export default function CreatorCard({ creator, brandId, onUpdate }: CreatorCardP
     } finally {
       setSendingContract(false);
     }
+    */
   };
 
   // Open contract dialog and fetch templates

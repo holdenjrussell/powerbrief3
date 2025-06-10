@@ -29,7 +29,7 @@ import {
 } from "@/components/ui";
 import { UgcCreatorScript, UgcCreator, UGC_SCRIPT_PAYMENT_STATUSES } from '@/lib/types/ugcCreator';
 import { ContractTemplate } from '@/lib/types/contracts';
-import { ChevronRight, CheckCircle, AlertCircle, User, PenSquare, Trash2, Edit, Package, FileText, Sparkles, DollarSign, Calendar, Send } from 'lucide-react';
+import { ChevronRight, CheckCircle, AlertCircle, User, PenSquare, Trash2, Edit, Package, FileText, Sparkles, DollarSign, Calendar, Send, ExternalLink } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 // Remove the TBD_CREATOR_ID constant since the API handles this now
@@ -353,6 +353,17 @@ export default function ScriptCard({
   };
 
   const handleSendContract = async () => {
+    // Temporarily redirect to contracts dashboard instead of sending
+    if (!brandId) return;
+    
+    // Close dialog first
+    setShowSendContractDialog(false);
+    setSelectedTemplateId('');
+    
+    // Redirect to contracts dashboard
+    window.open(`/app/powerbrief/${brandId}/contracts`, '_blank');
+    
+    /* COMMENTED OUT - Contract sending temporarily disabled
     if (!selectedTemplateId || !brandId) return;
     
     const assignedCreator = creators.find(c => c.id === script.creator_id);
@@ -430,6 +441,7 @@ export default function ScriptCard({
     } finally {
       setSendingContract(false);
     }
+    */
   };
 
   const handleResendContract = async () => {
@@ -1393,39 +1405,23 @@ export default function ScriptCard({
       <Dialog open={showSendContractDialog} onOpenChange={setShowSendContractDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Send Contract to Creator</DialogTitle>
+            <DialogTitle>Create Contract for Creator</DialogTitle>
             <DialogDescription>
-              Select a contract template to send to the creator. The template will be sent as-is without modifications.
+              This will open the contracts dashboard where you can create and send a contract to the creator.
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
-            {loadingTemplates ? (
-              <div className="flex items-center justify-center py-8">
-                <div className="text-sm text-gray-500">Loading templates...</div>
-              </div>
-            ) : contractTemplates.length === 0 ? (
-              <div className="p-4 bg-gray-50 border border-gray-200 rounded-md">
-                <p className="text-sm text-gray-600">
-                  No contract templates found. Please create a template first.
-                </p>
-              </div>
-            ) : (
-              <div>
-                <Label htmlFor="template-select">Contract Template</Label>
-                <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
-                  <SelectTrigger className="mt-1">
-                    <SelectValue placeholder="Select a contract template" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {contractTemplates.map((template) => (
-                      <SelectItem key={template.id} value={template.id}>
-                        {template.title}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
+            <div className="p-4 bg-blue-50 border border-blue-200 rounded-md">
+              <p className="text-sm text-blue-800 font-medium mb-2">Quick Contract Creation</p>
+              <p className="text-sm text-blue-700">
+                You will be redirected to the contracts dashboard where you can:
+              </p>
+              <ul className="text-sm text-blue-700 mt-2 ml-4 list-disc">
+                <li>Select or create a contract template</li>
+                <li>Add the creator details</li>
+                <li>Send the contract for digital signature</li>
+              </ul>
+            </div>
           </div>
           <DialogFooter>
             <Button 
@@ -1436,19 +1432,9 @@ export default function ScriptCard({
             </Button>
             <Button 
               onClick={handleSendContract}
-              disabled={!selectedTemplateId || sendingContract || contractTemplates.length === 0}
             >
-              {sendingContract ? (
-                <>
-                  <Send className="h-4 w-4 mr-2 animate-pulse" />
-                  Sending...
-                </>
-              ) : (
-                <>
-                  <Send className="h-4 w-4 mr-2" />
-                  Send Contract
-                </>
-              )}
+              <ExternalLink className="h-4 w-4 mr-2" />
+              Open Contracts Dashboard
             </Button>
           </DialogFooter>
         </DialogContent>
