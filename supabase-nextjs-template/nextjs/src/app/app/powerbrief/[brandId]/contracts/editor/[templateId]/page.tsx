@@ -527,9 +527,38 @@ export default function ContractEditorPage() {
         console.log('[handleSend] New contract created successfully, ID:', contractIdToUse);
 
       } else if (template) {
-        contractIdToUse = template.id;
+        // Create a new contract from the template
         documentNameToUse = template.document_name || template.title;
-        console.log('[handleSend] Using existing template, ID:', contractIdToUse, 'Name:', documentNameToUse);
+        console.log('[handleSend] Creating new contract from template:', template.id, 'Name:', documentNameToUse);
+
+        const formData = new FormData();
+        formData.append('brandId', brandId as string);
+        formData.append('title', documentNameToUse);
+        formData.append('templateId', template.id); // Use template for document data
+        formData.append('recipients', JSON.stringify(dataFromEditor.recipients));
+        formData.append('fields', JSON.stringify(dataFromEditor.fields));
+
+        console.log('[handleSend] Attempting to create contract from template via /api/contracts...');
+        console.log('[handleSend] FormData contains:', {
+          brandId: brandId as string,
+          title: documentNameToUse,
+          templateId: template.id,
+          recipientsCount: dataFromEditor.recipients.length,
+          fieldsCount: dataFromEditor.fields.length
+        });
+
+        const createResponse = await fetch('/api/contracts', {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!createResponse.ok) {
+          const errorData = await createResponse.json();
+          throw new Error(errorData.error || `Failed to create contract from template (HTTP ${createResponse.status})`);
+        }
+        const { contract } = await createResponse.json();
+        contractIdToUse = contract.id;
+        console.log('[handleSend] Contract created from template successfully, new contract ID:', contractIdToUse);
       } else {
         const msg = 'Contract source unclear: No new file uploaded and no template loaded.';
         console.error('[handleSend] Error:', msg);
