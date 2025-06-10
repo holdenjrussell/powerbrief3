@@ -156,7 +156,7 @@ export type RecipientRole = 'signer' | 'cc' | 'viewer';
 
 export type RecipientStatus = 'pending' | 'sent' | 'viewed' | 'signed' | 'declined';
 
-export type FieldType = 'signature' | 'date' | 'text' | 'checkbox' | 'initial';
+export type FieldType = 'signature' | 'date' | 'text' | 'name' | 'checkbox' | 'initial';
 
 export type AuditAction = 'created' | 'sent' | 'viewed' | 'signed' | 'declined' | 'completed' | 'voided';
 
@@ -186,6 +186,7 @@ export const FIELD_TYPES: FieldType[] = [
   'signature',
   'date',
   'text',
+  'name',
   'checkbox',
   'initial'
 ];
