@@ -439,7 +439,10 @@ export default function ContractEditorPage() {
       const result = await response.json();
       console.log('[handleSaveAsTemplate] Success Response:', result);
 
-      alert('Template saved successfully! It will appear in your Templates list.');
+      alert('Template saved successfully! Redirecting to Templates page...');
+      
+      // Redirect to templates page
+      router.push(`/app/powerbrief/${brandId}/ugc-pipeline?view=contracts&tab=templates`);
 
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred while saving the template.';
