@@ -113,6 +113,8 @@ export default function PowerBriefPDFViewer({
   const [pageDimensions, setPageDimensions] = useState<Record<number, PageDimensions>>({});
   const [isPdfReady, setIsPdfReady] = useState(false);
 
+  console.log('[PDFViewer] Props:', { documentDataId: documentData?.id, enableFieldPlacement, fieldsLength: fields.length, selectedFieldType, selectedRecipientId: selectedRecipient?.id, selectedFieldId, isSigningMode });
+
   // Convert documentData to usable format with proper memoization
   const documentSource = React.useMemo(() => {
     if (typeof documentData.data === 'string') {
@@ -223,6 +225,7 @@ export default function PowerBriefPDFViewer({
         onFieldUpdate={onFieldUpdate}
         onFieldSelect={onFieldSelect}
         isSelected={field.id === selectedFieldId}
+        scrollContainerRef={containerRef}
       />
     ));
   };
@@ -414,6 +417,7 @@ interface PowerBriefFieldOverlayProps {
   onFieldUpdate?: (updatedField: Partial<ContractField> & { id: string }) => void;
   onFieldSelect?: (fieldId: string | null) => void;
   isSelected?: boolean;
+  scrollContainerRef: React.RefObject<HTMLDivElement>;
 }
 
 function PowerBriefFieldOverlay({
@@ -424,6 +428,7 @@ function PowerBriefFieldOverlay({
   onFieldUpdate,
   onFieldSelect,
   isSelected,
+  scrollContainerRef,
 }: PowerBriefFieldOverlayProps) {
   const [coords, setCoords] = useState({
     x: 0,
@@ -432,75 +437,107 @@ function PowerBriefFieldOverlay({
     width: 0,
   });
 
-  const calculateCoords = useCallback(() => {
+  console.log(`[FieldOverlay ${field.id}] Initializing. Field:`, JSON.parse(JSON.stringify(field)), "Selected:", isSelected, "scrollContainerRef current:", scrollContainerRef.current);
+
+  const calculateCoords = useCallback((trigger?: string) => {
+    console.log(`[FieldOverlay ${field.id}] calculateCoords called. Trigger: ${trigger || 'unknown'}. Field:`, JSON.parse(JSON.stringify(field)));
     const $page = document.querySelector<HTMLElement>(
-      `.react-pdf__Page[data-page-number="${field.page}"]`,
+      `.react-pdf__Page[data-page-number="${field.page}"]`
     );
 
     if (!$page) {
+      console.warn(`[FieldOverlay ${field.id}] Page element not found for page ${field.page}. Hiding field.`);
+      setCoords({ x: 0, y: 0, width: 0, height: 0 });
       return;
     }
 
-    const { top, left, height, width } = $page.getBoundingClientRect();
+    const pageRect = $page.getBoundingClientRect();
+    console.log(`[FieldOverlay ${field.id}] Page ${field.page} rect (viewport-relative):`, {top: pageRect.top, left: pageRect.left, width: pageRect.width, height: pageRect.height});
+    console.log(`[FieldOverlay ${field.id}] window scroll (X,Y):`, window.scrollX, window.scrollY);
+    if (scrollContainerRef.current) {
+      console.log(`[FieldOverlay ${field.id}] scrollContainer scroll (Top,Left):`, scrollContainerRef.current.scrollTop, scrollContainerRef.current.scrollLeft);
+    }
 
-    // X and Y are percentages of the page's height and width
-    const fieldX = (field.positionX / 100) * width + left + window.scrollX;
-    const fieldY = (field.positionY / 100) * height + top + window.scrollY;
-
-    const fieldHeight = (field.height / 100) * height;
-    const fieldWidth = (field.width / 100) * width;
-
-    setCoords({
-      x: fieldX,
-      y: fieldY,
-      height: fieldHeight,
-      width: fieldWidth,
-    });
-  }, [field.height, field.page, field.positionX, field.positionY, field.width, field.id, field.type]);
-
-  useEffect(() => {
-    // Add a small delay to ensure DOM is ready
-    const timer = setTimeout(() => {
-      calculateCoords();
-    }, 100);
+    const absoluteX = pageRect.left + window.scrollX + (field.positionX / 100) * pageRect.width;
+    const absoluteY = pageRect.top + window.scrollY + (field.positionY / 100) * pageRect.height;
+    const absoluteWidth = (field.width / 100) * pageRect.width;
+    const absoluteHeight = (field.height / 100) * pageRect.height;
     
-    return () => clearTimeout(timer);
-  }, [calculateCoords]);
+    const newCoords = {
+      x: absoluteX,
+      y: absoluteY,
+      height: absoluteHeight,
+      width: absoluteWidth,
+    };
+    console.log(`[FieldOverlay ${field.id}] Calculated new coords (document-absolute):`, newCoords);
+    setCoords(newCoords);
+  }, [field.page, field.positionX, field.positionY, field.width, field.height, scrollContainerRef]);
 
   useEffect(() => {
-    const onResize = () => {
-      calculateCoords();
+    console.log(`[FieldOverlay ${field.id}] Initial calculation timeout set.`);
+    const timer = setTimeout(() => calculateCoords('initialTimeout'), 50);
+    return () => {
+      console.log(`[FieldOverlay ${field.id}] Clearing initial calculation timeout.`);
+      clearTimeout(timer);
+    };
+  }, [calculateCoords, field.id]);
+
+  useEffect(() => {
+    const scrollElement = scrollContainerRef.current; 
+    console.log(`[FieldOverlay ${field.id}] Attempting to set up scroll/resize listeners. Scroll Element:`, scrollElement);
+
+    const handleRecalculateOnEvent = (eventSource: string) => {
+      console.log(`[FieldOverlay ${field.id}] ${eventSource} event triggered. Recalculating coordinates.`);
+      calculateCoords(eventSource);
     };
 
-    window.addEventListener('resize', onResize);
-    window.addEventListener('scroll', onResize);
+    const handleResize = () => handleRecalculateOnEvent('windowResize');
+    const handleScroll = () => handleRecalculateOnEvent('scrollContainerScroll');
+
+    window.addEventListener('resize', handleResize);
+    console.log(`[FieldOverlay ${field.id}] Added window resize listener.`);
+
+    if (scrollElement) {
+      scrollElement.addEventListener('scroll', handleScroll, { passive: true });
+      console.log(`[FieldOverlay ${field.id}] Successfully ADDED scroll listener to:`, scrollElement);
+    } else {
+      console.warn(`[FieldOverlay ${field.id}] Scroll container ref NOT available at time of setting listeners.`);
+    }
 
     return () => {
-      window.removeEventListener('resize', onResize);
-      window.removeEventListener('scroll', onResize);
+      console.log(`[FieldOverlay ${field.id}] Cleaning up scroll/resize listeners. Scroll Element was:`, scrollElement);
+      window.removeEventListener('resize', handleResize);
+      console.log(`[FieldOverlay ${field.id}] Removed window resize listener.`);
+      if (scrollElement) {
+        scrollElement.removeEventListener('scroll', handleScroll);
+        console.log(`[FieldOverlay ${field.id}] Successfully REMOVED scroll listener from:`, scrollElement);
+      }
     };
-  }, [calculateCoords]);
+  }, [calculateCoords, scrollContainerRef, field.id]);
 
-  // ResizeObserver for PDF page changes
   useEffect(() => {
+    console.log(`[FieldOverlay ${field.id}] Attempting to set up ResizeObserver for page ${field.page}.`);
     const $page = document.querySelector<HTMLElement>(
-      `.react-pdf__Page[data-page-number="${field.page}"]`,
+      `.react-pdf__Page[data-page-number="${field.page}"]`
     );
 
     if (!$page) {
+      console.warn(`[FieldOverlay ${field.id}] Page element for ResizeObserver not found (page ${field.page}).`);
       return;
     }
 
     const observer = new ResizeObserver(() => {
-      calculateCoords();
+      console.log(`[FieldOverlay ${field.id}] ResizeObserver triggered recalculateCoords for page ${field.page}.`);
+      calculateCoords('ResizeObserver');
     });
-
     observer.observe($page);
+    console.log(`[FieldOverlay ${field.id}] ResizeObserver observing page ${field.page}.`);
 
     return () => {
-      observer.disconnect();
+      console.log(`[FieldOverlay ${field.id}] ResizeObserver unobserving page ${field.page}.`);
+      observer.unobserve($page);
     };
-  }, [calculateCoords, field.page]);
+  }, [calculateCoords, field.page, field.id]);
 
   const getFieldColor = (type: string, isSelected?: boolean) => {
     if (isSelected && enableFieldPlacement) return 'border-red-600 bg-red-100 ring-2 ring-red-500';
@@ -523,66 +560,114 @@ function PowerBriefFieldOverlay({
     }
   };
 
+  const isEditable = !isSigningMode && !!onFieldUpdate;
+
   const handleDragStop = (e: MouseEvent | TouchEvent, d: DraggableData) => {
-    if (!onFieldUpdate || isSigningMode || !enableFieldPlacement) return;
+    console.log(`[FieldOverlay ${field.id}] handleDragStop. Event:`, e, 'DraggableData:', d);
+    if (!isEditable) {
+      console.log(`[FieldOverlay ${field.id}] handleDragStop: Aborted because field is not editable (isSigningMode: ${isSigningMode}, onFieldUpdate: ${!!onFieldUpdate}).`);
+      return;
+    }
     
     const $page = document.querySelector<HTMLElement>(
-      `.react-pdf__Page[data-page-number="${field.page}"]`,
+      `.react-pdf__Page[data-page-number="${field.page}"]`
     );
+    if (!$page) {
+      console.warn(`[FieldOverlay ${field.id}] handleDragStop: Page element not found (page ${field.page}).`);
+      return;
+    }
     
-    if (!$page) return;
+    const pageRect = $page.getBoundingClientRect();
+    const pageDocLeft = pageRect.left + window.scrollX;
+    const pageDocTop = pageRect.top + window.scrollY;
+    console.log(`[FieldOverlay ${field.id}] handleDragStop - Page rect:`, JSON.parse(JSON.stringify(pageRect)), `PageDocLeft: ${pageDocLeft}, PageDocTop: ${pageDocTop}`);
     
-    const { top, left, height, width } = $page.getBoundingClientRect();
+    let newPositionX = ((d.x - pageDocLeft) / pageRect.width) * 100;
+    let newPositionY = ((d.y - pageDocTop) / pageRect.height) * 100;
+
+    console.log(`[FieldOverlay ${field.id}] handleDragStop - Original newPositionX: ${newPositionX}%, newPositionY: ${newPositionY}%`);
+
+    newPositionX = Math.max(0, Math.min(newPositionX, 100 - field.width));
+    newPositionY = Math.max(0, Math.min(newPositionY, 100 - field.height));
     
-    const newPositionX = ((d.x - left - window.scrollX) / width) * 100;
-    const newPositionY = ((d.y - top - window.scrollY) / height) * 100;
-    
-    onFieldUpdate({
+    const updatePayload = {
       id: field.id,
-      positionX: Math.max(0, Math.min(100 - field.width, newPositionX)),
-      positionY: Math.max(0, Math.min(100 - field.height, newPositionY)),
-    });
+      positionX: newPositionX,
+      positionY: newPositionY,
+    };
+    console.log(`[FieldOverlay ${field.id}] handleDragStop - Calling onFieldUpdate with:`, updatePayload);
+    onFieldUpdate(updatePayload);
   };
 
   const handleResizeStop = (
     e: MouseEvent | TouchEvent, 
     direction: ResizeDirection,
-    ref: HTMLElement, 
+    ref: HTMLElement,
     delta: ResizableDelta, 
     position: Position
   ) => {
-    if (!onFieldUpdate || isSigningMode || !enableFieldPlacement) return;
+    console.log(`[FieldOverlay ${field.id}] handleResizeStop. Event:`, e, 'Direction:', direction, 'Ref:', ref, 'Delta:', delta, 'Position:', position);
+    if (!isEditable) {
+      console.log(`[FieldOverlay ${field.id}] handleResizeStop: Aborted because field is not editable (isSigningMode: ${isSigningMode}, onFieldUpdate: ${!!onFieldUpdate}).`);
+      return;
+    }
     
     const $page = document.querySelector<HTMLElement>(
-      `.react-pdf__Page[data-page-number="${field.page}"]`,
+      `.react-pdf__Page[data-page-number="${field.page}"]`
     );
+    if (!$page) {
+      console.warn(`[FieldOverlay ${field.id}] handleResizeStop: Page element not found (page ${field.page}).`);
+      return;
+    }
     
-    if (!$page) return;
-    
-    const { top, left, height, width } = $page.getBoundingClientRect();
-    
+    const pageRect = $page.getBoundingClientRect();
+    const pageDocLeft = pageRect.left + window.scrollX;
+    const pageDocTop = pageRect.top + window.scrollY;
+    console.log(`[FieldOverlay ${field.id}] handleResizeStop - Page rect:`, JSON.parse(JSON.stringify(pageRect)), `PageDocLeft: ${pageDocLeft}, PageDocTop: ${pageDocTop}`);
+
     const newPixelWidth = parseFloat(ref.style.width);
     const newPixelHeight = parseFloat(ref.style.height);
+    console.log(`[FieldOverlay ${field.id}] handleResizeStop - New pixel dimensions: width=${newPixelWidth}, height=${newPixelHeight}`);
 
-    const newWidth = (newPixelWidth / width) * 100;
-    const newHeight = (newPixelHeight / height) * 100;
-    const newPositionX = ((position.x - left - window.scrollX) / width) * 100;
-    const newPositionY = ((position.y - top - window.scrollY) / height) * 100;
+    let newWidth = (newPixelWidth / pageRect.width) * 100;
+    let newHeight = (newPixelHeight / pageRect.height) * 100;
+    let newPositionX = ((position.x - pageDocLeft) / pageRect.width) * 100;
+    let newPositionY = ((position.y - pageDocTop) / pageRect.height) * 100;
+
+    console.log(`[FieldOverlay ${field.id}] handleResizeStop - Original new positions/dimensions: X=${newPositionX}%, Y=${newPositionY}%, W=${newWidth}%, H=${newHeight}%`);
+
+    newPositionX = Math.max(0, newPositionX);
+    newPositionY = Math.max(0, newPositionY);
+    newWidth = Math.min(newWidth, 100 - newPositionX);
+    newHeight = Math.min(newHeight, 100 - newPositionY);
+    newWidth = Math.max(1, newWidth); 
+    newHeight = Math.max(1, newHeight);
     
-    onFieldUpdate({
+    const updatePayload = {
       id: field.id,
-      positionX: Math.max(0, newPositionX),
-      positionY: Math.max(0, newPositionY),
-      width: Math.max(5, newWidth),
-      height: Math.max(2, newHeight),
-    });
+      positionX: newPositionX,
+      positionY: newPositionY,
+      width: newWidth,
+      height: newHeight,
+    };
+    console.log(`[FieldOverlay ${field.id}] handleResizeStop - Calling onFieldUpdate with:`, updatePayload);
+    onFieldUpdate(updatePayload);
   };
 
-  const handleMouseDown = (e: any) => {
-    e.stopPropagation();
+  // This is OUR mousedown handler passed to Rnd. 
+  // Rnd also has its own internal mousedown handlers to initiate dragging/resizing.
+  const handleRndMouseDown = (e: MouseEvent) => { 
+    console.log(`[FieldOverlay ${field.id}] Rnd onMouseDown prop triggered. Event Target:`, e.target);
+    // Do NOT call e.stopPropagation() here if RND needs to process the mousedown to start a drag.
+    // Let RND's internal handlers for drag initiation process the event.
+    
+    // We can still do our selection logic.
     if (onFieldSelect && enableFieldPlacement) {
+      console.log(`[FieldOverlay ${field.id}] Calling onFieldSelect with field.id: ${field.id}`);
       onFieldSelect(field.id);
     }
+    // If clicking on the delete button, this specific handler might not even fire if the button stops propagation.
+    // The delete button has its own onClick with stopPropagation.
   };
 
   const handleKeyDown = (e: KeyboardEvent) => {
@@ -600,72 +685,61 @@ function PowerBriefFieldOverlay({
     }
   }, [isSelected, onFieldUpdate, field.id]);
 
-  if (coords.x === 0 && coords.y === 0) {
-    return null; // Don't render until coordinates are calculated
+  if (coords.width === 0 || coords.height === 0) {
+     console.warn(`[FieldOverlay ${field.id}] Skipping render because coords width/height is zero. Coords:`, coords);
+     return null;
   }
 
+  console.log(`[FieldOverlay ${field.id}] Rendering Rnd with props: size=`, { width: coords.width, height: coords.height }, `position=`, { x: coords.x, y: coords.y });
+
   return createPortal(
-    <div
-      style={{
-        position: 'absolute',
-        left: coords.x,
-        top: coords.y,
-        width: coords.width,
-        height: coords.height,
-        zIndex: isSigningMode ? 1000 : (isSelected ? 50 : 20),
+    <Rnd
+      size={{ width: coords.width, height: coords.height }}
+      position={{ x: coords.x, y: coords.y }}
+      onDragStart={(e, d) => {
+        console.log(`[FieldOverlay ${field.id}] Rnd onDragStart. Event:`, e, 'DraggableData:', d);
       }}
+      onDragStop={handleDragStop}
+      onResizeStop={handleResizeStop}
+      onMouseDown={handleRndMouseDown}
+      bounds="parent"
+      disableDragging={!isEditable}
+      enableResizing={isEditable ? {
+        top: false, right: true, bottom: true, left: false,
+        topRight: false, bottomRight: true, bottomLeft: false, topLeft: false
+      } : {}}
+      minWidth={20}
+      minHeight={10}
+      className={isSigningMode || !isEditable ? '' : 'group'} 
+      style={{ zIndex: isSigningMode ? 1000 : (isSelected ? 50 : 20) }}
     >
       {isSigningMode && renderInteractiveElement ? (
         <div className="w-full h-full">
           {renderInteractiveElement(field)}
         </div>
-      ) : enableFieldPlacement ? (
-        <Rnd
-          size={{ width: coords.width, height: coords.height }}
-          position={{ x: coords.x, y: coords.y }}
-          onDragStop={handleDragStop}
-          onResizeStop={handleResizeStop}
-          onMouseDown={handleMouseDown}
-          bounds={`.react-pdf__Page[data-page-number="${field.page}"]`}
-          minWidth={Math.max(20, (5 / 100) * coords.width)}
-          minHeight={Math.max(10, (2 / 100) * coords.height)}
-          enableResizing={{
-            top: false, right: true, bottom: true, left: false,
-            topRight: false, bottomRight: true, bottomLeft: false, topLeft: false
-          }}
-        >
-          <div
-            className={`w-full h-full border-2 border-dashed rounded flex items-center justify-center text-xs font-medium ${getFieldColor(field.type, isSelected)} opacity-75 hover:opacity-100 cursor-move relative`}
-            title={`${field.type} field for ${field.recipientEmail} (ID: ${field.id})`}
-          >
-            <span className="opacity-100 select-none">
-              {getFieldIcon(field.type)} {field.type.charAt(0).toUpperCase() + field.type.slice(1)}
-            </span>
-            {isSelected && (
-              <button
-                className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full text-xs hover:bg-red-600 flex items-center justify-center"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onFieldUpdate?.({ id: field.id, _delete: true } as Partial<ContractField> & { id: string });
-                }}
-                title="Delete field"
-              >
-                ×
-              </button>
-            )}
-          </div>
-        </Rnd>
       ) : (
         <div
-          className={`w-full h-full border-2 border-dashed rounded flex items-center justify-center text-xs font-medium ${getFieldColor(field.type, isSelected)} opacity-75 hover:opacity-100 cursor-default`}
+          className={`w-full h-full border-2 border-dashed rounded flex items-center justify-center text-xs font-medium ${getFieldColor(field.type, isSelected)} ${!isEditable ? 'cursor-default' : 'cursor-move'} opacity-75 group-hover:opacity-100 transition-opacity`}
           title={`${field.type} field for ${field.recipientEmail} (ID: ${field.id})`}
         >
-          <span className="opacity-100 select-none">
+          <span className="opacity-100 select-none pointer-events-none">
             {getFieldIcon(field.type)} {field.type.charAt(0).toUpperCase() + field.type.slice(1)}
           </span>
+          {isSelected && isEditable && (
+            <button
+              className="absolute -top-2.5 -right-2.5 w-5 h-5 bg-red-500 text-white rounded-full text-xs hover:bg-red-600 flex items-center justify-center shadow-md"
+              onClick={(e) => {
+                e.stopPropagation();
+                onFieldUpdate?.({ id: field.id, _delete: true } as Partial<ContractField> & { id: string });
+              }}
+              title="Delete field"
+            >
+              ×
+            </button>
+          )}
         </div>
       )}
-    </div>,
+    </Rnd>,
     document.body
   );
 } 

@@ -261,6 +261,9 @@ export default function PowerBriefContractEditor({
     };
 
     setFields(prev => [...prev, newField]);
+    // After placing a field, deselect the tool type so the user isn't stuck in click-to-place mode
+    // and to ensure enableFieldPlacement for the viewer is correctly managed for new placements.
+    // setSelectedFieldType(null); // Let's hold on this exact change until we fix dragging existing fields.
   }, [selectedRecipient, activeDragItem]);
 
   // Handle field update (drag/resize) and deletion
@@ -424,6 +427,22 @@ export default function PowerBriefContractEditor({
     };
   }, [documentData?.id, documentData?.dataForViewer]);
 
+  // Minimal window scroll listener test - ADDED TO PowerBriefContractEditor
+  useEffect(() => {
+    const editorScrollTest = () => {
+      console.log('[ContractEditor] MINIMAL WINDOW SCROLL DETECTED! (from ContractEditor)');
+    };
+    console.log('[ContractEditor] Adding MINIMAL window scroll listener (from ContractEditor).');
+    window.addEventListener('scroll', editorScrollTest, { passive: true });
+    return () => {
+      console.log('[ContractEditor] Removing MINIMAL window scroll listener (from ContractEditor).');
+      window.removeEventListener('scroll', editorScrollTest);
+    };
+  }, []); // Empty dependency array, runs once on mount/unmount of ContractEditor
+
+  const isFieldPlacementMode = currentStep === 'fields' && !!selectedFieldType && !!selectedRecipient;
+  console.log('[ContractEditor] Rendering PDFViewer. currentStep:', currentStep, 'selectedFieldType:', selectedFieldType, 'selectedRecipient:', selectedRecipient, 'isFieldPlacementMode (for PDF click-to-add):', isFieldPlacementMode);
+
   return (
     <DndContext
       sensors={sensors}
@@ -432,9 +451,9 @@ export default function PowerBriefContractEditor({
       onDragEnd={handleDragEndFields}
       onDragCancel={() => setActiveDragItem(null)}
     >
-      <div className={`grid grid-cols-12 gap-6 h-full ${className}`}>
+      <div className={`grid grid-cols-12 gap-6 ${className} h-[calc(100vh-150px)]`}>
         {/* Left Panel */}
-        <div className="col-span-4 space-y-6">
+        <div className="col-span-4 space-y-6 overflow-y-auto">
           {/* Step Navigation */}
           <Card>
             <CardHeader>
@@ -678,11 +697,11 @@ export default function PowerBriefContractEditor({
         </div>
 
         {/* Right Panel (PDF Viewer Area) */}
-        <div className="col-span-8 bg-white rounded-lg shadow-md overflow-hidden flex flex-col">
+        <div className="col-span-8 bg-white rounded-lg shadow-md overflow-hidden flex flex-col h-full">
           {pdfViewerDocumentData ? (
             <PowerBriefPDFViewer
               documentData={pdfViewerDocumentData}
-              enableFieldPlacement={currentStep === 'fields' && !!selectedFieldType && !!selectedRecipient}
+              enableFieldPlacement={isFieldPlacementMode}
               onFieldPlace={handleFieldPlace}
               fields={fields}
               selectedFieldType={selectedFieldType}
@@ -690,7 +709,7 @@ export default function PowerBriefContractEditor({
               onFieldUpdate={handleFieldUpdate}
               onFieldSelect={handleFieldSelect}
               selectedFieldId={selectedFieldId}
-              className="flex-grow"
+              className="flex-grow min-h-0"
             />
           ) : (
             <div className="flex-grow flex items-center justify-center h-full bg-gray-100 p-8">
