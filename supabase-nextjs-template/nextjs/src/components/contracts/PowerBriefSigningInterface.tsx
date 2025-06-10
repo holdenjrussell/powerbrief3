@@ -222,7 +222,7 @@ export default function PowerBriefSigningInterface({
                   )}
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="z-[9999]">
                 <DialogHeader>
                   <DialogTitle>Create Your Signature</DialogTitle>
                 </DialogHeader>

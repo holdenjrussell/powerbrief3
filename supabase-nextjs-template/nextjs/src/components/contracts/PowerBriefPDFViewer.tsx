@@ -711,7 +711,7 @@ function PowerBriefFieldOverlay({
       minWidth={20}
       minHeight={10}
       className={isSigningMode || !isEditable ? '' : 'group'} 
-      style={{ zIndex: isSigningMode ? 1000 : (isSelected ? 50 : 20) }}
+      style={{ zIndex: isSigningMode ? 100 : (isSelected ? 50 : 20) }}
     >
       {isSigningMode && renderInteractiveElement ? (
         <div className="w-full h-full">
