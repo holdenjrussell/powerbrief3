@@ -28,7 +28,8 @@ import {
   Label
 } from "@/components/ui";
 import { UgcCreatorScript, UgcCreator, UGC_SCRIPT_PAYMENT_STATUSES } from '@/lib/types/ugcCreator';
-import { ChevronRight, CheckCircle, AlertCircle, User, PenSquare, Trash2, Edit, Package, FileText, Sparkles, DollarSign, Calendar } from 'lucide-react';
+import { ContractTemplate } from '@/lib/types/contracts';
+import { ChevronRight, CheckCircle, AlertCircle, User, PenSquare, Trash2, Edit, Package, FileText, Sparkles, DollarSign, Calendar, Send } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 // Remove the TBD_CREATOR_ID constant since the API handles this now
@@ -87,6 +88,13 @@ export default function ScriptCard({
   const [showContentSubmissionDialog, setShowContentSubmissionDialog] = useState(false);
   const [contentSubmissionLink, setContentSubmissionLink] = useState('');
   const [isSubmittingContent, setIsSubmittingContent] = useState(false);
+
+  // Contract template state
+  const [showSendContractDialog, setShowSendContractDialog] = useState(false);
+  const [contractTemplates, setContractTemplates] = useState<ContractTemplate[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState('');
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
+  const [sendingContract, setSendingContract] = useState(false);
 
   // Function to get badge variant based on status
   const getStatusVariant = (status: string | undefined) => {
@@ -199,26 +207,25 @@ export default function ScriptCard({
     try {
       const response = await fetch(`/api/ugc/scripts/${script.id}/payment`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({
+          deposit_amount: parseFloat(depositAmount) || 0,
+          final_payment_amount: parseFloat(finalPaymentAmount) || 0,
+          payment_notes: paymentNotes,
           payment_status: paymentStatus,
-          deposit_amount: depositAmount ? parseFloat(depositAmount) : null,
-          final_payment_amount: finalPaymentAmount ? parseFloat(finalPaymentAmount) : null,
-          payment_notes: paymentNotes || null
-        })
+        }),
       });
-      
+
       if (!response.ok) {
-        throw new Error('Failed to update payment details');
+        throw new Error('Failed to save payment details');
       }
-      
+
       setShowPaymentDialog(false);
-      
-      // Refresh the page to show updated payment information
-      window.location.reload();
+      // Note: In a real app, you'd want to refresh the script data here
     } catch (error) {
       console.error('Error saving payment details:', error);
-      // Handle error (could add error state)
     }
   };
 
@@ -318,6 +325,113 @@ export default function ScriptCard({
       // Handle error here (could add an error state and show message)
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  // Contract template handlers
+  const fetchContractTemplates = async () => {
+    if (!brandId) return;
+    
+    setLoadingTemplates(true);
+    try {
+      const response = await fetch(`/api/contracts/templates?brandId=${brandId}`);
+      if (!response.ok) throw new Error('Failed to fetch templates');
+      
+      const data = await response.json();
+      setContractTemplates(data.templates || []);
+    } catch (error) {
+      console.error('Error fetching contract templates:', error);
+      setContractTemplates([]);
+    } finally {
+      setLoadingTemplates(false);
+    }
+  };
+
+  const handleOpenSendContractDialog = () => {
+    setShowSendContractDialog(true);
+    fetchContractTemplates();
+  };
+
+  const handleSendContract = async () => {
+    if (!selectedTemplateId || !brandId) return;
+    
+    const assignedCreator = creators.find(c => c.id === script.creator_id);
+    if (!assignedCreator?.email) return;
+
+    setSendingContract(true);
+    try {
+      // Create contract from template
+      const formData = new FormData();
+      formData.append('brandId', brandId);
+      formData.append('title', `UGC Script Contract - ${script.title}`);
+      formData.append('creatorId', assignedCreator.id);
+      formData.append('scriptId', script.id);
+      formData.append('templateId', selectedTemplateId);
+      formData.append('recipients', JSON.stringify([{
+        name: assignedCreator.name,
+        email: assignedCreator.email,
+        role: 'signer'
+      }]));
+
+      const createResponse = await fetch('/api/contracts', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!createResponse.ok) {
+        throw new Error('Failed to create contract');
+      }
+
+      const { contract } = await createResponse.json();
+
+      // Send the contract
+      const sendResponse = await fetch(`/api/contracts/${contract.id}/send`, {
+        method: 'POST',
+      });
+
+      if (!sendResponse.ok) {
+        throw new Error('Failed to send contract');
+      }
+
+      // Close dialog and reset state
+      setShowSendContractDialog(false);
+      setSelectedTemplateId('');
+      
+      // Refresh the page or update creator data
+      window.location.reload();
+      
+    } catch (error) {
+      console.error('Error sending contract:', error);
+      alert('Failed to send contract. Please try again.');
+    } finally {
+      setSendingContract(false);
+    }
+  };
+
+  const handleResendContract = async () => {
+    const assignedCreator = creators.find(c => c.id === script.creator_id);
+    if (!assignedCreator?.email || !brandId) return;
+
+    // Find existing contract for this creator and script
+    try {
+      const response = await fetch(`/api/contracts?creatorId=${assignedCreator.id}&scriptId=${script.id}`);
+      if (!response.ok) return;
+      
+      const data = await response.json();
+      const existingContract = data.contracts?.[0];
+      
+      if (existingContract) {
+        // Resend existing contract
+        const sendResponse = await fetch(`/api/contracts/${existingContract.id}/send`, {
+          method: 'POST',
+        });
+        
+        if (sendResponse.ok) {
+          alert('Contract resent successfully!');
+        }
+      }
+    } catch (error) {
+      console.error('Error resending contract:', error);
     }
   };
 
@@ -888,19 +1002,30 @@ export default function ScriptCard({
                       <p className="text-sm text-red-700 mb-2">
                         Contract must be signed before approval. Rejection can proceed without contract.
                       </p>
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        className="w-full border-red-200 text-red-700 hover:bg-red-100"
-                        onClick={() => {
-                          if (brandId) {
-                            router.push(`/app/powerbrief/${brandId}/ugc-pipeline/creators/${assignedCreator.id}`);
-                          }
-                        }}
-                      >
-                        <FileText className="h-4 w-4 mr-1" />
-                        Update Contract Status
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          className="flex-1 border-red-200 text-red-700 hover:bg-red-100"
+                          onClick={handleOpenSendContractDialog}
+                        >
+                          <Send className="h-4 w-4 mr-1" />
+                          Send Contract
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          className="border-red-200 text-red-700 hover:bg-red-100"
+                          onClick={() => {
+                            if (brandId) {
+                              router.push(`/app/powerbrief/${brandId}/ugc-pipeline/creators/${assignedCreator.id}`);
+                            }
+                          }}
+                        >
+                          <FileText className="h-4 w-4 mr-1" />
+                          View Creator
+                        </Button>
+                      </div>
                     </div>
                   )}
                   
@@ -913,19 +1038,30 @@ export default function ScriptCard({
                       <p className="text-sm text-yellow-700 mb-2">
                         Contract has been sent but not yet signed. Approval requires signed contract. Rejection can proceed without waiting.
                       </p>
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        className="w-full border-yellow-200 text-yellow-700 hover:bg-yellow-100"
-                        onClick={() => {
-                          if (brandId) {
-                            router.push(`/app/powerbrief/${brandId}/ugc-pipeline/creators/${assignedCreator.id}`);
-                          }
-                        }}
-                      >
-                        <FileText className="h-4 w-4 mr-1" />
-                        Check Contract Status
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          className="flex-1 border-yellow-200 text-yellow-700 hover:bg-yellow-100"
+                          onClick={handleResendContract}
+                        >
+                          <Send className="h-4 w-4 mr-1" />
+                          Resend Contract
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          className="border-yellow-200 text-yellow-700 hover:bg-yellow-100"
+                          onClick={() => {
+                            if (brandId) {
+                              router.push(`/app/powerbrief/${brandId}/ugc-pipeline/creators/${assignedCreator.id}`);
+                            }
+                          }}
+                        >
+                          <FileText className="h-4 w-4 mr-1" />
+                          View Creator
+                        </Button>
+                      </div>
                     </div>
                   )}
                   
@@ -1228,6 +1364,71 @@ export default function ScriptCard({
           </Button>
         )}
       </CardFooter>
+
+      {/* Contract Template Selection Dialog */}
+      <Dialog open={showSendContractDialog} onOpenChange={setShowSendContractDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Send Contract to Creator</DialogTitle>
+            <DialogDescription>
+              Select a contract template to send to the creator. The template will be sent as-is without modifications.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            {loadingTemplates ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="text-sm text-gray-500">Loading templates...</div>
+              </div>
+            ) : contractTemplates.length === 0 ? (
+              <div className="p-4 bg-gray-50 border border-gray-200 rounded-md">
+                <p className="text-sm text-gray-600">
+                  No contract templates found. Please create a template first.
+                </p>
+              </div>
+            ) : (
+              <div>
+                <Label htmlFor="template-select">Contract Template</Label>
+                <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="Select a contract template" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {contractTemplates.map((template) => (
+                      <SelectItem key={template.id} value={template.id}>
+                        {template.title}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setShowSendContractDialog(false)}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleSendContract}
+              disabled={!selectedTemplateId || sendingContract || contractTemplates.length === 0}
+            >
+              {sendingContract ? (
+                <>
+                  <Send className="h-4 w-4 mr-2 animate-pulse" />
+                  Sending...
+                </>
+              ) : (
+                <>
+                  <Send className="h-4 w-4 mr-2" />
+                  Send Contract
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 } 
