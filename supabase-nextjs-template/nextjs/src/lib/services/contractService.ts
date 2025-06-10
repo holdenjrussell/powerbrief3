@@ -743,7 +743,9 @@ export class ContractService {
 
     const signingUrl = `${process.env.NEXT_PUBLIC_WEBAPP_URL}/public/contracts/sign/${contract.id}?token=${authToken}`;
     
-    const fromEmail = emailIdentifier 
+    // Use verified sender and brand-specific reply-to
+    const fromEmail = 'noreply@powerbrief.ai';
+    const replyToEmail = emailIdentifier 
       ? `${emailIdentifier}@mail.powerbrief.ai`
       : 'noreply@powerbrief.ai';
 
@@ -758,6 +760,10 @@ export class ContractService {
       to: recipient.email,
       from: {
         email: fromEmail,
+        name: brandName
+      },
+      replyTo: {
+        email: replyToEmail,
         name: brandName
       },
       subject: `Contract Ready for Signature: ${contract.title}`,
@@ -782,7 +788,9 @@ export class ContractService {
       return;
     }
 
-    const fromEmail = emailIdentifier 
+    // Use verified sender and brand-specific reply-to
+    const fromEmail = 'noreply@powerbrief.ai';
+    const replyToEmail = emailIdentifier 
       ? `${emailIdentifier}@mail.powerbrief.ai`
       : 'noreply@powerbrief.ai';
 
@@ -792,6 +800,10 @@ export class ContractService {
       to: recipient.email,
       from: {
         email: fromEmail,
+        name: brandName
+      },
+      replyTo: {
+        email: replyToEmail,
         name: brandName
       },
       subject: `Contract Completed: ${contract.title}`,

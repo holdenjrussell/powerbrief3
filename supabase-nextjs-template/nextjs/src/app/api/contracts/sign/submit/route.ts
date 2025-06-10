@@ -57,13 +57,15 @@ async function sendFallbackCompletionEmail(supabase: Awaited<ReturnType<typeof c
     }
 
     const brand = contract.brand;
-    const fromEmail = brand.email_identifier 
+    // Use verified sender address and brand-specific reply-to
+    const fromEmail = 'noreply@powerbrief.ai';
+    const replyToEmail = brand.email_identifier 
       ? `${brand.email_identifier}@mail.powerbrief.ai`
       : 'noreply@powerbrief.ai';
 
     const downloadUrl = `${process.env.NEXT_PUBLIC_WEBAPP_URL}/public/contracts/download/${contractId}?token=${contract.share_token}`;
 
-    console.log('[Contract Submit] Sending email from:', fromEmail, 'to:', recipient.email);
+    console.log('[Contract Submit] Sending email from:', fromEmail, 'reply-to:', replyToEmail, 'to:', recipient.email);
 
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -115,6 +117,10 @@ This email was sent by ${brand.name} via PowerBrief Contract System.
       to: recipient.email,
       from: {
         email: fromEmail,
+        name: brand.name
+      },
+      replyTo: {
+        email: replyToEmail,
         name: brand.name
       },
       subject: `Contract Completed: ${contract.title}`,
