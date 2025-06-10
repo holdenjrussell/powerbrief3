@@ -13,13 +13,15 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogFooter,
   Input,
   Label,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue
+  SelectValue,
+  Textarea
 } from "@/components/ui";
 import { 
   Plus, 
@@ -115,6 +117,77 @@ const FIELD_TOOLS = [
   { type: 'checkbox', label: 'Checkbox', icon: CheckSquare, color: 'pink' },
   { type: 'name', label: 'Name', icon: User, color: 'teal' },
 ];
+
+// Save Template Form Component
+interface SaveTemplateFormProps {
+  onSave: (data: { title: string; description?: string; fields: SimpleField[] }) => void;
+  fields: SimpleField[];
+}
+
+function SaveTemplateForm({ onSave, fields }: SaveTemplateFormProps) {
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    if (!title.trim()) {
+      alert('Please enter a template title');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      onSave({
+        title: title.trim(),
+        description: description.trim() || undefined,
+        fields
+      });
+      
+      // Reset form
+      setTitle('');
+      setDescription('');
+    } catch (error) {
+      console.error('Error saving template:', error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <Label htmlFor="template-title">Template Title *</Label>
+        <Input
+          id="template-title"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="Enter template title"
+        />
+      </div>
+      <div>
+        <Label htmlFor="template-description">Description (Optional)</Label>
+        <Textarea
+          id="template-description"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="Enter template description"
+          rows={3}
+        />
+      </div>
+      <div className="text-sm text-gray-600">
+        <p>This template will include {fields.length} field{fields.length !== 1 ? 's' : ''} with their current positions.</p>
+      </div>
+      <DialogFooter>
+        <Button 
+          onClick={handleSave} 
+          disabled={saving || !title.trim()}
+        >
+          {saving ? 'Saving...' : 'Save Template'}
+        </Button>
+      </DialogFooter>
+    </div>
+  );
+}
 
 export default function PowerBriefContractEditor({
   documentData,
@@ -695,10 +768,27 @@ export default function PowerBriefContractEditor({
                     </div>
                   </div>
                   
+                  <div className="space-y-2">
                     <Button onClick={handleSend} className="w-full">
                       <Send className="h-4 w-4 mr-2" />
-                      Send
+                      Send Contract
                     </Button>
+                    
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <Button variant="outline" className="w-full">
+                          <FileText className="h-4 w-4 mr-2" />
+                          Save as Template
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Save as Template</DialogTitle>
+                        </DialogHeader>
+                        <SaveTemplateForm onSave={(data) => onSaveAsTemplate?.(data)} fields={fields} />
+                      </DialogContent>
+                    </Dialog>
+                  </div>
                 </div>
               </CardContent>
             </Card>

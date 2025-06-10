@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Card, CardContent, CardHeader, CardTitle, Button, Alert, AlertDescription, Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, Input, Label, Textarea } from '@/components/ui';
-import { ArrowLeft, FileText } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle, Button, Alert, AlertDescription } from '@/components/ui';
+import { ArrowLeft } from 'lucide-react';
 import PowerBriefContractEditor from '@/components/contracts/PowerBriefContractEditor';
 
 interface SimpleRecipient {
@@ -61,14 +61,6 @@ export default function ContractEditorPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
-
-  // Save as Template dialog state
-  const [showSaveTemplateDialog, setShowSaveTemplateDialog] = useState(false);
-  const [templateData, setTemplateData] = useState({
-    title: '',
-    description: ''
-  });
-  const [savingTemplate, setSavingTemplate] = useState(false);
 
   // Effect to process new file for viewer data (populates newFileViewerData)
   useEffect(() => {
@@ -296,11 +288,9 @@ export default function ContractEditorPage() {
     }
   }, [brandId, templateId]);
 
-
-
   // Handle save as template callback from editor
   const handleSaveAsTemplate = async (data: { title: string; description?: string; fields: SimpleField[] }) => {
-    setSavingTemplate(true);
+    setUploading(true);
     setError(null);
 
     try {
@@ -314,7 +304,7 @@ export default function ContractEditorPage() {
           console.error('[handleSaveAsTemplate] Error:', msg);
           setError(msg);
           alert(msg);
-          setSavingTemplate(false);
+          setUploading(false);
           return;
         }
 
@@ -327,7 +317,7 @@ export default function ContractEditorPage() {
           console.error('[handleSaveAsTemplate] Error creating Blob:', msg);
           setError(msg);
           alert(msg);
-          setSavingTemplate(false);
+          setUploading(false);
           return;
         }
       } else if (template) {
@@ -338,7 +328,7 @@ export default function ContractEditorPage() {
         console.error('[handleSaveAsTemplate] Error:', msg);
         setError(msg);
         alert(msg);
-        setSavingTemplate(false);
+        setUploading(false);
         return;
       }
 
@@ -374,20 +364,8 @@ export default function ContractEditorPage() {
       setError(errorMessage);
       alert(`Failed to save template: ${errorMessage}`);
     } finally {
-      setSavingTemplate(false);
+      setUploading(false);
     }
-  };
-
-  // Handle save template from header button - triggers editor's save dialog
-  const handleSaveTemplateFromHeader = () => {
-    if (!templateData.title.trim()) {
-      alert('Please enter a template title');
-      return;
-    }
-    // This will be handled by the editor's internal save template dialog
-    // which should call handleSaveAsTemplate with the fields
-    setShowSaveTemplateDialog(false);
-    alert('Please use the Save as Template button in the editor to include field positions.');
   };
 
   // Updated handleSend
@@ -649,48 +627,7 @@ export default function ContractEditorPage() {
                     <Button variant="outline" size="sm" onClick={() => { setUploadedOriginalFile(null); setNewFileViewerData(null); /* Clear relevant states */ }} title="Upload a different document">
                     📄 Change Document
                     </Button>
-                    <Dialog open={showSaveTemplateDialog} onOpenChange={setShowSaveTemplateDialog}>
-                      <DialogTrigger asChild>
-                        <Button variant="outline" size="sm">
-                          <FileText className="h-4 w-4 mr-2" /> Save as Template
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent>
-                        <DialogHeader>
-                          <DialogTitle>Save as Template</DialogTitle>
-                        </DialogHeader>
-                        <div className="space-y-4">
-                          <div>
-                            <Label htmlFor="template-title">Template Title</Label>
-                            <Input
-                              id="template-title"
-                              value={templateData.title}
-                              onChange={(e) => setTemplateData(prev => ({ ...prev, title: e.target.value }))}
-                              placeholder="Enter template title"
-                            />
-                          </div>
-                          <div>
-                            <Label htmlFor="template-description">Description (Optional)</Label>
-                            <Textarea
-                              id="template-description"
-                              value={templateData.description}
-                              onChange={(e) => setTemplateData(prev => ({ ...prev, description: e.target.value }))}
-                              placeholder="Enter template description"
-                              rows={3}
-                            />
-                          </div>
-                        </div>
-                        <DialogFooter>
-                          <Button variant="outline" onClick={() => setShowSaveTemplateDialog(false)}>
-                            Cancel
-                          </Button>
-                          <Button onClick={handleSaveTemplateFromHeader} disabled={savingTemplate}>
-                            {savingTemplate ? 'Saving...' : 'Save Template'}
-                    </Button>
-                        </DialogFooter>
-                      </DialogContent>
-                    </Dialog>
-                    {/* Send button is inside PowerBriefContractEditor */}
+                    {/* Save as Template button is now inside the PowerBrief editor */}
                 </div>
                 </div>
             </div>
@@ -733,48 +670,7 @@ export default function ContractEditorPage() {
                 </div>
                 </div>
                 <div className="flex items-center gap-2">
-                    <Dialog open={showSaveTemplateDialog} onOpenChange={setShowSaveTemplateDialog}>
-                      <DialogTrigger asChild>
-                        <Button variant="outline" size="sm">
-                          <FileText className="h-4 w-4 mr-2" /> Save as Template
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent>
-                        <DialogHeader>
-                          <DialogTitle>Save as Template</DialogTitle>
-                        </DialogHeader>
-                        <div className="space-y-4">
-                          <div>
-                            <Label htmlFor="template-title-2">Template Title</Label>
-                            <Input
-                              id="template-title-2"
-                              value={templateData.title}
-                              onChange={(e) => setTemplateData(prev => ({ ...prev, title: e.target.value }))}
-                              placeholder="Enter template title"
-                            />
-                          </div>
-                          <div>
-                            <Label htmlFor="template-description-2">Description (Optional)</Label>
-                            <Textarea
-                              id="template-description-2"
-                              value={templateData.description}
-                              onChange={(e) => setTemplateData(prev => ({ ...prev, description: e.target.value }))}
-                              placeholder="Enter template description"
-                              rows={3}
-                            />
-                          </div>
-                        </div>
-                        <DialogFooter>
-                          <Button variant="outline" onClick={() => setShowSaveTemplateDialog(false)}>
-                            Cancel
-                          </Button>
-                          <Button onClick={handleSaveTemplateFromHeader} disabled={savingTemplate}>
-                            {savingTemplate ? 'Saving...' : 'Save Template'}
-                          </Button>
-                        </DialogFooter>
-                      </DialogContent>
-                    </Dialog>
-                    {/* Send button is inside PowerBriefContractEditor */}
+                    {/* Save as Template button is now inside the PowerBrief editor */}
                 </div>
             </div>
         </div>
