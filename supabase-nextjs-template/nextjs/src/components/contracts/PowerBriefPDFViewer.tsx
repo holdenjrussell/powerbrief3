@@ -122,7 +122,7 @@ export default function PowerBriefPDFViewer({
     return { data: documentData.data };
   }, [documentData.id, documentData.data]); // Include id to ensure proper updates when document changes
 
-  const onDocumentLoadSuccess = useCallback(({ numPages }: PDFDocumentProxy) => {
+  const onDocumentLoadSuccess = useCallback(({ numPages }: any) => {
     setNumPages(numPages);
     setIsLoading(false);
     setError(null);
@@ -197,7 +197,7 @@ export default function PowerBriefPDFViewer({
   const goToNextPage = () => setCurrentPage(prev => Math.min(prev + 1, numPages));
 
   // Callback for when a page's dimensions are loaded
-  const onPageLoadSuccessInternal = useCallback((page: PDFPageProxy) => {
+  const onPageLoadSuccessInternal = useCallback((page: any) => {
     const viewport = page.getViewport({ scale: 1 });
     setPageDimensions(prev => ({
       ...prev,
@@ -578,12 +578,27 @@ function PowerBriefFieldOverlay({
     });
   };
 
-  const handleMouseDown = (e: MouseEvent) => {
+  const handleMouseDown = (e: any) => {
     e.stopPropagation();
     if (onFieldSelect && enableFieldPlacement) {
       onFieldSelect(field.id);
     }
   };
+
+  const handleKeyDown = (e: KeyboardEvent) => {
+    if ((e.key === 'Delete' || e.key === 'Backspace') && isSelected && onFieldUpdate) {
+      e.preventDefault();
+      // Signal deletion by calling onFieldUpdate with a special flag
+      onFieldUpdate({ id: field.id, _delete: true } as Partial<ContractField> & { id: string });
+    }
+  };
+
+  useEffect(() => {
+    if (isSelected) {
+      document.addEventListener('keydown', handleKeyDown);
+      return () => document.removeEventListener('keydown', handleKeyDown);
+    }
+  }, [isSelected, onFieldUpdate, field.id]);
 
   if (coords.x === 0 && coords.y === 0) {
     return null; // Don't render until coordinates are calculated
@@ -620,12 +635,24 @@ function PowerBriefFieldOverlay({
           }}
         >
           <div
-            className={`w-full h-full border-2 border-dashed rounded flex items-center justify-center text-xs font-medium ${getFieldColor(field.type, isSelected)} opacity-75 hover:opacity-100 cursor-move`}
+            className={`w-full h-full border-2 border-dashed rounded flex items-center justify-center text-xs font-medium ${getFieldColor(field.type, isSelected)} opacity-75 hover:opacity-100 cursor-move relative`}
             title={`${field.type} field for ${field.recipientEmail} (ID: ${field.id})`}
           >
             <span className="opacity-100 select-none">
               {getFieldIcon(field.type)} {field.type.charAt(0).toUpperCase() + field.type.slice(1)}
             </span>
+            {isSelected && (
+              <button
+                className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full text-xs hover:bg-red-600 flex items-center justify-center"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onFieldUpdate?.({ id: field.id, _delete: true } as Partial<ContractField> & { id: string });
+                }}
+                title="Delete field"
+              >
+                ×
+              </button>
+            )}
           </div>
         </Rnd>
       ) : (

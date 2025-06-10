@@ -263,14 +263,26 @@ export default function PowerBriefContractEditor({
     setFields(prev => [...prev, newField]);
   }, [selectedRecipient, activeDragItem]);
 
-  // Handle field update (drag/resize)
-  const handleFieldUpdate = useCallback((updatedField: Partial<SimpleField> & { id: string }) => {
-    setFields(prevFields => 
-      prevFields.map(field => 
-        field.id === updatedField.id ? { ...field, ...updatedField } : field
-      )
-    );
-  }, []);
+  // Handle field update (drag/resize) and deletion
+  const handleFieldUpdate = useCallback((updatedField: Partial<SimpleField> & { id: string } & { _delete?: boolean }) => {
+    if (updatedField._delete) {
+      // Handle field deletion
+      setFields(prevFields => 
+        prevFields.filter(field => field.id !== updatedField.id)
+      );
+      // Clear selection if the deleted field was selected
+      if (selectedFieldId === updatedField.id) {
+        setSelectedFieldId(null);
+      }
+    } else {
+      // Handle field update
+      setFields(prevFields => 
+        prevFields.map(field => 
+          field.id === updatedField.id ? { ...field, ...updatedField } : field
+        )
+      );
+    }
+  }, [selectedFieldId]);
 
   // DND Handlers for sidebar field tools
   const handleDragStartFields = (event: DragStartEvent) => {
