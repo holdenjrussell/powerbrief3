@@ -5,6 +5,9 @@ import { useParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, Button, Alert, AlertDescription } from '@/components/ui';
 import { ArrowLeft } from 'lucide-react';
 import PowerBriefContractEditor from '@/components/contracts/PowerBriefContractEditor';
+import { Database } from '@/lib/database.types';
+
+type ContractTemplateField = Database['public']['Tables']['contract_template_fields']['Row'];
 
 interface SimpleRecipient {
   id: string;
@@ -264,32 +267,35 @@ export default function ContractEditorPage() {
           
           console.log('[useEffect] === END PDF DATA DEBUGGING ===');
           
-          // Process template fields
+          // Process template fields - now coming from separate table
           console.log('[useEffect] === TEMPLATE FIELDS DEBUGGING ===');
-          console.log('[useEffect] Raw template fields from API:', result.template.fields);
+          console.log('[useEffect] Template fields from API:', result.template.fields);
           console.log('[useEffect] Fields type:', typeof result.template.fields);
+          console.log('[useEffect] Fields is array?', Array.isArray(result.template.fields));
           
           let processedFields: SimpleField[] = [];
-          if (result.template.fields) {
+          if (result.template.fields && Array.isArray(result.template.fields)) {
             try {
-              if (typeof result.template.fields === 'string') {
-                console.log('[useEffect] Fields is string, parsing JSON...');
-                processedFields = JSON.parse(result.template.fields);
-              } else if (Array.isArray(result.template.fields)) {
-                console.log('[useEffect] Fields is already an array');
-                processedFields = result.template.fields;
-              } else {
-                console.log('[useEffect] Fields is object, using as-is');
-                processedFields = result.template.fields;
-              }
-              console.log('[useEffect] Processed fields:', processedFields);
-              console.log('[useEffect] Processed fields count:', processedFields.length);
+              // Convert from database format to editor format
+              processedFields = result.template.fields.map((dbField: ContractTemplateField) => ({
+                id: dbField.id,
+                type: dbField.type,
+                page: dbField.page,
+                positionX: dbField.position_x,
+                positionY: dbField.position_y,
+                width: dbField.width,
+                height: dbField.height,
+                recipientId: '', // Templates don't have specific recipients
+                recipientEmail: '', // Templates don't have specific recipients
+              }));
+              console.log('[useEffect] Converted fields to editor format:', processedFields);
+              console.log('[useEffect] Converted fields count:', processedFields.length);
             } catch (fieldError) {
-              console.error('[useEffect] Error parsing template fields:', fieldError);
+              console.error('[useEffect] Error converting template fields:', fieldError);
               processedFields = [];
             }
           } else {
-            console.log('[useEffect] No fields found in template');
+            console.log('[useEffect] No fields found in template or fields is not an array');
           }
           console.log('[useEffect] === END TEMPLATE FIELDS DEBUGGING ===');
           

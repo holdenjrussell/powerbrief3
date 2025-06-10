@@ -75,28 +75,24 @@ export class ContractService {
     }
 
     // Convert Uint8Array to Buffer for Supabase
-    // Supabase will handle the bytea conversion automatically
     const documentDataBuffer = Buffer.from(templateData.document_data);
 
     const template = {
-      title: templateData.title, // Ensure only expected fields from CreateContractTemplate are used
+      title: templateData.title,
       description: templateData.description,
-      document_data: documentDataBuffer as any, // Let Supabase handle bytea conversion
+      document_data: documentDataBuffer as any,
       document_name: templateData.document_name,
-      document_size: templateData.document_data.length, // Original length for metadata
-      fields: JSON.stringify(templateData.fields || []) as any, // Convert to JSON for JSONB field
+      document_size: templateData.document_data.length,
+      // Remove fields from template - they go in separate table now
       user_id: userId,
       brand_id: brandId,
-      // is_active is managed by DB default or specific updates, not directly here unless intended
     };
 
-    console.log('[ContractService.createTemplate] Template object before DB insert:', {
+    console.log('[ContractService.createTemplate] Template object before DB insert (no fields):', {
       title: template.title,
       description: template.description,
       document_name: template.document_name,
       document_size: template.document_size,
-      fieldsJSON: template.fields,
-      fieldsStringified: JSON.stringify(templateData.fields || []),
       user_id: template.user_id,
       brand_id: template.brand_id
     });
@@ -114,11 +110,42 @@ export class ContractService {
 
     console.log('[ContractService.createTemplate] Template successfully created in database:', {
       id: data.id,
-      title: data.title,
-      fieldsFromDB: data.fields,
-      fieldsType: typeof data.fields,
-      fieldsLength: Array.isArray(data.fields) ? data.fields.length : 'not array'
+      title: data.title
     });
+
+    // Now save template fields to separate table
+    if (templateData.fields && templateData.fields.length > 0) {
+      console.log('[ContractService.createTemplate] Saving template fields to contract_template_fields table...');
+      
+      const templateFields = templateData.fields.map(field => ({
+        template_id: data.id,
+        type: field.type,
+        page: field.page,
+        position_x: field.positionX,
+        position_y: field.positionY,
+        width: field.width,
+        height: field.height,
+        recipient_role: 'signer', // Default for templates
+        is_required: true,
+        placeholder: `${field.type} field`,
+      }));
+
+      console.log('[ContractService.createTemplate] Template fields to insert:', templateFields);
+
+      const { data: fieldsData, error: fieldsError } = await supabase
+        .from('contract_template_fields')
+        .insert(templateFields)
+        .select();
+
+      if (fieldsError) {
+        console.error('[ContractService.createTemplate] Template fields insert error:', fieldsError);
+        throw new Error(`Failed to save template fields: ${fieldsError.message}`);
+      }
+
+      console.log('[ContractService.createTemplate] Template fields saved successfully:', fieldsData);
+    } else {
+      console.log('[ContractService.createTemplate] No fields to save');
+    }
 
     return data;
   }

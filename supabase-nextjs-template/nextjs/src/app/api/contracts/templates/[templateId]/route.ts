@@ -21,10 +21,24 @@ export async function GET(
       }, { status: 400 });
     }
 
-    // Get template data
+    // Get template data with fields from separate table
     const { data: template, error: templateError } = await supabase
       .from('contract_templates')
-      .select('*')
+      .select(`
+        *,
+        template_fields:contract_template_fields(
+          id,
+          type,
+          page,
+          position_x,
+          position_y,
+          width,
+          height,
+          recipient_role,
+          is_required,
+          placeholder
+        )
+      `)
       .eq('id', templateId)
       .single();
 
@@ -32,17 +46,9 @@ export async function GET(
     console.log('[API Template GET] Raw template from database:', {
       id: template?.id,
       title: template?.title,
-      fields: template?.fields,
-      fieldsType: typeof template?.fields,
-      fieldsExists: !!template?.fields
+      templateFieldsCount: template?.template_fields?.length || 0,
+      templateFields: template?.template_fields
     });
-    
-    if (template?.fields) {
-      console.log('[API Template GET] Fields raw value:', template.fields);
-      console.log('[API Template GET] Fields as JSON string:', JSON.stringify(template.fields));
-    } else {
-      console.log('[API Template GET] No fields found in database');
-    }
     console.log('[API Template GET] === END TEMPLATE FETCH DEBUGGING ===');
 
     if (templateError) {
@@ -89,7 +95,7 @@ export async function GET(
         document_data: template.document_data,
         document_name: template.document_name,
         document_size: template.document_size,
-        fields: template.fields || [],
+        fields: template.template_fields || [],
         created_at: template.created_at,
         updated_at: template.updated_at
       }
