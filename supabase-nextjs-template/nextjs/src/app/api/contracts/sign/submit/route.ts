@@ -48,14 +48,35 @@ export async function POST(request: NextRequest) {
                      request.headers.get('x-real-ip') || 
                      'unknown';
 
-    // 3. Store field values as JSON in the contract_recipients table for now
-    // In a production system, you'd want a proper contract_field_values table
+    // 3. Store field values in the contract_fields table
+    // Update each field with its corresponding value
+    const fieldUpdatePromises = Object.entries(fieldValues).map(async ([fieldId, value]) => {
+      const { error } = await supabase
+        .from('contract_fields')
+        .update({ value })
+        .eq('id', fieldId)
+        .eq('contract_id', contractId)
+        .eq('recipient_id', recipientId);
+      
+      if (error) {
+        console.error(`Error updating field ${fieldId}:`, error);
+        throw new Error(`Failed to save field value: ${error.message}`);
+      }
+    });
+
+    try {
+      await Promise.all(fieldUpdatePromises);
+    } catch (error) {
+      console.error('Error updating field values:', error);
+      return NextResponse.json({ error: 'Failed to save signature data' }, { status: 500 });
+    }
+
+    // 4. Update recipient status
     const { error: recipientUpdateError } = await supabase
       .from('contract_recipients')
       .update({ 
         signed_at: new Date().toISOString(),
-        status: 'signed',
-        field_values: fieldValues // Store as JSON
+        status: 'signed'
       })
       .eq('id', recipientId)
       .eq('contract_id', contractId);
@@ -65,7 +86,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to save signature' }, { status: 500 });
     }
 
-    // 4. Mark token as used
+    // 5. Mark token as used
     const { error: tokenUpdateError } = await supabase
       .from('contract_signing_tokens')
       .update({ 
@@ -80,7 +101,7 @@ export async function POST(request: NextRequest) {
       console.error('Error marking token as used:', tokenUpdateError);
     }
 
-    // 5. Check if all recipients have signed
+    // 6. Check if all recipients have signed
     const { data: allRecipients, error: recipientsError } = await supabase
       .from('contract_recipients')
       .select('status')
@@ -105,7 +126,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 6. TODO: Send confirmation email to the signer
+    // 7. TODO: Send confirmation email to the signer
     // This would include a copy of the signed document
 
     return NextResponse.json({ 

@@ -119,12 +119,47 @@ export async function POST(request: NextRequest) {
             console.log('[verify-token] Detected new format: \\x prefixed hex string.');
             const hexContent = rawDocumentData.substring(2);
             
-            // First, try to decode the hex string
+            // First, try to decode the hex string to get the actual content
             const decodedHex = Buffer.from(hexContent, 'hex');
-            
-            // Check if the decoded hex is actually JSON (double/triple encoding issue)
             const decodedString = decodedHex.toString('utf-8');
-            if (decodedString.startsWith('{')) {
+            
+            console.log('[verify-token] Decoded hex string (first 100 chars):', decodedString.substring(0, 100));
+            
+            // Check if the decoded hex is already a valid PDF
+            if (decodedString.startsWith('%PDF-')) {
+                console.log('[verify-token] Decoded hex is already a valid PDF. Using directly.');
+                documentDataBuffer = decodedHex;
+                console.log('[verify-token] PDF header check:', documentDataBuffer.slice(0, 5).toString('utf-8'));
+            } else if (decodedString.match(/^[0-9a-fA-F]+$/)) {
+                // Double hex-encoded data - decode the hex string again
+                console.log('[verify-token] Detected double hex-encoded data. Decoding again...');
+                try {
+                    const doubleDecodedHex = Buffer.from(decodedString, 'hex');
+                    const doubleDecodedString = doubleDecodedHex.toString('utf-8');
+                    console.log('[verify-token] Double decoded string (first 50 chars):', doubleDecodedString.substring(0, 50));
+                    
+                    if (doubleDecodedString.startsWith('%PDF-')) {
+                        console.log('[verify-token] Double decoded hex is a valid PDF. Using it.');
+                        documentDataBuffer = doubleDecodedHex;
+                        console.log('[verify-token] PDF header check:', documentDataBuffer.slice(0, 5).toString('utf-8'));
+                    } else {
+                        throw new Error('Double decoded data is not a valid PDF');
+                    }
+                } catch (e) {
+                    console.error('[verify-token] Failed to double decode hex:', e);
+                    throw new Error('Failed to decode double hex-encoded data');
+                }
+            } else if (decodedString.match(/^[A-Za-z0-9+/]+=*$/) && decodedString.length > 100) {
+                // Only treat as Base64 if it's a long string of valid Base64 characters
+                console.log('[verify-token] Detected Base64 data in hex encoding. Decoding Base64...');
+                try {
+                    documentDataBuffer = Buffer.from(decodedString, 'base64');
+                    console.log('[verify-token] Successfully decoded Base64. PDF header check:', documentDataBuffer.slice(0, 5).toString('utf-8'));
+                } catch (e) {
+                    console.error('[verify-token] Failed to decode as Base64:', e);
+                    throw new Error('Failed to decode Base64 data from hex');
+                }
+            } else if (decodedString.startsWith('{')) {
                 console.log('[verify-token] Detected JSON encoding in hex. Checking format...');
                 
                 // Check if it's a Buffer JSON representation
@@ -149,10 +184,11 @@ export async function POST(request: NextRequest) {
                     throw new Error('Unknown JSON format in hex data');
                 }
             } else {
-                // Normal hex decoding
+                // Direct hex decoding (raw binary data)
+                console.log('[verify-token] Treating as direct binary data from hex.');
                 documentDataBuffer = decodedHex;
                 if (!(documentDataBuffer.length > 4 && documentDataBuffer.slice(0, 5).toString('utf-8') === '%PDF-')) {
-                    console.warn('[verify-token] New format \\x prefixed hex string did NOT result in a valid PDF header.');
+                    console.warn('[verify-token] Direct hex decoding did NOT result in a valid PDF header.');
                 }
             }
         } else {
