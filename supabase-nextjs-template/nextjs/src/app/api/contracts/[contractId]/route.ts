@@ -35,12 +35,7 @@ export async function DELETE(
       }, { status: 404 });
     }
 
-    // Prevent deletion of completed contracts (optional business rule)
-    if (existingContract.status === 'completed') {
-      return NextResponse.json({ 
-        error: 'Cannot delete completed contracts' 
-      }, { status: 400 });
-    }
+    // Note: Allowing deletion of completed contracts for data management purposes
 
     // Delete contract recipients first (due to foreign key constraints)
     const { error: recipientsDeleteError } = await supabase
