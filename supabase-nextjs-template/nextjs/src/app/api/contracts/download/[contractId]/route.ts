@@ -4,12 +4,12 @@ import { Buffer } from 'buffer';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { contractId: string } }
+  { params }: { params: Promise<{ contractId: string }> }
 ) {
   try {
     const { searchParams } = new URL(request.url);
     const token = searchParams.get('token');
-    const { contractId } = params;
+    const { contractId } = await params;
 
     if (!contractId || !token) {
       return NextResponse.json({ 
