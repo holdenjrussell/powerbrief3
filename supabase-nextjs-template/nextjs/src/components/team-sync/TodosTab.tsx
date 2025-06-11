@@ -180,7 +180,7 @@ export default function TodosTab({ brandId }: TodosTabProps) {
       // Convert "none" or "pending" assignee_id to null for API
       const processedFormData = {
         ...formData,
-        assignee_id: (formData.assignee_id === 'none' || formData.assignee_id === 'pending') ? null : formData.assignee_id
+        assignee_id: (formData.assignee_id === 'none' || formData.assignee_id.startsWith('pending-')) ? null : formData.assignee_id
       };
       const body = editingTodo 
         ? { ...processedFormData, id: editingTodo.id, brand_id: brandId }
@@ -276,7 +276,7 @@ export default function TodosTab({ brandId }: TodosTabProps) {
       // Convert "none" or "pending" assignee_id to null for API
       const processedIssueFormData = {
         ...issueFormData,
-        assignee_id: (issueFormData.assignee_id === 'none' || issueFormData.assignee_id === 'pending') ? null : issueFormData.assignee_id
+        assignee_id: (issueFormData.assignee_id === 'none' || issueFormData.assignee_id.startsWith('pending-')) ? null : issueFormData.assignee_id
       };
       
       // Create a new issue
@@ -427,7 +427,7 @@ export default function TodosTab({ brandId }: TodosTabProps) {
                     {brandUsers.map((user) => (
                       <SelectItem 
                         key={user.id || `pending-${user.email}`} 
-                        value={user.id || 'pending'}
+                        value={user.id || `pending-${user.email}`}
                         disabled={!user.id || user.is_pending}
                       >
                         <div className="flex items-center gap-2">
@@ -539,7 +539,7 @@ export default function TodosTab({ brandId }: TodosTabProps) {
                   {brandUsers.map((user) => (
                     <SelectItem 
                       key={user.id || `issue-pending-${user.email}`} 
-                      value={user.id || 'pending'}
+                      value={user.id || `pending-${user.email}`}
                       disabled={!user.id || user.is_pending}
                     >
                       <div className="flex items-center gap-2">

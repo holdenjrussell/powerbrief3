@@ -206,7 +206,7 @@ export default function IssuesTab({ brandId }: IssuesTabProps) {
       // Convert "none" or "pending" assignee_id to null for API
       const processedFormData = {
         ...formData,
-        assignee_id: (formData.assignee_id === 'none' || formData.assignee_id === 'pending') ? null : formData.assignee_id
+        assignee_id: (formData.assignee_id === 'none' || formData.assignee_id.startsWith('pending-')) ? null : formData.assignee_id
       };
       const body = editingIssue 
         ? { ...processedFormData, id: editingIssue.id, brand_id: brandId }
@@ -331,7 +331,7 @@ export default function IssuesTab({ brandId }: IssuesTabProps) {
       // Convert "none" or "pending" assignee_id to null for API
       const processedTodoFormData = {
         ...todoFormData,
-        assignee_id: (todoFormData.assignee_id === 'none' || todoFormData.assignee_id === 'pending') ? null : todoFormData.assignee_id
+        assignee_id: (todoFormData.assignee_id === 'none' || todoFormData.assignee_id.startsWith('pending-')) ? null : todoFormData.assignee_id
       };
       
       // Create a new todo
@@ -465,7 +465,7 @@ export default function IssuesTab({ brandId }: IssuesTabProps) {
                     {brandUsers.map((user) => (
                       <SelectItem 
                         key={user.id || `issue-pending-${user.email}`} 
-                        value={user.id || 'pending'} 
+                        value={user.id || `pending-${user.email}`}
                         disabled={!user.id}
                       >
                         {user.full_name} ({user.email})
@@ -583,7 +583,7 @@ export default function IssuesTab({ brandId }: IssuesTabProps) {
                   {brandUsers.map((user) => (
                     <SelectItem 
                       key={user.id || `todo-pending-${user.email}`} 
-                      value={user.id || 'pending'} 
+                      value={user.id || `pending-${user.email}`}
                       disabled={!user.id}
                     >
                       {user.full_name} ({user.email})
