@@ -38,6 +38,7 @@ import {
   CheckSquare,
   CheckSquare2
 } from 'lucide-react';
+import { linkifyText } from './utils/linkify';
 
 interface Issue {
   id: string;
@@ -700,7 +701,7 @@ export default function IssuesTab({ brandId }: IssuesTabProps) {
                           </Badge>
                         </div>
                         {issue.description && (
-                          <p className="text-gray-600 text-sm mb-2">{issue.description}</p>
+                          <p className="text-gray-600 text-sm mb-2">{linkifyText(issue.description)}</p>
                         )}
                         <div className="flex items-center gap-4 text-sm text-gray-500">
                           <div className="flex items-center gap-1">
@@ -832,7 +833,7 @@ export default function IssuesTab({ brandId }: IssuesTabProps) {
                           </Badge>
                         </div>
                         {issue.description && (
-                          <p className="text-gray-500 text-sm mb-2 line-through">{issue.description}</p>
+                          <p className="text-gray-500 text-sm mb-2 line-through">{linkifyText(issue.description)}</p>
                         )}
                         <div className="flex items-center gap-4 text-sm text-gray-400">
                           <div className="flex items-center gap-1">

@@ -33,6 +33,7 @@ import {
   CheckCircle,
   Info
 } from 'lucide-react';
+import { linkifyTextWithWhitespace } from './utils/linkify';
 
 interface Announcement {
   id: string;
@@ -307,7 +308,7 @@ export default function AnnouncementsTab({ brandId }: AnnouncementsTabProps) {
                   </div>
                 </CardHeader>
                 <CardContent className="pt-0">
-                  <p className="text-gray-700 whitespace-pre-wrap">{announcement.content}</p>
+                  <p className="text-gray-700 whitespace-pre-wrap">{linkifyTextWithWhitespace(announcement.content)}</p>
                 </CardContent>
               </Card>
             );

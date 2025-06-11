@@ -34,6 +34,7 @@ import {
   Link,
   AlertTriangle
 } from 'lucide-react';
+import { linkifyText } from './utils/linkify';
 
 interface Todo {
   id: string;
@@ -644,7 +645,7 @@ export default function TodosTab({ brandId }: TodosTabProps) {
                         </Badge>
                       </div>
                       {todo.description && (
-                        <p className="text-gray-600 text-sm mb-2">{todo.description}</p>
+                        <p className="text-gray-600 text-sm mb-2">{linkifyText(todo.description)}</p>
                       )}
                       <div className="flex items-center gap-4 text-sm text-gray-500">
                         <div className="flex items-center gap-1">
@@ -737,7 +738,7 @@ export default function TodosTab({ brandId }: TodosTabProps) {
                         </Badge>
                       </div>
                       {todo.description && (
-                        <p className="text-gray-500 text-sm mb-2 line-through">{todo.description}</p>
+                        <p className="text-gray-500 text-sm mb-2 line-through">{linkifyText(todo.description)}</p>
                       )}
                       <div className="flex items-center gap-4 text-sm text-gray-400">
                         <div className="flex items-center gap-1">
