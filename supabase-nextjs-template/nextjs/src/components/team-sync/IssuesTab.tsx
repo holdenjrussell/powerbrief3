@@ -71,6 +71,15 @@ interface Todo {
   creator?: { email: string };
 }
 
+interface BrandUser {
+  id: string | null;
+  full_name: string;
+  email: string;
+  role: string;
+  is_owner: boolean;
+  is_pending?: boolean;
+}
+
 interface IssuesTabProps {
   brandId: string;
 }
@@ -100,18 +109,20 @@ export default function IssuesTab({ brandId }: IssuesTabProps) {
   const [linkingIssue, setLinkingIssue] = useState<Issue | null>(null);
   const [editingIssue, setEditingIssue] = useState<Issue | null>(null);
   const [linkedTodos, setLinkedTodos] = useState<{[issueId: string]: Todo[]}>({});
+  const [brandUsers, setBrandUsers] = useState<BrandUser[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
     issue_type: 'short_term' as 'short_term' | 'long_term',
-    assignee_id: ''
+    assignee_id: 'none'
   });
   const [todoFormData, setTodoFormData] = useState({
     title: '',
     description: '',
     priority: 'normal' as 'low' | 'normal' | 'high' | 'urgent',
     due_date: '',
-    assignee_id: ''
+    assignee_id: 'none'
   });
 
   const fetchLinkedTodos = async (issueId: string) => {
@@ -154,9 +165,27 @@ export default function IssuesTab({ brandId }: IssuesTabProps) {
     }
   };
 
+  const fetchBrandUsers = async () => {
+    try {
+      setLoadingUsers(true);
+      const response = await fetch(`/api/team-sync/brand-users?brandId=${brandId}`);
+      const data = await response.json();
+      if (response.ok) {
+        setBrandUsers(data.users || []);
+      } else {
+        console.error('Failed to fetch brand users:', data.error);
+      }
+    } catch (error) {
+      console.error('Error fetching brand users:', error);
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
   useEffect(() => {
     fetchIssues();
     fetchTodos();
+    fetchBrandUsers();
   }, [brandId]);
 
   // Fetch linked todos for all issues when issues are loaded
@@ -173,9 +202,14 @@ export default function IssuesTab({ brandId }: IssuesTabProps) {
     
     try {
       const method = editingIssue ? 'PUT' : 'POST';
+      // Convert "none" or "pending" assignee_id to null for API
+      const processedFormData = {
+        ...formData,
+        assignee_id: (formData.assignee_id === 'none' || formData.assignee_id === 'pending') ? null : formData.assignee_id
+      };
       const body = editingIssue 
-        ? { ...formData, id: editingIssue.id, brand_id: brandId }
-        : { ...formData, brand_id: brandId };
+        ? { ...processedFormData, id: editingIssue.id, brand_id: brandId }
+        : { ...processedFormData, brand_id: brandId };
 
       const response = await fetch('/api/team-sync/issues', {
         method,
@@ -189,7 +223,7 @@ export default function IssuesTab({ brandId }: IssuesTabProps) {
         await fetchIssues();
         setIsDialogOpen(false);
         setEditingIssue(null);
-        setFormData({ title: '', description: '', issue_type: 'short_term', assignee_id: '' });
+        setFormData({ title: '', description: '', issue_type: 'short_term', assignee_id: 'none' });
       } else {
         console.error('Failed to save issue:', data.error);
       }
@@ -252,7 +286,7 @@ export default function IssuesTab({ brandId }: IssuesTabProps) {
       title: issue.title,
       description: issue.description,
       issue_type: issue.issue_type,
-      assignee_id: issue.assignee_id || ''
+      assignee_id: issue.assignee_id || 'none'
     });
     setIsDialogOpen(true);
   };
@@ -283,7 +317,7 @@ export default function IssuesTab({ brandId }: IssuesTabProps) {
       description: `Related to issue: ${issue.description || 'No description provided'}`,
       priority: 'normal',
       due_date: '',
-      assignee_id: issue.assignee_id || ''
+      assignee_id: issue.assignee_id || 'none'
     });
     setIsLinkTodoDialogOpen(true);
   };
@@ -293,11 +327,17 @@ export default function IssuesTab({ brandId }: IssuesTabProps) {
     if (!linkingIssue) return;
     
     try {
+      // Convert "none" or "pending" assignee_id to null for API
+      const processedTodoFormData = {
+        ...todoFormData,
+        assignee_id: (todoFormData.assignee_id === 'none' || todoFormData.assignee_id === 'pending') ? null : todoFormData.assignee_id
+      };
+      
       // Create a new todo
       const todoResponse = await fetch('/api/team-sync/todos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...todoFormData, brand_id: brandId })
+        body: JSON.stringify({ ...processedTodoFormData, brand_id: brandId })
       });
 
       const todoData = await todoResponse.json();
@@ -316,7 +356,7 @@ export default function IssuesTab({ brandId }: IssuesTabProps) {
         if (linkResponse.ok) {
           setIsLinkTodoDialogOpen(false);
           setLinkingIssue(null);
-          setTodoFormData({ title: '', description: '', priority: 'normal', due_date: '', assignee_id: '' });
+          setTodoFormData({ title: '', description: '', priority: 'normal', due_date: '', assignee_id: 'none' });
           alert('Todo created and linked successfully!');
         }
       }
@@ -326,7 +366,7 @@ export default function IssuesTab({ brandId }: IssuesTabProps) {
   };
 
   const resetForm = () => {
-    setFormData({ title: '', description: '', issue_type: 'short_term', assignee_id: '' });
+    setFormData({ title: '', description: '', issue_type: 'short_term', assignee_id: 'none' });
     setEditingIssue(null);
   };
 
@@ -408,6 +448,33 @@ export default function IssuesTab({ brandId }: IssuesTabProps) {
                 </Select>
               </div>
               
+              <div>
+                <Label htmlFor="assignee">Assignee (Optional)</Label>
+                <Select 
+                  value={formData.assignee_id} 
+                  onValueChange={(value: string) => 
+                    setFormData({ ...formData, assignee_id: value })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={loadingUsers ? "Loading users..." : "Select assignee"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No Assignee</SelectItem>
+                    {brandUsers.map((user) => (
+                      <SelectItem 
+                        key={user.id || `issue-pending-${user.email}`} 
+                        value={user.id || 'pending'} 
+                        disabled={!user.id}
+                      >
+                        {user.full_name} ({user.email})
+                        {user.is_pending && ' - Pending'}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
               <div className="flex gap-2 pt-4">
                 <Button 
                   type="button" 
@@ -431,7 +498,7 @@ export default function IssuesTab({ brandId }: IssuesTabProps) {
         setIsLinkTodoDialogOpen(open);
         if (!open) {
           setLinkingIssue(null);
-          setTodoFormData({ title: '', description: '', priority: 'normal', due_date: '', assignee_id: '' });
+          setTodoFormData({ title: '', description: '', priority: 'normal', due_date: '', assignee_id: 'none' });
         }
       }}>
         <DialogContent className="sm:max-w-[500px]">
@@ -501,12 +568,29 @@ export default function IssuesTab({ brandId }: IssuesTabProps) {
             
             <div>
               <Label htmlFor="todo_assignee">Assignee (Optional)</Label>
-              <Input
-                id="todo_assignee"
-                value={todoFormData.assignee_id}
-                onChange={(e) => setTodoFormData({ ...todoFormData, assignee_id: e.target.value })}
-                placeholder="Enter assignee ID"
-              />
+              <Select 
+                value={todoFormData.assignee_id} 
+                onValueChange={(value: string) => 
+                  setTodoFormData({ ...todoFormData, assignee_id: value })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={loadingUsers ? "Loading users..." : "Select assignee"} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No Assignee</SelectItem>
+                  {brandUsers.map((user) => (
+                    <SelectItem 
+                      key={user.id || `todo-pending-${user.email}`} 
+                      value={user.id || 'pending'} 
+                      disabled={!user.id}
+                    >
+                      {user.full_name} ({user.email})
+                      {user.is_pending && ' - Pending'}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             
             <div className="flex gap-2 pt-4">
