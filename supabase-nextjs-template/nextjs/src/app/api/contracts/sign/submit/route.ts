@@ -445,22 +445,42 @@ export async function POST(request: NextRequest) {
           
           // Update UGC creator contract status to 'contract signed' if linked
           try {
+            console.log('[Contract Submit] Checking for linked UGC creator...');
             const { data: contractDetails, error: contractDetailsError } = await supabase
               .from('contracts')
-              .select('creator_id')
+              .select('creator_id, title')
               .eq('id', contractId)
               .single();
 
-            if (!contractDetailsError && contractDetails?.creator_id) {
-              const { error: creatorUpdateError } = await supabase
+            console.log('[Contract Submit] Contract details fetched:', { 
+              contractId, 
+              creator_id: contractDetails?.creator_id,
+              title: contractDetails?.title,
+              error: contractDetailsError?.message 
+            });
+
+            if (contractDetailsError) {
+              console.error(`[Contract Submit] Error fetching contract details:`, contractDetailsError);
+            } else if (!contractDetails?.creator_id) {
+              console.log(`[Contract Submit] No creator_id found for contract ${contractId} - this contract is not linked to a UGC creator`);
+            } else {
+              console.log(`[Contract Submit] Updating creator ${contractDetails.creator_id} contract status to 'contract signed'...`);
+              
+              const { data: updateResult, error: creatorUpdateError } = await supabase
                 .from('ugc_creators')
-                .update({ contract_status: 'contract signed' })
-                .eq('id', contractDetails.creator_id);
+                .update({ 
+                  contract_status: 'contract signed',
+                  updated_at: new Date().toISOString()
+                })
+                .eq('id', contractDetails.creator_id)
+                .select('id, name, contract_status');
 
               if (creatorUpdateError) {
                 console.error(`[Contract Submit] Failed to update creator contract status for creator ${contractDetails.creator_id}:`, creatorUpdateError);
+              } else if (updateResult && updateResult.length > 0) {
+                console.log(`[Contract Submit] Successfully updated creator ${contractDetails.creator_id} (${updateResult[0].name}) contract status to 'contract signed'`);
               } else {
-                console.log(`[Contract Submit] Updated creator ${contractDetails.creator_id} contract status to 'contract signed'`);
+                console.warn(`[Contract Submit] Creator update succeeded but no rows were returned. Creator ID: ${contractDetails.creator_id}`);
               }
             }
           } catch (error) {
