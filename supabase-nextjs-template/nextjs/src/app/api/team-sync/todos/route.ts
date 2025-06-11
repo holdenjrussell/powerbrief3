@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
 import { createClient } from '@/utils/supabase/server';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
     
@@ -12,9 +10,17 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const { searchParams } = new URL(request.url);
+    const brandId = searchParams.get('brandId');
+
+    if (!brandId) {
+      return NextResponse.json({ error: 'brandId parameter is required' }, { status: 400 });
+    }
+
     const { data: todos, error } = await supabase
       .from('todos')
       .select('*')
+      .eq('brand_id', brandId)
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -31,29 +37,37 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createRouteHandlerClient({ cookies });
+    const supabase = await createClient();
     
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const body = await request.json();
-    const { title, description, due_date, assignee_id, priority = 'normal' } = body;
+    const { title, description, due_date, assignee_id, priority = 'normal', brand_id } = body;
 
     if (!title) {
       return NextResponse.json({ error: 'Title is required' }, { status: 400 });
     }
 
+    if (!brand_id) {
+      return NextResponse.json({ error: 'brand_id is required' }, { status: 400 });
+    }
+
+    // Handle empty assignee_id - convert empty string to null
+    const cleanAssigneeId = (assignee_id && assignee_id.trim() !== '') ? assignee_id : null;
+
     const { data: todo, error } = await supabase
       .from('todos')
       .insert({
-        user_id: session.user.id,
+        user_id: user.id,
         title,
         description,
         due_date,
-        assignee_id,
-        priority
+        assignee_id: cleanAssigneeId,
+        priority,
+        brand_id
       })
       .select('*')
       .single();
@@ -71,10 +85,10 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const supabase = createRouteHandlerClient({ cookies });
+    const supabase = await createClient();
     
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -99,7 +113,10 @@ export async function PUT(request: NextRequest) {
     if (description !== undefined) updateData.description = description;
     if (completed !== undefined) updateData.completed = completed;
     if (due_date !== undefined) updateData.due_date = due_date;
-    if (assignee_id !== undefined) updateData.assignee_id = assignee_id;
+    if (assignee_id !== undefined) {
+      // Handle empty assignee_id - convert empty string to null
+      updateData.assignee_id = (assignee_id && assignee_id.trim() !== '') ? assignee_id : null;
+    }
     if (priority !== undefined) updateData.priority = priority;
 
     const { data: todo, error } = await supabase
@@ -122,10 +139,10 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const supabase = createRouteHandlerClient({ cookies });
+    const supabase = await createClient();
     
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -140,7 +157,7 @@ export async function DELETE(request: NextRequest) {
       .from('todos')
       .delete()
       .eq('id', id)
-      .eq('user_id', session.user.id);
+      .eq('user_id', user.id);
 
     if (error) {
       throw error;

@@ -67,6 +67,15 @@ interface Issue {
   creator?: { email: string };
 }
 
+interface BrandUser {
+  id: string | null;
+  full_name: string;
+  email: string;
+  role: string;
+  is_owner: boolean;
+  is_pending?: boolean;
+}
+
 interface TodosTabProps {
   brandId: string;
 }
@@ -81,6 +90,8 @@ const priorityColors = {
 export default function TodosTab({ brandId }: TodosTabProps) {
   const [todos, setTodos] = useState<Todo[]>([]);
   const [loading, setLoading] = useState(true);
+  const [brandUsers, setBrandUsers] = useState<BrandUser[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isLinkIssueDialogOpen, setIsLinkIssueDialogOpen] = useState(false);
   const [linkingTodo, setLinkingTodo] = useState<Todo | null>(null);
@@ -91,7 +102,7 @@ export default function TodosTab({ brandId }: TodosTabProps) {
     description: '',
     priority: 'normal' as 'low' | 'normal' | 'high' | 'urgent',
     due_date: '',
-    assignee_id: ''
+    assignee_id: 'none'
   });
   const [issueFormData, setIssueFormData] = useState({
     title: '',
@@ -117,6 +128,23 @@ export default function TodosTab({ brandId }: TodosTabProps) {
     }
   };
 
+  const fetchBrandUsers = async () => {
+    try {
+      setLoadingUsers(true);
+      const response = await fetch(`/api/team-sync/brand-users?brandId=${brandId}`);
+      const data = await response.json();
+      if (response.ok) {
+        setBrandUsers(data.brandUsers || []);
+      } else {
+        console.error('Failed to fetch brand users:', data.error);
+      }
+    } catch (error) {
+      console.error('Error fetching brand users:', error);
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
   const fetchLinkedIssues = async (todoId: string) => {
     try {
       const response = await fetch(`/api/team-sync/link-issue-todo?todo_id=${todoId}`);
@@ -131,6 +159,7 @@ export default function TodosTab({ brandId }: TodosTabProps) {
 
   useEffect(() => {
     fetchTodos();
+    fetchBrandUsers();
   }, [brandId]);
 
   // Fetch linked issues for all todos when todos are loaded
@@ -147,9 +176,14 @@ export default function TodosTab({ brandId }: TodosTabProps) {
     
     try {
       const method = editingTodo ? 'PUT' : 'POST';
+      // Convert "none" assignee_id to null for API
+      const processedFormData = {
+        ...formData,
+        assignee_id: formData.assignee_id === 'none' ? null : formData.assignee_id
+      };
       const body = editingTodo 
-        ? { ...formData, id: editingTodo.id, brand_id: brandId }
-        : { ...formData, brand_id: brandId };
+        ? { ...processedFormData, id: editingTodo.id, brand_id: brandId }
+        : { ...processedFormData, brand_id: brandId };
 
       const response = await fetch('/api/team-sync/todos', {
         method,
@@ -163,7 +197,7 @@ export default function TodosTab({ brandId }: TodosTabProps) {
         await fetchTodos();
         setIsDialogOpen(false);
         setEditingTodo(null);
-        setFormData({ title: '', description: '', due_date: '', assignee_id: '', priority: 'normal' });
+        setFormData({ title: '', description: '', due_date: '', assignee_id: 'none', priority: 'normal' });
       } else {
         console.error('Failed to save todo:', data.error);
       }
@@ -197,7 +231,7 @@ export default function TodosTab({ brandId }: TodosTabProps) {
       title: todo.title,
       description: todo.description,
       due_date: todo.due_date ? todo.due_date.split('T')[0] : '',
-      assignee_id: todo.assignee_id || '',
+      assignee_id: todo.assignee_id || 'none',
       priority: todo.priority
     });
     setIsDialogOpen(true);
@@ -228,7 +262,7 @@ export default function TodosTab({ brandId }: TodosTabProps) {
       title: `Issue: ${todo.title}`,
       description: `Related to todo: ${todo.description || 'No description provided'}`,
       issue_type: 'short_term',
-      assignee_id: todo.assignee_id || ''
+      assignee_id: todo.assignee_id || 'none'
     });
     setIsLinkIssueDialogOpen(true);
   };
@@ -272,8 +306,14 @@ export default function TodosTab({ brandId }: TodosTabProps) {
   };
 
   const resetForm = () => {
-    setFormData({ title: '', description: '', due_date: '', assignee_id: '', priority: 'normal' });
+    setFormData({ title: '', description: '', due_date: '', assignee_id: 'none', priority: 'normal' });
     setEditingTodo(null);
+  };
+
+  const getAssigneeName = (assigneeId: string | null) => {
+    if (!assigneeId) return null;
+    const assignee = brandUsers.find(user => user.id === assigneeId);
+    return assignee ? assignee.full_name : 'Unknown User';
   };
 
   if (loading) {
@@ -360,6 +400,39 @@ export default function TodosTab({ brandId }: TodosTabProps) {
                     <SelectItem value="normal">Normal</SelectItem>
                     <SelectItem value="high">High</SelectItem>
                     <SelectItem value="urgent">Urgent</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="assignee">Assignee (Optional)</Label>
+                <Select 
+                  value={formData.assignee_id} 
+                  onValueChange={(value: string) => 
+                    setFormData({ ...formData, assignee_id: value })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={loadingUsers ? "Loading users..." : "Select assignee"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No Assignee</SelectItem>
+                    {brandUsers.map((user) => (
+                      <SelectItem 
+                        key={user.id || user.email} 
+                        value={user.id || 'none'}
+                        disabled={!user.id || user.is_pending}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span>{user.full_name}</span>
+                          {user.is_owner && <span className="text-xs text-blue-600">(Owner)</span>}
+                          {user.is_pending && <span className="text-xs text-gray-500">(Pending)</span>}
+                          {!user.is_owner && !user.is_pending && (
+                            <span className="text-xs text-gray-500">({user.role})</span>
+                          )}
+                        </div>
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -547,8 +620,14 @@ export default function TodosTab({ brandId }: TodosTabProps) {
                       <div className="flex items-center gap-4 text-sm text-gray-500">
                         <div className="flex items-center gap-1">
                           <User className="h-3 w-3" />
-                          <span>{todo.creator?.email || 'Unknown'}</span>
+                          <span>Created by {todo.creator?.email || 'Unknown'}</span>
                         </div>
+                        {getAssigneeName(todo.assignee_id) && (
+                          <div className="flex items-center gap-1">
+                            <User className="h-3 w-3 text-blue-500" />
+                            <span className="text-blue-700">Assigned to {getAssigneeName(todo.assignee_id)}</span>
+                          </div>
+                        )}
                         {todo.due_date && (
                           <div className="flex items-center gap-1">
                             <Calendar className="h-3 w-3" />
@@ -634,8 +713,14 @@ export default function TodosTab({ brandId }: TodosTabProps) {
                       <div className="flex items-center gap-4 text-sm text-gray-400">
                         <div className="flex items-center gap-1">
                           <User className="h-3 w-3" />
-                          <span>{todo.creator?.email || 'Unknown'}</span>
+                          <span>Created by {todo.creator?.email || 'Unknown'}</span>
                         </div>
+                        {getAssigneeName(todo.assignee_id) && (
+                          <div className="flex items-center gap-1">
+                            <User className="h-3 w-3 text-blue-400" />
+                            <span className="text-blue-500">Assigned to {getAssigneeName(todo.assignee_id)}</span>
+                          </div>
+                        )}
                         <div className="flex items-center gap-1">
                           <Clock className="h-3 w-3" />
                           <span>Completed {new Date(todo.updated_at).toLocaleDateString()}</span>

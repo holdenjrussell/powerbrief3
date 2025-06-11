@@ -672,6 +672,7 @@ export type Database = {
           designerinstructions: string | null
           designerInstructions: string | null
           editor_id: string | null
+          generated_broll: Json | null
           hook_count: number | null
           hook_type: string | null
           id: string
@@ -723,6 +724,7 @@ export type Database = {
           designerinstructions?: string | null
           designerInstructions?: string | null
           editor_id?: string | null
+          generated_broll?: Json | null
           hook_count?: number | null
           hook_type?: string | null
           id?: string
@@ -774,6 +776,7 @@ export type Database = {
           designerinstructions?: string | null
           designerInstructions?: string | null
           editor_id?: string | null
+          generated_broll?: Json | null
           hook_count?: number | null
           hook_type?: string | null
           id?: string
@@ -1127,29 +1130,91 @@ export type Database = {
           created_at: string
           expires_at: string
           id: string
+          ip_address: unknown | null
           recipient_id: string
           token: string
           used_at: string | null
+          user_agent: string | null
         }
         Insert: {
           contract_id: string
           created_at?: string
           expires_at: string
           id?: string
+          ip_address?: unknown | null
           recipient_id: string
           token: string
           used_at?: string | null
+          user_agent?: string | null
         }
         Update: {
           contract_id?: string
           created_at?: string
           expires_at?: string
           id?: string
+          ip_address?: unknown | null
           recipient_id?: string
           token?: string
           used_at?: string | null
+          user_agent?: string | null
         }
         Relationships: []
+      }
+      contract_template_fields: {
+        Row: {
+          created_at: string
+          height: number
+          id: string
+          is_required: boolean | null
+          page: number
+          placeholder: string | null
+          position_x: number
+          position_y: number
+          recipient_role: string | null
+          template_id: string
+          type: string
+          updated_at: string
+          width: number
+        }
+        Insert: {
+          created_at?: string
+          height: number
+          id?: string
+          is_required?: boolean | null
+          page: number
+          placeholder?: string | null
+          position_x: number
+          position_y: number
+          recipient_role?: string | null
+          template_id: string
+          type: string
+          updated_at?: string
+          width: number
+        }
+        Update: {
+          created_at?: string
+          height?: number
+          id?: string
+          is_required?: boolean | null
+          page?: number
+          placeholder?: string | null
+          position_x?: number
+          position_y?: number
+          recipient_role?: string | null
+          template_id?: string
+          type?: string
+          updated_at?: string
+          width?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contract_template_fields_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "contract_templates"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       contract_templates: {
         Row: {
@@ -1920,6 +1985,54 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      sop_videos: {
+        Row: {
+          created_at: string
+          description: string | null
+          duration: number | null
+          file_name: string
+          file_size: number | null
+          id: string
+          is_active: boolean | null
+          original_name: string | null
+          sop_id: string
+          title: string | null
+          updated_at: string
+          uploaded_by: string | null
+          video_url: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          duration?: number | null
+          file_name: string
+          file_size?: number | null
+          id?: string
+          is_active?: boolean | null
+          original_name?: string | null
+          sop_id: string
+          title?: string | null
+          updated_at?: string
+          uploaded_by?: string | null
+          video_url: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          duration?: number | null
+          file_name?: string
+          file_size?: number | null
+          id?: string
+          is_active?: boolean | null
+          original_name?: string | null
+          sop_id?: string
+          title?: string | null
+          updated_at?: string
+          uploaded_by?: string | null
+          video_url?: string
+        }
+        Relationships: []
       }
       todo_issues: {
         Row: {

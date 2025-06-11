@@ -43,6 +43,9 @@ interface Announcement {
   priority: 'low' | 'normal' | 'high' | 'urgent';
   created_at: string;
   updated_at: string;
+  profiles?: {
+    email: string;
+  };
 }
 
 interface AnnouncementsTabProps {
@@ -276,7 +279,7 @@ export default function AnnouncementsTab({ brandId }: AnnouncementsTabProps) {
                         <div className="flex items-center gap-4 text-sm text-gray-500">
                           <div className="flex items-center gap-1">
                             <User className="h-3 w-3" />
-                            <span>Team Member</span>
+                            <span>{announcement.profiles?.email || 'Team Member'}</span>
                           </div>
                           <div className="flex items-center gap-1">
                             <Clock className="h-3 w-3" />

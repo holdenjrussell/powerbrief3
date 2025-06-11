@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
 import { createClient } from '@/utils/supabase/server';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
     
@@ -12,9 +10,17 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const { searchParams } = new URL(request.url);
+    const brandId = searchParams.get('brandId');
+
+    if (!brandId) {
+      return NextResponse.json({ error: 'brandId parameter is required' }, { status: 400 });
+    }
+
     const { data: issues, error } = await supabase
       .from('issues')
       .select('*')
+      .eq('brand_id', brandId)
       .order('priority_order', { ascending: true });
 
     if (error) {
@@ -31,28 +37,36 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createRouteHandlerClient({ cookies });
+    const supabase = await createClient();
     
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const body = await request.json();
-    const { title, description, issue_type = 'short_term', assignee_id, priority_order = 0 } = body;
+    const { title, description, issue_type = 'short_term', assignee_id, priority_order = 0, brand_id } = body;
 
     if (!title) {
       return NextResponse.json({ error: 'Title is required' }, { status: 400 });
     }
 
+    if (!brand_id) {
+      return NextResponse.json({ error: 'brand_id is required' }, { status: 400 });
+    }
+
+    // Handle empty assignee_id - convert empty string to null
+    const cleanAssigneeId = (assignee_id && assignee_id.trim() !== '') ? assignee_id : null;
+
     const { data: issue, error } = await supabase
       .from('issues')
       .insert({
-        user_id: session.user.id,
+        user_id: user.id,
+        brand_id,
         title,
         description,
         issue_type,
-        assignee_id,
+        assignee_id: cleanAssigneeId,
         priority_order
       })
       .select('*')
@@ -71,10 +85,10 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const supabase = createRouteHandlerClient({ cookies });
+    const supabase = await createClient();
     
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -99,13 +113,17 @@ export async function PUT(request: NextRequest) {
     if (description !== undefined) updateData.description = description;
     if (issue_type !== undefined) updateData.issue_type = issue_type;
     if (status !== undefined) updateData.status = status;
-    if (assignee_id !== undefined) updateData.assignee_id = assignee_id;
+    if (assignee_id !== undefined) {
+      // Handle empty assignee_id - convert empty string to null
+      updateData.assignee_id = (assignee_id && assignee_id.trim() !== '') ? assignee_id : null;
+    }
     if (priority_order !== undefined) updateData.priority_order = priority_order;
 
     const { data: issue, error } = await supabase
       .from('issues')
       .update(updateData)
       .eq('id', id)
+      .eq('user_id', user.id)
       .select('*')
       .single();
 
@@ -122,10 +140,10 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const supabase = createRouteHandlerClient({ cookies });
+    const supabase = await createClient();
     
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -140,7 +158,7 @@ export async function DELETE(request: NextRequest) {
       .from('issues')
       .delete()
       .eq('id', id)
-      .eq('user_id', session.user.id);
+      .eq('user_id', user.id);
 
     if (error) {
       throw error;

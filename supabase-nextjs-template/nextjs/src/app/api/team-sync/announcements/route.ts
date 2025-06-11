@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
 import { createClient } from '@/utils/supabase/server';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
     
@@ -12,17 +10,50 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const { searchParams } = new URL(request.url);
+    const brandId = searchParams.get('brandId');
+
+    if (!brandId) {
+      return NextResponse.json({ error: 'brandId parameter is required' }, { status: 400 });
+    }
+
+    // First get the announcements
     const { data: announcements, error } = await supabase
       .from('announcements')
       .select('*')
+      .eq('brand_id', brandId)
       .order('created_at', { ascending: false });
 
     if (error) {
       console.error('Error fetching announcements:', error);
-      return NextResponse.json({ error: 'Failed to fetch announcements' }, { status: 500 });
+      return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ announcements });
+    // Then get user emails for each announcement
+    const announcementsWithEmails = await Promise.all(
+      (announcements || []).map(async (announcement) => {
+        let userEmail = 'Team Member'; // Default fallback
+        
+        if (announcement.user_id) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('email')
+            .eq('id', announcement.user_id)
+            .single();
+          
+          if (profile?.email) {
+            userEmail = profile.email;
+          }
+        }
+        
+        return {
+          ...announcement,
+          profiles: { email: userEmail }
+        };
+      })
+    );
+
+    return NextResponse.json({ announcements: announcementsWithEmails });
   } catch (error) {
     console.error('Error in GET /api/team-sync/announcements:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -31,24 +62,29 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createRouteHandlerClient({ cookies });
+    const supabase = await createClient();
     
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const body = await request.json();
-    const { title, content, priority = 'normal' } = body;
+    const { title, content, priority = 'normal', brand_id } = body;
 
     if (!title || !content) {
       return NextResponse.json({ error: 'Title and content are required' }, { status: 400 });
     }
 
+    if (!brand_id) {
+      return NextResponse.json({ error: 'brand_id is required' }, { status: 400 });
+    }
+
     const { data: announcement, error } = await supabase
       .from('announcements')
       .insert({
-        user_id: session.user.id,
+        user_id: user.id,
+        brand_id,
         title,
         content,
         priority
@@ -60,7 +96,24 @@ export async function POST(request: NextRequest) {
       throw error;
     }
 
-    return NextResponse.json({ announcement });
+    // Get the user's email for the response
+    let userEmail = 'Team Member'; // Default fallback
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('email')
+      .eq('id', user.id)
+      .single();
+    
+    if (profile?.email) {
+      userEmail = profile.email;
+    }
+
+    const announcementWithEmail = {
+      ...announcement,
+      profiles: { email: userEmail }
+    };
+
+    return NextResponse.json({ announcement: announcementWithEmail });
   } catch (error) {
     console.error('Error creating announcement:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -69,10 +122,10 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const supabase = createRouteHandlerClient({ cookies });
+    const supabase = await createClient();
     
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -98,6 +151,7 @@ export async function PUT(request: NextRequest) {
       .from('announcements')
       .update(updateData)
       .eq('id', id)
+      .eq('user_id', user.id)
       .select('*')
       .single();
 
@@ -105,7 +159,24 @@ export async function PUT(request: NextRequest) {
       throw error;
     }
 
-    return NextResponse.json({ announcement });
+    // Get the user's email for the response
+    let userEmail = 'Team Member'; // Default fallback
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('email')
+      .eq('id', user.id)
+      .single();
+    
+    if (profile?.email) {
+      userEmail = profile.email;
+    }
+
+    const announcementWithEmail = {
+      ...announcement,
+      profiles: { email: userEmail }
+    };
+
+    return NextResponse.json({ announcement: announcementWithEmail });
   } catch (error) {
     console.error('Error updating announcement:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -114,10 +185,10 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const supabase = createRouteHandlerClient({ cookies });
+    const supabase = await createClient();
     
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -132,7 +203,7 @@ export async function DELETE(request: NextRequest) {
       .from('announcements')
       .delete()
       .eq('id', id)
-      .eq('user_id', session.user.id);
+      .eq('user_id', user.id);
 
     if (error) {
       throw error;
