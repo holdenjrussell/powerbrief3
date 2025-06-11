@@ -45,8 +45,7 @@ import {
   createUgcCreator, 
   getUgcCreatorScriptsByConceptStatus,
   getBrandUgcFields,
-  updateBrandUgcFields,
-  createUgcCreatorScript
+  updateBrandUgcFields
 } from '@/lib/services/ugcCreatorService';
 import { UgcCreator, UgcCreatorScript, UGC_CREATOR_SCRIPT_CONCEPT_STATUSES, UGC_CREATOR_ONBOARDING_STATUSES } from '@/lib/types/ugcCreator';
 import { CreatorCard, ScriptCard, CreatorForm } from '@/components/ugc-creator';
@@ -765,8 +764,42 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
           scriptData.inspiration_video_notes = referenceVideoNotes || null;
         }
         
-        // Save script to database
-        await createUgcCreatorScript(scriptData);
+        // Prepare data for API endpoint (uses slightly different field names)
+        const apiData = {
+          brand_id: scriptData.brand_id,
+          creator_id: scriptData.creator_id,
+          title: scriptData.title,
+          script_content: scriptData.script_content,
+          status: scriptData.status,
+          concept_status: scriptData.concept_status,
+          b_roll_shot_list: scriptData.b_roll_shot_list,
+          hook_type: scriptData.hook_type,
+          hook_count: scriptData.hook_count,
+          hook_body: scriptData.hook_body,
+          cta: scriptData.cta,
+          company_description: scriptData.company_description,
+          guide_description: scriptData.guide_description,
+          filming_instructions: scriptData.filming_instructions,
+          ai_custom_prompt: scriptData.ai_custom_prompt,
+          system_instructions: scriptData.system_instructions,
+          creative_strategist: scriptData.creative_strategist,
+          inspiration_video_url: scriptData.inspiration_video_url,
+          inspiration_video_notes: scriptData.inspiration_video_notes,
+          is_ai_generated: scriptData.is_ai_generated,
+          is_tbd_creator: creatorInfo.creator_id === '00000000-0000-0000-0000-000000000000'
+        };
+
+        // Save script to database using API endpoint for better error handling
+        const response = await fetch('/api/ugc/scripts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(apiData)
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || `Server error: ${response.status}`);
+        }
       }
       
       // Reset form after successful save
