@@ -1606,6 +1606,344 @@ export type Database = {
           },
         ]
       }
+      poweragent_agent_toolkits: {
+        Row: {
+          agent_id: string
+          created_at: string | null
+          toolkit_id: string
+        }
+        Insert: {
+          agent_id: string
+          created_at?: string | null
+          toolkit_id: string
+        }
+        Update: {
+          agent_id?: string
+          created_at?: string | null
+          toolkit_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "poweragent_agent_toolkits_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "poweragent_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "poweragent_agent_toolkits_toolkit_id_fkey"
+            columns: ["toolkit_id"]
+            isOneToOne: false
+            referencedRelation: "poweragent_toolkits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      poweragent_agent_tools: {
+        Row: {
+          agent_id: string
+          config: Json | null
+          created_at: string | null
+          tool_id: string
+        }
+        Insert: {
+          agent_id: string
+          config?: Json | null
+          created_at?: string | null
+          tool_id: string
+        }
+        Update: {
+          agent_id?: string
+          config?: Json | null
+          created_at?: string | null
+          tool_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "poweragent_agent_tools_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "poweragent_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "poweragent_agent_tools_tool_id_fkey"
+            columns: ["tool_id"]
+            isOneToOne: false
+            referencedRelation: "poweragent_tools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      poweragent_agents: {
+        Row: {
+          brand_id: string | null
+          config: Json | null
+          created_at: string | null
+          created_by: string | null
+          id: string
+          instructions: string | null
+          model: string
+          name: string
+          provider: string
+          purpose: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          brand_id?: string | null
+          config?: Json | null
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          instructions?: string | null
+          model: string
+          name: string
+          provider: string
+          purpose?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          brand_id?: string | null
+          config?: Json | null
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          instructions?: string | null
+          model?: string
+          name?: string
+          provider?: string
+          purpose?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "poweragent_agents_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      poweragent_memory: {
+        Row: {
+          agent_id: string
+          brand_id: string
+          content: string
+          created_at: string | null
+          id: string
+          metadata: Json | null
+          role: string
+          session_id: string
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          agent_id: string
+          brand_id: string
+          content: string
+          created_at?: string | null
+          id?: string
+          metadata?: Json | null
+          role: string
+          session_id: string
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          agent_id?: string
+          brand_id?: string
+          content?: string
+          created_at?: string | null
+          id?: string
+          metadata?: Json | null
+          role?: string
+          session_id?: string
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "poweragent_memory_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "poweragent_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "poweragent_memory_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      poweragent_metrics: {
+        Row: {
+          agent_id: string | null
+          conversation_id: string | null
+          created_at: string | null
+          error_message: string | null
+          execution_time_ms: number | null
+          id: string
+          success: boolean | null
+          tokens_used: number | null
+          user_id: string | null
+        }
+        Insert: {
+          agent_id?: string | null
+          conversation_id?: string | null
+          created_at?: string | null
+          error_message?: string | null
+          execution_time_ms?: number | null
+          id?: string
+          success?: boolean | null
+          tokens_used?: number | null
+          user_id?: string | null
+        }
+        Update: {
+          agent_id?: string | null
+          conversation_id?: string | null
+          created_at?: string | null
+          error_message?: string | null
+          execution_time_ms?: number | null
+          id?: string
+          success?: boolean | null
+          tokens_used?: number | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "poweragent_metrics_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "poweragent_agents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      poweragent_toolkit_tools: {
+        Row: {
+          created_at: string | null
+          tool_id: string
+          toolkit_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          tool_id: string
+          toolkit_id: string
+        }
+        Update: {
+          created_at?: string | null
+          tool_id?: string
+          toolkit_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "poweragent_toolkit_tools_tool_id_fkey"
+            columns: ["tool_id"]
+            isOneToOne: false
+            referencedRelation: "poweragent_tools"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "poweragent_toolkit_tools_toolkit_id_fkey"
+            columns: ["toolkit_id"]
+            isOneToOne: false
+            referencedRelation: "poweragent_toolkits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      poweragent_toolkits: {
+        Row: {
+          add_instructions: boolean | null
+          brand_id: string | null
+          created_at: string | null
+          created_by: string | null
+          description: string | null
+          id: string
+          instructions: string | null
+          name: string
+          updated_at: string | null
+        }
+        Insert: {
+          add_instructions?: boolean | null
+          brand_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          instructions?: string | null
+          name: string
+          updated_at?: string | null
+        }
+        Update: {
+          add_instructions?: boolean | null
+          brand_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          instructions?: string | null
+          name?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "poweragent_toolkits_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      poweragent_tools: {
+        Row: {
+          brand_id: string | null
+          created_at: string | null
+          created_by: string | null
+          description: string | null
+          execute_code: string | null
+          id: string
+          name: string
+          parameters: Json | null
+          updated_at: string | null
+        }
+        Insert: {
+          brand_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          execute_code?: string | null
+          id?: string
+          name: string
+          parameters?: Json | null
+          updated_at?: string | null
+        }
+        Update: {
+          brand_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          execute_code?: string | null
+          id?: string
+          name?: string
+          parameters?: Json | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "poweragent_tools_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       products: {
         Row: {
           brand_id: string
@@ -2736,6 +3074,7 @@ export type Database = {
         Row: {
           address_line1: string | null
           address_line2: string | null
+          age: string | null
           brand_id: string
           city: string | null
           contacted_by: string | null
@@ -2761,12 +3100,13 @@ export type Database = {
           tiktok_handle: string | null
           tracking_number: string | null
           updated_at: string
-          user_id: string
+          user_id: string | null
           zip: string | null
         }
         Insert: {
           address_line1?: string | null
           address_line2?: string | null
+          age?: string | null
           brand_id: string
           city?: string | null
           contacted_by?: string | null
@@ -2792,12 +3132,13 @@ export type Database = {
           tiktok_handle?: string | null
           tracking_number?: string | null
           updated_at?: string
-          user_id: string
+          user_id?: string | null
           zip?: string | null
         }
         Update: {
           address_line1?: string | null
           address_line2?: string | null
+          age?: string | null
           brand_id?: string
           city?: string | null
           contacted_by?: string | null
@@ -2823,7 +3164,7 @@ export type Database = {
           tiktok_handle?: string | null
           tracking_number?: string | null
           updated_at?: string
-          user_id?: string
+          user_id?: string | null
           zip?: string | null
         }
         Relationships: [
@@ -4569,6 +4910,38 @@ export type Database = {
             columns: ["editor_id"]
             isOneToOne: false
             referencedRelation: "editors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      poweragent_memory_with_agent: {
+        Row: {
+          agent_id: string | null
+          agent_name: string | null
+          agent_purpose: string | null
+          brand_id: string | null
+          content: string | null
+          created_at: string | null
+          id: string | null
+          metadata: Json | null
+          role: string | null
+          session_id: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "poweragent_memory_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "poweragent_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "poweragent_memory_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
             referencedColumns: ["id"]
           },
         ]

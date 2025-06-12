@@ -50,7 +50,9 @@ export default function BRollViewer({ brollData, conceptTitle, isPublicView = fa
     );
   }
 
-  const totalVideos = brollData.reduce((sum, item) => sum + item.video_urls.length, 0);
+  const totalVideos = brollData
+    .filter(item => item && item.video_urls) // Filter out null/undefined items
+    .reduce((sum, item) => sum + item.video_urls.length, 0);
 
   const handleVideoPlay = (url: string, description: string, prompt: string) => {
     setSelectedVideo({ url, description, prompt });
@@ -74,10 +76,11 @@ export default function BRollViewer({ brollData, conceptTitle, isPublicView = fa
   };
 
   const handleDownloadAll = async () => {
-    for (const brollItem of brollData) {
+    const validBrollItems = brollData.filter(item => item && item.video_urls);
+    for (const brollItem of validBrollItems) {
       for (let i = 0; i < brollItem.video_urls.length; i++) {
         const url = brollItem.video_urls[i];
-        const fileName = `broll_${brollData.indexOf(brollItem) + 1}_video_${i + 1}.mp4`;
+        const fileName = `broll_${validBrollItems.indexOf(brollItem) + 1}_video_${i + 1}.mp4`;
         await handleDownload(url, fileName);
         // Add delay between downloads to avoid overwhelming the browser
         await new Promise(resolve => setTimeout(resolve, 500));
@@ -192,7 +195,9 @@ export default function BRollViewer({ brollData, conceptTitle, isPublicView = fa
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {brollData.map((brollItem, brollIndex) => (
+            {brollData
+              .filter(item => item && item.video_urls) // Filter out null/undefined items
+              .map((brollItem, brollIndex) => (
               <div key={brollIndex} className="space-y-3">
                 <div className="p-3 bg-gray-50 rounded-lg border">
                   <h4 className="text-sm font-medium text-gray-900 mb-2">

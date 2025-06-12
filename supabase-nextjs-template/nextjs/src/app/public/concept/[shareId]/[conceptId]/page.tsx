@@ -1703,7 +1703,7 @@ export default function SharedSingleConceptPage({ params }: { params: ParamsType
                   </p>
                 </div>
                 <BRollViewer 
-                  brollData={concept.generated_broll}
+                  brollData={concept.generated_broll.filter(item => item && item.video_urls)}
                   conceptTitle={concept.concept_title}
                   isPublicView={true}
                 />
@@ -1770,7 +1770,7 @@ export default function SharedSingleConceptPage({ params }: { params: ParamsType
                   {concept.body_content_structured.map((scene: Scene, index: number) => {
                     // Find matching B-roll videos for this scene's visuals
                     const matchingBRollVideos = concept.generated_broll?.filter(broll => 
-                      broll.visual_description === scene.visuals
+                      broll && broll.video_urls && broll.visual_description === scene.visuals
                     ) || [];
 
                     return (
@@ -1802,7 +1802,9 @@ export default function SharedSingleConceptPage({ params }: { params: ParamsType
                                 These B-roll clips were automatically generated for this visual. You can use them as-is or as inspiration.
                               </p>
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                {matchingBRollVideos.map((broll, brollIndex) => 
+                                {matchingBRollVideos
+                                  .filter(broll => broll && broll.video_urls)
+                                  .map((broll, brollIndex) => 
                                   broll.video_urls.map((videoUrl, videoIndex) => (
                                     <div 
                                       key={`${brollIndex}-${videoIndex}`} 

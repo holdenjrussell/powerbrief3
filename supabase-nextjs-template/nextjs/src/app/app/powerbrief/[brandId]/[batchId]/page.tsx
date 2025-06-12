@@ -4750,7 +4750,7 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                         <div className="mt-4 pt-4 border-t border-gray-100">
                                             <h3 className="font-medium text-sm mb-2">Generated VEO 2 B-roll Videos</h3>
                                             <BRollViewer 
-                                                brollData={concept.generated_broll}
+                                                brollData={concept.generated_broll.filter(item => item && item.video_urls)}
                                                 conceptTitle={concept.concept_title}
                                                 isPublicView={false}
                                                 conceptId={concept.id}

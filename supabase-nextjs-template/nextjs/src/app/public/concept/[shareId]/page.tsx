@@ -1125,7 +1125,9 @@ export default function SharedConceptPage({ params }: { params: ParamsType | Pro
                   </p>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {concept.generated_broll.map((broll: any, brollIndex: number) => 
+                  {concept.generated_broll
+                    .filter((broll: any) => broll && broll.video_urls)
+                    .map((broll: any, brollIndex: number) => 
                     broll.video_urls.map((videoUrl: string, videoIndex: number) => (
                       <div 
                         key={`${brollIndex}-${videoIndex}`} 
