@@ -36,6 +36,7 @@ import {
 const creatorFormSchema = z.object({
   name: z.string().min(1, "Name is required"),
   gender: z.string().optional(),
+  age: z.string().optional(),
   status: z.string().default("New Creator Submission"),
   contract_status: z.string().default("not signed"),
   product_shipment_status: z.string().optional(),
@@ -79,6 +80,7 @@ export function CreatorForm({ creator, onSubmit, isSubmitting }: CreatorFormProp
     defaultValues: {
       name: creator?.name || '',
       gender: creator?.gender || '',
+      age: creator?.age || '',
       status: creator?.status || 'New Creator Submission',
       contract_status: creator?.contract_status || 'not signed',
       product_shipment_status: creator?.product_shipment_status || '',
@@ -190,6 +192,37 @@ export function CreatorForm({ creator, onSubmit, isSubmitting }: CreatorFormProp
                             {gender}
                           </SelectItem>
                         ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={form.control}
+                name="age"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Age Range</FormLabel>
+                    <Select 
+                      onValueChange={field.onChange} 
+                      defaultValue={field.value}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select age range" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="16-20">16-20</SelectItem>
+                        <SelectItem value="21-25">21-25</SelectItem>
+                        <SelectItem value="26-30">26-30</SelectItem>
+                        <SelectItem value="31-35">31-35</SelectItem>
+                        <SelectItem value="36-40">36-40</SelectItem>
+                        <SelectItem value="41-45">41-45</SelectItem>
+                        <SelectItem value="46-50">46-50</SelectItem>
+                        <SelectItem value="50+">50+</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />

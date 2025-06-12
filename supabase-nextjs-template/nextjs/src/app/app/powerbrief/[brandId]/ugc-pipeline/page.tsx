@@ -63,7 +63,7 @@ import WorkflowBuilder from '@/components/ugc/workflow/WorkflowBuilder';
 import CreatorStatusManager from '@/components/ugc/workflow/CreatorStatusManager';
 import MessageTemplateManager from '@/components/ugc/workflow/MessageTemplateManager';
 import WorkflowAnalytics from '@/components/ugc/workflow/WorkflowAnalytics';
-import CreatorFieldManager from '@/components/ugc/CreatorFieldManager';
+
 import {
   getWorkflowTemplates,
   createWorkflowTemplate,
@@ -77,7 +77,7 @@ import {
 
 // Helper to unwrap params safely
 type ParamsType = { brandId: string };
-type ViewType = 'concept' | 'script' | 'creator' | 'settings' | 'ai-agent' | 'inbox' | 'templates' | 'workflow' | 'fields' | 'contracts';
+type ViewType = 'concept' | 'script' | 'creator' | 'settings' | 'ai-agent' | 'inbox' | 'templates' | 'workflow' | 'contracts';
 
 const navigationItems = [
   {
@@ -110,7 +110,7 @@ const navigationItems = [
     icon: Settings2,
     items: [
       { view: 'settings' as ViewType, label: 'Pipeline Settings', icon: Settings2 },
-      { view: 'fields' as ViewType, label: 'Creator Fields', icon: List },
+
       { view: 'templates' as ViewType, label: 'Email Templates', icon: Sparkles },
     ],
   },
@@ -2307,13 +2307,7 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
           </div>
       )}
 
-      {activeView === 'fields' && (
-        <>
-          {brandId && (
-            <CreatorFieldManager brandId={brandId} />
-          )}
-        </>
-      )}
+
 
       {activeView === 'contracts' && (
         <>

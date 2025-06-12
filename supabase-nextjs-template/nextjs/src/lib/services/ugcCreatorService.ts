@@ -313,4 +313,55 @@ export async function updateBrandUgcFields(brandId: string, fields: UgcBrandFiel
     console.error('Error updating brand UGC fields:', error);
     throw error;
   }
+}
+
+// Submit creator application directly to ugc_creators table
+export async function submitCreatorApplication(applicationData: {
+  brand_id: string;
+  submission_data: {
+    name: string;
+    email: string;
+    phone_number?: string;
+    instagram_handle?: string;
+    tiktok_handle?: string;
+    portfolio_link?: string;
+    per_script_fee?: number;
+    gender?: string;
+    age?: string;
+    platforms?: string[];
+    content_types?: string[];
+    address_line1?: string;
+    address_line2?: string;
+    city?: string;
+    state?: string;
+    zip?: string;
+    country?: string;
+    custom_fields?: Record<string, string | boolean | number>;
+    consent_email?: boolean;
+    consent_sms?: boolean;
+  };
+  utm_source?: string;
+  utm_medium?: string;
+  utm_campaign?: string;
+}): Promise<{ success: boolean; creator?: UgcCreator; message: string }> {
+  try {
+    const response = await fetch('/api/ugc/creators/submit', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(applicationData),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to submit creator application');
+    }
+
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    console.error('Error submitting creator application:', error);
+    throw error;
+  }
 } 

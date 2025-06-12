@@ -7,6 +7,7 @@ export interface UgcCreator {
   brand_id: string;
   name: string;
   gender?: string | null;
+  age?: string | null;
   status?: string;
   products?: string[];
   content_types?: string[];
@@ -102,6 +103,7 @@ export type DbUgcCreator = {
   brand_id: string;
   name: string;
   gender?: string | null;
+  age?: string | null;
   status?: string;
   products?: Json;
   content_types?: Json;

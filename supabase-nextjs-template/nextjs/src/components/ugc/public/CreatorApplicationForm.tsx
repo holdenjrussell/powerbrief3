@@ -9,7 +9,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
 import { 
   CheckCircle2, 
   AlertCircle,
@@ -27,17 +26,16 @@ import {
   CustomFormField
 } from '@/lib/types/ugcWorkflow';
 import {
-  getOnboardingFormConfig,
-  createFormSubmission
+  getOnboardingFormConfig
 } from '@/lib/services/ugcWorkflowService';
 import {
-  getPublicFormFieldConfigs,
-  saveCreatorWithCustomFields
+  submitCreatorApplication
+} from '@/lib/services/ugcCreatorService';
+import {
+  getPublicFormFieldConfigs
 } from '@/lib/services/ugcCreatorFieldService';
 import {
-  CreatorFieldConfig,
-  CreatorFieldType,
-  FIELD_GROUPS
+  CreatorFieldConfig
 } from '@/lib/types/ugcCreatorFields';
 
 interface CreatorApplicationFormProps {
@@ -52,17 +50,14 @@ interface FormData {
   email: string;
   phone_number?: string;
   
+  // Demographics
+  gender?: string;
+  age?: string; // Now maps directly to table column
+  
   // Social Media
   instagram_handle?: string;
   tiktok_handle?: string;
   portfolio_link?: string;
-  
-  // Demographics
-  demographics: {
-    age?: string;
-    location?: string;
-    gender?: string;
-  };
   
   // Creator Details
   content_types: string[];
@@ -70,16 +65,14 @@ interface FormData {
   per_script_fee?: number;
   
   // Address Information
-  address: {
-    address_line1?: string;
-    address_line2?: string;
-    city?: string;
-    state?: string;
-    zip?: string;
-    country?: string;
-  };
+  address_line1?: string;
+  address_line2?: string;
+  city?: string;
+  state?: string;
+  zip?: string;
+  country?: string;
   
-  // Custom Fields
+  // Custom Fields (for any additional brand-specific fields)
   custom_fields: Record<string, string | boolean | number>;
   
   // Consent
@@ -99,7 +92,16 @@ const DEFAULT_CONTENT_TYPES = [
   'Product Demos',
   'Comparison Videos',
   'Hauls',
-  'Styling Tips'
+  'Styling Tips',
+  'Couples Content',
+  'Family Content',
+  'Man on The Street',
+  'Doctor',
+  'Dermatologist',
+  'Esthetician',
+  'Podcast',
+  'Skits',
+  'Trends'
 ];
 
 const DEFAULT_PLATFORMS = [
@@ -136,7 +138,7 @@ export default function CreatorApplicationForm({
   formId,
   onSuccess 
 }: CreatorApplicationFormProps) {
-  const [fieldConfigs, setFieldConfigs] = useState<CreatorFieldConfig[]>([]);
+
   const [formConfig, setFormConfig] = useState<UgcOnboardingFormConfig | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -151,6 +153,7 @@ export default function CreatorApplicationForm({
     email: '',
     phone_number: '',
     gender: '',
+    age: '',
     instagram_handle: '',
     tiktok_handle: '',
     portfolio_link: '',
@@ -165,7 +168,7 @@ export default function CreatorApplicationForm({
     platforms: [] as string[],
     
     // Custom fields will be added dynamically
-    custom_fields: {} as Record<string, any>,
+    custom_fields: {} as Record<string, string | boolean | number>,
     
     // Consent fields
     consent_email: false,
@@ -181,11 +184,8 @@ export default function CreatorApplicationForm({
       setIsLoading(true);
       setErrorMessage(null);
       
-      // Load both form config and field configs
-      const [config, fields] = await Promise.all([
-        getOnboardingFormConfig(brandId),
-        getPublicFormFieldConfigs(brandId)
-      ]);
+      // Load form config only (custom fields are no longer displayed)
+      const config = await getOnboardingFormConfig(brandId);
       
       if (!config || !config.is_active) {
         setErrorMessage('This application form is not currently available.');
@@ -193,7 +193,6 @@ export default function CreatorApplicationForm({
       }
       
       setFormConfig(config);
-      setFieldConfigs(fields);
       
       // Initialize form data with default values from field configs
       const initialData = {
@@ -202,6 +201,7 @@ export default function CreatorApplicationForm({
         email: '',
         phone_number: '',
         gender: '',
+        age: '',
         instagram_handle: '',
         tiktok_handle: '',
         portfolio_link: '',
@@ -216,25 +216,15 @@ export default function CreatorApplicationForm({
         platforms: [] as string[],
         
         // Custom fields from field configs
-        custom_fields: {} as Record<string, any>,
+        custom_fields: {} as Record<string, string | boolean | number>,
         
         // Consent fields
         consent_email: false,
         consent_sms: false
       };
       
-      // Add custom fields from field configs
-      fields.forEach(field => {
-        if (!field.is_protected) { // Only add truly custom fields
-          if (field.field_type === 'checkbox') {
-            initialData.custom_fields[field.field_name] = false;
-          } else if (field.field_type === 'multiselect') {
-            initialData.custom_fields[field.field_name] = [];
-          } else {
-            initialData.custom_fields[field.field_name] = '';
-          }
-        }
-      });
+      // Since we removed custom fields rendering, skip the initialization
+      // Custom fields are no longer displayed in the public form
       
       setFormData(initialData);
     } catch (error) {
@@ -259,15 +249,10 @@ export default function CreatorApplicationForm({
         throw new Error('Please fill in all required fields.');
       }
       
-      // Create submission
-      const result = await createFormSubmission({
-        form_config_id: formConfig.id,
+      // Submit creator application directly to ugc_creators table
+      const result = await submitCreatorApplication({
         brand_id: brandId,
-        submission_data: {
-          ...formData,
-          submitted_at: new Date().toISOString()
-        },
-        status: formConfig.requires_approval ? 'pending' : 'approved',
+        submission_data: formData,
         utm_source: new URLSearchParams(window.location.search).get('utm_source') || undefined,
         utm_medium: new URLSearchParams(window.location.search).get('utm_medium') || undefined,
         utm_campaign: new URLSearchParams(window.location.search).get('utm_campaign') || undefined
@@ -609,10 +594,10 @@ export default function CreatorApplicationForm({
                   <div>
                     <Label htmlFor="age">Age Range</Label>
                     <Select
-                      value={formData.custom_fields.age || ''}
+                      value={formData.age || ''}
                       onValueChange={(value) => setFormData({
                         ...formData,
-                        custom_fields: { ...formData.custom_fields, age: value }
+                        age: value
                       })}
                     >
                       <SelectTrigger>
@@ -626,19 +611,6 @@ export default function CreatorApplicationForm({
                         ))}
                       </SelectContent>
                     </Select>
-                  </div>
-
-                  <div>
-                    <Label htmlFor="location">Location</Label>
-                    <Input
-                      id="location"
-                      value={formData.custom_fields.location || ''}
-                      onChange={(e) => setFormData({
-                        ...formData,
-                        custom_fields: { ...formData.custom_fields, location: e.target.value }
-                      })}
-                      placeholder="City, State/Country"
-                    />
                   </div>
                 </div>
               </div>
@@ -844,13 +816,7 @@ export default function CreatorApplicationForm({
                   </div>
                 </div>
 
-                {/* Custom Fields */}
-                {formConfig?.custom_fields && Array.isArray(formConfig.custom_fields) && formConfig.custom_fields.length > 0 && (
-                  <div className="space-y-4">
-                    <h4 className="font-semibold">Additional Information</h4>
-                    {formConfig.custom_fields.map((field, index) => renderCustomField(field as CustomFormField))}
-                  </div>
-                )}
+
               </div>
             )}
 

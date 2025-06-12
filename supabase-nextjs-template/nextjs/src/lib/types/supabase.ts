@@ -2736,6 +2736,7 @@ export type Database = {
         Row: {
           address_line1: string | null
           address_line2: string | null
+          age: string | null
           brand_id: string
           city: string | null
           contacted_by: string | null
@@ -2761,12 +2762,13 @@ export type Database = {
           tiktok_handle: string | null
           tracking_number: string | null
           updated_at: string
-          user_id: string
+          user_id: string | null
           zip: string | null
         }
         Insert: {
           address_line1?: string | null
           address_line2?: string | null
+          age?: string | null
           brand_id: string
           city?: string | null
           contacted_by?: string | null
@@ -2792,12 +2794,13 @@ export type Database = {
           tiktok_handle?: string | null
           tracking_number?: string | null
           updated_at?: string
-          user_id: string
+          user_id?: string | null
           zip?: string | null
         }
         Update: {
           address_line1?: string | null
           address_line2?: string | null
+          age?: string | null
           brand_id?: string
           city?: string | null
           contacted_by?: string | null
@@ -2823,7 +2826,7 @@ export type Database = {
           tiktok_handle?: string | null
           tracking_number?: string | null
           updated_at?: string
-          user_id?: string
+          user_id?: string | null
           zip?: string | null
         }
         Relationships: [
