@@ -236,6 +236,167 @@ export default function UGCPipelineSOPPage() {
               </div>
             </section>
 
+            {/* Contract Management */}
+            <section className="mb-8">
+              <h3 className="text-xl font-semibold text-gray-900 mb-4">Contract Management & Sending</h3>
+              
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6">
+                <div className="flex items-start">
+                  <CheckCircle className="h-6 w-6 text-blue-600 mt-0.5 mr-4 flex-shrink-0" />
+                  <div>
+                    <h4 className="font-semibold text-blue-900 mb-2">Contract Overview</h4>
+                    <p className="text-blue-800 text-sm">
+                      Contracts are essential for protecting both your brand and creators. PowerBrief provides a complete contract management system
+                      that handles creation, sending, signing, and tracking of all creator agreements.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <div className="border border-gray-200 rounded-lg p-5">
+                  <h4 className="text-lg font-medium text-gray-900 mb-4">Method 1: Sending Contracts from the Contracts Tab</h4>
+                  
+                  <div className="space-y-4">
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <h5 className="font-medium text-gray-900 mb-2">Step 1: Navigate to Contracts</h5>
+                      <ul className="text-gray-700 text-sm space-y-1 ml-4">
+                        <li>• Go to UGC Pipeline → Creators → Contracts</li>
+                        <li>• You'll see existing contracts and templates</li>
+                      </ul>
+                    </div>
+
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <h5 className="font-medium text-gray-900 mb-2">Step 2: Select Template</h5>
+                      <ul className="text-gray-700 text-sm space-y-1 ml-4">
+                        <li>• Click on "Templates" tab</li>
+                        <li>• Find your desired contract template</li>
+                        <li>• Click the "bullseye" (🎯) icon to open the PowerBrief editor</li>
+                        <li>• All fields (signatures, text fields, etc.) will be preloaded</li>
+                      </ul>
+                    </div>
+
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <h5 className="font-medium text-gray-900 mb-2">Step 3: Add Recipients</h5>
+                      <ul className="text-gray-700 text-sm space-y-1 ml-4">
+                        <li>• Click "Add Recipient"</li>
+                        <li>• All creators loaded into PowerBrief are available in the dropdown</li>
+                        <li>• Select the creator you want to send the contract to</li>
+                        <li>• Click "Add" to confirm the recipient</li>
+                      </ul>
+                    </div>
+
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <h5 className="font-medium text-gray-900 mb-2">Step 4: Send Contract</h5>
+                      <ul className="text-gray-700 text-sm space-y-1 ml-4">
+                        <li>• Click the "Send" button</li>
+                        <li>• Confirm by clicking "Send" again in the confirmation dialog</li>
+                        <li>• Wait for the "Contract sent successfully" message</li>
+                        <li>• The system will automatically send an email to the creator</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border border-gray-200 rounded-lg p-5">
+                  <h4 className="text-lg font-medium text-gray-900 mb-4">Method 2: Sending Contracts from Script Pipeline</h4>
+                  
+                  <div className="space-y-4">
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                      <div className="flex items-start">
+                        <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5 mr-3 flex-shrink-0" />
+                        <div>
+                          <h5 className="font-medium text-amber-900 mb-1">Contract Requirement</h5>
+                          <p className="text-amber-800 text-sm">
+                            When a script reaches "Send Scripts to Creator" status, you cannot proceed without sending a contract first.
+                            The system will show a warning if the creator's contract status is not signed.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <h5 className="font-medium text-gray-900 mb-2">Step 1: Navigate to Script</h5>
+                      <ul className="text-gray-700 text-sm space-y-1 ml-4">
+                        <li>• Go to UGC Pipeline → Concept View</li>
+                        <li>• Find a script with "Send Scripts to Creator" status</li>
+                        <li>• Look for the contract warning if the creator hasn't signed</li>
+                      </ul>
+                    </div>
+
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <h5 className="font-medium text-gray-900 mb-2">Step 2: Send Contract</h5>
+                      <ul className="text-gray-700 text-sm space-y-1 ml-4">
+                        <li>• Click "Send Contract" button in the script card</li>
+                        <li>• This opens the contract template selection dialog</li>
+                        <li>• Select your preferred template and click "Send"</li>
+                        <li>• The contract will be sent to the assigned creator automatically</li>
+                      </ul>
+                    </div>
+
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <h5 className="font-medium text-gray-900 mb-2">Step 3: Continue with Script</h5>
+                      <ul className="text-gray-700 text-sm space-y-1 ml-4">
+                        <li>• Once contract is sent, the warning changes to "Contract Pending"</li>
+                        <li>• You can now proceed with sending the script to the creator</li>
+                        <li>• The "Send Scripts to Creator" action will be enabled</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border border-gray-200 rounded-lg p-5">
+                  <h4 className="text-lg font-medium text-gray-900 mb-4">Creator Signing Process</h4>
+                  
+                  <div className="space-y-4">
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <h5 className="font-medium text-gray-900 mb-2">Email Delivery</h5>
+                      <ul className="text-gray-700 text-sm space-y-1 ml-4">
+                        <li>• Creator receives an email with a link to sign the contract</li>
+                        <li>• The email contains all necessary information and instructions</li>
+                        <li>• Creator clicks the link to access the signing interface</li>
+                      </ul>
+                    </div>
+
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <h5 className="font-medium text-gray-900 mb-2">Signing Interface</h5>
+                      <ul className="text-gray-700 text-sm space-y-1 ml-4">
+                        <li>• Creator can review the entire contract document</li>
+                        <li>• Fill out any required text fields</li>
+                        <li>• Provide digital signature where indicated</li>
+                        <li>• Click "Complete" to finalize the signing</li>
+                      </ul>
+                    </div>
+
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <h5 className="font-medium text-gray-900 mb-2">Completion & Confirmation</h5>
+                      <ul className="text-gray-700 text-sm space-y-1 ml-4">
+                        <li>• System sends confirmation email to both parties</li>
+                        <li>• Contract status automatically updates to "Contract Signed"</li>
+                        <li>• Signed document is available for download</li>
+                        <li>• Creator's profile is automatically updated in the system</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border border-gray-200 rounded-lg p-5">
+                  <h4 className="text-lg font-medium text-gray-900 mb-4">Creating New Templates</h4>
+                  
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <h5 className="font-medium text-gray-900 mb-2">PowerBrief Editor</h5>
+                    <ul className="text-gray-700 text-sm space-y-1 ml-4">
+                      <li>• Click "New Template" → "PowerBrief Editor"</li>
+                      <li>• Upload a PDF contract document</li>
+                      <li>• Add interactive fields (signature, text, date, etc.)</li>
+                      <li>• Save as template for future use</li>
+                      <li>• All field positions and types are preserved</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </section>
+
             {/* Pro Tips */}
             <section className="mb-8">
               <h3 className="text-xl font-semibold text-gray-900 mb-4">Pro Tips</h3>
@@ -251,6 +412,9 @@ export default function UGCPipelineSOPPage() {
                       <li>• Implement automated approval workflows for efficiency</li>
                       <li>• Build long-term relationships with top-performing creators</li>
                       <li>• Leverage user-generated content for organic amplification</li>
+                      <li>• Send contracts early in the creator relationship to establish legal protection</li>
+                      <li>• Create different contract templates for different creator tiers or project types</li>
+                      <li>• Monitor contract status regularly to avoid pipeline bottlenecks</li>
                     </ul>
                   </div>
                 </div>
@@ -279,6 +443,12 @@ export default function UGCPipelineSOPPage() {
                   <p className="text-red-800 text-sm mb-2">Keeping multiple projects on track with different creators and deadlines.</p>
                   <p className="text-red-700 text-sm font-medium">Solution: Use project management tools and build buffer time into schedules.</p>
                 </div>
+                
+                <div className="border border-red-200 bg-red-50 rounded-lg p-4">
+                  <h4 className="font-medium text-red-900 mb-2">Challenge: Contract Management Delays</h4>
+                  <p className="text-red-800 text-sm mb-2">Scripts getting stuck in the pipeline because contracts haven't been sent or signed.</p>
+                  <p className="text-red-700 text-sm font-medium">Solution: Send contracts immediately when creators are assigned and monitor contract status regularly.</p>
+                </div>
               </div>
             </section>
 
@@ -297,6 +467,8 @@ export default function UGCPipelineSOPPage() {
                   <li>• Maintain consistent communication throughout the process</li>
                   <li>• Build quality control checkpoints at every stage</li>
                   <li>• Track performance metrics to optimize future campaigns</li>
+                  <li>• Send contracts early and monitor signing status to prevent pipeline delays</li>
+                  <li>• Use automated contract status updates to keep creator profiles current</li>
                 </ul>
               </div>
             </section>

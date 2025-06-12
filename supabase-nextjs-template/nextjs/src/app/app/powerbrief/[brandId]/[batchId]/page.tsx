@@ -43,13 +43,20 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
     const [savingConceptId, setSavingConceptId] = useState<string | null>(null);
     const [generatingAI, setGeneratingAI] = useState<boolean>(false);
     const [generatingConceptIds, setGeneratingConceptIds] = useState<Record<string, boolean>>({});
-    const [generatingBRollIds, setGeneratingBRollIds] = useState<Record<string, boolean>>({});
     const [generatingAllBRoll, setGeneratingAllBRoll] = useState<boolean>(false);
     const [brollQueueStatus, setBrollQueueStatus] = useState<{
         queueLength: number;
         isProcessing: boolean;
         items: Array<{ conceptId: string; status: string; visualCount: number; retryCount: number; timestamp: number }>;
     } | null>(null);
+    
+    // New single visual B-roll progress tracking
+    const [brollProgress, setBrollProgress] = useState<Record<string, {
+        completed: number;
+        total: number;
+        inProgress: boolean;
+        errors: string[];
+    }>>({});
     const fileInputRef = useRef<HTMLInputElement>(null);
     const multipleFileInputRef = useRef<HTMLInputElement>(null);
     const pdfInputRef = useRef<HTMLInputElement>(null);
@@ -118,6 +125,7 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
 
     // Filtering and sorting state
     const [filterStatus, setFilterStatus] = useState<string>('all');
+    const [filterStatusType, setFilterStatusType] = useState<'is' | 'is_not'>('is');
     const [filterEditor, setFilterEditor] = useState<string>('all');
     const [filterProduct, setFilterProduct] = useState<string>('all');
     const [filterStrategist, setFilterStrategist] = useState<string>('all');
@@ -521,9 +529,17 @@ Focus on search optimization, reader value, and conversion potential.`
 
     const filterConcepts = (conceptsToFilter: BriefConcept[]): BriefConcept[] => {
         return conceptsToFilter.filter(concept => {
-            // Status filter
-            if (filterStatus !== 'all' && concept.status !== filterStatus) {
-                return false;
+            // Status filter with IS/IS NOT logic
+            if (filterStatus !== 'all') {
+                if (filterStatusType === 'is') {
+                    if (concept.status !== filterStatus) {
+                        return false;
+                    }
+                } else { // is_not
+                    if (concept.status === filterStatus) {
+                        return false;
+                    }
+                }
             }
             
             // Editor filter
@@ -596,6 +612,7 @@ Focus on search optimization, reader value, and conversion potential.`
 
     const resetFilters = () => {
         setFilterStatus('all');
+        setFilterStatusType('is');
         setFilterEditor('all');
         setFilterProduct('all');
         setFilterStrategist('all');
@@ -1457,57 +1474,103 @@ Focus on search optimization, reader value, and conversion potential.`
             return;
         }
         
-        try {
-            setGeneratingBRollIds(prev => ({
-                ...prev,
-                [conceptId]: true
-            }));
-            setError(null);
+        // Extract visual descriptions from scenes
+        const visuals = concept.body_content_structured
+            .map(scene => scene.visuals)
+            .filter(visual => visual && visual.trim() !== '');
             
-            // Extract visual descriptions from scenes
-            const visuals = concept.body_content_structured
-                .map(scene => scene.visuals)
-                .filter(visual => visual && visual.trim() !== '');
+        if (visuals.length === 0) {
+            setError('No visual descriptions found in scenes. Please add visual descriptions to generate B-roll.');
+            return;
+        }
+        
+        console.log(`Starting single visual B-roll generation for concept ${conceptId} with ${visuals.length} visuals`);
+        
+        // Initialize progress tracking
+        setBrollProgress(prev => ({
+            ...prev,
+            [conceptId]: {
+                completed: 0,
+                total: visuals.length,
+                inProgress: true,
+                errors: []
+            }
+        }));
+        
+        setError(null);
+        
+        // Process each visual individually
+        for (let i = 0; i < visuals.length; i++) {
+            const visualDescription = visuals[i];
+            
+            try {
+                console.log(`Processing visual ${i + 1}/${visuals.length} for concept ${conceptId}`);
                 
-            if (visuals.length === 0) {
-                setError('No visual descriptions found in scenes. Please add visual descriptions to generate B-roll.');
-                return;
+                const response = await fetch('/api/powerbrief/generate-broll-single', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        conceptId,
+                        visualDescription,
+                        visualIndex: i,
+                        totalVisuals: visuals.length
+                    }),
+                });
+                
+                const result = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(result.message || `Failed to generate B-roll for visual ${i + 1}`);
+                }
+                
+                console.log(`Visual ${i + 1}/${visuals.length} completed for concept ${conceptId}:`, result);
+                
+                // Update progress
+                setBrollProgress(prev => ({
+                    ...prev,
+                    [conceptId]: {
+                        ...prev[conceptId],
+                        completed: i + 1
+                    }
+                }));
+                
+                // Refresh concepts to show the newly generated video
+                const updatedConcepts = await getBriefConcepts(batchId);
+                setConcepts(updatedConcepts);
+                
+            } catch (err: unknown) {
+                const errorMsg = err instanceof Error ? err.message : `Unknown error for visual ${i + 1}`;
+                console.error(`Failed to generate B-roll for visual ${i + 1}:`, err);
+                
+                // Add error to progress tracking
+                setBrollProgress(prev => ({
+                    ...prev,
+                    [conceptId]: {
+                        ...prev[conceptId],
+                        completed: i + 1, // Still count as processed
+                        errors: [...(prev[conceptId]?.errors || []), errorMsg]
+                    }
+                }));
             }
-            
-            console.log(`Generating B-roll for concept ${conceptId} with ${visuals.length} visuals`);
-            
-            const response = await fetch('/api/powerbrief/generate-broll', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    conceptId,
-                    visuals
-                }),
-            });
-            
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => null);
-                throw new Error(errorData?.message || `Failed to generate B-roll (HTTP ${response.status})`);
+        }
+        
+        // Mark as complete
+        setBrollProgress(prev => ({
+            ...prev,
+            [conceptId]: {
+                ...prev[conceptId],
+                inProgress: false
             }
-            
-            const result = await response.json();
-            console.log('B-roll generation completed:', result);
-            
-            // Refresh the concept data to get the updated generated_broll
-            const updatedConcepts = await getBriefConcepts(batchId);
-            setConcepts(updatedConcepts);
-            
-        } catch (err: unknown) {
-            console.error('Failed to generate Veo 2 B-roll:', err);
-            setError(`Veo 2 B-roll generation failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
-        } finally {
-            setGeneratingBRollIds(prev => {
-                const updated = { ...prev };
-                delete updated[conceptId];
-                return updated;
-            });
+        }));
+        
+        console.log(`B-roll generation completed for concept ${conceptId}`);
+        
+        // Show any errors that occurred
+        const finalProgress = brollProgress[conceptId];
+        if (finalProgress?.errors.length > 0) {
+            setError(`B-roll generation completed with ${finalProgress.errors.length} errors: ${finalProgress.errors.join(', ')}`);
         }
     };
 
@@ -3149,17 +3212,28 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                         <span className="text-sm font-medium">Filters:</span>
                     </div>
                     
-                    <Select value={filterStatus} onValueChange={setFilterStatus}>
-                        <SelectTrigger className="w-40">
-                            <SelectValue placeholder="Status" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">All Status</SelectItem>
-                            {getUniqueValues('status').map(status => (
-                                <SelectItem key={status} value={status}>{status}</SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
+                    <div className="flex items-center gap-1">
+                        <Select value={filterStatusType} onValueChange={(value) => setFilterStatusType(value as 'is' | 'is_not')}>
+                            <SelectTrigger className="w-20">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="is">IS</SelectItem>
+                                <SelectItem value="is_not">IS NOT</SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <Select value={filterStatus} onValueChange={setFilterStatus}>
+                            <SelectTrigger className="w-40">
+                                <SelectValue placeholder="Status" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All Status</SelectItem>
+                                {getUniqueValues('status').map(status => (
+                                    <SelectItem key={status} value={status}>{status}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
 
                     <Select value={filterEditor} onValueChange={setFilterEditor}>
                         <SelectTrigger className="w-40">
@@ -3241,6 +3315,11 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
 
                     <div className="ml-auto text-sm text-gray-500">
                         Showing {sortedAndFilteredConcepts.length} of {concepts.length} concepts
+                        {filterStatus !== 'all' && filterStatusType === 'is_not' && (
+                            <span className="ml-2 text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded">
+                                Excluding: {filterStatus}
+                            </span>
+                        )}
                     </div>
                 </div>
             </Card>
@@ -3999,32 +4078,73 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                     
                                     {/* B-roll Generation Button - only for video concepts */}
                                     {localMediaTypes[concept.id] === 'video' && concept.body_content_structured?.length > 0 && (
-                                        <Button
-                                            size="sm"
-                                            className="ml-2 bg-purple-600 text-white hover:bg-purple-700 flex items-center"
-                                            disabled={generatingBRollIds[concept.id] || (brollQueueStatus && brollQueueStatus.items.some(item => item.conceptId === concept.id))}
-                                            onClick={() => handleGenerateBRoll(concept.id)}
-                                            title={brollQueueStatus && brollQueueStatus.items.some(item => item.conceptId === concept.id) ? 
-                                                "This concept is already in the B-roll generation queue" : 
-                                                "Generate B-roll videos for this concept using VEO 2"}
-                                        >
-                                            {generatingBRollIds[concept.id] ? (
-                                                <>
-                                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                                    Generating VEO 2 B-roll...
-                                                </>
-                                            ) : brollQueueStatus && brollQueueStatus.items.some(item => item.conceptId === concept.id) ? (
-                                                <>
-                                                    <Film className="h-4 w-4 mr-2" />
-                                                    In Queue
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <Film className="h-4 w-4 mr-2" />
-                                                    Generate VEO 2 B-roll
-                                                </>
+                                        <div className="ml-2">
+                                            <Button
+                                                size="sm"
+                                                className="bg-purple-600 text-white hover:bg-purple-700 flex items-center"
+                                                disabled={brollProgress[concept.id]?.inProgress || (brollQueueStatus && brollQueueStatus.items.some(item => item.conceptId === concept.id))}
+                                                onClick={() => handleGenerateBRoll(concept.id)}
+                                                title={brollQueueStatus && brollQueueStatus.items.some(item => item.conceptId === concept.id) ? 
+                                                    "This concept is already in the B-roll generation queue" : 
+                                                    "Generate B-roll videos for this concept using VEO 2"}
+                                            >
+                                                {brollProgress[concept.id]?.inProgress ? (
+                                                    <>
+                                                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                                        Generating ({brollProgress[concept.id]?.completed || 0}/{brollProgress[concept.id]?.total || 0})
+                                                    </>
+                                                ) : brollQueueStatus && brollQueueStatus.items.some(item => item.conceptId === concept.id) ? (
+                                                    <>
+                                                        <Film className="h-4 w-4 mr-2" />
+                                                        In Queue
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Film className="h-4 w-4 mr-2" />
+                                                        Generate VEO 2 B-roll
+                                                    </>
+                                                )}
+                                            </Button>
+                                            
+                                            {/* Progress Bar */}
+                                            {brollProgress[concept.id] && (
+                                                <div className="mt-2">
+                                                    <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
+                                                        <span>B-roll Progress</span>
+                                                        <span>{brollProgress[concept.id].completed}/{brollProgress[concept.id].total} visuals</span>
+                                                    </div>
+                                                    <div className="w-full bg-gray-200 rounded-full h-2">
+                                                        <div 
+                                                            className="bg-purple-600 h-2 rounded-full transition-all duration-300"
+                                                            style={{ 
+                                                                width: `${(brollProgress[concept.id].completed / brollProgress[concept.id].total) * 100}%` 
+                                                            }}
+                                                        />
+                                                    </div>
+                                                    {brollProgress[concept.id].errors.length > 0 && (
+                                                        <div className="mt-1 text-xs text-red-600">
+                                                            {brollProgress[concept.id].errors.length} error(s) occurred
+                                                        </div>
+                                                    )}
+                                                    {!brollProgress[concept.id].inProgress && (
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            className="mt-2 text-xs"
+                                                            onClick={() => {
+                                                                setBrollProgress(prev => {
+                                                                    const updated = { ...prev };
+                                                                    delete updated[concept.id];
+                                                                    return updated;
+                                                                });
+                                                            }}
+                                                        >
+                                                            Clear Progress
+                                                        </Button>
+                                                    )}
+                                                </div>
                                             )}
-                                        </Button>
+                                        </div>
                                     )}
                                     
                                     {/* Hook Options UI - only for videos */}
@@ -4630,6 +4750,16 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                                 brollData={concept.generated_broll}
                                                 conceptTitle={concept.concept_title}
                                                 isPublicView={false}
+                                                conceptId={concept.id}
+                                                onVideosDeleted={async () => {
+                                                    // Refresh the concept data after deletion
+                                                    try {
+                                                        const updatedConcepts = await getBriefConcepts(batchId);
+                                                        setConcepts(updatedConcepts);
+                                                    } catch (error) {
+                                                        console.error('Failed to refresh concepts after video deletion:', error);
+                                                    }
+                                                }}
                                             />
                                         </div>
                                     )}

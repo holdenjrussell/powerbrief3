@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Download, Play, Eye, Folder } from 'lucide-react';
+import { Download, Play, Eye, Folder, Trash2, AlertTriangle } from 'lucide-react';
 
 interface GeneratedVideo {
   visual_description: string;
@@ -18,11 +18,15 @@ interface BRollViewerProps {
   brollData: GeneratedVideo[];
   conceptTitle?: string;
   isPublicView?: boolean;
+  conceptId?: string;
+  onVideosDeleted?: () => void;
 }
 
-export default function BRollViewer({ brollData, conceptTitle, isPublicView = false }: BRollViewerProps) {
+export default function BRollViewer({ brollData, conceptTitle, isPublicView = false, conceptId, onVideosDeleted }: BRollViewerProps) {
   const [selectedVideo, setSelectedVideo] = useState<{ url: string; description: string; prompt: string } | null>(null);
   const [showPrompt, setShowPrompt] = useState<boolean>(false);
+  const [deletingVideo, setDeletingVideo] = useState<{ visualIndex: number; videoIndex?: number } | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<boolean>(false);
 
   if (!brollData || brollData.length === 0) {
     return (
@@ -81,6 +85,68 @@ export default function BRollViewer({ brollData, conceptTitle, isPublicView = fa
     }
   };
 
+  const handleDeleteVideo = async (visualIndex: number, videoIndex?: number) => {
+    if (!conceptId) return;
+
+    try {
+      const response = await fetch('/api/powerbrief/delete-broll', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          conceptId,
+          visualIndex,
+          videoIndex
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to delete video');
+      }
+
+      // Call the callback to refresh data
+      if (onVideosDeleted) {
+        onVideosDeleted();
+      }
+
+      setDeletingVideo(null);
+      setShowDeleteConfirm(false);
+    } catch (error) {
+      console.error('Error deleting video:', error);
+    }
+  };
+
+  const handleDeleteAllBRoll = async () => {
+    if (!conceptId) return;
+
+    try {
+      const response = await fetch('/api/powerbrief/delete-broll', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ conceptId })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to delete all videos');
+      }
+
+      // Call the callback to refresh data
+      if (onVideosDeleted) {
+        onVideosDeleted();
+      }
+
+      setShowDeleteConfirm(false);
+    } catch (error) {
+      console.error('Error deleting all videos:', error);
+    }
+  };
+
+  const confirmDelete = (visualIndex: number, videoIndex?: number) => {
+    setDeletingVideo({ visualIndex, videoIndex });
+    setShowDeleteConfirm(true);
+  };
+
   return (
     <div className="space-y-6">
       <Card>
@@ -98,15 +164,28 @@ export default function BRollViewer({ brollData, conceptTitle, isPublicView = fa
                 {totalVideos} videos generated
               </Badge>
               {!isPublicView && (
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={handleDownloadAll}
-                  className="flex items-center"
-                >
-                  <Download className="h-4 w-4 mr-1" />
-                  Download All
-                </Button>
+                <>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={handleDownloadAll}
+                    className="flex items-center"
+                  >
+                    <Download className="h-4 w-4 mr-1" />
+                    Download All
+                  </Button>
+                  {conceptId && (
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => confirmDelete(-1)}
+                      className="flex items-center text-red-600 hover:text-red-700 hover:bg-red-50"
+                    >
+                      <Trash2 className="h-4 w-4 mr-1" />
+                      Delete All
+                    </Button>
+                  )}
+                </>
               )}
             </div>
           </div>
@@ -136,7 +215,7 @@ export default function BRollViewer({ brollData, conceptTitle, isPublicView = fa
                             <Play className="h-4 w-4 text-white" />
                           </div>
                         </div>
-                        <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
                           <Button
                             variant="ghost"
                             size="sm"
@@ -148,27 +227,53 @@ export default function BRollViewer({ brollData, conceptTitle, isPublicView = fa
                           >
                             <Download className="h-3 w-3" />
                           </Button>
+                          {!isPublicView && conceptId && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 p-0 bg-red-500/80 hover:bg-red-600/90 text-white"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                confirmDelete(brollIndex, videoIndex);
+                              }}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          )}
                         </div>
                       </div>
                     ))}
                   </div>
                   {!isPublicView && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="w-full mt-2 text-xs"
-                      onClick={() => {
-                        setSelectedVideo({ 
-                          url: brollItem.video_urls[0], 
-                          description: brollItem.visual_description, 
-                          prompt: brollItem.gemini_prompt 
-                        });
-                        setShowPrompt(true);
-                      }}
-                    >
-                      <Eye className="h-3 w-3 mr-1" />
-                      View AI Prompt
-                    </Button>
+                    <div className="flex gap-1 mt-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="flex-1 text-xs"
+                        onClick={() => {
+                          setSelectedVideo({ 
+                            url: brollItem.video_urls[0], 
+                            description: brollItem.visual_description, 
+                            prompt: brollItem.gemini_prompt 
+                          });
+                          setShowPrompt(true);
+                        }}
+                      >
+                        <Eye className="h-3 w-3 mr-1" />
+                        View AI Prompt
+                      </Button>
+                      {conceptId && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
+                          onClick={() => confirmDelete(brollIndex)}
+                        >
+                          <Trash2 className="h-3 w-3 mr-1" />
+                          Delete Visual
+                        </Button>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>
@@ -259,6 +364,49 @@ export default function BRollViewer({ brollData, conceptTitle, isPublicView = fa
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center text-red-600">
+              <AlertTriangle className="h-5 w-5 mr-2" />
+              Confirm Deletion
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">
+              {deletingVideo?.visualIndex === -1 
+                ? 'Are you sure you want to delete ALL B-roll videos? This action cannot be undone.'
+                : deletingVideo?.videoIndex !== undefined
+                ? `Are you sure you want to delete this video from Visual ${(deletingVideo?.visualIndex || 0) + 1}?`
+                : `Are you sure you want to delete all videos from Visual ${(deletingVideo?.visualIndex || 0) + 1}?`
+              }
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowDeleteConfirm(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  if (deletingVideo?.visualIndex === -1) {
+                    handleDeleteAllBRoll();
+                  } else if (deletingVideo) {
+                    handleDeleteVideo(deletingVideo.visualIndex, deletingVideo.videoIndex);
+                  }
+                }}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
