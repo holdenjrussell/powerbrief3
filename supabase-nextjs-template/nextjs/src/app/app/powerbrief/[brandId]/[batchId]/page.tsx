@@ -3726,14 +3726,30 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                         <label className="block text-xs font-medium mb-1" id={`status-label-${concept.id}`}>Status:</label>
                                         <select
                                             value={concept.status || ''}
-                                            onChange={(e) => {
+                                            onChange={async (e) => {
                                                 const updatedConcept = {
                                                     ...concept,
                                                     status: e.target.value
                                                 };
-                                                handleUpdateConcept(updatedConcept);
+                                                try {
+                                                    setSavingConceptId(concept.id);
+                                                    await handleUpdateConcept(updatedConcept);
+                                                } catch (err) {
+                                                    console.error('Failed to update concept status:', err);
+                                                    setError(`Failed to update status: ${err instanceof Error ? err.message : 'Unknown error'}`);
+                                                    // Revert the dropdown by refreshing concepts from the server
+                                                    try {
+                                                        const refreshedConcepts = await getBriefConcepts(params.batchId);
+                                                        setConcepts(refreshedConcepts);
+                                                    } catch (refreshErr) {
+                                                        console.error('Failed to refresh concepts:', refreshErr);
+                                                    }
+                                                } finally {
+                                                    setSavingConceptId(null);
+                                                }
                                             }}
-                                            className="w-full p-2 text-sm border rounded"
+                                            disabled={savingConceptId === concept.id}
+                                            className={`w-full p-2 text-sm border rounded ${savingConceptId === concept.id ? 'opacity-50 cursor-not-allowed' : ''}`}
                                             aria-labelledby={`status-label-${concept.id}`}
                                         >
                                             <option value="">Select Status</option>
@@ -3938,6 +3954,8 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                             </div>
                                         ))}
                                     </div>
+
+
                                     
                                     {/* Share button for individual concept */}
                                     <div className="flex justify-end mt-2">

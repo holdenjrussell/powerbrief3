@@ -446,14 +446,12 @@ export async function updateBriefConcept(concept: Partial<BriefConcept> & { id: 
     updated_at: new Date().toISOString()
   };
 
-  // Log what we're updating, including the hook fields
-  console.log('Updating concept: ', concept.id);
-  console.log('videoInstructions:', concept.videoInstructions);
-  console.log('designerInstructions:', concept.designerInstructions);
-  console.log('hook_type:', concept.hook_type);
-  console.log('hook_count:', concept.hook_count);
-  console.log('text_hook_options:', concept.text_hook_options);
-  console.log('spoken_hook_options:', concept.spoken_hook_options);
+  // Enhanced logging for debugging status updates
+  console.log('🔄 Updating concept ID:', concept.id);
+  if (concept.status !== undefined) {
+    console.log('📊 Status update:', concept.status);
+  }
+  console.log('🔧 Fields being updated:', Object.keys(dbConcept));
 
   const { data, error } = await supabase
     .from('brief_concepts')
@@ -463,8 +461,15 @@ export async function updateBriefConcept(concept: Partial<BriefConcept> & { id: 
     .single();
 
   if (error) {
-    console.error('Error updating concept:', error);
+    console.error('❌ Database error updating concept:', error);
+    console.error('🔍 Error details:', JSON.stringify(error, null, 2));
+    console.error('📋 Attempted update data:', JSON.stringify(dbConcept, null, 2));
     throw error;
+  }
+
+  console.log('✅ Concept updated successfully, ID:', concept.id);
+  if (concept.status !== undefined) {
+    console.log('📊 New status confirmed:', data.status);
   }
 
   // Transform from DB format to app format with type casting

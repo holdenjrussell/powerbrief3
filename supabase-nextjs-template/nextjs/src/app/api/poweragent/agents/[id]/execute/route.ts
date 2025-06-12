@@ -67,11 +67,23 @@ export async function POST(
       updated_at: agent.updated_at
     });
 
-    // Execute the agent
+    // Execute the agent using the correct VoltAgent method
     const startTime = Date.now();
-    const result = await agentInstance.execute({
-      prompt: input,
-      ...options
+    
+    // Use generateText for text generation
+    const result = await agentInstance.generateText(input, {
+      userId: options?.userId || user.id,
+      conversationId: options?.conversationId,
+      // Add provider options if provided
+      provider: options?.provider || {
+        temperature: options?.temperature,
+        maxTokens: options?.maxTokens,
+        topP: options?.topP,
+        frequencyPenalty: options?.frequencyPenalty,
+        presencePenalty: options?.presencePenalty,
+        seed: options?.seed,
+        stopSequences: options?.stopSequences
+      }
     });
 
     // Track metrics
@@ -83,15 +95,20 @@ export async function POST(
         agent_id: params.id,
         user_id: user.id,
         conversation_id: options?.conversationId,
-        tokens_used: (result as { usage?: { totalTokens?: number } })?.usage?.totalTokens || null,
+        tokens_used: result.usage?.totalTokens || null,
         execution_time_ms: executionTime,
         success: true,
       });
 
     return NextResponse.json({
-      response: typeof result === 'string' ? result : result.text || JSON.stringify(result),
-      tokensUsed: (result as { usage?: { totalTokens?: number } })?.usage?.totalTokens || 0,
-      executionTime
+      response: result.text,
+      tokensUsed: result.usage?.totalTokens || 0,
+      executionTime,
+      usage: result.usage,
+      // Include tool calls if any
+      toolCalls: result.toolCalls || [],
+      // Include any warnings
+      warnings: result.warnings || []
     });
 
   } catch (error) {

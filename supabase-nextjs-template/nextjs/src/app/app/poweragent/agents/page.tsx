@@ -36,6 +36,7 @@ import {
 } from '@/components/ui/select';
 import { AgentCard } from '@/components/poweragent/AgentCard';
 import { AgentMetrics } from '@/components/poweragent/AgentMetrics';
+import { CreateTestAgentButton } from '@/components/poweragent/CreateTestAgentButton';
 
 interface Agent {
   id: string;
@@ -222,6 +223,13 @@ export default function AgentsPage() {
             </Button>
           </div>
         </div>
+
+        {/* Test Agent Creation */}
+        {agents.length === 0 && (
+          <div className="mb-6">
+            <CreateTestAgentButton />
+          </div>
+        )}
 
         {/* Metrics Panel */}
         {showMetrics && (

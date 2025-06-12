@@ -34,33 +34,37 @@ export async function POST(req: NextRequest) {
     additionalInstructions: string;
   } = await req.json();
 
-  // Optional rate limiting - only if environment variables are set
-  try {
-    if (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) {
-      // Dynamic import to avoid build errors if packages aren't installed
-      const { Ratelimit } = await import("@upstash/ratelimit");
-      const { kv } = await import("@vercel/kv");
+  // Optional rate limiting - only if environment variables and packages are available
+  if (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) {
+    try {
+      // Dynamic import with error handling for optional packages
+      const [{ Ratelimit }, { kv }] = await Promise.all([
+        import("@upstash/ratelimit").catch(() => null),
+        import("@vercel/kv").catch(() => null)
+      ]);
       
-      const ratelimit = new Ratelimit({
-        redis: kv,
-        limiter: Ratelimit.slidingWindow(100, "10 s"),
-      });
+      if (Ratelimit && kv) {
+        const ratelimit = new Ratelimit({
+          redis: kv,
+          limiter: Ratelimit.slidingWindow(100, "10 s"),
+        });
 
-      const clientIP = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || '127.0.0.1';
-      const { success } = await ratelimit.limit(`ratelimit_${clientIP}`);
+        const clientIP = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || '127.0.0.1';
+        const { success } = await ratelimit.limit(`ratelimit_${clientIP}`);
 
-      if (!success) {
-        return NextResponse.json(
-          { error: "Rate limit exceeded" },
-          { status: 429 }
-        );
+        if (!success) {
+          return NextResponse.json(
+            { error: "Rate limit exceeded" },
+            { status: 429 }
+          );
+        }
+      } else {
+        console.log("Rate limiting packages not available - continuing without rate limiting");
       }
-    } else {
-      console.log("Rate limiting disabled - KV environment variables not set");
+    } catch (error) {
+      console.log("Rate limiting unavailable:", error);
+      // Continue without rate limiting if packages aren't available or other errors occur
     }
-  } catch (error) {
-    console.log("Rate limiting unavailable:", error);
-    // Continue without rate limiting if packages aren't available
   }
 
   const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;

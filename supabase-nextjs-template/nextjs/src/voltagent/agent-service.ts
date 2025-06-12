@@ -1,4 +1,4 @@
-import { Agent, createTool, createToolkit, createHooks } from '@voltagent/core';
+import { Agent, createTool, createToolkit, createHooks, type Tool, type Toolkit, type Hooks, type LLMProvider, type BaseVoiceProvider, type BaseMemory } from '@voltagent/core';
 import { VercelAIProvider } from '@voltagent/vercel-ai';
 import { GoogleGenAIProvider } from '@voltagent/google-ai';
 import { GroqProvider } from '@voltagent/groq-ai';
@@ -77,6 +77,10 @@ class AgentRegistry {
     const subAgentIds = this.relationships.get(supervisorId) || [];
     return subAgentIds.map(id => this.getAgent(id)).filter(Boolean) as Agent[];
   }
+
+  getAllAgents(): Map<string, Agent> {
+    return this.agents;
+  }
 }
 
 export class PowerAgentService {
@@ -89,24 +93,34 @@ export class PowerAgentService {
   async createAgent(config: PowerAgentConfig): Promise<Agent> {
     try {
       // Create LLM provider
-      const llmProvider = this.createProvider(config.provider);
+      const llmProvider = this.createProvider(config.provider, config.brand_id);
       const model = this.createModel(config.provider, config.model);
 
       // Create memory if configured
       let memory;
       if (config.memory && Object.keys(config.memory).length > 0) {
-        memory = new SupabaseMemory({
-          url: process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-          key: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
-          table: 'poweragent_memory',
-          brandId: config.brand_id
-        });
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+        
+        if (!supabaseUrl || !supabaseKey) {
+          console.warn('Supabase credentials not found, memory will be disabled');
+        } else {
+          memory = new SupabaseMemory({
+            supabaseUrl,
+            supabaseKey,
+            tableName: 'poweragent_memory',
+            // Additional configuration for brand segregation
+            metadata: {
+              brandId: config.brand_id
+            }
+          });
+        }
       }
 
       // Create voice provider if configured
       let voice;
       if (config.voice && Object.keys(config.voice).length > 0) {
-        voice = this.createVoiceProvider(config.voice);
+        voice = await this.createVoiceProvider(config.voice, config.brand_id);
       }
 
       // Create tools
@@ -137,20 +151,41 @@ export class PowerAgentService {
         this.registry.registerRelationship(supervisorId, subAgentId);
       }
 
-      // Create the agent
-      const agentConfig = {
+      // Create the agent with proper configuration
+      const agentConfig: {
+        name: string;
+        instructions: string;
+        llm: LLMProvider;
+        model: unknown;
+        memory?: BaseMemory;
+        voice?: BaseVoiceProvider;
+        hooks?: Hooks;
+        tools?: (Tool | Toolkit)[];
+        subAgents?: Agent[];
+      } = {
         name: config.name,
-        purpose: config.purpose,
         instructions: config.instructions,
         llm: llmProvider,
         model,
-        tools,
-        toolkits,
         memory,
         voice,
-        hooks,
-        subAgents: subAgents.length > 0 ? subAgents : undefined
+        hooks
       };
+
+      // Add tools - combine individual tools and toolkits
+      const allTools = [...tools];
+      toolkits.forEach(toolkit => {
+        allTools.push(toolkit);
+      });
+      
+      if (allTools.length > 0) {
+        agentConfig.tools = allTools;
+      }
+
+      // Add sub-agents if any
+      if (subAgents.length > 0) {
+        agentConfig.subAgents = subAgents;
+      }
 
       const agent = new Agent(agentConfig);
 
@@ -164,18 +199,34 @@ export class PowerAgentService {
     }
   }
 
-  private createProvider(provider: string) {
+  private createProvider(provider: string, brandId?: string): LLMProvider {
+    // brandId will be used in future to fetch brand-specific API keys
+    void brandId; // Suppress unused parameter warning
     switch (provider) {
       case 'vercel-ai':
         return new VercelAIProvider();
       case 'google-ai':
-        return new GoogleGenAIProvider();
+        const googleApiKey = process.env.GOOGLE_AI_API_KEY;
+        if (!googleApiKey) {
+          console.warn('Google AI API key not found, falling back to VercelAI provider');
+          return new VercelAIProvider();
+        }
+        return new GoogleGenAIProvider({
+          apiKey: googleApiKey
+        });
       case 'groq-ai':
-        return new GroqProvider();
+        return new GroqProvider({
+          apiKey: process.env.GROQ_API_KEY
+        });
       case 'anthropic-ai':
-        return new AnthropicProvider();
+        return new AnthropicProvider({
+          apiKey: process.env.ANTHROPIC_API_KEY
+        });
       case 'xsai':
-        return new XSAIProvider();
+        return new XSAIProvider({
+          apiKey: process.env.OPENAI_API_KEY,
+          baseURL: process.env.XSAI_BASE_URL
+        });
       default:
         console.warn(`Unknown provider: ${provider}, using VercelAI as fallback`);
         return new VercelAIProvider();
@@ -185,44 +236,54 @@ export class PowerAgentService {
   private createModel(provider: string, modelName: string) {
     switch (provider) {
       case 'vercel-ai':
+        // Vercel AI provider expects model objects from the SDK
         if (modelName.startsWith('gpt-')) {
           return openai(modelName);
         } else if (modelName.startsWith('claude-')) {
           return anthropic(modelName);
         } else if (modelName.startsWith('gemini-')) {
           return google(modelName);
-        } else if (modelName.includes('groq') || modelName.includes('llama')) {
+        } else if (modelName.includes('groq') || modelName.includes('llama') || modelName.includes('mixtral')) {
           return groq(modelName);
         }
         return openai('gpt-4o'); // Default fallback
+        
       case 'google-ai':
-        return google(modelName);
       case 'groq-ai':
-        return groq(modelName);
       case 'anthropic-ai':
-        return anthropic(modelName);
       case 'xsai':
-        return { model: modelName }; // xsAI might have different model format
+        // These providers expect string model names
+        return modelName;
+        
       default:
-        return openai('gpt-4o');
+        return modelName;
     }
   }
 
-  private createVoiceProvider(voiceConfig: Record<string, unknown>) {
+  private async createVoiceProvider(voiceConfig: Record<string, unknown>, brandId?: string): Promise<BaseVoiceProvider | undefined> {
     const provider = voiceConfig.provider as string;
+    
+    // TODO: Fetch brand-specific API keys from database using brandId
+    // For now, use environment variables
+    void brandId; // Suppress unused parameter warning
     
     switch (provider) {
       case 'openai':
         return new OpenAIVoiceProvider({
           apiKey: process.env.OPENAI_API_KEY || '',
-          ...voiceConfig
+          ttsModel: voiceConfig.ttsModel as string || 'tts-1',
+          voice: voiceConfig.voice as string || 'alloy'
         });
+        
       case 'elevenlabs':
+        // According to memory, use brand's elevenlabs_api_key
         return new ElevenLabsVoiceProvider({
           apiKey: process.env.ELEVENLABS_API_KEY || '',
-          ...voiceConfig
+          voice: voiceConfig.voice as string || 'Rachel',
+          ttsModel: voiceConfig.ttsModel as string
         });
-      default:
+        
+            default:
         return undefined;
     }
   }
