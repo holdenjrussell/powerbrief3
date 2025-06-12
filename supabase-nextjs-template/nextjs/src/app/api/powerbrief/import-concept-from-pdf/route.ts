@@ -4,11 +4,49 @@ import { createClient } from '@/utils/supabase/server';
 
 // Use the same model as the main power brief system
 const MODEL_NAME = 'gemini-2.5-pro-preview-05-06';
+const FALLBACK_MODEL = 'gemini-2.5-flash-preview-05-20';
 
 // Helper to get proper mime type for PDFs
 const getProperMimeType = (fileUrl: string): string => {
   if (fileUrl.endsWith('.pdf')) return 'application/pdf';
   return 'application/pdf'; // Default to PDF
+};
+
+// Helper function to add delay between requests
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+// Helper function to retry API calls with exponential backoff
+const retryWithBackoff = async <T>(
+  fn: () => Promise<T>,
+  maxRetries: number = 3,
+  baseDelay: number = 1000
+): Promise<T> => {
+  let lastError: Error;
+  
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error as Error;
+      
+      // Check if it's a 503 (service overloaded) or rate limit error
+      if (lastError.message.includes('503') || 
+          lastError.message.includes('overloaded') ||
+          lastError.message.includes('rate') ||
+          lastError.message.includes('quota')) {
+        
+        const delayTime = baseDelay * Math.pow(2, attempt) + Math.random() * 1000;
+        console.log(`Attempt ${attempt + 1} failed, retrying in ${delayTime}ms...`);
+        await delay(delayTime);
+        continue;
+      }
+      
+      // If it's not a retryable error, throw immediately
+      throw error;
+    }
+  }
+  
+  throw lastError;
 };
 
 export async function POST(request: NextRequest) {
@@ -56,8 +94,10 @@ export async function POST(request: NextRequest) {
 
     // Initialize the API
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ 
-      model: MODEL_NAME,
+    
+    // Helper to create model with safety settings
+    const createModel = (modelName: string) => genAI.getGenerativeModel({ 
+      model: modelName,
       safetySettings: [
         {
           category: HarmCategory.HARM_CATEGORY_HARASSMENT,
@@ -77,6 +117,9 @@ export async function POST(request: NextRequest) {
         },
       ],
     });
+    
+    const model = createModel(MODEL_NAME);
+    const fallbackModel = createModel(FALLBACK_MODEL);
 
     // System instructions for PDF concept extraction
     const systemPrompt = `You are an expert advertising strategist and copywriter specializing in direct response marketing.
@@ -140,11 +183,24 @@ Please extract and reformat the content from this PDF into the requested JSON fo
           }
         ];
 
-        // Generate the content
+        // Generate the content with retry logic and fallback
         console.log('Sending generation request to Gemini API...');
-        const result = await model.generateContent({ 
-          contents: [{ role: "user", parts }] 
-        });
+        
+        let result;
+        try {
+          result = await retryWithBackoff(async () => {
+            return await model.generateContent({ 
+              contents: [{ role: "user", parts }] 
+            });
+          });
+        } catch (_primaryError) {
+          console.warn(`Primary model (${MODEL_NAME}) failed, trying fallback model (${FALLBACK_MODEL})...`);
+          result = await retryWithBackoff(async () => {
+            return await fallbackModel.generateContent({ 
+              contents: [{ role: "user", parts }] 
+            });
+          });
+        }
 
         const responseText = result.response.text();
         console.log(`Received response for ${file.name}`);
@@ -173,10 +229,20 @@ Please extract and reformat the content from this PDF into the requested JSON fo
 
       } catch (fileError) {
         console.error(`Error processing ${file.name}:`, fileError);
+        
+        // Check if it's a service overload error and provide helpful message
+        let errorMessage = fileError instanceof Error ? fileError.message : 'Unknown error processing file';
+        
+        if (errorMessage.includes('503') || errorMessage.includes('overloaded')) {
+          errorMessage = 'Google AI service is currently overloaded. Please try again in a few minutes.';
+        } else if (errorMessage.includes('quota') || errorMessage.includes('rate')) {
+          errorMessage = 'API rate limit reached. Please wait a moment and try again.';
+        }
+        
         results.push({
           fileName: file.name,
           success: false,
-          error: fileError instanceof Error ? fileError.message : 'Unknown error processing file'
+          error: errorMessage
         });
       }
     }
