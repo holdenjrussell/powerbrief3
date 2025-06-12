@@ -16,6 +16,7 @@ import { Label } from '@/components/ui/label';
 import { toast } from '@/components/ui/use-toast';
 import AssetGroupingPreview from '@/components/PowerBriefAssetGroupingPreview';
 import { TimelineComment, CommentModal } from '@/components/CommentModal';
+import { shareBriefConcept } from '@/lib/services/powerbriefService.js';
 
 interface ConceptForReview {
     id: string;
@@ -29,6 +30,7 @@ interface ConceptForReview {
     updated_at: string;
     revision_count?: number;
     content_type?: string;
+    share_settings?: Record<string, any>;
     brief_batches?: {
         id: string;
         name: string;
@@ -82,6 +84,9 @@ export default function ReviewsPage() {
     const [previewAssetGroups, setPreviewAssetGroups] = useState<UploadedAssetGroup[]>([]);
     const [previewConceptTitle, setPreviewConceptTitle] = useState<string>('');
     const [previewConceptId, setPreviewConceptId] = useState<string>('');
+    
+    // Add state for managing share links
+    const [generatingShareLink, setGeneratingShareLink] = useState<Record<string, boolean>>({});
     
     const supabase = createSPAClient();
 
@@ -1132,6 +1137,52 @@ export default function ReviewsPage() {
         }
     };
 
+    // Utility function to get or create a share link for a concept
+    const getOrCreateShareLink = async (concept: ConceptForReview): Promise<string | null> => {
+        try {
+            // Check if concept already has a share link
+            if (concept.share_settings) {
+                const existingShareIds = Object.keys(concept.share_settings);
+                if (existingShareIds.length > 0) {
+                    // Return the first available share link
+                    const shareId = existingShareIds[0];
+                    return `${window.location.origin}/public/concept/${shareId}`;
+                }
+            }
+
+            // Create a new share link if none exists
+            setGeneratingShareLink(prev => ({ ...prev, [concept.id]: true }));
+            
+            const shareSettings = {
+                is_editable: false, // View-only for reviews
+                expires_at: null // No expiration
+            };
+            
+            const shareResult = await shareBriefConcept(concept.id, 'link', shareSettings);
+            
+            return shareResult.share_url;
+        } catch (error) {
+            console.error('Failed to create share link for concept:', error);
+            toast({
+                title: "Error",
+                description: "Failed to create share link. Please try again.",
+                variant: "destructive",
+                duration: 3000,
+            });
+            return null;
+        } finally {
+            setGeneratingShareLink(prev => ({ ...prev, [concept.id]: false }));
+        }
+    };
+
+    // Function to handle clicking the individual share link
+    const handleIndividualShareLink = async (concept: ConceptForReview) => {
+        const shareUrl = await getOrCreateShareLink(concept);
+        if (shareUrl) {
+            window.open(shareUrl, '_blank');
+        }
+    };
+
     if (loading || brandsLoading) {
         return (
             <div className="flex justify-center items-center min-h-[200px]">
@@ -1352,14 +1403,31 @@ export default function ReviewsPage() {
                                             </Button>
                                         </div>
                                         
-                                        {/* Link to view full concept */}
-                                        <div className="mt-2">
+                                        {/* Links to view concept */}
+                                        <div className="mt-2 flex flex-col space-y-1">
                                             <Link
                                                 href={`/app/powerbrief/${concept.brief_batches.brand_id}/${concept.brief_batch_id}`}
                                                 className="text-sm text-blue-600 hover:underline"
                                             >
                                                 View in PowerBrief →
                                             </Link>
+                                            <button
+                                                onClick={() => handleIndividualShareLink(concept)}
+                                                disabled={generatingShareLink[concept.id]}
+                                                className="text-sm text-green-600 hover:underline text-left disabled:opacity-50 disabled:cursor-not-allowed"
+                                            >
+                                                {generatingShareLink[concept.id] ? (
+                                                    <>
+                                                        <Loader2 className="h-3 w-3 inline mr-1 animate-spin" />
+                                                        Creating link...
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Share2 className="h-3 w-3 inline mr-1" />
+                                                        View Individual Concept →
+                                                    </>
+                                                )}
+                                            </button>
                                         </div>
                                     </CardContent>
                                 </Card>
@@ -1688,12 +1756,31 @@ export default function ReviewsPage() {
                                                         )}
                                                         
                                                         <div className="mt-3 flex justify-between items-center">
-                                                            <Link
-                                                                href={`/app/powerbrief/${concept.brief_batches?.brand_id}/${concept.brief_batch_id}`}
-                                                                className="text-sm text-blue-600 hover:underline"
-                                                            >
-                                                                View in PowerBrief →
-                                                            </Link>
+                                                            <div className="flex flex-col space-y-1">
+                                                                <Link
+                                                                    href={`/app/powerbrief/${concept.brief_batches?.brand_id}/${concept.brief_batch_id}`}
+                                                                    className="text-sm text-blue-600 hover:underline"
+                                                                >
+                                                                    View in PowerBrief →
+                                                                </Link>
+                                                                <button
+                                                                    onClick={() => handleIndividualShareLink(concept)}
+                                                                    disabled={generatingShareLink[concept.id]}
+                                                                    className="text-sm text-green-600 hover:underline text-left disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                >
+                                                                    {generatingShareLink[concept.id] ? (
+                                                                        <>
+                                                                            <Loader2 className="h-3 w-3 inline mr-1 animate-spin" />
+                                                                            Creating link...
+                                                                        </>
+                                                                    ) : (
+                                                                        <>
+                                                                            <Share2 className="h-3 w-3 inline mr-1" />
+                                                                            View Individual Concept →
+                                                                        </>
+                                                                    )}
+                                                                </button>
+                                                            </div>
                                                             
                                                             {concept.review_status === 'approved' && concept.asset_upload_status !== 'sent_to_ad_upload' && (
                                                                 <Button
