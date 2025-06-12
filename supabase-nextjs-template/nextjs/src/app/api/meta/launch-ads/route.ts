@@ -1604,24 +1604,23 @@ export async function POST(req: NextRequest) {
           ([...feedAssets, ...storyAssets].some(asset => asset.type === 'video'));
         
         if (hasSingleVideoAsset) {
-          // For single video assets, use asset_feed_spec to maintain placement targeting
-          console.log(`[Launch API]     Single video asset - using asset_feed_spec for placement targeting`);
-          
+          // For single video assets, check if it's a feed asset (4x5) that needs placement targeting
           if (feedAssets.length > 0) {
+            console.log(`[Launch API]     Single 4x5 video asset - using asset_feed_spec for placement targeting`);
             const feedAsset = feedAssets[0];
             const assetLabel = 'single_feed_video';
             
             if (feedAsset.type === 'video' && feedAsset.metaVideoId) {
               const thumbnailHash = videoThumbnailCache[feedAsset.metaVideoId];
               
-                                           creativeSpec.asset_feed_spec.videos.push({
+              creativeSpec.asset_feed_spec.videos.push({
                 video_id: feedAsset.metaVideoId,
                 adlabels: [{ name: assetLabel }],
                 ...(thumbnailHash && { thumbnail_hash: thumbnailHash })
               });
-               if (!creativeSpec.asset_feed_spec.ad_formats.includes('SINGLE_VIDEO')) {
-                 creativeSpec.asset_feed_spec.ad_formats.push('SINGLE_VIDEO');
-               }
+              if (!creativeSpec.asset_feed_spec.ad_formats.includes('SINGLE_VIDEO')) {
+                creativeSpec.asset_feed_spec.ad_formats.push('SINGLE_VIDEO');
+              }
               
               // CRITICAL: Add placement targeting for 4x5 videos to ensure Facebook Feed placement
               creativeSpec.asset_feed_spec.asset_customization_rules.push({
@@ -1636,30 +1635,33 @@ export async function POST(req: NextRequest) {
               console.log(`[Launch API]     Single 4x5 video configured for Facebook Feed placement: ${feedAsset.name}`);
             }
           } else if (storyAssets.length > 0) {
+            // For single story assets (9x16), use the simpler object_story_spec approach
+            // to avoid asset_customization_rules compatibility issues
+            console.log(`[Launch API]     Single 9x16 video asset - using object_story_spec approach`);
             const storyAsset = storyAssets[0];
-            const assetLabel = 'single_story_video';
             
             if (storyAsset.type === 'video' && storyAsset.metaVideoId) {
               const thumbnailHash = videoThumbnailCache[storyAsset.metaVideoId];
               
-                                           creativeSpec.asset_feed_spec.videos.push({
-                video_id: storyAsset.metaVideoId,
-                adlabels: [{ name: assetLabel }],
-                ...(thumbnailHash && { thumbnail_hash: thumbnailHash })
-              });
-               if (!creativeSpec.asset_feed_spec.ad_formats.includes('SINGLE_VIDEO')) {
-                 creativeSpec.asset_feed_spec.ad_formats.push('SINGLE_VIDEO');
-               }
+              if (thumbnailHash) {
+                console.log(`[Launch API]     Using cached thumbnail for story video: ${storyAsset.name}`);
+              } else {
+                console.warn(`[Launch API]     No thumbnail available for story video: ${storyAsset.name}`);
+              }
               
-              // Add placement targeting for story/reels placements
-              creativeSpec.asset_feed_spec.asset_customization_rules.push({
-                customization_spec: {
-                  publisher_platforms: ['facebook', 'instagram'],
-                  facebook_positions: ['story'],
-                  instagram_positions: ['story']
+              creativeSpec.object_story_spec.video_data = {
+                video_id: storyAsset.metaVideoId,
+                message: draft.primaryText,
+                call_to_action: {
+                  type: draft.callToAction?.toUpperCase().replace(/\s+/g, '_'),
+                  value: { link: draft.destinationUrl },
                 },
-                video_label: { name: assetLabel }
-              });
+                title: draft.headline,
+                ...(thumbnailHash && { image_hash: thumbnailHash })
+              };
+              
+              // Remove asset_feed_spec for single story video to avoid compatibility issues
+              delete creativeSpec.asset_feed_spec;
               
               console.log(`[Launch API]     Single 9x16 video configured for story placement: ${storyAsset.name}`);
             }
