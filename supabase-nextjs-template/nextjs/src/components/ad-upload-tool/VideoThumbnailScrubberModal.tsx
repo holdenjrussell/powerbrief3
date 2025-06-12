@@ -49,6 +49,18 @@ export default function VideoThumbnailScrubberModal({
     getConceptName(asset.name) === conceptName && asset.type === 'video'
   ) : [];
 
+  // Reset state when modal opens or video changes
+  useEffect(() => {
+    if (isOpen && videoAsset) {
+      // Reset session state when opening modal or switching videos
+      setSelectedTimestamp(null);
+      setHasThumbnailSelected(false);
+      setCustomThumbnailUploaded(false);
+      setCurrentTime(0);
+      setIsPlaying(false);
+    }
+  }, [isOpen, videoAsset?.name]); // Only reset when modal opens or video changes
+
   // Initialize video when modal opens
   useEffect(() => {
     if (!isOpen || !videoAsset || !videoRef.current) return;
@@ -59,19 +71,18 @@ export default function VideoThumbnailScrubberModal({
       console.log(`Video loaded: duration=${video.duration}s`);
       setDuration(video.duration);
       
-      // Check if there's an existing thumbnail timestamp
+      // Check if there's an existing thumbnail timestamp from database
       const existingTimestamp = videoAsset.thumbnailTimestamp;
       if (existingTimestamp && existingTimestamp > 0 && existingTimestamp <= video.duration) {
-        console.log(`Setting to existing timestamp: ${existingTimestamp}s`);
+        console.log(`Setting to existing timestamp from database: ${existingTimestamp}s`);
         video.currentTime = existingTimestamp;
         setSelectedTimestamp(existingTimestamp);
         setHasThumbnailSelected(true);
+        setCurrentTime(existingTimestamp);
       } else {
-        // Start at beginning
+        // Start at beginning for new selection
         video.currentTime = 0;
         setCurrentTime(0);
-        setSelectedTimestamp(null);
-        setHasThumbnailSelected(false);
       }
     };
 

@@ -1104,14 +1104,18 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, activeBatch, select
             selectedCampaignId={draft.campaignId}
             selectedCampaignName={draft.campaignName}
             onCampaignSelect={(campaignId, campaignName) => {
-              handleCellValueChange(rowIndex, 'campaignId', campaignId);
-              // Also update the campaign name if available
-              if (campaignName !== undefined) {
-                setAdDrafts(prevDrafts => 
-                  prevDrafts.map((d, i) => 
-                    i === rowIndex ? { ...d, campaignName } : d
-                  )
-                );
+              // Find the actual index in the full adDrafts array
+              const actualIndex = adDrafts.findIndex(d => d.id === draft.id);
+              if (actualIndex !== -1) {
+                handleCellValueChange(actualIndex, 'campaignId', campaignId);
+                // Also update the campaign name if available
+                if (campaignName !== undefined) {
+                  setAdDrafts(prevDrafts => 
+                    prevDrafts.map((d) => 
+                      d.id === draft.id ? { ...d, campaignName } : d
+                    )
+                  );
+                }
               }
             }}
             disabled={!defaults.adAccountId}
@@ -1126,14 +1130,18 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, activeBatch, select
             selectedAdSetId={draft.adSetId}
             selectedAdSetName={draft.adSetName}
             onAdSetSelect={(adSetId, adSetName) => {
-              handleCellValueChange(rowIndex, 'adSetId', adSetId);
-              // Also update the ad set name if available
-              if (adSetName !== undefined) {
-                setAdDrafts(prevDrafts => 
-                  prevDrafts.map((d, i) => 
-                    i === rowIndex ? { ...d, adSetName } : d
-                  )
-                );
+              // Find the actual index in the full adDrafts array
+              const actualIndex = adDrafts.findIndex(d => d.id === draft.id);
+              if (actualIndex !== -1) {
+                handleCellValueChange(actualIndex, 'adSetId', adSetId);
+                // Also update the ad set name if available
+                if (adSetName !== undefined) {
+                  setAdDrafts(prevDrafts => 
+                    prevDrafts.map((d) => 
+                      d.id === draft.id ? { ...d, adSetName } : d
+                    )
+                  );
+                }
               }
             }}
             disabled={!draft.campaignId} 
