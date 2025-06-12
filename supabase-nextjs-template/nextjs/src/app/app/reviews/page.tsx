@@ -23,6 +23,7 @@ interface ConceptForReview {
     concept_title: string;
     brief_batch_id: string;
     video_editor?: string;
+    strategist?: string;
     review_link?: string;
     review_status?: string;
     uploaded_assets?: UploadedAssetGroup[];
@@ -527,6 +528,7 @@ export default function ReviewsPage() {
                             batchName: concept.brief_batches.name,
                             brandId: concept.brief_batches.brand_id,
                             videoEditor: concept.video_editor,
+                            strategist: concept.strategist,
                             reviewerNotes: reviewerNotes[conceptId] || null
                         }),
                     });
@@ -615,6 +617,7 @@ export default function ReviewsPage() {
                             batchName: concept.brief_batches.name,
                             brandId: concept.brief_batches.brand_id,
                             videoEditor: concept.video_editor,
+                            strategist: concept.strategist,
                             feedback: reviewerNotes[conceptId]
                         }),
                     });
@@ -892,6 +895,7 @@ export default function ReviewsPage() {
                             batchName: concept.brief_batches?.name,
                             brandId: concept.brief_batches?.brand_id,
                             videoEditor: concept.video_editor,
+                            strategist: concept.strategist,
                             feedback: revisionNotes
                         }),
                     });
@@ -970,6 +974,7 @@ export default function ReviewsPage() {
                             batchName: concept.brief_batches?.name,
                             brandId: concept.brief_batches?.brand_id,
                             videoEditor: concept.video_editor,
+                            strategist: concept.strategist,
                             additionalSizesNotes: additionalSizesNotes
                         }),
                     });
@@ -1281,13 +1286,21 @@ export default function ReviewsPage() {
                                         </CardDescription>
                                     </CardHeader>
                                     <CardContent className="space-y-4">
-                                        {/* Video Editor */}
-                                        {concept.video_editor && (
-                                            <div>
-                                                <span className="text-sm font-medium">Editor: </span>
-                                                <span className="text-sm">{concept.video_editor}</span>
-                                            </div>
-                                        )}
+                                        {/* Video Editor and Creative Strategist */}
+                                        <div className="space-y-2">
+                                            {concept.video_editor && (
+                                                <div>
+                                                    <span className="text-sm font-medium">Editor: </span>
+                                                    <span className="text-sm">{concept.video_editor}</span>
+                                                </div>
+                                            )}
+                                            {concept.strategist && (
+                                                <div>
+                                                    <span className="text-sm font-medium">Creative Strategist: </span>
+                                                    <span className="text-sm">{concept.strategist}</span>
+                                                </div>
+                                            )}
+                                        </div>
                                         
                                         {/* Display uploaded assets if available */}
                                         {concept.uploaded_assets && concept.uploaded_assets.length > 0 && (
@@ -1456,13 +1469,21 @@ export default function ReviewsPage() {
                                     </CardDescription>
                                 </CardHeader>
                                 <CardContent className="space-y-4">
-                                    {/* Video Editor */}
-                                    {concept.video_editor && (
-                                        <div>
-                                            <span className="text-sm font-medium">Editor: </span>
-                                            <span className="text-sm">{concept.video_editor}</span>
-                                        </div>
-                                    )}
+                                    {/* Video Editor and Creative Strategist */}
+                                    <div className="space-y-2">
+                                        {concept.video_editor && (
+                                            <div>
+                                                <span className="text-sm font-medium">Editor: </span>
+                                                <span className="text-sm">{concept.video_editor}</span>
+                                            </div>
+                                        )}
+                                        {concept.strategist && (
+                                            <div>
+                                                <span className="text-sm font-medium">Creative Strategist: </span>
+                                                <span className="text-sm">{concept.strategist}</span>
+                                            </div>
+                                        )}
+                                    </div>
                                     
                                     {/* Display uploaded assets */}
                                     {concept.uploaded_assets && concept.uploaded_assets.length > 0 && (
