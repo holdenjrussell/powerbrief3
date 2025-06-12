@@ -8,7 +8,7 @@ import * as os from 'os';
 import * as path from 'path';
 
 // Use the correct model name as shown in the endpoint
-const MODEL_NAME = 'gemini-2.5-pro-preview-05-06';
+const MODEL_NAME = 'gemini-2.5-pro-preview-06-05';
 
 // Helper to get more specific mime types
 const getProperMimeType = (mediaType: string | undefined, fileUrl: string): string => {

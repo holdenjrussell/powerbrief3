@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
 
 // Use the same model as other AI features
-const MODEL_NAME = 'gemini-2.5-pro-preview-05-06';
+const MODEL_NAME = 'gemini-2.5-pro-preview-06-05';
 
 // Helper to get more specific mime types
 const getProperMimeType = (mediaType: string | undefined, fileUrl: string): string => {

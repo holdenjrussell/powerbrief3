@@ -55,7 +55,7 @@ CREATE TABLE IF NOT EXISTS public.ugc_ai_coordinator (
   enabled BOOLEAN DEFAULT true,
   settings JSONB DEFAULT '{}',
   system_prompt TEXT,
-  model_config JSONB DEFAULT '{"model": "gemini-2.5-pro-preview-05-06", "temperature": 0.7}',
+      model_config JSONB DEFAULT '{"model": "gemini-2.5-pro-preview-06-05", "temperature": 0.7}',
   slack_notifications_enabled BOOLEAN DEFAULT false,
   email_automation_enabled BOOLEAN DEFAULT true,
   last_activity_at TIMESTAMP WITH TIME ZONE,

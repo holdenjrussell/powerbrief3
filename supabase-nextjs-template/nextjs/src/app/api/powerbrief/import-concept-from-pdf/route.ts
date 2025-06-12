@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
 
 // Use the same model as the main power brief system
-const MODEL_NAME = 'gemini-2.5-pro-preview-05-06';
+const MODEL_NAME = 'gemini-2.5-pro-preview-06-05';
 const FALLBACK_MODEL = 'gemini-2.5-flash-preview-05-20';
 
 // Helper to get proper mime type for PDFs
