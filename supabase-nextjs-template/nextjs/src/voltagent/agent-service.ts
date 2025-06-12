@@ -1,25 +1,22 @@
-import { Agent, createTool, createToolkit, createHooks, type Tool, type Toolkit, type Hooks, type LLMProvider, type BaseVoiceProvider, type BaseMemory } from '@voltagent/core';
+import { Agent, createTool, createReasoningTools, createHooks, Tool, Toolkit } from '@voltagent/core';
 import { VercelAIProvider } from '@voltagent/vercel-ai';
 import { GoogleGenAIProvider } from '@voltagent/google-ai';
 import { GroqProvider } from '@voltagent/groq-ai';
 import { AnthropicProvider } from '@voltagent/anthropic-ai';
 import { XSAIProvider } from '@voltagent/xsai';
+import { SupabaseMemory } from '@voltagent/supabase';
+import { OpenAIVoiceProvider, ElevenLabsVoiceProvider } from '@voltagent/voice';
 import { openai } from '@ai-sdk/openai';
 import { anthropic } from '@ai-sdk/anthropic';
 import { google } from '@ai-sdk/google';
 import { groq } from '@ai-sdk/groq';
-import { SupabaseMemory } from '@voltagent/supabase';
-import { OpenAIVoiceProvider, ElevenLabsVoiceProvider } from '@voltagent/voice';
 import { z } from 'zod';
+import type { Tables } from '@/lib/database.types';
+import { registerWithVoltAgent } from './index';
+import { AgentRegistry } from './agent-registry';
 
-interface PowerAgentConfig {
-  id: string;
-  name: string;
-  purpose: string;
-  description: string;
-  provider: string;
-  model: string;
-  instructions: string;
+// Agent configuration type
+type PowerAgentConfig = Tables<'poweragent_agents'> & {
   selectedTools: string[];
   customTools: Array<{
     id: string;
@@ -41,109 +38,149 @@ interface PowerAgentConfig {
   hooks: Record<string, unknown>;
   subAgents: string[];
   delegationRules?: Record<string, string>;
-  brand_id?: string;
-  created_at: string;
-  updated_at: string;
-}
-
-class AgentRegistry {
-  private static instance: AgentRegistry;
-  private agents: Map<string, Agent> = new Map();
-  private relationships: Map<string, string[]> = new Map(); // supervisorId -> subAgentIds
-
-  static getInstance(): AgentRegistry {
-    if (!AgentRegistry.instance) {
-      AgentRegistry.instance = new AgentRegistry();
-    }
-    return AgentRegistry.instance;
-  }
-
-  registerAgent(id: string, agent: Agent): void {
-    this.agents.set(id, agent);
-  }
-
-  getAgent(id: string): Agent | undefined {
-    return this.agents.get(id);
-  }
-
-  registerRelationship(supervisorId: string, subAgentId: string): void {
-    const existing = this.relationships.get(supervisorId) || [];
-    if (!existing.includes(subAgentId)) {
-      this.relationships.set(supervisorId, [...existing, subAgentId]);
-    }
-  }
-
-  getSubAgents(supervisorId: string): Agent[] {
-    const subAgentIds = this.relationships.get(supervisorId) || [];
-    return subAgentIds.map(id => this.getAgent(id)).filter(Boolean) as Agent[];
-  }
-
-  getAllAgents(): Map<string, Agent> {
-    return this.agents;
-  }
-}
+};
 
 export class PowerAgentService {
   private registry: AgentRegistry;
 
   constructor() {
     this.registry = AgentRegistry.getInstance();
+    this.createMockSubAgents();
+  }
+
+  private createMockSubAgents() {
+    // Create mock sub-agents for demonstration purposes
+    const mockAgents = [
+      {
+        id: 'writer-agent',
+        name: 'Creative Writer',
+        instructions: 'You are a creative writer specializing in compelling stories and content.',
+        provider: 'google-ai',
+        model: 'gemini-2.5-pro-preview-06-05'
+      },
+      {
+        id: 'research-agent', 
+        name: 'Research Assistant',
+        instructions: 'You are a research assistant that gathers and analyzes information.',
+        provider: 'google-ai',
+        model: 'gemini-2.5-pro-preview-06-05'
+      },
+      {
+        id: 'analyst-agent',
+        name: 'Data Analyst', 
+        instructions: 'You are a data analyst that processes and interprets data.',
+        provider: 'google-ai',
+        model: 'gemini-2.5-pro-preview-06-05'
+      },
+      {
+        id: 'translator-agent',
+        name: 'Translator',
+        instructions: 'You are a professional translator for multiple languages.',
+        provider: 'google-ai',
+        model: 'gemini-2.5-pro-preview-06-05'
+      }
+    ];
+
+    for (const mockConfig of mockAgents) {
+      if (!this.registry.getAgent(mockConfig.id)) {
+        try {
+          const llmProvider = this.createProvider(mockConfig.provider);
+          const model = this.createModel(mockConfig.provider, mockConfig.model);
+          
+          // Create simple agents without tools for basic functionality
+          const agent = new Agent({
+            name: mockConfig.name,
+            instructions: mockConfig.instructions,
+            llm: llmProvider,
+            model
+          });
+
+          this.registry.registerAgent(mockConfig.id, agent, mockConfig.name);
+          console.log(`[PowerAgentService] Created mock agent: ${mockConfig.id}`);
+        } catch (error) {
+          console.warn(`Failed to create mock agent ${mockConfig.id}:`, error);
+        }
+      }
+    }
   }
 
   async createAgent(config: PowerAgentConfig): Promise<Agent> {
     try {
-      // Create LLM provider
+      console.log(`[PowerAgentService] Creating agent: ${config.name} (ID: ${config.id})`);
+      
+      // Create provider
       const llmProvider = this.createProvider(config.provider, config.brand_id);
+      
+      // Create model (format depends on provider)
       const model = this.createModel(config.provider, config.model);
-
-      // Create memory if configured
-      let memory;
-      if (config.memory && Object.keys(config.memory).length > 0) {
-        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-        const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-        
-        if (!supabaseUrl || !supabaseKey) {
-          console.warn('Supabase credentials not found, memory will be disabled');
-        } else {
-          memory = new SupabaseMemory({
-            supabaseUrl,
-            supabaseKey,
-            tableName: 'poweragent_memory',
-            // Additional configuration for brand segregation
-            metadata: {
-              brandId: config.brand_id
-            }
-          });
+      
+      // Create memory provider if configured
+      let memory: SupabaseMemory | undefined;
+      if (config.memory && config.memory.enabled) {
+        memory = this.createMemoryProvider(config.brand_id);
+      }
+      
+      // Create voice provider if configured
+      let voice: OpenAIVoiceProvider | ElevenLabsVoiceProvider | undefined;
+      if (config.voice && config.voice.enabled) {
+        voice = await this.createVoiceProvider(config.voice as Record<string, unknown>, config.brand_id);
+      }
+      
+      // Create hooks if configured
+      let hooks: Hooks | undefined;
+      if (config.hooks) {
+        hooks = this.createHooks(config.hooks);
+      }
+      
+      // Create tools
+      const tools = await this.createTools(
+        config.selectedTools || [],
+        config.customTools || [],
+        config.provider
+      );
+      
+      // Add toolkits
+      for (const toolkit of config.toolkits || []) {
+        try {
+          // Create tools for this toolkit
+          const toolkitTools = await Promise.all(
+            toolkit.tools.map(async (toolId) => {
+              return await this.createBuiltInTool(toolId);
+            })
+          );
+          
+          // Filter out null values
+          const validTools = toolkitTools.filter(Boolean) as Tool[];
+          
+          if (validTools.length > 0) {
+            // Add toolkit to tools list
+            tools.push({
+              name: toolkit.name,
+              description: toolkit.description,
+              tools: validTools,
+              instructions: toolkit.instructions,
+              addInstructions: true
+            } as Toolkit);
+            
+            console.log(`[PowerAgentService] Added toolkit: ${toolkit.name} with ${validTools.length} tools`);
+          }
+        } catch (error) {
+          console.warn(`Failed to create toolkit ${toolkit.name}:`, error);
         }
       }
-
-      // Create voice provider if configured
-      let voice;
-      if (config.voice && Object.keys(config.voice).length > 0) {
-        voice = await this.createVoiceProvider(config.voice, config.brand_id);
-      }
-
-      // Create tools
-      const tools = await this.createTools(config.selectedTools, config.customTools);
-
-      // Create toolkits
-      const toolkits = this.createToolkits(config.toolkits);
-
-      // Create hooks
-      const hooks = this.createHooks(config.hooks);
-
-      // Get sub-agents if this is a supervisor
-      const subAgentIds = config.subAgents || [];
+      
+      // Get or create sub-agents
       const subAgents: Agent[] = [];
+      const subAgentIds = config.subAgents || [];
       const supervisorId = config.id;
-
+      
       // Get or create sub-agents
       for (const subAgentId of subAgentIds) {
         const subAgent = this.registry.getAgent(subAgentId);
         
         if (!subAgent) {
-          // TODO: Load sub-agent from database and create it
-          console.warn(`Sub-agent ${subAgentId} not found in registry`);
+          console.warn(`Sub-agent ${subAgentId} not found in registry. Available agents:`, this.registry.listAgentIds());
+          // TODO: Load sub-agent from database and create it recursively
           continue;
         }
 
@@ -155,13 +192,14 @@ export class PowerAgentService {
       const agentConfig: {
         name: string;
         instructions: string;
-        llm: LLMProvider;
+        llm: VercelAIProvider | GoogleGenAIProvider | GroqProvider | AnthropicProvider | XSAIProvider;
         model: unknown;
-        memory?: BaseMemory;
-        voice?: BaseVoiceProvider;
-        hooks?: Hooks;
+        memory?: SupabaseMemory;
+        voice?: OpenAIVoiceProvider | ElevenLabsVoiceProvider;
+        hooks?: Record<string, Function>;
         tools?: (Tool | Toolkit)[];
         subAgents?: Agent[];
+        markdown?: boolean;
       } = {
         name: config.name,
         instructions: config.instructions,
@@ -172,14 +210,14 @@ export class PowerAgentService {
         hooks
       };
 
-      // Add tools - combine individual tools and toolkits
-      const allTools = [...tools];
-      toolkits.forEach(toolkit => {
-        allTools.push(toolkit);
-      });
-      
-      if (allTools.length > 0) {
-        agentConfig.tools = allTools;
+      // Add markdown configuration if specified
+      if (config.config && typeof config.config === 'object' && 'markdown' in config.config) {
+        agentConfig.markdown = config.config.markdown as boolean;
+      }
+
+      // Add tools if any
+      if (tools.length > 0) {
+        agentConfig.tools = tools;
       }
 
       // Add sub-agents if any
@@ -189,9 +227,17 @@ export class PowerAgentService {
 
       const agent = new Agent(agentConfig);
 
-      // Register the agent
-      this.registry.registerAgent(config.id, agent);
+      // Register the agent with our local registry
+      this.registry.registerAgent(config.id, agent, config.name);
+      
+      // Also register with VoltAgent's registry to avoid "Agent not found" warnings
+      try {
+        registerWithVoltAgent(agent);
+      } catch (error) {
+        console.warn(`Failed to register agent with VoltAgent:`, error);
+      }
 
+      console.log(`[PowerAgentService] Successfully created agent: ${config.name}`);
       return agent;
     } catch (error) {
       console.error('Error creating PowerAgent:', error);
@@ -199,14 +245,15 @@ export class PowerAgentService {
     }
   }
 
-  private createProvider(provider: string, brandId?: string): LLMProvider {
+  private createProvider(provider: string, brandId?: string) {
     // brandId will be used in future to fetch brand-specific API keys
     void brandId; // Suppress unused parameter warning
+    
     switch (provider) {
       case 'vercel-ai':
         return new VercelAIProvider();
       case 'google-ai':
-        const googleApiKey = process.env.GOOGLE_AI_API_KEY;
+        const googleApiKey = process.env.GOOGLE_AI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
         if (!googleApiKey) {
           console.warn('Google AI API key not found, falling back to VercelAI provider');
           return new VercelAIProvider();
@@ -216,15 +263,15 @@ export class PowerAgentService {
         });
       case 'groq-ai':
         return new GroqProvider({
-          apiKey: process.env.GROQ_API_KEY
+          apiKey: process.env.GROQ_API_KEY || ''
         });
       case 'anthropic-ai':
         return new AnthropicProvider({
-          apiKey: process.env.ANTHROPIC_API_KEY
+          apiKey: process.env.ANTHROPIC_API_KEY || ''
         });
       case 'xsai':
         return new XSAIProvider({
-          apiKey: process.env.OPENAI_API_KEY,
+          apiKey: process.env.OPENAI_API_KEY || '',
           baseURL: process.env.XSAI_BASE_URL
         });
       default:
@@ -246,7 +293,7 @@ export class PowerAgentService {
         } else if (modelName.includes('groq') || modelName.includes('llama') || modelName.includes('mixtral')) {
           return groq(modelName);
         }
-        return openai('gpt-4o'); // Default fallback
+        return google('gemini-2.5-pro-preview-06-05'); // Default to Gemini 2.5 Pro
         
       case 'google-ai':
       case 'groq-ai':
@@ -260,7 +307,27 @@ export class PowerAgentService {
     }
   }
 
-  private async createVoiceProvider(voiceConfig: Record<string, unknown>, brandId?: string): Promise<BaseVoiceProvider | undefined> {
+  private createMemoryProvider(brandId?: string): SupabaseMemory | undefined {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    
+    if (!supabaseUrl || !supabaseKey) {
+      console.warn('Supabase credentials not found, memory will be disabled');
+      return undefined;
+    }
+
+    return new SupabaseMemory({
+      supabaseUrl,
+      supabaseKey,
+      tableName: 'poweragent_memory',
+      // Additional configuration for brand segregation
+      metadata: {
+        brandId: brandId
+      }
+    });
+  }
+
+  private async createVoiceProvider(voiceConfig: Record<string, unknown>, brandId?: string): Promise<OpenAIVoiceProvider | ElevenLabsVoiceProvider | undefined> {
     const provider = voiceConfig.provider as string;
     
     // TODO: Fetch brand-specific API keys from database using brandId
@@ -271,8 +338,8 @@ export class PowerAgentService {
       case 'openai':
         return new OpenAIVoiceProvider({
           apiKey: process.env.OPENAI_API_KEY || '',
-          ttsModel: voiceConfig.ttsModel as string || 'tts-1',
-          voice: voiceConfig.voice as string || 'alloy'
+          ttsModel: (voiceConfig.ttsModel as string) || 'tts-1',
+          voice: (voiceConfig.voice as string) || 'alloy'
         });
         
       case 'elevenlabs':
@@ -283,19 +350,29 @@ export class PowerAgentService {
           ttsModel: voiceConfig.ttsModel as string
         });
         
-            default:
+      default:
         return undefined;
     }
   }
 
-  private async createTools(selectedTools: string[], customTools: PowerAgentConfig['customTools']): Promise<ReturnType<typeof createTool>[]> {
-    const tools: ReturnType<typeof createTool>[] = [];
+  private async createTools(selectedTools: string[], customTools: PowerAgentConfig['customTools'], provider: string): Promise<(Tool | Toolkit)[]> {
+    const tools: (Tool | Toolkit)[] = [];
 
     // Add built-in tools
     for (const toolId of selectedTools) {
       try {
-        const tool = await this.createBuiltInTool(toolId);
-        if (tool) tools.push(tool);
+        if (toolId === 'reasoning') {
+          // Use official VoltAgent reasoning tools as a toolkit
+          const reasoningToolkit = createReasoningTools();
+          tools.push(reasoningToolkit);
+          console.log(`[PowerAgentService] Added reasoning toolkit`);
+        } else {
+          const tool = await this.createBuiltInTool(toolId);
+          if (tool) {
+            tools.push(tool);
+            console.log(`[PowerAgentService] Added built-in tool: ${toolId}`);
+          }
+        }
       } catch (error) {
         console.warn(`Failed to create built-in tool ${toolId}:`, error);
       }
@@ -305,7 +382,10 @@ export class PowerAgentService {
     for (const customTool of customTools) {
       try {
         const tool = await this.createCustomTool(customTool);
-        if (tool) tools.push(tool);
+        if (tool) {
+          tools.push(tool);
+          console.log(`[PowerAgentService] Added custom tool: ${customTool.name}`);
+        }
       } catch (error) {
         console.warn(`Failed to create custom tool ${customTool.name}:`, error);
       }
@@ -314,58 +394,12 @@ export class PowerAgentService {
     return tools;
   }
 
-  private async createBuiltInTool(toolId: string): Promise<ReturnType<typeof createTool> | null> {
-    // Implementation for built-in tools with real functionality
+  private async createBuiltInTool(toolId: string): Promise<Tool | null> {
+    // Implementation for built-in tools
     switch (toolId) {
       case 'reasoning':
-        return createTool({
-          name: 'reasoning',
-          description: 'Perform step-by-step reasoning and analysis',
-          parameters: z.object({
-            problem: z.string().describe('The problem to reason about'),
-            steps: z.number().optional().describe('Number of reasoning steps to take (default: 3)')
-          }),
-          execute: async ({ problem, steps = 3 }) => {
-            const reasoningSteps = [];
-            
-            // Step 1: Problem Analysis
-            reasoningSteps.push(`Step 1: Analyzing the problem: "${problem}"`);
-            reasoningSteps.push(`- Identified key components and variables`);
-            reasoningSteps.push(`- Determined problem type and scope`);
-            
-            // Step 2: Approach Selection
-            reasoningSteps.push(`Step 2: Selecting reasoning approach`);
-            if (problem.toLowerCase().includes('math') || problem.toLowerCase().includes('calculate')) {
-              reasoningSteps.push(`- Mathematical/computational approach selected`);
-            } else if (problem.toLowerCase().includes('logic') || problem.toLowerCase().includes('if')) {
-              reasoningSteps.push(`- Logical reasoning approach selected`);
-            } else {
-              reasoningSteps.push(`- Analytical thinking approach selected`);
-            }
-            
-            // Step 3: Solution Development
-            reasoningSteps.push(`Step 3: Developing solution framework`);
-            reasoningSteps.push(`- Breaking down into manageable components`);
-            reasoningSteps.push(`- Considering potential constraints and variables`);
-            
-            // Additional steps if requested
-            for (let i = 4; i <= steps; i++) {
-              reasoningSteps.push(`Step ${i}: Further analysis and validation`);
-              reasoningSteps.push(`- Reviewing approach for completeness`);
-              reasoningSteps.push(`- Considering alternative perspectives`);
-            }
-            
-            const conclusion = `Conclusion: The problem "${problem}" has been systematically analyzed through ${steps} reasoning steps. This structured approach helps ensure comprehensive understanding and solution development.`;
-            
-            return {
-              reasoning_steps: reasoningSteps,
-              conclusion,
-              problem_type: problem.toLowerCase().includes('math') ? 'mathematical' : 
-                           problem.toLowerCase().includes('logic') ? 'logical' : 'analytical',
-              confidence: 'high'
-            };
-          }
-        });
+        // This case is now handled in createTools() method using createReasoningTools()
+        return null;
 
       case 'search':
         return createTool({
@@ -373,9 +407,12 @@ export class PowerAgentService {
           description: 'Search for information and provide relevant results',
           parameters: z.object({
             query: z.string().describe('The search query'),
+            // Remove .default() for Gemini compatibility - handle in execute instead
             type: z.enum(['web', 'academic', 'news', 'general']).optional().describe('Type of search to perform')
           }),
-          execute: async ({ query, type = 'general' }) => {
+          execute: async ({ query, type }) => {
+            const searchType = type || 'general'; // Handle default in execute
+            
             // Simulate search results with realistic data
             const searchResults = [
               {
@@ -400,7 +437,7 @@ export class PowerAgentService {
 
             return {
               query,
-              search_type: type,
+              search_type: searchType,
               results: searchResults,
               total_results: searchResults.length,
               search_time: `${Math.random() * 0.5 + 0.1}s`,
@@ -415,23 +452,23 @@ export class PowerAgentService {
           description: 'Perform mathematical calculations and operations',
           parameters: z.object({
             expression: z.string().describe('Mathematical expression to evaluate (e.g., "2 + 3 * 4")'),
-            precision: z.number().optional().describe('Number of decimal places for result (default: 2)')
+            // Remove .default() for Gemini compatibility
+            precision: z.number().optional().describe('Number of decimal places for result')
           }),
-          execute: async ({ expression, precision = 2 }) => {
+          execute: async ({ expression, precision }) => {
+            const precisionValue = precision || 2; // Handle default in execute
+            
             try {
               // Basic calculator functionality - in production, use a proper math parser
-              // This is a simplified version for demonstration
               const sanitizedExpression = expression.replace(/[^0-9+\-*/().\s]/g, '');
               
-              // Basic validation
               if (!sanitizedExpression || sanitizedExpression.length === 0) {
                 throw new Error('Invalid mathematical expression');
               }
 
-              // Simulate calculation (in production, use a proper math evaluation library)
+              // Handle simple operations
               let result: number;
               
-              // Handle simple operations
               if (sanitizedExpression.includes('+')) {
                 const parts = sanitizedExpression.split('+').map(p => parseFloat(p.trim()));
                 result = parts.reduce((a, b) => a + b, 0);
@@ -454,12 +491,12 @@ export class PowerAgentService {
 
               return {
                 expression,
-                result: parseFloat(result.toFixed(precision)),
+                result: parseFloat(result.toFixed(precisionValue)),
                 formatted_result: result.toLocaleString(undefined, { 
                   minimumFractionDigits: 0, 
-                  maximumFractionDigits: precision 
+                  maximumFractionDigits: precisionValue 
                 }),
-                precision,
+                precision: precisionValue,
                 calculation_time: `${Math.random() * 10 + 1}ms`
               };
             } catch (error) {
@@ -472,183 +509,98 @@ export class PowerAgentService {
           }
         });
 
-      case 'text_analyzer':
-        return createTool({
-          name: 'text_analyzer',
-          description: 'Analyze text for various metrics and insights',
-          parameters: z.object({
-            text: z.string().describe('Text to analyze'),
-            analysis_type: z.enum(['basic', 'sentiment', 'readability', 'keywords']).optional().describe('Type of analysis to perform')
-          }),
-          execute: async ({ text, analysis_type = 'basic' }) => {
-            const words = text.split(/\s+/).filter(word => word.length > 0);
-            const sentences = text.split(/[.!?]+/).filter(sentence => sentence.trim().length > 0);
-            const paragraphs = text.split(/\n\s*\n/).filter(para => para.trim().length > 0);
-            const characters = text.length;
-            const charactersNoSpaces = text.replace(/\s/g, '').length;
-
-            const basicMetrics = {
-              word_count: words.length,
-              sentence_count: sentences.length,
-              paragraph_count: paragraphs.length,
-              character_count: characters,
-              character_count_no_spaces: charactersNoSpaces,
-              average_words_per_sentence: sentences.length > 0 ? (words.length / sentences.length).toFixed(1) : 0,
-              average_sentence_length: sentences.length > 0 ? (characters / sentences.length).toFixed(1) : 0
-            };
-
-            let additionalAnalysis = {};
-
-            if (analysis_type === 'sentiment') {
-              // Simple sentiment analysis
-              const positiveWords = ['good', 'great', 'excellent', 'amazing', 'wonderful', 'love', 'like', 'happy', 'positive'];
-              const negativeWords = ['bad', 'terrible', 'awful', 'hate', 'dislike', 'sad', 'negative', 'poor', 'horrible'];
-              
-              const textLower = text.toLowerCase();
-              const positiveCount = positiveWords.filter(word => textLower.includes(word)).length;
-              const negativeCount = negativeWords.filter(word => textLower.includes(word)).length;
-              
-              additionalAnalysis = {
-                sentiment_score: positiveCount - negativeCount,
-                sentiment: positiveCount > negativeCount ? 'positive' : 
-                          negativeCount > positiveCount ? 'negative' : 'neutral',
-                positive_indicators: positiveCount,
-                negative_indicators: negativeCount
-              };
-            } else if (analysis_type === 'keywords') {
-              // Simple keyword extraction
-              const wordFreq: Record<string, number> = {};
-              words.forEach(word => {
-                const cleanWord = word.toLowerCase().replace(/[^\w]/g, '');
-                if (cleanWord.length > 3) {
-                  wordFreq[cleanWord] = (wordFreq[cleanWord] || 0) + 1;
-                }
-              });
-              
-              const topKeywords = Object.entries(wordFreq)
-                .sort(([,a], [,b]) => b - a)
-                .slice(0, 10)
-                .map(([word, count]) => ({ word, count }));
-              
-              additionalAnalysis = {
-                top_keywords: topKeywords,
-                unique_words: Object.keys(wordFreq).length,
-                word_frequency: wordFreq
-              };
-            }
-
-            return {
-              text_preview: text.substring(0, 100) + (text.length > 100 ? '...' : ''),
-              analysis_type,
-              metrics: basicMetrics,
-              ...additionalAnalysis,
-              analyzed_at: new Date().toISOString()
-            };
-          }
-        });
-
-      case 'json_formatter':
-        return createTool({
-          name: 'json_formatter',
-          description: 'Format, validate, and manipulate JSON data',
-          parameters: z.object({
-            json_data: z.string().describe('JSON string to format or validate'),
-            action: z.enum(['format', 'validate', 'minify', 'extract_keys']).optional().describe('Action to perform on JSON')
-          }),
-          execute: async ({ json_data, action = 'format' }) => {
-            try {
-              const parsed = JSON.parse(json_data);
-              
-              switch (action) {
-                case 'format':
-                  return {
-                    action,
-                    formatted_json: JSON.stringify(parsed, null, 2),
-                    is_valid: true,
-                    size_bytes: json_data.length,
-                    formatted_size_bytes: JSON.stringify(parsed, null, 2).length
-                  };
-                
-                case 'validate':
-                  return {
-                    action,
-                    is_valid: true,
-                    validation_message: 'JSON is valid',
-                    type: Array.isArray(parsed) ? 'array' : typeof parsed,
-                    key_count: typeof parsed === 'object' && parsed !== null ? Object.keys(parsed).length : 0
-                  };
-                
-                case 'minify':
-                  const minified = JSON.stringify(parsed);
-                  return {
-                    action,
-                    minified_json: minified,
-                    original_size: json_data.length,
-                    minified_size: minified.length,
-                    compression_ratio: ((json_data.length - minified.length) / json_data.length * 100).toFixed(1) + '%'
-                  };
-                
-                case 'extract_keys':
-                  const extractKeys = (obj: Record<string, unknown>, prefix = ''): string[] => {
-                    let keys: string[] = [];
-                    if (typeof obj === 'object' && obj !== null) {
-                      Object.keys(obj).forEach(key => {
-                        const fullKey = prefix ? `${prefix}.${key}` : key;
-                        keys.push(fullKey);
-                        if (typeof obj[key] === 'object' && obj[key] !== null) {
-                          keys = keys.concat(extractKeys(obj[key] as Record<string, unknown>, fullKey));
-                        }
-                      });
-                    }
-                    return keys;
-                  };
-                  
-                  return {
-                    action,
-                    all_keys: extractKeys(parsed),
-                    top_level_keys: typeof parsed === 'object' && parsed !== null ? Object.keys(parsed) : [],
-                    total_keys: extractKeys(parsed).length
-                  };
-                
-                default:
-                  return { error: 'Unknown action' };
-              }
-            } catch (error) {
-              return {
-                action,
-                is_valid: false,
-                error: error instanceof Error ? error.message : 'Invalid JSON',
-                suggestion: 'Please check your JSON syntax and try again'
-              };
-            }
-          }
-        });
-
       default:
         return null;
     }
   }
 
-  private async createCustomTool(toolConfig: PowerAgentConfig['customTools'][0]): Promise<ReturnType<typeof createTool> | null> {
+  private async createCustomTool(toolConfig: PowerAgentConfig['customTools'][0]): Promise<Tool | null> {
     try {
-      // Parse parameters schema
-      const parameters = z.object(
-        Object.fromEntries(
-          Object.entries(toolConfig.parameters || {}).map(([key, value]) => [
-            key,
-            z.string().describe(String(value))
-          ])
-        )
-      );
+      // Create parameters schema with proper handling of additionalProperties
+      const parameterEntries = Object.entries(toolConfig.parameters || {}).map(([key, value]) => {
+        // Check if the parameter is an object with properties
+        const paramValue = value as Record<string, unknown>;
+        
+        // For Gemini compatibility, avoid .default() in schema and handle additionalProperties
+        let zodType: z.ZodTypeAny = z.string();
+        
+        if (typeof paramValue === 'object' && paramValue !== null) {
+          // Handle different parameter types
+          if (paramValue.type === 'string') {
+            zodType = z.string();
+          } else if (paramValue.type === 'number') {
+            zodType = z.number();
+          } else if (paramValue.type === 'boolean') {
+            zodType = z.boolean();
+          } else if (paramValue.type === 'array') {
+            zodType = z.array(z.string());
+          } else if (paramValue.type === 'object') {
+            // For object types, handle nested properties and additionalProperties
+            const nestedEntries: Record<string, z.ZodTypeAny> = {};
+            
+            if (paramValue.properties && typeof paramValue.properties === 'object') {
+              Object.entries(paramValue.properties as Record<string, Record<string, unknown>>).forEach(([nestedKey, nestedValue]) => {
+                if (nestedValue.type === 'string') {
+                  nestedEntries[nestedKey] = z.string();
+                } else if (nestedValue.type === 'number') {
+                  nestedEntries[nestedKey] = z.number();
+                } else if (nestedValue.type === 'boolean') {
+                  nestedEntries[nestedKey] = z.boolean();
+                } else {
+                  nestedEntries[nestedKey] = z.string();
+                }
+              });
+            }
+            
+            zodType = z.object(nestedEntries);
+            
+            // Handle additionalProperties for objects
+            if (paramValue.additionalProperties === true) {
+              zodType = (zodType as z.ZodObject<any>).passthrough();
+            }
+          }
+          
+          // Add description if available
+          if (paramValue.description && typeof paramValue.description === 'string') {
+            zodType = zodType.describe(paramValue.description);
+          }
+        } else {
+          // If it's just a simple value, use it as description
+          zodType = z.string().describe(String(value));
+        }
+        
+        return [key, zodType];
+      });
 
-      // Create execute function from code
-      const executeFunction = new Function('args', toolConfig.execute_code);
+      const parameters = z.object(Object.fromEntries(parameterEntries));
+
+      // Create execute function from code with error handling
+      let executeFunction: (params: Record<string, unknown>, options?: Record<string, unknown>) => unknown;
+      try {
+        executeFunction = new Function('params', 'options', `
+          try {
+            ${toolConfig.execute_code}
+          } catch (error) {
+            return { error: error.message || 'Tool execution failed' };
+          }
+        `) as (params: Record<string, unknown>, options?: Record<string, unknown>) => unknown;
+      } catch (error) {
+        console.error(`Error compiling custom tool ${toolConfig.name}:`, error);
+        return null;
+      }
 
       return createTool({
         name: toolConfig.name,
         description: toolConfig.description,
         parameters,
-        execute: executeFunction
+        execute: async (params, options) => {
+          try {
+            return await executeFunction(params, options);
+          } catch (error) {
+            console.error(`Error executing tool ${toolConfig.name}:`, error);
+            return { error: error instanceof Error ? error.message : 'Tool execution failed' };
+          }
+        }
       });
     } catch (error) {
       console.error(`Error creating custom tool ${toolConfig.name}:`, error);
@@ -656,18 +608,41 @@ export class PowerAgentService {
     }
   }
 
-  private createToolkits(toolkitConfigs: PowerAgentConfig['toolkits']): ReturnType<typeof createToolkit>[] {
-    return toolkitConfigs.map(config => {
-      return createToolkit({
-        name: config.name,
-        description: config.description,
-        tools: config.tools,
-        instructions: config.instructions
-      });
-    });
-  }
+  private createHooks(hookConfigs: Record<string, unknown>): Record<string, (...args: any[]) => any> | undefined {
+    if (!hookConfigs || Object.keys(hookConfigs).length === 0) {
+      return undefined;
+    }
 
-  private createHooks(hookConfigs: Record<string, unknown>): ReturnType<typeof createHooks> {
-    return createHooks(hookConfigs);
+    try {
+      const executableHooks: Record<string, (...args: any[]) => any> = {};
+      
+      for (const [hookName, hookCode] of Object.entries(hookConfigs)) {
+        if (typeof hookCode === 'string' && hookCode.trim().length > 0) {
+          try {
+            // Create async hook function with proper error handling
+            executableHooks[hookName] = new Function('args', `
+              return (async () => {
+                try {
+                  ${hookCode}
+                } catch (error) {
+                  console.error('Hook ${hookName} error:', error);
+                }
+              })();
+            `) as (...args: any[]) => any;
+          } catch (error) {
+            console.warn(`Failed to compile hook ${hookName}:`, error);
+          }
+        }
+      }
+
+      if (Object.keys(executableHooks).length === 0) {
+        return undefined;
+      }
+
+      return createHooks(executableHooks);
+    } catch (error) {
+      console.error('Error creating hooks:', error);
+      return undefined;
+    }
   }
 } 

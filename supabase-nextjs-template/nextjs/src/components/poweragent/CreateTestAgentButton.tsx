@@ -26,8 +26,8 @@ export function CreateTestAgentButton() {
         name: 'VoltAgent Test Assistant',
         purpose: 'A comprehensive test agent to verify all VoltAgent features',
         description: 'This agent tests all PowerAgent features including tools, memory, voice, hooks, and sub-agents',
-        provider: 'vercel-ai',
-        model: 'gpt-4o',
+        provider: 'google-ai',
+        model: 'gemini-2.5-pro-preview-06-05',
         instructions: `You are a comprehensive test assistant designed to showcase all VoltAgent capabilities.
 
 Your primary responsibilities:

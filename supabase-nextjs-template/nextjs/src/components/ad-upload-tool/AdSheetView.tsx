@@ -378,22 +378,38 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, activeBatch, select
       console.log('[AdSheetView] Saving imported ad drafts and generating thumbnails...');
       setSaving(true);
       
+      // Ensure all drafts have brandId before saving
+      const draftsWithBrandId = newAdDrafts.map(draft => ({
+        ...draft,
+        brandId: draft.brandId || defaults.brandId || undefined
+      }));
+      
       const response = await fetch('/api/ad-drafts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ drafts: newAdDrafts }),
+        body: JSON.stringify({ adDrafts: draftsWithBrandId }),
       });
       
-      if (!response.ok) throw new Error('Failed to save ad drafts');
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[AdSheetView] Save response not ok:', response.status, errorText);
+        throw new Error(`Failed to save ad drafts: ${response.status} ${errorText}`);
+      }
       
-      const savedDrafts = await response.json();
-      console.log('[AdSheetView] Drafts saved successfully:', savedDrafts.length);
+      const savedResult = await response.json();
+      console.log('[AdSheetView] Drafts saved successfully:', savedResult.results?.length || 0);
       
       // Generate thumbnails for each draft that has video assets
       let totalThumbnailsGenerated = 0;
       const thumbnailErrors: string[] = [];
       
-      for (const draft of savedDrafts) {
+      // Process results to get actual saved draft data
+      const actualSavedDrafts = savedResult.results?.filter((r: { success: boolean; id: string }) => r.success) || [];
+      
+      for (const draftResult of actualSavedDrafts) {
+        // Find the corresponding draft from our newAdDrafts array
+        const draft = newAdDrafts.find(d => d.id === draftResult.id);
+        if (!draft) continue;
         const hasVideoAssets = draft.assets && draft.assets.some((asset: { type: string }) => asset.type === 'video');
         
         if (hasVideoAssets) {
@@ -451,10 +467,14 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, activeBatch, select
             // Ensure brandId is preserved
             brandId: draft.brandId || defaults.brandId || undefined
           };
+          
+          // Special handling for campaign changes - reset ad set when campaign changes
           if (columnId === 'campaignId') {
             newDraft.adSetId = null;
             newDraft.adSetName = null; // Also reset ad set name when campaign changes
           }
+          
+          // Validation checks
           if (columnId === 'status' && !adCreativeStatusOptions.includes(value as AdCreativeStatus)) {
             console.warn('Attempted to set invalid status:', value);
             return draft; 
@@ -467,10 +487,12 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, activeBatch, select
             console.warn('Attempted to set invalid CTA:', value);
             return draft; 
           }
+          
           return newDraft;
         }
         return draft;
       });
+      
       return updatedDrafts;
     });
   };
@@ -975,6 +997,14 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, activeBatch, select
                         value={String(value || '')}
                         onChange={(e) => handleCellValueChange(rowIndex, column.id as Extract<keyof AdDraft, string>, e.target.value)}
                         onBlur={() => setEditingCell(null)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            setEditingCell(null);
+                          }
+                          if (e.key === 'Escape') {
+                            setEditingCell(null);
+                          }
+                        }}
                         className="w-full p-1 border border-primary-500 rounded-sm text-sm focus:outline-none focus:ring-1 focus:ring-primary-500"
                         autoFocus
                         aria-label={column.label}
@@ -986,6 +1016,15 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, activeBatch, select
                         value={String(value || '')}
                         onChange={(e) => handleCellValueChange(rowIndex, column.id as Extract<keyof AdDraft, string>, e.target.value)}
                         onBlur={() => setEditingCell(null)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Escape') {
+                            setEditingCell(null);
+                          }
+                          // Allow Ctrl+Enter to exit for textarea
+                          if (e.key === 'Enter' && e.ctrlKey) {
+                            setEditingCell(null);
+                          }
+                        }}
                         className="w-full p-1 border border-primary-500 rounded-sm text-sm h-20 focus:outline-none focus:ring-1 focus:ring-primary-500"
                         autoFocus
                         aria-label={column.label}
@@ -1353,9 +1392,9 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, activeBatch, select
         
         return (
             <span 
-                className={`truncate text-sm p-1 ${column.type !== 'custom' && column.type !== 'status' ? 'cursor-pointer hover:bg-gray-100' : ''}`}
+                className={`truncate text-sm p-1 ${column.type !== 'custom' && column.type !== 'status' && column.type !== 'appStatus' ? 'cursor-pointer hover:bg-gray-100' : ''}`}
                 onClick={() => {
-                    if (column.type !== 'custom' && column.type !== 'status') { 
+                    if (column.type !== 'custom' && column.type !== 'status' && column.type !== 'appStatus') { 
                         setEditingCell({rowIndex, columnId: column.id as Extract<keyof AdDraft, string>});
                     }
                 }}
@@ -1416,8 +1455,8 @@ const AdSheetView: React.FC<AdSheetViewProps> = ({ defaults, activeBatch, select
       }
     };
 
-    // Debounce the save operation with a longer delay
-    const timeoutId = setTimeout(saveAdDrafts, 2000); // Increased from 1000ms to 2000ms
+    // Debounce the save operation with a shorter delay for better responsiveness
+    const timeoutId = setTimeout(saveAdDrafts, 1500); // Reduced to 1.5 seconds for faster saves
     
     return () => {
       isActive = false;

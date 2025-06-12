@@ -14,6 +14,16 @@ interface ProviderSelectorProps {
 
 const providers = [
   {
+    id: 'google-ai',
+    name: 'Google AI',
+    description: 'Google Gemini models (Recommended)',
+    models: [
+      { id: 'gemini-2.5-pro-preview-06-05', name: 'Gemini 2.5 Pro (Default)' },
+      { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro' },
+      { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash' },
+    ]
+  },
+  {
     id: 'vercel-ai',
     name: 'Vercel AI',
     description: 'Versatile provider supporting multiple LLMs',
@@ -23,16 +33,6 @@ const providers = [
       { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo' },
       { id: 'claude-3-5-sonnet-20240620', name: 'Claude 3.5 Sonnet' },
       { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus' },
-    ]
-  },
-  {
-    id: 'google-ai',
-    name: 'Google AI',
-    description: 'Google Gemini models',
-    models: [
-      { id: 'gemini-2.5-pro-preview-06-05', name: 'Gemini 2.5 Pro' },
-      { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro' },
-      { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash' },
     ]
   },
   {
@@ -135,7 +135,7 @@ export default function ProviderSelector({ provider, model, onUpdate }: Provider
             Make sure you have the required API keys configured in your environment variables:
             <ul className="mt-2 text-sm list-disc list-inside">
               {provider === 'vercel-ai' && <li>OPENAI_API_KEY or ANTHROPIC_API_KEY</li>}
-              {provider === 'google-ai' && <li>GOOGLE_GENERATIVE_AI_API_KEY</li>}
+              {provider === 'google-ai' && <li>GOOGLE_AI_API_KEY or GOOGLE_GENERATIVE_AI_API_KEY</li>}
               {provider === 'groq-ai' && <li>GROQ_API_KEY</li>}
               {provider === 'anthropic-ai' && <li>ANTHROPIC_API_KEY</li>}
               {provider === 'xsai' && <li>OPENAI_API_KEY or custom endpoint configuration</li>}

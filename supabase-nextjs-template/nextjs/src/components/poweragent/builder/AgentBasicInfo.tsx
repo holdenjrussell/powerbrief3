@@ -3,17 +3,20 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
 
 interface AgentBasicInfoProps {
   config: {
     name: string;
     purpose: string;
     description: string;
+    markdown?: boolean;
   };
   onUpdate: (updates: Partial<{
     name: string;
     purpose: string;
     description: string;
+    markdown?: boolean;
   }>) => void;
 }
 
@@ -65,6 +68,22 @@ export default function AgentBasicInfo({ config, onUpdate }: AgentBasicInfoProps
           <p className="text-sm text-gray-500">
             Provide a comprehensive overview of your agent&apos;s capabilities, behavior patterns, and any specific guidelines it should follow. This helps maintain consistency in the agent&apos;s responses.
           </p>
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label htmlFor="markdown-output">Markdown Output</Label>
+              <p className="text-sm text-gray-500">
+                Enable this to instruct the agent to format its responses using Markdown syntax (headers, lists, links, etc.)
+              </p>
+            </div>
+            <Switch
+              id="markdown-output"
+              checked={config.markdown || false}
+              onCheckedChange={(checked) => onUpdate({ markdown: checked })}
+            />
+          </div>
         </div>
       </CardContent>
     </Card>

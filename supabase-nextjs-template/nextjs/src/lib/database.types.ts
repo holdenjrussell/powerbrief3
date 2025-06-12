@@ -1779,6 +1779,221 @@ export type Database = {
           },
         ]
       }
+      poweragent_memory_agent_history: {
+        Row: {
+          agent_id: string
+          id: string
+          input: Json | null
+          key: string | null
+          metadata: Json | null
+          output: Json | null
+          status: string | null
+          timestamp: string
+          usage: Json | null
+          value: Json | null
+        }
+        Insert: {
+          agent_id: string
+          id: string
+          input?: Json | null
+          key?: string | null
+          metadata?: Json | null
+          output?: Json | null
+          status?: string | null
+          timestamp: string
+          usage?: Json | null
+          value?: Json | null
+        }
+        Update: {
+          agent_id?: string
+          id?: string
+          input?: Json | null
+          key?: string | null
+          metadata?: Json | null
+          output?: Json | null
+          status?: string | null
+          timestamp?: string
+          usage?: Json | null
+          value?: Json | null
+        }
+        Relationships: []
+      }
+      poweragent_memory_agent_history_steps: {
+        Row: {
+          agent_id: string
+          history_id: string
+          key: string
+          value: Json
+        }
+        Insert: {
+          agent_id: string
+          history_id: string
+          key: string
+          value: Json
+        }
+        Update: {
+          agent_id?: string
+          history_id?: string
+          key?: string
+          value?: Json
+        }
+        Relationships: []
+      }
+      poweragent_memory_agent_history_timeline_events: {
+        Row: {
+          agent_id: string | null
+          created_at: string | null
+          end_time: string | null
+          error: Json | null
+          event_name: string
+          event_type: string
+          history_id: string
+          id: string
+          input: Json | null
+          level: string | null
+          metadata: Json | null
+          output: Json | null
+          parent_event_id: string | null
+          start_time: string
+          status: string | null
+          status_message: string | null
+          tags: Json | null
+          updated_at: string | null
+          version: string | null
+        }
+        Insert: {
+          agent_id?: string | null
+          created_at?: string | null
+          end_time?: string | null
+          error?: Json | null
+          event_name: string
+          event_type: string
+          history_id: string
+          id: string
+          input?: Json | null
+          level?: string | null
+          metadata?: Json | null
+          output?: Json | null
+          parent_event_id?: string | null
+          start_time: string
+          status?: string | null
+          status_message?: string | null
+          tags?: Json | null
+          updated_at?: string | null
+          version?: string | null
+        }
+        Update: {
+          agent_id?: string | null
+          created_at?: string | null
+          end_time?: string | null
+          error?: Json | null
+          event_name?: string
+          event_type?: string
+          history_id?: string
+          id?: string
+          input?: Json | null
+          level?: string | null
+          metadata?: Json | null
+          output?: Json | null
+          parent_event_id?: string | null
+          start_time?: string
+          status?: string | null
+          status_message?: string | null
+          tags?: Json | null
+          updated_at?: string | null
+          version?: string | null
+        }
+        Relationships: []
+      }
+      poweragent_memory_conversations: {
+        Row: {
+          created_at: string
+          id: string
+          metadata: Json | null
+          resource_id: string
+          title: string | null
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id: string
+          metadata?: Json | null
+          resource_id: string
+          title?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          resource_id?: string
+          title?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      poweragent_memory_conversations_migration_flags: {
+        Row: {
+          completed_at: string
+          id: number
+          metadata: Json | null
+          migrated_count: number | null
+          migration_type: string
+        }
+        Insert: {
+          completed_at?: string
+          id?: number
+          metadata?: Json | null
+          migrated_count?: number | null
+          migration_type: string
+        }
+        Update: {
+          completed_at?: string
+          id?: number
+          metadata?: Json | null
+          migrated_count?: number | null
+          migration_type?: string
+        }
+        Relationships: []
+      }
+      poweragent_memory_messages: {
+        Row: {
+          content: string
+          conversation_id: string
+          created_at: string
+          message_id: string
+          role: string
+          type: string
+        }
+        Insert: {
+          content: string
+          conversation_id: string
+          created_at?: string
+          message_id: string
+          role: string
+          type: string
+        }
+        Update: {
+          content?: string
+          conversation_id?: string
+          created_at?: string
+          message_id?: string
+          role?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "poweragent_memory_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "poweragent_memory_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       poweragent_metrics: {
         Row: {
           agent_id: string | null
