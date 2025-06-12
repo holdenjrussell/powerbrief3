@@ -2885,7 +2885,7 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                     const newConcept = await createBriefConcept({
                         brief_batch_id: batch!.id,
                         user_id: user!.id,
-                        concept_title: `${conceptNumber}`,
+                        concept_title: `Concept ${conceptNumber}`,
                         body_content_structured: result.conceptData.body_content_structured_scenes || [],
                         order_in_batch: concepts.length + i,
                         clickup_id: null,
@@ -2905,7 +2905,7 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                         spoken_hook_options: spokenHooks,
                         cta_script: result.conceptData.cta_script || null,
                         cta_text_overlay: result.conceptData.cta_text_overlay || null,
-                        description: `Imported from PDF: ${result.fileName}`,
+                        description: null,
                         videoInstructions: brand?.default_video_instructions || '',
                         designerInstructions: brand?.default_designer_instructions || '',
                         product_id: null,
