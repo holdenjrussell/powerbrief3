@@ -21,7 +21,9 @@ import {
   Eye,
   FileText,
   BarChart3,
-  RefreshCw
+  RefreshCw,
+  Wrench,
+  AlertTriangle
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
@@ -82,6 +84,35 @@ export default function PowerAgentPage() {
               <Plus className="h-4 w-4" />
               Create Agent
             </Button>
+          </div>
+        </div>
+
+        {/* Under Construction Banner */}
+        <div className="mb-8 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-lg p-6">
+          <div className="flex items-center space-x-3">
+            <div className="flex-shrink-0">
+              <div className="flex items-center justify-center w-10 h-10 bg-amber-100 rounded-full">
+                <Wrench className="h-5 w-5 text-amber-600" />
+              </div>
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center space-x-2 mb-1">
+                <AlertTriangle className="h-4 w-4 text-amber-600" />
+                <h3 className="text-lg font-semibold text-amber-800">Under Development</h3>
+              </div>
+              <p className="text-amber-700">
+                PowerAgent is currently in active development. Features may be incomplete or subject to change. 
+                We&apos;re working hard to bring you the best AI-powered agent experience!
+              </p>
+              <div className="mt-3 flex items-center space-x-2 text-sm text-amber-600">
+                <div className="flex space-x-1">
+                  <div className="w-2 h-2 bg-amber-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                  <div className="w-2 h-2 bg-amber-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                  <div className="w-2 h-2 bg-amber-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                </div>
+                <span className="font-medium">Building intelligent automation...</span>
+              </div>
+            </div>
           </div>
         </div>
 
