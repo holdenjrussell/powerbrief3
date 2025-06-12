@@ -62,6 +62,8 @@ export function CommentModal({
     const [replyText, setReplyText] = useState('');
     const [showResolvedComments, setShowResolvedComments] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
+    const replyTextareaRef = useRef<HTMLTextAreaElement>(null);
+    const [cursorPosition, setCursorPosition] = useState<number>(0);
 
     // Add mouse event handlers for timeline scrubbing
     useEffect(() => {
@@ -222,6 +224,22 @@ export function CommentModal({
         }
     };
 
+    // Handle reply text change with cursor position preservation
+    const handleReplyTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+        const newValue = e.target.value;
+        const newCursorPosition = e.target.selectionStart;
+        
+        setReplyText(newValue);
+        setCursorPosition(newCursorPosition);
+    };
+
+    // Restore cursor position after re-render
+    useEffect(() => {
+        if (replyTextareaRef.current && replyingToId) {
+            replyTextareaRef.current.setSelectionRange(cursorPosition, cursorPosition);
+        }
+    }, [replyText, cursorPosition, replyingToId]);
+
     // Jump to timestamp
     const jumpToTimestamp = (timestamp: number) => {
         if (videoRef.current) {
@@ -340,11 +358,17 @@ export function CommentModal({
                 <div className="space-y-2">
                     <textarea
                         value={editingCommentText}
-                        onChange={(e) => setEditingCommentText(e.target.value)}
+                        onChange={(e) => {
+                            e.preventDefault();
+                            const value = e.target.value;
+                            setEditingCommentText(value);
+                        }}
                         aria-label="Edit comment"
                         className="w-full p-2 border border-gray-300 rounded text-sm resize-none"
                         rows={2}
                         autoFocus
+                        dir="ltr"
+                        style={{ direction: 'ltr', textAlign: 'left' }}
                     />
                     <div className="flex space-x-2">
                         <button
@@ -396,13 +420,16 @@ export function CommentModal({
                                 </div>
                             </div>
                             <textarea
+                                ref={replyTextareaRef}
                                 value={replyText}
-                                onChange={(e) => setReplyText(e.target.value)}
+                                onChange={handleReplyTextChange}
                                 placeholder="Add your reply..."
                                 aria-label="Reply comment"
                                 className="w-full p-2 border border-gray-300 rounded text-sm resize-none"
                                 rows={3}
                                 autoFocus
+                                dir="ltr"
+                                style={{ direction: 'ltr', textAlign: 'left' }}
                             />
                             <div className="flex space-x-2 mt-2">
                                 <button
@@ -598,12 +625,18 @@ export function CommentModal({
                                 </div>
                                 <textarea
                                     value={newComment}
-                                    onChange={(e) => setNewComment(e.target.value)}
+                                    onChange={(e) => {
+                                        e.preventDefault();
+                                        const value = e.target.value;
+                                        setNewComment(value);
+                                    }}
                                     placeholder="Add your feedback..."
                                     aria-label="New comment"
                                     className="w-full p-2 border border-gray-300 rounded text-sm resize-none"
                                     rows={3}
                                     autoFocus
+                                    dir="ltr"
+                                    style={{ direction: 'ltr', textAlign: 'left' }}
                                 />
                                 <div className="flex space-x-2 mt-2">
                                     <button
