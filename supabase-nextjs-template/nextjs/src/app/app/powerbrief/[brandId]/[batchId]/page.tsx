@@ -2885,7 +2885,7 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                     const newConcept = await createBriefConcept({
                         brief_batch_id: batch!.id,
                         user_id: user!.id,
-                        concept_title: `Concept ${conceptNumber}`,
+                        concept_title: `${conceptNumber}`,
                         body_content_structured: result.conceptData.body_content_structured_scenes || [],
                         order_in_batch: concepts.length + i,
                         clickup_id: null,
