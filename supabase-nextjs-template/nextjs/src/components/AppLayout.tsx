@@ -21,7 +21,6 @@ import {
     AlertTriangle,
     Settings,
     FileText,
-    Bot,
 } from 'lucide-react';
 import { useGlobal } from "@/lib/context/GlobalContext";
 import { createSPASassClient } from "@/lib/supabase/client";
@@ -103,7 +102,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         { name: 'Homepage', href: '/app', icon: Home },
         { name: 'PowerBrief', href: '/app/powerbrief', icon: Presentation },
         { name: 'PowerFrame', href: '/app/powerframe', icon: Frame },
-        { name: 'PowerAgent', href: '/app/poweragent', icon: Bot },
+
         { name: 'UGC Creator Pipeline', href: '/app/ugc-creator-pipeline', icon: FileText },
         {
             name: 'Team Sync',
@@ -185,9 +184,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                         } else if (item.href === '/app/powerframe' && pathname.startsWith('/app/powerframe')) {
                             // PowerFrame - includes both main page and brand-specific pages
                             isActive = true;
-                        } else if (item.href === '/app/poweragent' && pathname.startsWith('/app/poweragent')) {
-                            // PowerAgent - includes both main page and sub-pages like builder
-                            isActive = true;
+
                         } else if (item.subItems && item.subItems.some(subItem => pathname === subItem.href)) {
                             // Sub-menu items
                             isActive = true;
