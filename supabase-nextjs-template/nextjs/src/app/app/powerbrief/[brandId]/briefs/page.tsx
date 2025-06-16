@@ -253,14 +253,28 @@ export default function BriefsPage({ params }: { params: ParamsType | Promise<Pa
                                                         <Folder className="h-5 w-5 mr-2 text-primary-600" />
                                                         {batch.name}
                                                     </div>
-                                                </CardTitle>
-                                                <CardDescription>
-                                                    Created: {new Date(batch.created_at).toLocaleDateString()}
-                                                    {batch.content_type && (
-                                                        <span className="ml-2 px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">
-                                                            {batch.content_type.replace('-', ' ').replace('_', ' ').toUpperCase()}
+                                                    {batch.allow_new_concepts === false && (
+                                                        <span className="px-2 py-1 text-xs bg-red-100 text-red-800 rounded-full font-medium">
+                                                            Batch Closed
                                                         </span>
                                                     )}
+                                                </CardTitle>
+                                                <CardDescription>
+                                                    <div className="flex items-center justify-between">
+                                                        <div>
+                                                            Created: {new Date(batch.created_at).toLocaleDateString()}
+                                                            {batch.content_type && (
+                                                                <span className="ml-2 px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">
+                                                                    {batch.content_type.replace('-', ' ').replace('_', ' ').toUpperCase()}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        {batch.allow_new_concepts === false && (
+                                                            <span className="text-xs text-red-600 ml-2">
+                                                                No new concepts allowed
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 </CardDescription>
                                             </CardHeader>
                                             <CardContent>

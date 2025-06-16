@@ -86,9 +86,9 @@ interface ConceptRejectionData {
   conceptId: string;
   conceptTitle: string;
   batchName: string;
-  videoEditor?: string;
-  strategist?: string;
-  rejectionReason?: string;
+  assignedStrategist?: string;
+  assignedCreativeCoordinator?: string;
+  rejectionComments?: string;
   conceptShareUrl: string;
   batchShareUrl: string;
 }
@@ -602,6 +602,72 @@ export async function sendBriefRevisionsNeededNotification(data: BriefRevisionsN
   }
 }
 
+// New function for concept rejection notifications
+export async function sendConceptRejectionNotification(data: ConceptRejectionData): Promise<void> {
+  try {
+    const supabase = await createSSRClient();
+    
+    // Get brand Slack settings
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: brand, error: brandError } = await supabase
+      .from('brands' as any)
+      .select('name, slack_webhook_url, slack_channel_name, slack_notifications_enabled, slack_channel_config')
+      .eq('id', data.brandId)
+      .single();
+
+    if (brandError || !brand) {
+      console.error('Error fetching brand for concept rejection notification:', brandError);
+      return;
+    }
+
+    const typedBrand = brand as unknown as BrandSlackSettings;
+
+    // Check if Slack notifications are enabled
+    if (!typedBrand.slack_notifications_enabled || !typedBrand.slack_webhook_url) {
+      console.log('Slack notifications not enabled for brand:', data.brandId);
+      return;
+    }
+
+    // Create Slack message for concept rejection
+    const message = createConceptRejectionMessage({
+      brandName: typedBrand.name,
+      conceptTitle: data.conceptTitle,
+      batchName: data.batchName,
+      assignedStrategist: data.assignedStrategist,
+      assignedCreativeCoordinator: data.assignedCreativeCoordinator,
+      rejectionComments: data.rejectionComments,
+      conceptShareUrl: data.conceptShareUrl,
+      batchShareUrl: data.batchShareUrl
+    });
+
+    // Add channel override for concept revision notifications (similar category)
+    const channelOverride = getChannelForNotificationType(typedBrand, 'concept_revision');
+    
+    if (channelOverride) {
+      (message as { channel?: string }).channel = channelOverride;
+    }
+
+    // Send to Slack
+    const response = await fetch(typedBrand.slack_webhook_url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(message),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Failed to send concept rejection notification:', response.status, errorText);
+    } else {
+      console.log('Concept rejection notification sent successfully for brand:', data.brandId);
+    }
+
+  } catch (error) {
+    console.error('Error sending concept rejection notification:', error);
+  }
+}
+
 // New function for additional sizes request notifications
 export async function sendAdditionalSizesRequestNotification(data: AdditionalSizesRequestData): Promise<void> {
   try {
@@ -663,71 +729,6 @@ export async function sendAdditionalSizesRequestNotification(data: AdditionalSiz
 
   } catch (error) {
     console.error('Error sending additional sizes request notification:', error);
-  }
-}
-
-// New function for concept rejection notifications
-export async function sendConceptRejectionNotification(data: ConceptRejectionData): Promise<void> {
-  try {
-    const supabase = await createSSRClient();
-    
-    // Get brand Slack settings
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: brand, error: brandError } = await supabase
-      .from('brands' as any)
-      .select('name, slack_webhook_url, slack_channel_name, slack_notifications_enabled, slack_channel_config')
-      .eq('id', data.brandId)
-      .single();
-
-    if (brandError || !brand) {
-      console.error('Error fetching brand for concept rejection notification:', brandError);
-      return;
-    }
-
-    const typedBrand = brand as unknown as BrandSlackSettings;
-
-    // Check if Slack notifications are enabled
-    if (!typedBrand.slack_notifications_enabled || !typedBrand.slack_webhook_url) {
-      console.log('Slack notifications not enabled for brand:', data.brandId);
-      return;
-    }
-
-    // Create Slack message for concept rejection
-    const message = createConceptRejectionMessage({
-      brandName: typedBrand.name,
-      conceptTitle: data.conceptTitle,
-      batchName: data.batchName,
-      videoEditor: data.videoEditor,
-      strategist: data.strategist,
-      rejectionReason: data.rejectionReason,
-      conceptShareUrl: data.conceptShareUrl,
-      batchShareUrl: data.batchShareUrl
-    });
-
-    // Add channel override for concept rejection notifications (similar to revision)
-    const channelOverride = getChannelForNotificationType(typedBrand, 'concept_revision');
-    if (channelOverride) {
-      (message as { channel?: string }).channel = channelOverride;
-    }
-
-    // Send to Slack
-    const response = await fetch(typedBrand.slack_webhook_url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(message),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Failed to send concept rejection notification:', response.status, errorText);
-    } else {
-      console.log('Concept rejection notification sent successfully for brand:', data.brandId);
-    }
-
-  } catch (error) {
-    console.error('Error sending concept rejection notification:', error);
   }
 }
 
@@ -1493,6 +1494,137 @@ function createBriefRevisionsNeededMessage(data: BriefRevisionsNeededMessageData
   };
 }
 
+// New function for concept rejection notifications
+interface ConceptRejectionMessageData {
+  brandName: string;
+  conceptTitle: string;
+  batchName: string;
+  assignedStrategist?: string;
+  assignedCreativeCoordinator?: string;
+  rejectionComments?: string;
+  conceptShareUrl: string;
+  batchShareUrl: string;
+}
+
+function createConceptRejectionMessage(data: ConceptRejectionMessageData) {
+  const {
+    brandName,
+    conceptTitle,
+    batchName,
+    assignedStrategist,
+    assignedCreativeCoordinator,
+    rejectionComments,
+    conceptShareUrl,
+    batchShareUrl
+  } = data;
+
+  const blocks = [
+    {
+      type: "header",
+      text: {
+        type: "plain_text",
+        text: "❌ Concept Rejected",
+        emoji: true
+      }
+    },
+    {
+      type: "section",
+      fields: [
+        {
+          type: "mrkdwn",
+          text: `*Brand:*\n${brandName}`
+        },
+        {
+          type: "mrkdwn",
+          text: `*Batch:*\n${batchName}`
+        },
+        {
+          type: "mrkdwn",
+          text: `*Concept:*\n${conceptTitle}`
+        },
+        {
+          type: "mrkdwn",
+          text: `*Assigned Strategist:*\n${assignedStrategist || 'Not assigned'}`
+        }
+      ]
+    }
+  ];
+
+  // Add creative coordinator field if available
+  if (assignedCreativeCoordinator) {
+    blocks[1].fields.push({
+      type: "mrkdwn",
+      text: `*Creative Coordinator:*\n${assignedCreativeCoordinator}`
+    });
+  }
+
+  blocks.push({
+    type: "section",
+    text: {
+      type: "mrkdwn",
+      text: "*Status:* ❌ This concept has been rejected and will not proceed to production. The concept may need to be completely reworked or replaced."
+    }
+  });
+
+  // Add rejection comments section if provided
+  if (rejectionComments) {
+    blocks.push({
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: `*Rejection Comments:*\n${rejectionComments}`
+      }
+    });
+  }
+
+  // Add action buttons
+  blocks.push({
+    type: "actions",
+    elements: [
+      {
+        type: "button",
+        text: {
+          type: "plain_text",
+          text: "View Concept",
+          emoji: true
+        },
+        url: conceptShareUrl
+      },
+      {
+        type: "button",
+        text: {
+          type: "plain_text",
+          text: "View Batch",
+          emoji: true
+        },
+        url: batchShareUrl,
+        style: "danger"
+      }
+    ]
+  });
+
+  // Add timestamp
+  blocks.push({
+    type: "context",
+    elements: [
+      {
+        type: "mrkdwn",
+        text: `Concept rejected at ${new Date().toLocaleString()}`
+      }
+    ]
+  });
+
+  return {
+    text: `❌ Concept Rejected - ${conceptTitle} (${brandName})`,
+    attachments: [
+      {
+        color: "danger",
+        blocks: blocks
+      }
+    ]
+  };
+}
+
 // New function for additional sizes request notifications
 interface AdditionalSizesRequestMessageData {
   brandName: string;
@@ -1595,137 +1727,6 @@ function createAdditionalSizesRequestMessage(data: AdditionalSizesRequestMessage
     attachments: [
       {
         color: "warning",
-        blocks: blocks
-      }
-    ]
-  };
-}
-
-// New function for concept rejection message
-interface ConceptRejectionMessageData {
-  brandName: string;
-  conceptTitle: string;
-  batchName: string;
-  videoEditor?: string;
-  strategist?: string;
-  rejectionReason?: string;
-  conceptShareUrl: string;
-  batchShareUrl: string;
-}
-
-function createConceptRejectionMessage(data: ConceptRejectionMessageData) {
-  const {
-    brandName,
-    conceptTitle,
-    batchName,
-    videoEditor,
-    strategist,
-    rejectionReason,
-    conceptShareUrl,
-    batchShareUrl
-  } = data;
-
-  const blocks = [
-    {
-      type: "header",
-      text: {
-        type: "plain_text",
-        text: "❌ Concept Rejected",
-        emoji: true
-      }
-    },
-    {
-      type: "section",
-      fields: [
-        {
-          type: "mrkdwn",
-          text: `*Brand:*\n${brandName}`
-        },
-        {
-          type: "mrkdwn",
-          text: `*Batch:*\n${batchName}`
-        },
-        {
-          type: "mrkdwn",
-          text: `*Concept:*\n${conceptTitle}`
-        },
-        {
-          type: "mrkdwn",
-          text: `*Creator:*\n${videoEditor || 'Not assigned'}`
-        }
-      ]
-    }
-  ];
-
-  // Add strategist field if available
-  if (strategist) {
-    blocks[1].fields.push({
-      type: "mrkdwn",
-      text: `*Strategist:*\n${strategist}`
-    });
-  }
-
-  blocks.push({
-    type: "section",
-    text: {
-      type: "mrkdwn",
-      text: "*Status:* ❌ This concept has been rejected and will not proceed to production. A new concept may need to be developed."
-    }
-  });
-
-  // Add rejection reason if provided
-  if (rejectionReason) {
-    blocks.push({
-      type: "section",
-      text: {
-        type: "mrkdwn",
-        text: `*Rejection Reason:*\n${rejectionReason}`
-      }
-    });
-  }
-
-  // Add action buttons
-  blocks.push({
-    type: "actions",
-    elements: [
-      {
-        type: "button",
-        text: {
-          type: "plain_text",
-          text: "View Concept",
-          emoji: true
-        },
-        url: conceptShareUrl
-      },
-      {
-        type: "button",
-        text: {
-          type: "plain_text",
-          text: "View Batch",
-          emoji: true
-        },
-        url: batchShareUrl,
-        style: "danger"
-      }
-    ]
-  });
-
-  // Add timestamp
-  blocks.push({
-    type: "context",
-    elements: [
-      {
-        type: "mrkdwn",
-        text: `Concept rejected at ${new Date().toLocaleString()}`
-      }
-    ]
-  });
-
-  return {
-    text: `❌ Concept Rejected - ${conceptTitle} (${brandName})`,
-    attachments: [
-      {
-        color: "danger",
         blocks: blocks
       }
     ]

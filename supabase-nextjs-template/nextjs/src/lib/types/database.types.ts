@@ -7,31 +7,6 @@ export type Json =
   | Json[]
 
 export type Database = {
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          operationName?: string
-          query?: string
-          variables?: Json
-          extensions?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
       ad_batches: {
@@ -395,6 +370,97 @@ export type Database = {
           },
         ]
       }
+      brand_automation_settings: {
+        Row: {
+          automation_enabled: boolean | null
+          brand_id: string
+          business_days: number[] | null
+          business_hours_end: string | null
+          business_hours_start: string | null
+          created_at: string
+          default_timezone: string | null
+          id: string
+          notification_emails: string[] | null
+          settings: Json | null
+          updated_at: string
+          webhook_secret: string | null
+        }
+        Insert: {
+          automation_enabled?: boolean | null
+          brand_id: string
+          business_days?: number[] | null
+          business_hours_end?: string | null
+          business_hours_start?: string | null
+          created_at?: string
+          default_timezone?: string | null
+          id?: string
+          notification_emails?: string[] | null
+          settings?: Json | null
+          updated_at?: string
+          webhook_secret?: string | null
+        }
+        Update: {
+          automation_enabled?: boolean | null
+          brand_id?: string
+          business_days?: number[] | null
+          business_hours_end?: string | null
+          business_hours_start?: string | null
+          created_at?: string
+          default_timezone?: string | null
+          id?: string
+          notification_emails?: string[] | null
+          settings?: Json | null
+          updated_at?: string
+          webhook_secret?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "brand_automation_settings_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: true
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      brand_n8n_workflows: {
+        Row: {
+          brand_id: string
+          configuration: Json | null
+          created_at: string
+          id: string
+          is_active: boolean | null
+          updated_at: string
+          workflow_name: string
+        }
+        Insert: {
+          brand_id: string
+          configuration?: Json | null
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          updated_at?: string
+          workflow_name: string
+        }
+        Update: {
+          brand_id?: string
+          configuration?: Json | null
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          updated_at?: string
+          workflow_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "brand_n8n_workflows_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       brand_shares: {
         Row: {
           accepted_at: string | null
@@ -697,6 +763,7 @@ export type Database = {
           designerinstructions: string | null
           designerInstructions: string | null
           editor_id: string | null
+          generated_broll: Json | null
           hook_count: number | null
           hook_type: string | null
           id: string
@@ -748,6 +815,7 @@ export type Database = {
           designerinstructions?: string | null
           designerInstructions?: string | null
           editor_id?: string | null
+          generated_broll?: Json | null
           hook_count?: number | null
           hook_type?: string | null
           id?: string
@@ -799,6 +867,7 @@ export type Database = {
           designerinstructions?: string | null
           designerInstructions?: string | null
           editor_id?: string | null
+          generated_broll?: Json | null
           hook_count?: number | null
           hook_type?: string | null
           id?: string
@@ -1182,6 +1251,62 @@ export type Database = {
         }
         Relationships: []
       }
+      contract_template_fields: {
+        Row: {
+          created_at: string
+          height: number
+          id: string
+          is_required: boolean | null
+          page: number
+          placeholder: string | null
+          position_x: number
+          position_y: number
+          recipient_role: string | null
+          template_id: string
+          type: string
+          updated_at: string
+          width: number
+        }
+        Insert: {
+          created_at?: string
+          height: number
+          id?: string
+          is_required?: boolean | null
+          page: number
+          placeholder?: string | null
+          position_x: number
+          position_y: number
+          recipient_role?: string | null
+          template_id: string
+          type: string
+          updated_at?: string
+          width: number
+        }
+        Update: {
+          created_at?: string
+          height?: number
+          id?: string
+          is_required?: boolean | null
+          page?: number
+          placeholder?: string | null
+          position_x?: number
+          position_y?: number
+          recipient_role?: string | null
+          template_id?: string
+          type?: string
+          updated_at?: string
+          width?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contract_template_fields_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "contract_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contract_templates: {
         Row: {
           brand_id: string
@@ -1459,6 +1584,102 @@ export type Database = {
             columns: ["brand_id"]
             isOneToOne: false
             referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      n8n_automation_templates: {
+        Row: {
+          category: string
+          created_at: string
+          description: string | null
+          id: string
+          is_system: boolean | null
+          name: string
+          optional_variables: Json | null
+          required_variables: Json | null
+          updated_at: string
+          workflow_definition: Json
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_system?: boolean | null
+          name: string
+          optional_variables?: Json | null
+          required_variables?: Json | null
+          updated_at?: string
+          workflow_definition: Json
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_system?: boolean | null
+          name?: string
+          optional_variables?: Json | null
+          required_variables?: Json | null
+          updated_at?: string
+          workflow_definition?: Json
+        }
+        Relationships: []
+      }
+      n8n_execution_logs: {
+        Row: {
+          brand_id: string
+          created_at: string
+          creator_id: string | null
+          data: Json | null
+          duration_ms: number | null
+          error_message: string | null
+          execution_id: string
+          id: string
+          status: string
+          step_name: string
+          workflow_id: string
+        }
+        Insert: {
+          brand_id: string
+          created_at?: string
+          creator_id?: string | null
+          data?: Json | null
+          duration_ms?: number | null
+          error_message?: string | null
+          execution_id: string
+          id?: string
+          status: string
+          step_name: string
+          workflow_id: string
+        }
+        Update: {
+          brand_id?: string
+          created_at?: string
+          creator_id?: string | null
+          data?: Json | null
+          duration_ms?: number | null
+          error_message?: string | null
+          execution_id?: string
+          id?: string
+          status?: string
+          step_name?: string
+          workflow_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "n8n_execution_logs_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "n8n_execution_logs_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "ugc_creators"
             referencedColumns: ["id"]
           },
         ]
@@ -1951,6 +2172,54 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      sop_videos: {
+        Row: {
+          created_at: string
+          description: string | null
+          duration: number | null
+          file_name: string
+          file_size: number | null
+          id: string
+          is_active: boolean | null
+          original_name: string | null
+          sop_id: string
+          title: string | null
+          updated_at: string
+          uploaded_by: string | null
+          video_url: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          duration?: number | null
+          file_name: string
+          file_size?: number | null
+          id?: string
+          is_active?: boolean | null
+          original_name?: string | null
+          sop_id: string
+          title?: string | null
+          updated_at?: string
+          uploaded_by?: string | null
+          video_url: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          duration?: number | null
+          file_name?: string
+          file_size?: number | null
+          id?: string
+          is_active?: boolean | null
+          original_name?: string | null
+          sop_id?: string
+          title?: string | null
+          updated_at?: string
+          uploaded_by?: string | null
+          video_url?: string
+        }
+        Relationships: []
       }
       todo_issues: {
         Row: {
@@ -2654,6 +2923,7 @@ export type Database = {
         Row: {
           address_line1: string | null
           address_line2: string | null
+          age: string | null
           brand_id: string
           city: string | null
           contacted_by: string | null
@@ -2679,12 +2949,13 @@ export type Database = {
           tiktok_handle: string | null
           tracking_number: string | null
           updated_at: string
-          user_id: string
+          user_id: string | null
           zip: string | null
         }
         Insert: {
           address_line1?: string | null
           address_line2?: string | null
+          age?: string | null
           brand_id: string
           city?: string | null
           contacted_by?: string | null
@@ -2710,12 +2981,13 @@ export type Database = {
           tiktok_handle?: string | null
           tracking_number?: string | null
           updated_at?: string
-          user_id: string
+          user_id?: string | null
           zip?: string | null
         }
         Update: {
           address_line1?: string | null
           address_line2?: string | null
+          age?: string | null
           brand_id?: string
           city?: string | null
           contacted_by?: string | null
@@ -2741,7 +3013,7 @@ export type Database = {
           tiktok_handle?: string | null
           tracking_number?: string | null
           updated_at?: string
-          user_id?: string
+          user_id?: string | null
           zip?: string | null
         }
         Relationships: [
@@ -5016,9 +5288,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {},
   },

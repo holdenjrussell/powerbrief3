@@ -7,31 +7,6 @@ export type Json =
   | Json[]
 
 export type Database = {
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          operationName?: string
-          query?: string
-          variables?: Json
-          extensions?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
       ad_batches: {
@@ -455,9 +430,8 @@ export type Database = {
           created_at: string
           id: string
           is_active: boolean | null
-          n8n_workflow_id: string
-          template_name: string
           updated_at: string
+          workflow_name: string
         }
         Insert: {
           brand_id: string
@@ -465,9 +439,8 @@ export type Database = {
           created_at?: string
           id?: string
           is_active?: boolean | null
-          n8n_workflow_id: string
-          template_name: string
           updated_at?: string
+          workflow_name: string
         }
         Update: {
           brand_id?: string
@@ -475,9 +448,8 @@ export type Database = {
           created_at?: string
           id?: string
           is_active?: boolean | null
-          n8n_workflow_id?: string
-          template_name?: string
           updated_at?: string
+          workflow_name?: string
         }
         Relationships: [
           {
@@ -5316,9 +5288,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {},
   },

@@ -306,10 +306,22 @@ export default function PowerBriefPage() {
                                                     <Folder className="h-5 w-5 mr-2 text-primary-600" />
                                                     {batch.name}
                                                 </div>
+                                                {batch.allow_new_concepts === false && (
+                                                    <span className="px-2 py-1 text-xs bg-red-100 text-red-800 rounded-full font-medium">
+                                                        Batch Closed
+                                                    </span>
+                                                )}
                                             </CardTitle>
-                                            <CardDescription className="flex items-center">
-                                                <Calendar className="h-4 w-4 mr-1" />
-                                                {new Date(batch.created_at).toLocaleDateString()}
+                                            <CardDescription className="flex items-center justify-between">
+                                                <div className="flex items-center">
+                                                    <Calendar className="h-4 w-4 mr-1" />
+                                                    {new Date(batch.created_at).toLocaleDateString()}
+                                                </div>
+                                                {batch.allow_new_concepts === false && (
+                                                    <span className="text-xs text-red-600 ml-2">
+                                                        No new concepts allowed
+                                                    </span>
+                                                )}
                                             </CardDescription>
                                         </CardHeader>
                                         <CardContent>

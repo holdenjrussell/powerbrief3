@@ -129,6 +129,7 @@ export interface BriefBatch {
   shared_with?: string[] | null;
   share_settings?: Record<string, ShareSettings> | null;
   starting_concept_number?: number;
+  allow_new_concepts?: boolean; // Whether new concepts can be added to this batch
   updated_at: string;
 }
 
@@ -284,6 +285,7 @@ export type DbBriefBatch = {
   shared_with?: string[] | null;
   share_settings?: Json | null;
   starting_concept_number?: number;
+  allow_new_concepts?: boolean; // Whether new concepts can be added to this batch
   updated_at: string;
 };
 

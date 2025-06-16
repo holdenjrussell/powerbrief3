@@ -263,21 +263,32 @@ export async function createBriefBatch(batch: Omit<BriefBatch, 'id' | 'created_a
 
 export async function updateBriefBatch(batch: Partial<BriefBatch> & { id: string }): Promise<BriefBatch> {
   const supabase = await getSupabaseClient();
+  
+  // Enhanced logging for debugging batch updates
+  console.log('🔄 Updating batch ID:', batch.id);
+  console.log('🔧 Fields being updated:', Object.keys(batch));
+  console.log('📋 Batch data:', JSON.stringify(batch, null, 2));
+  
+  const updateData: any = {
+    ...batch,
+    updated_at: new Date().toISOString()
+  };
+  
   const { data, error } = await supabase
     .from('brief_batches')
-    .update({
-      ...batch,
-      updated_at: new Date().toISOString()
-    })
+    .update(updateData)
     .eq('id', batch.id)
     .select()
     .single();
 
   if (error) {
-    console.error('Error updating brief batch:', error);
+    console.error('❌ Database error updating batch:', error);
+    console.error('🔍 Error details:', JSON.stringify(error, null, 2));
+    console.error('📋 Attempted update data:', JSON.stringify(updateData, null, 2));
     throw error;
   }
 
+  console.log('✅ Batch updated successfully, ID:', batch.id);
   return data;
 }
 
@@ -691,6 +702,47 @@ export async function shareBriefConcept(
     share_id: shareId,
     share_url: shareUrl
   };
+}
+
+/**
+ * Move a concept to a different batch
+ * @param conceptId - ID of the concept to move
+ * @param targetBatchId - ID of the target batch to move the concept to
+ * @returns The updated concept
+ */
+export async function moveConceptToBatch(conceptId: string, targetBatchId: string): Promise<BriefConcept> {
+  const supabase = await getSupabaseClient();
+  
+  console.log('🔄 Moving concept', conceptId, 'to batch', targetBatchId);
+  
+  const { data, error } = await supabase
+    .from('brief_concepts')
+    .update({
+      brief_batch_id: targetBatchId,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', conceptId)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('❌ Error moving concept to batch:', error);
+    throw error;
+  }
+
+  console.log('✅ Concept moved successfully');
+
+  // Transform from DB format to app format with type casting
+  const movedConcept: any = {
+    ...data,
+    body_content_structured: data.body_content_structured as unknown as Scene[],
+    text_hook_options: data.text_hook_options as unknown as Hook[] | null,
+    spoken_hook_options: data.spoken_hook_options as unknown as Hook[] | null,
+    hook_type: data.hook_type,
+    hook_count: data.hook_count,
+  };
+  
+  return movedConcept as BriefConcept;
 }
 
 /**

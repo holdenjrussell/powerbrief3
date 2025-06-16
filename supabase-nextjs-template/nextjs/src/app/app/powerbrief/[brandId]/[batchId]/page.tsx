@@ -2,14 +2,14 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useGlobal } from '@/lib/context/GlobalContext';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { getBriefBatchById, getBrandById, getBriefConcepts, createBriefConcept, updateBriefConcept, deleteBriefConcept, deleteBriefBatch, updateBriefBatch, uploadMedia, shareBriefBatch, shareBriefConcept } from '@/lib/services/powerbriefService';
+import { useRouter } from 'next/navigation';
+import { getBriefBatchById, getBrandById, getBriefConcepts, createBriefConcept, updateBriefConcept, deleteBriefConcept, deleteBriefBatch, updateBriefBatch, uploadMedia, shareBriefBatch, shareBriefConcept, getBriefBatches } from '@/lib/services/powerbriefService';
 import { getProductsByBrand } from '@/lib/services/productService';
 import { Brand, BriefBatch, BriefConcept, Scene, Hook, AiBriefingRequest, ShareSettings, Product, CustomLink, Prerequisite } from '@/lib/types/powerbrief';
 import { 
     Sparkles, Plus, X, FileUp, Trash2, Share2, MoveUp, MoveDown, 
     Loader2, Check, Pencil, Bug, Film, FileImage, ArrowLeft, Copy, LinkIcon, Mail,
-    Filter, SortAsc, RotateCcw, ExternalLink, XCircle, FileText, ChevronDown, Settings
+    Filter, SortAsc, RotateCcw, ExternalLink, XCircle, FileText, ChevronDown, Settings, FolderOpen
 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -28,13 +28,9 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 // Helper to unwrap params safely
 type ParamsType = { brandId: string, batchId: string };
 
-export default function ConceptBriefingPage({ params }: { params: Promise<ParamsType> }) {
+export default function ConceptBriefingPage({ params }: { params: ParamsType }) {
     const { user } = useGlobal();
     const router = useRouter();
-    const searchParams = useSearchParams();
-    
-    // Unwrap the params Promise using React.use()
-    const { brandId, batchId } = React.use(params);
     const [loading, setLoading] = useState<boolean>(true);
     const [brand, setBrand] = useState<Brand | null>(null);
     const [batch, setBatch] = useState<BriefBatch | null>(null);
@@ -127,17 +123,27 @@ export default function ConceptBriefingPage({ params }: { params: Promise<Params
         };
     }[]>([]);
 
-    // Filtering and sorting state - initialize from URL parameters
-    const [filterStatus, setFilterStatus] = useState<string>(searchParams.get('status') || 'all');
-    const [filterStatusType, setFilterStatusType] = useState<'is' | 'is_not'>((searchParams.get('statusType') as 'is' | 'is_not') || 'is');
-    const [filterEditor, setFilterEditor] = useState<string>(searchParams.get('editor') || 'all');
-    const [filterProduct, setFilterProduct] = useState<string>(searchParams.get('product') || 'all');
-    const [filterStrategist, setFilterStrategist] = useState<string>(searchParams.get('strategist') || 'all');
-    const [filterMediaType, setFilterMediaType] = useState<string>(searchParams.get('mediaType') || 'all');
-    const [sortBy, setSortBy] = useState<string>(searchParams.get('sortBy') || 'default');
+    // Filtering and sorting state
+    const [filterStatus, setFilterStatus] = useState<string>('all');
+    const [filterStatusType, setFilterStatusType] = useState<'is' | 'is_not'>('is');
+    const [filterEditor, setFilterEditor] = useState<string>('all');
+    const [filterProduct, setFilterProduct] = useState<string>('all');
+    const [filterStrategist, setFilterStrategist] = useState<string>('all');
+    const [filterMediaType, setFilterMediaType] = useState<string>('all');
+    const [sortBy, setSortBy] = useState<string>('default');
 
     // Content type detection
     const [contentType, setContentType] = useState<string>('ads');
+
+    // Move concept state
+    const [showMoveConceptDialog, setShowMoveConceptDialog] = useState<boolean>(false);
+    const [movingConceptId, setMovingConceptId] = useState<string | null>(null);
+    const [availableBatches, setAvailableBatches] = useState<BriefBatch[]>([]);
+    const [selectedTargetBatchId, setSelectedTargetBatchId] = useState<string>('');
+    const [movingConceptInProgress, setMovingConceptInProgress] = useState<boolean>(false);
+
+    // Batch settings state
+    const [allowNewConcepts, setAllowNewConcepts] = useState<boolean>(true);
 
     // Hard-coded system instructions for different content types
     const SYSTEM_INSTRUCTIONS = {
@@ -484,7 +490,9 @@ Focus on search optimization, reader value, and conversion potential.`
         }
     };
 
-    // Note: brandId and batchId are already extracted at the top of the component using React.use()
+    // Extract params using React.use()
+    const unwrappedParams = params instanceof Promise ? React.use(params) : params;
+    const { brandId, batchId } = unwrappedParams;
 
     // Detect content type from URL params
     useEffect(() => {
@@ -620,28 +628,6 @@ Focus on search optimization, reader value, and conversion potential.`
         setFilterStrategist('all');
         setFilterMediaType('all');
         setSortBy('default');
-        // Clear URL parameters when resetting filters
-        updateUrlParams({});
-    };
-
-    // Function to update URL parameters
-    const updateUrlParams = (newParams: Record<string, string>) => {
-        const url = new URL(window.location.href);
-        
-        // Clear existing filter parameters
-        ['status', 'statusType', 'editor', 'product', 'strategist', 'mediaType', 'sortBy'].forEach(param => {
-            url.searchParams.delete(param);
-        });
-        
-        // Add new parameters (only if not default values)
-        Object.entries(newParams).forEach(([key, value]) => {
-            if (value && value !== 'all' && value !== 'default' && value !== 'is') {
-                url.searchParams.set(key, value);
-            }
-        });
-        
-        // Update the URL without triggering a page reload
-        window.history.replaceState({}, '', url.toString());
     };
 
     const hasActiveFilters = filterStatus !== 'all' || filterEditor !== 'all' || filterProduct !== 'all' || filterStrategist !== 'all' || filterMediaType !== 'all' || sortBy !== 'default';
@@ -672,6 +658,9 @@ Focus on search optimization, reader value, and conversion potential.`
 
                 // Set the starting concept number from the batch data, defaulting to 1 if not set
                 setStartingConceptNumber(batchData.starting_concept_number || 1);
+                
+                // Set the allow new concepts state from batch data, defaulting to true
+                setAllowNewConcepts(batchData.allow_new_concepts ?? true);
 
                 // Initialize local states for each concept based on fetched data
                 const initialLocalPrompts: Record<string, string> = {};
@@ -832,9 +821,47 @@ Focus on search optimization, reader value, and conversion potential.`
         }
     };
 
+    // Update batch allow new concepts setting
+    const handleUpdateAllowNewConcepts = async (allowNew: boolean) => {
+        if (!batch) return;
+        
+        try {
+            const response = await fetch('/api/powerbrief/batches/update-settings', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    batchId: batch.id,
+                    allowNewConcepts: allowNew
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to update batch settings');
+            }
+
+            const { batch: updatedBatch } = await response.json();
+            setBatch(updatedBatch);
+            setAllowNewConcepts(allowNew);
+            
+            console.log('✅ Batch settings updated successfully');
+        } catch (err) {
+            console.error('Failed to update batch allow new concepts setting:', err);
+            setError('Failed to update batch setting. Please try again.');
+        }
+    };
+
     // Create new concept
     const handleCreateConcept = async () => {
         if (!user?.id || !batch || !brand) return;
+        
+        // Check if new concepts are allowed for this batch
+        if (!allowNewConcepts) {
+            setError('New concepts cannot be added to this batch. The batch has been closed for new concepts.');
+            return;
+        }
         
         try {
             // Use the current starting number plus the existing concepts length
@@ -1077,6 +1104,22 @@ Focus on search optimization, reader value, and conversion potential.`
             // Send Slack notification if status changed to "CONCEPT REJECTED"
             if (previousStatus !== 'CONCEPT REJECTED' && concept.status === 'CONCEPT REJECTED' && batch) {
                 try {
+                    // Create share links for the concept and batch
+                    const conceptShareSettings = {
+                        is_editable: true,
+                        expires_at: null
+                    };
+                    
+                    const batchShareSettings = {
+                        is_editable: true,
+                        expires_at: null
+                    };
+                    
+                    const [conceptShareResult, batchShareResult] = await Promise.all([
+                        shareBriefConcept(concept.id, 'link', conceptShareSettings),
+                        shareBriefBatch(batch.id, 'link', batchShareSettings)
+                    ]);
+                    
                     await fetch('/api/slack/concept-rejection', {
                         method: 'POST',
                         headers: {
@@ -1087,10 +1130,11 @@ Focus on search optimization, reader value, and conversion potential.`
                             conceptTitle: concept.concept_title,
                             batchName: batch.name,
                             brandId: batch.brand_id,
-                            videoEditor: concept.video_editor,
-                            strategist: concept.strategist,
-                            rejectionReason: concept.brief_revision_comments, // Use revision comments as rejection reason
-                            batchId: batch.id
+                            assignedStrategist: concept.strategist,
+                            assignedCreativeCoordinator: concept.creative_coordinator,
+                            rejectionComments: concept.brief_revision_comments,
+                            conceptShareUrl: conceptShareResult.share_url,
+                            batchShareUrl: batchShareResult.share_url
                         }),
                     });
                 } catch (slackError) {
@@ -2999,6 +3043,71 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
         }
     };
 
+    // Handle move concept functionality
+    const handleMoveConceptClick = async (conceptId: string) => {
+        setMovingConceptId(conceptId);
+        
+        // Fetch available batches for this brand
+        try {
+            const batches = await getBriefBatches(brandId);
+            // Filter out the current batch since we don't want to move to the same batch
+            const otherBatches = batches.filter(b => b.id !== batchId);
+            setAvailableBatches(otherBatches);
+            setShowMoveConceptDialog(true);
+        } catch (error) {
+            console.error('Error fetching available batches:', error);
+            setError('Failed to load available batches');
+        }
+    };
+
+    const handleMoveConceptConfirm = async () => {
+        if (!movingConceptId || !selectedTargetBatchId) return;
+
+        setMovingConceptInProgress(true);
+        try {
+            // Make API call to move the concept
+            const response = await fetch('/api/powerbrief/concepts/move', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    conceptId: movingConceptId,
+                    targetBatchId: selectedTargetBatchId
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to move concept');
+            }
+
+            // Remove the concept from the current batch view
+            setConcepts(prevConcepts => 
+                prevConcepts.filter(c => c.id !== movingConceptId)
+            );
+
+            // Close dialog and reset state
+            setShowMoveConceptDialog(false);
+            setMovingConceptId(null);
+            setSelectedTargetBatchId('');
+
+            // Show success message
+            console.log('✅ Concept moved successfully');
+        } catch (error) {
+            console.error('Error moving concept:', error);
+            setError('Failed to move concept to selected batch');
+        } finally {
+            setMovingConceptInProgress(false);
+        }
+    };
+
+    const handleMoveConceptCancel = () => {
+        setShowMoveConceptDialog(false);
+        setMovingConceptId(null);
+        setSelectedTargetBatchId('');
+        setAvailableBatches([]);
+    };
+
     if (loading) {
         return (
             <div className="flex justify-center items-center min-h-[200px]">
@@ -3034,7 +3143,17 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                             Back to Briefs
                         </Button>
                     </Link>
-                    <h1 className="text-2xl font-bold">{batch.name}</h1>
+                    <div className="flex items-center space-x-3">
+                        <h1 className="text-2xl font-bold">{batch.name}</h1>
+                        {!allowNewConcepts && (
+                            <div className="flex items-center space-x-1 px-2 py-1 bg-amber-100 text-amber-800 rounded-md text-sm">
+                                <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                                </svg>
+                                <span>Closed</span>
+                            </div>
+                        )}
+                    </div>
                 </div>
                 
                 {/* Action Buttons - Responsive Layout */}
@@ -3265,19 +3384,7 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                     </div>
                     
                     <div className="flex items-center gap-1">
-                        <Select value={filterStatusType} onValueChange={(value) => {
-                            const newType = value as 'is' | 'is_not';
-                            setFilterStatusType(newType);
-                            updateUrlParams({
-                                status: filterStatus,
-                                statusType: newType,
-                                editor: filterEditor,
-                                product: filterProduct,
-                                strategist: filterStrategist,
-                                mediaType: filterMediaType,
-                                sortBy: sortBy
-                            });
-                        }}>
+                        <Select value={filterStatusType} onValueChange={(value) => setFilterStatusType(value as 'is' | 'is_not')}>
                             <SelectTrigger className="w-20">
                                 <SelectValue />
                             </SelectTrigger>
@@ -3286,18 +3393,7 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                 <SelectItem value="is_not">IS NOT</SelectItem>
                             </SelectContent>
                         </Select>
-                        <Select value={filterStatus} onValueChange={(value) => {
-                            setFilterStatus(value);
-                            updateUrlParams({
-                                status: value,
-                                statusType: filterStatusType,
-                                editor: filterEditor,
-                                product: filterProduct,
-                                strategist: filterStrategist,
-                                mediaType: filterMediaType,
-                                sortBy: sortBy
-                            });
-                        }}>
+                        <Select value={filterStatus} onValueChange={setFilterStatus}>
                             <SelectTrigger className="w-40">
                                 <SelectValue placeholder="Status" />
                             </SelectTrigger>
@@ -3310,18 +3406,7 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                         </Select>
                     </div>
 
-                    <Select value={filterEditor} onValueChange={(value) => {
-                        setFilterEditor(value);
-                        updateUrlParams({
-                            status: filterStatus,
-                            statusType: filterStatusType,
-                            editor: value,
-                            product: filterProduct,
-                            strategist: filterStrategist,
-                            mediaType: filterMediaType,
-                            sortBy: sortBy
-                        });
-                    }}>
+                    <Select value={filterEditor} onValueChange={setFilterEditor}>
                         <SelectTrigger className="w-40">
                             <SelectValue placeholder="Editor" />
                         </SelectTrigger>
@@ -3333,18 +3418,7 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                         </SelectContent>
                     </Select>
 
-                    <Select value={filterStrategist} onValueChange={(value) => {
-                        setFilterStrategist(value);
-                        updateUrlParams({
-                            status: filterStatus,
-                            statusType: filterStatusType,
-                            editor: filterEditor,
-                            product: filterProduct,
-                            strategist: value,
-                            mediaType: filterMediaType,
-                            sortBy: sortBy
-                        });
-                    }}>
+                    <Select value={filterStrategist} onValueChange={setFilterStrategist}>
                         <SelectTrigger className="w-40">
                             <SelectValue placeholder="Strategist" />
                         </SelectTrigger>
@@ -3356,18 +3430,7 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                         </SelectContent>
                     </Select>
 
-                    <Select value={filterProduct} onValueChange={(value) => {
-                        setFilterProduct(value);
-                        updateUrlParams({
-                            status: filterStatus,
-                            statusType: filterStatusType,
-                            editor: filterEditor,
-                            product: value,
-                            strategist: filterStrategist,
-                            mediaType: filterMediaType,
-                            sortBy: sortBy
-                        });
-                    }}>
+                    <Select value={filterProduct} onValueChange={setFilterProduct}>
                         <SelectTrigger className="w-40">
                             <SelectValue placeholder="Product" />
                         </SelectTrigger>
@@ -3379,18 +3442,7 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                         </SelectContent>
                     </Select>
 
-                    <Select value={filterMediaType} onValueChange={(value) => {
-                        setFilterMediaType(value);
-                        updateUrlParams({
-                            status: filterStatus,
-                            statusType: filterStatusType,
-                            editor: filterEditor,
-                            product: filterProduct,
-                            strategist: filterStrategist,
-                            mediaType: value,
-                            sortBy: sortBy
-                        });
-                    }}>
+                    <Select value={filterMediaType} onValueChange={setFilterMediaType}>
                         <SelectTrigger className="w-40">
                             <SelectValue placeholder="Media Type" />
                         </SelectTrigger>
@@ -3406,18 +3458,7 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                         <span className="text-sm font-medium">Sort:</span>
                     </div>
 
-                    <Select value={sortBy} onValueChange={(value) => {
-                        setSortBy(value);
-                        updateUrlParams({
-                            status: filterStatus,
-                            statusType: filterStatusType,
-                            editor: filterEditor,
-                            product: filterProduct,
-                            strategist: filterStrategist,
-                            mediaType: filterMediaType,
-                            sortBy: value
-                        });
-                    }}>
+                    <Select value={sortBy} onValueChange={setSortBy}>
                         <SelectTrigger className="w-48">
                             <SelectValue placeholder="Sort by" />
                         </SelectTrigger>
@@ -3865,20 +3906,7 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                                     await handleUpdateConcept(updatedConcept);
                                                 } catch (err) {
                                                     console.error('Failed to update concept status:', err);
-                                                    console.error('Error details:', JSON.stringify(err, null, 2));
-                                                    console.error('Error type:', typeof err);
-                                                    console.error('Error constructor:', err?.constructor?.name);
-                                                    
-                                                    let errorMessage = 'Unknown error';
-                                                    if (err instanceof Error) {
-                                                        errorMessage = err.message;
-                                                    } else if (typeof err === 'string') {
-                                                        errorMessage = err;
-                                                    } else if (err && typeof err === 'object') {
-                                                        errorMessage = err.message || err.error || JSON.stringify(err);
-                                                    }
-                                                    
-                                                    setError(`Failed to update status: ${errorMessage}`);
+                                                    setError(`Failed to update status: ${err instanceof Error ? err.message : 'Unknown error'}`);
                                                     // Revert the dropdown by refreshing concepts from the server
                                                     try {
                                                         const refreshedConcepts = await getBriefConcepts(batchId);
@@ -4102,8 +4130,17 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
 
 
                                     
-                                    {/* Share button for individual concept */}
-                                    <div className="flex justify-end mt-2">
+                                    {/* Action buttons for individual concept */}
+                                    <div className="flex justify-end gap-2 mt-2">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => handleMoveConceptClick(concept.id)}
+                                            title="Move concept to another batch"
+                                        >
+                                            <FolderOpen className="h-3 w-3 mr-1" />
+                                            Move
+                                        </Button>
                                         <Button
                                             variant="outline"
                                             size="sm"
@@ -5025,12 +5062,26 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                         
                         {/* Add Concept Card */}
                         <div 
-                            className="min-w-[350px] max-w-[350px] flex-shrink-0 border-2 border-dashed rounded-lg h-[600px] flex items-center justify-center cursor-pointer hover:bg-gray-50"
-                            onClick={handleCreateConcept}
+                            className={`min-w-[350px] max-w-[350px] flex-shrink-0 border-2 border-dashed rounded-lg h-[600px] flex items-center justify-center ${
+                                allowNewConcepts 
+                                    ? "cursor-pointer hover:bg-gray-50" 
+                                    : "cursor-not-allowed opacity-50"
+                            }`}
+                            onClick={allowNewConcepts ? handleCreateConcept : undefined}
+                            title={allowNewConcepts ? "Add New Concept" : "This batch is closed for new concepts"}
                         >
                             <div className="text-center">
-                                <Plus className="h-8 w-8 mx-auto text-gray-400 mb-2" />
-                                <p className="text-gray-500">Add New Concept</p>
+                                <Plus className={`h-8 w-8 mx-auto mb-2 ${
+                                    allowNewConcepts ? "text-gray-400" : "text-gray-300"
+                                }`} />
+                                <p className={allowNewConcepts ? "text-gray-500" : "text-gray-400"}>
+                                    {allowNewConcepts ? "Add New Concept" : "Batch Closed"}
+                                </p>
+                                {!allowNewConcepts && (
+                                    <p className="text-xs text-gray-400 mt-1">
+                                        Enable in Batch Settings
+                                    </p>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -5306,7 +5357,7 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                         </DialogDescription>
                     </DialogHeader>
                     
-                    <div className="py-4 space-y-4">
+                    <div className="py-4 space-y-6">
                         <div>
                             <label className="block text-sm font-medium mb-1">Starting Concept Number:</label>
                             <div className="flex items-center space-x-2">
@@ -5323,6 +5374,45 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                 </Button>
                             </div>
                             <p className="text-xs text-gray-500 mt-1">This will renumber all concepts in the batch, starting from this number</p>
+                        </div>
+                        
+                        <div className="border-t pt-4">
+                            <div className="flex items-center space-x-3">
+                                <input
+                                    type="checkbox"
+                                    id="allowNewConcepts"
+                                    checked={allowNewConcepts}
+                                    onChange={(e) => handleUpdateAllowNewConcepts(e.target.checked)}
+                                    className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                                />
+                                <div className="flex-1">
+                                    <label htmlFor="allowNewConcepts" className="text-sm font-medium text-gray-900">
+                                        Allow New Concepts
+                                    </label>
+                                    <p className="text-xs text-gray-500 mt-1">
+                                        {allowNewConcepts 
+                                            ? "New concepts can be added to this batch" 
+                                            : "This batch is closed - no new concepts can be added"
+                                        }
+                                    </p>
+                                </div>
+                            </div>
+                            {!allowNewConcepts && (
+                                <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-md">
+                                    <div className="flex items-center">
+                                        <div className="flex-shrink-0">
+                                            <svg className="h-5 w-5 text-amber-400" viewBox="0 0 20 20" fill="currentColor">
+                                                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                            </svg>
+                                        </div>
+                                        <div className="ml-3">
+                                            <p className="text-sm text-amber-800">
+                                                <strong>Batch Closed:</strong> The "Add New Concept" button will be disabled and no new concepts can be created in this batch.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
                     
@@ -5477,6 +5567,72 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                             onClick={() => setShowShareConceptDialog(false)}
                         >
                             Close
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Move Concept Dialog */}
+            <Dialog open={showMoveConceptDialog} onOpenChange={setShowMoveConceptDialog}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Move Concept to Different Batch</DialogTitle>
+                        <DialogDescription>
+                            Select which batch you want to move this concept to.
+                        </DialogDescription>
+                    </DialogHeader>
+                    
+                    <div className="py-4 space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium mb-2">Select Target Batch:</label>
+                            <Select value={selectedTargetBatchId} onValueChange={setSelectedTargetBatchId}>
+                                <SelectTrigger className="w-full">
+                                    <SelectValue placeholder="Choose a batch..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {availableBatches.map((batch) => (
+                                        <SelectItem key={batch.id} value={batch.id}>
+                                            {batch.name}
+                                            {batch.content_type && (
+                                                <span className="ml-2 text-xs text-gray-500">
+                                                    ({batch.content_type})
+                                                </span>
+                                            )}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            {availableBatches.length === 0 && (
+                                <p className="text-sm text-gray-500 mt-2">
+                                    No other batches available. Create a new batch first.
+                                </p>
+                            )}
+                        </div>
+                    </div>
+                    
+                    <DialogFooter>
+                        <Button 
+                            variant="outline" 
+                            onClick={handleMoveConceptCancel}
+                            disabled={movingConceptInProgress}
+                        >
+                            Cancel
+                        </Button>
+                        <Button 
+                            onClick={handleMoveConceptConfirm}
+                            disabled={movingConceptInProgress || !selectedTargetBatchId || availableBatches.length === 0}
+                        >
+                            {movingConceptInProgress ? (
+                                <>
+                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                    Moving...
+                                </>
+                            ) : (
+                                <>
+                                    <FolderOpen className="h-4 w-4 mr-2" />
+                                    Move Concept
+                                </>
+                            )}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
