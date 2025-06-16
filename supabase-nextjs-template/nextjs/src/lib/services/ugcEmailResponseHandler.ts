@@ -171,6 +171,51 @@ export async function processCreatorEmailResponse({
         .eq('id', creator.id);
     }
 
+    // 5.5. Send response to n8n AI agent if this is for a creator with active AI conversation
+    if (creator.status === 'Approved for Next Steps' || creator.status === 'AI Conversation Active') {
+      try {
+        console.log('🤖 Sending creator response to n8n AI agent...');
+        
+        const responseWebhookUrl = process.env.NEXT_PUBLIC_N8N_CREATOR_APPROVED_RESPONSE || 
+                                  'https://primary-production-f140.up.railway.app/webhook-test/7c0199be-6b31-4d1a-8b39-5e46947cb123';
+        
+        await fetch(responseWebhookUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            brandId: brand.id,
+            creatorId: creator.id,
+            threadId: thread.id,
+            responseData: {
+              from: emailData.from,
+              subject: emailData.subject,
+              text: emailData.text,
+              html: emailData.html,
+              timestamp: new Date().toISOString()
+            },
+            brand: {
+              id: brand.id,
+              name: brand.name,
+              email_identifier: brand.email_identifier
+            },
+            creator: {
+              id: creator.id,
+              name: creator.name,
+              email: creator.email,
+              status: creator.status
+            }
+          }),
+        });
+        
+        console.log('✅ Successfully sent creator response to n8n AI agent');
+      } catch (webhookError) {
+        console.error('❌ Failed to send response to n8n webhook:', webhookError);
+        // Don't fail the email processing if webhook fails
+      }
+    }
+
     // 6. Trigger AI analysis for this creator
     console.log('🤖 Triggering AI analysis for creator response...');
     

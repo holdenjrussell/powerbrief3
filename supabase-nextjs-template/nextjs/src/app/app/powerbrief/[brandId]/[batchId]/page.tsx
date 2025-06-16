@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useGlobal } from '@/lib/context/GlobalContext';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { getBriefBatchById, getBrandById, getBriefConcepts, createBriefConcept, updateBriefConcept, deleteBriefConcept, deleteBriefBatch, updateBriefBatch, uploadMedia, shareBriefBatch, shareBriefConcept } from '@/lib/services/powerbriefService';
 import { getProductsByBrand } from '@/lib/services/productService';
 import { Brand, BriefBatch, BriefConcept, Scene, Hook, AiBriefingRequest, ShareSettings, Product, CustomLink, Prerequisite } from '@/lib/types/powerbrief';
@@ -31,6 +31,7 @@ type ParamsType = { brandId: string, batchId: string };
 export default function ConceptBriefingPage({ params }: { params: ParamsType }) {
     const { user } = useGlobal();
     const router = useRouter();
+    const searchParams = useSearchParams();
     const [loading, setLoading] = useState<boolean>(true);
     const [brand, setBrand] = useState<Brand | null>(null);
     const [batch, setBatch] = useState<BriefBatch | null>(null);
@@ -123,14 +124,14 @@ export default function ConceptBriefingPage({ params }: { params: ParamsType }) 
         };
     }[]>([]);
 
-    // Filtering and sorting state
-    const [filterStatus, setFilterStatus] = useState<string>('all');
-    const [filterStatusType, setFilterStatusType] = useState<'is' | 'is_not'>('is');
-    const [filterEditor, setFilterEditor] = useState<string>('all');
-    const [filterProduct, setFilterProduct] = useState<string>('all');
-    const [filterStrategist, setFilterStrategist] = useState<string>('all');
-    const [filterMediaType, setFilterMediaType] = useState<string>('all');
-    const [sortBy, setSortBy] = useState<string>('default');
+    // Filtering and sorting state - initialize from URL parameters
+    const [filterStatus, setFilterStatus] = useState<string>(searchParams.get('status') || 'all');
+    const [filterStatusType, setFilterStatusType] = useState<'is' | 'is_not'>((searchParams.get('statusType') as 'is' | 'is_not') || 'is');
+    const [filterEditor, setFilterEditor] = useState<string>(searchParams.get('editor') || 'all');
+    const [filterProduct, setFilterProduct] = useState<string>(searchParams.get('product') || 'all');
+    const [filterStrategist, setFilterStrategist] = useState<string>(searchParams.get('strategist') || 'all');
+    const [filterMediaType, setFilterMediaType] = useState<string>(searchParams.get('mediaType') || 'all');
+    const [sortBy, setSortBy] = useState<string>(searchParams.get('sortBy') || 'default');
 
     // Content type detection
     const [contentType, setContentType] = useState<string>('ads');
@@ -618,6 +619,28 @@ Focus on search optimization, reader value, and conversion potential.`
         setFilterStrategist('all');
         setFilterMediaType('all');
         setSortBy('default');
+        // Clear URL parameters when resetting filters
+        updateUrlParams({});
+    };
+
+    // Function to update URL parameters
+    const updateUrlParams = (newParams: Record<string, string>) => {
+        const url = new URL(window.location.href);
+        
+        // Clear existing filter parameters
+        ['status', 'statusType', 'editor', 'product', 'strategist', 'mediaType', 'sortBy'].forEach(param => {
+            url.searchParams.delete(param);
+        });
+        
+        // Add new parameters (only if not default values)
+        Object.entries(newParams).forEach(([key, value]) => {
+            if (value && value !== 'all' && value !== 'default' && value !== 'is') {
+                url.searchParams.set(key, value);
+            }
+        });
+        
+        // Update the URL without triggering a page reload
+        window.history.replaceState({}, '', url.toString());
     };
 
     const hasActiveFilters = filterStatus !== 'all' || filterEditor !== 'all' || filterProduct !== 'all' || filterStrategist !== 'all' || filterMediaType !== 'all' || sortBy !== 'default';
@@ -1046,6 +1069,31 @@ Focus on search optimization, reader value, and conversion potential.`
                     });
                 } catch (slackError) {
                     console.error('Failed to send Slack notification for brief revisions needed:', slackError);
+                    // Don't fail the status update if Slack notification fails
+                }
+            }
+
+            // Send Slack notification if status changed to "CONCEPT REJECTED"
+            if (previousStatus !== 'CONCEPT REJECTED' && concept.status === 'CONCEPT REJECTED' && batch) {
+                try {
+                    await fetch('/api/slack/concept-rejection', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            conceptId: concept.id,
+                            conceptTitle: concept.concept_title,
+                            batchName: batch.name,
+                            brandId: batch.brand_id,
+                            videoEditor: concept.video_editor,
+                            strategist: concept.strategist,
+                            rejectionReason: concept.brief_revision_comments, // Use revision comments as rejection reason
+                            batchId: batch.id
+                        }),
+                    });
+                } catch (slackError) {
+                    console.error('Failed to send Slack notification for concept rejection:', slackError);
                     // Don't fail the status update if Slack notification fails
                 }
             }
@@ -3216,7 +3264,19 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                     </div>
                     
                     <div className="flex items-center gap-1">
-                        <Select value={filterStatusType} onValueChange={(value) => setFilterStatusType(value as 'is' | 'is_not')}>
+                        <Select value={filterStatusType} onValueChange={(value) => {
+                            const newType = value as 'is' | 'is_not';
+                            setFilterStatusType(newType);
+                            updateUrlParams({
+                                status: filterStatus,
+                                statusType: newType,
+                                editor: filterEditor,
+                                product: filterProduct,
+                                strategist: filterStrategist,
+                                mediaType: filterMediaType,
+                                sortBy: sortBy
+                            });
+                        }}>
                             <SelectTrigger className="w-20">
                                 <SelectValue />
                             </SelectTrigger>
@@ -3225,7 +3285,18 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                 <SelectItem value="is_not">IS NOT</SelectItem>
                             </SelectContent>
                         </Select>
-                        <Select value={filterStatus} onValueChange={setFilterStatus}>
+                        <Select value={filterStatus} onValueChange={(value) => {
+                            setFilterStatus(value);
+                            updateUrlParams({
+                                status: value,
+                                statusType: filterStatusType,
+                                editor: filterEditor,
+                                product: filterProduct,
+                                strategist: filterStrategist,
+                                mediaType: filterMediaType,
+                                sortBy: sortBy
+                            });
+                        }}>
                             <SelectTrigger className="w-40">
                                 <SelectValue placeholder="Status" />
                             </SelectTrigger>
@@ -3238,7 +3309,18 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                         </Select>
                     </div>
 
-                    <Select value={filterEditor} onValueChange={setFilterEditor}>
+                    <Select value={filterEditor} onValueChange={(value) => {
+                        setFilterEditor(value);
+                        updateUrlParams({
+                            status: filterStatus,
+                            statusType: filterStatusType,
+                            editor: value,
+                            product: filterProduct,
+                            strategist: filterStrategist,
+                            mediaType: filterMediaType,
+                            sortBy: sortBy
+                        });
+                    }}>
                         <SelectTrigger className="w-40">
                             <SelectValue placeholder="Editor" />
                         </SelectTrigger>
@@ -3250,7 +3332,18 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                         </SelectContent>
                     </Select>
 
-                    <Select value={filterStrategist} onValueChange={setFilterStrategist}>
+                    <Select value={filterStrategist} onValueChange={(value) => {
+                        setFilterStrategist(value);
+                        updateUrlParams({
+                            status: filterStatus,
+                            statusType: filterStatusType,
+                            editor: filterEditor,
+                            product: filterProduct,
+                            strategist: value,
+                            mediaType: filterMediaType,
+                            sortBy: sortBy
+                        });
+                    }}>
                         <SelectTrigger className="w-40">
                             <SelectValue placeholder="Strategist" />
                         </SelectTrigger>
@@ -3262,7 +3355,18 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                         </SelectContent>
                     </Select>
 
-                    <Select value={filterProduct} onValueChange={setFilterProduct}>
+                    <Select value={filterProduct} onValueChange={(value) => {
+                        setFilterProduct(value);
+                        updateUrlParams({
+                            status: filterStatus,
+                            statusType: filterStatusType,
+                            editor: filterEditor,
+                            product: value,
+                            strategist: filterStrategist,
+                            mediaType: filterMediaType,
+                            sortBy: sortBy
+                        });
+                    }}>
                         <SelectTrigger className="w-40">
                             <SelectValue placeholder="Product" />
                         </SelectTrigger>
@@ -3274,7 +3378,18 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                         </SelectContent>
                     </Select>
 
-                    <Select value={filterMediaType} onValueChange={setFilterMediaType}>
+                    <Select value={filterMediaType} onValueChange={(value) => {
+                        setFilterMediaType(value);
+                        updateUrlParams({
+                            status: filterStatus,
+                            statusType: filterStatusType,
+                            editor: filterEditor,
+                            product: filterProduct,
+                            strategist: filterStrategist,
+                            mediaType: value,
+                            sortBy: sortBy
+                        });
+                    }}>
                         <SelectTrigger className="w-40">
                             <SelectValue placeholder="Media Type" />
                         </SelectTrigger>
@@ -3290,7 +3405,18 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                         <span className="text-sm font-medium">Sort:</span>
                     </div>
 
-                    <Select value={sortBy} onValueChange={setSortBy}>
+                    <Select value={sortBy} onValueChange={(value) => {
+                        setSortBy(value);
+                        updateUrlParams({
+                            status: filterStatus,
+                            statusType: filterStatusType,
+                            editor: filterEditor,
+                            product: filterProduct,
+                            strategist: filterStrategist,
+                            mediaType: filterMediaType,
+                            sortBy: value
+                        });
+                    }}>
                         <SelectTrigger className="w-48">
                             <SelectValue placeholder="Sort by" />
                         </SelectTrigger>
@@ -3341,7 +3467,9 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                     ? "border-amber-300 border-2" 
                                     : concept.status === "APPROVED" 
                                         ? "border-green-300 border-2"
-                                        : ""
+                                        : concept.status === "CONCEPT REJECTED"
+                                            ? "border-red-300 border-2"
+                                            : ""
                                 } mb-4 transition-all duration-200 ease-in-out p-3 relative`}
                             >
                                 <CardHeader className="relative">
@@ -3762,6 +3890,7 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                             <option value="READY FOR REVIEW">READY FOR REVIEW</option>
                                             <option value="APPROVED">APPROVED</option>
                                             <option value="REVISIONS REQUESTED">REVISIONS REQUESTED</option>
+                                            <option value="CONCEPT REJECTED">CONCEPT REJECTED</option>
                                         </select>
                                     </div>
 
@@ -3899,11 +4028,13 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                                 ? "bg-amber-100 text-amber-800 border border-amber-300" 
                                                 : concept.status === "BRIEF REVISIONS NEEDED"
                                                     ? "bg-red-100 text-red-800 border border-red-300"
-                                                    : concept.status === "APPROVED" 
-                                                        ? "bg-green-100 text-green-800 border border-green-300"
-                                                        : concept.status === "READY FOR REVIEW"
-                                                            ? "bg-blue-100 text-blue-800 border border-blue-300"
-                                                            : "bg-green-100 text-green-700 border border-green-200"
+                                                    : concept.status === "CONCEPT REJECTED"
+                                                        ? "bg-red-100 text-red-800 border border-red-300"
+                                                        : concept.status === "APPROVED" 
+                                                            ? "bg-green-100 text-green-800 border border-green-300"
+                                                            : concept.status === "READY FOR REVIEW"
+                                                                ? "bg-blue-100 text-blue-800 border border-blue-300"
+                                                                : "bg-green-100 text-green-700 border border-green-200"
                                             }`}>
                                                 Status: {concept.status}
                                             </div>

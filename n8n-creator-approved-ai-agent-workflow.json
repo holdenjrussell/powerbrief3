@@ -1,0 +1,466 @@
+{
+  "name": "PowerBrief - Creator Approved AI Agent",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "start",
+      "name": "Start",
+      "type": "n8n-nodes-base.start",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "creator-approved",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook_trigger",
+      "name": "Creator Approved Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition1",
+              "leftValue": "={{ $json.workflowName }}",
+              "rightValue": "creator_approved_for_next_steps",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check_workflow_type",
+      "name": "Check Workflow Type",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "model": "gemini-2.5-pro-preview-06-05",
+        "options": {
+          "temperature": 0.7,
+          "maxTokens": 1000
+        },
+        "prompt": "=You are a friendly AI assistant for {{ $json.brand.name }}. A creator named {{ $json.creator.name }} has just been approved for next steps in our UGC creator program.\n\nCreator Details:\n- Name: {{ $json.creator.name }}\n- Email: {{ $json.creator.email }}\n- Status: {{ $json.creator.status }}\n\nBrand Details:\n- Brand: {{ $json.brand.name }}\n- Website: {{ $json.brand.website || 'N/A' }}\n\nWrite a personalized, enthusiastic email to the creator letting them know they've been approved and asking them to share:\n1. Their best shipping address for products\n2. Their preferred payment method (PayPal, Venmo, etc.)\n3. Any questions they have about the collaboration\n\nKeep the tone friendly, professional, and excited. Make it feel personal, not automated. Include a clear call-to-action for them to respond with the requested information.\n\nReturn only the email content (no subject line needed)."
+      },
+      "id": "generate_initial_message",
+      "name": "Generate Initial AI Message",
+      "type": "n8n-nodes-base.googleAi",
+      "typeVersion": 1,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://api.sendgrid.com/v3/mail/send",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "httpMethod": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"personalizations\": [\n    {\n      \"to\": [\n        {\n          \"email\": \"{{ $json.creator.email }}\",\n          \"name\": \"{{ $json.creator.name }}\"\n        }\n      ],\n      \"subject\": \"Exciting News - You're Approved for {{ $json.brand.name }}! 🎉\"\n    }\n  ],\n  \"from\": {\n    \"email\": \"noreply@powerbrief.ai\",\n    \"name\": \"{{ $json.brand.name }}\"\n  },\n  \"reply_to\": {\n    \"email\": \"{{ $json.brand.email_identifier }}@mail.powerbrief.ai\",\n    \"name\": \"{{ $json.brand.name }} Creator Team\"\n  },\n  \"content\": [\n    {\n      \"type\": \"text/html\",\n      \"value\": \"<div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;'>{{ $('Generate Initial AI Message').output.text.replace('\\n', '<br>') }}</div>\"\n    },\n    {\n      \"type\": \"text/plain\",\n      \"value\": \"{{ $('Generate Initial AI Message').output.text }}\"\n    }\n  ]\n}",
+        "options": {
+          "redirect": {
+            "redirect": {}
+          }
+        }
+      },
+      "id": "send_initial_email",
+      "name": "Send Initial Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1120, 300],
+      "credentials": {
+        "httpHeaderAuth": "sendgrid_api_key"
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.powerbrief_callback_url || 'https://powerbrief.ai/api/ugc/email/store-outbound' }}",
+        "httpMethod": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"brandId\": \"{{ $json.brandId }}\",\n  \"creatorId\": \"{{ $json.creatorId }}\",\n  \"subject\": \"Exciting News - You're Approved for {{ $json.brand.name }}! 🎉\",\n  \"htmlContent\": \"<div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;'>{{ $('Generate Initial AI Message').output.text.replace('\\n', '<br>') }}</div>\",\n  \"textContent\": \"{{ $('Generate Initial AI Message').output.text }}\",\n  \"source\": \"n8n_ai_agent\",\n  \"workflowExecutionId\": \"{{ $workflow.id }}\",\n  \"messageType\": \"initial_approval_message\"\n}",
+        "options": {}
+      },
+      "id": "store_initial_message",
+      "name": "Store Initial Message",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.powerbrief_callback_url || 'https://powerbrief.ai/api/n8n/update-creator-status' }}",
+        "httpMethod": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"brandId\": \"{{ $json.brandId }}\",\n  \"creatorId\": \"{{ $json.creatorId }}\",\n  \"status\": \"AI Conversation Active\",\n  \"conversationData\": {\n    \"workflow_execution_id\": \"{{ $workflow.id }}\",\n    \"initial_message_sent\": true,\n    \"conversation_started_at\": \"{{ new Date().toISOString() }}\",\n    \"waiting_for_response\": true\n  }\n}",
+        "options": {}
+      },
+      "id": "update_creator_status",
+      "name": "Update Creator Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1560, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": true,\n  \"message\": \"AI conversation initiated successfully\",\n  \"creator_id\": \"{{ $json.creatorId }}\",\n  \"brand_id\": \"{{ $json.brandId }}\",\n  \"workflow_execution_id\": \"{{ $workflow.id }}\",\n  \"timestamp\": \"{{ new Date().toISOString() }}\"\n}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond_success",
+      "name": "Respond Success", 
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1780, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": false,\n  \"message\": \"Invalid workflow type\",\n  \"received_workflow\": \"{{ $json.workflowName }}\",\n  \"expected_workflow\": \"creator_approved_for_next_steps\"\n}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond_invalid",
+      "name": "Respond Invalid",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [680, 480]
+    },
+    {
+      "parameters": {},
+      "id": "response_webhook_start",
+      "name": "Response Webhook Start",
+      "type": "n8n-nodes-base.start",
+      "typeVersion": 1,
+      "position": [240, 720]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "creator-response",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "response_webhook",
+      "name": "Creator Response Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [460, 720]
+    },
+    {
+      "parameters": {
+        "model": "gemini-2.5-pro-preview-06-05",
+        "options": {
+          "temperature": 0.7,
+          "maxTokens": 1000
+        },
+        "prompt": "=You are a helpful AI assistant for {{ $json.brand.name }}. A creator {{ $json.creator.name }} has responded to our outreach email.\n\nCreator's Response:\n\"{{ $json.responseData.text }}\"\n\nContext:\n- Creator Name: {{ $json.creator.name }}\n- Creator Email: {{ $json.creator.email }}\n- Brand: {{ $json.brand.name }}\n- Previous Status: {{ $json.creator.status }}\n\nAnalyze their response and determine the next action:\n\n1. If they provided shipping address and payment info, respond with enthusiasm and next steps\n2. If they have questions, answer them helpfully\n3. If they seem hesitant, address their concerns\n4. If they provided partial info, ask for the missing pieces\n5. If they're ready to move forward, give them clear next steps\n\nRespond in a conversational, friendly tone as if you're a real person from the {{ $json.brand.name }} team. Be helpful and encouraging.\n\nReturn your response in this JSON format:\n{\n  \"email_response\": \"Your email response here\",\n  \"next_status\": \"Recommended next creator status\",\n  \"action_needed\": \"What action should be taken next\"\n}"
+      },
+      "id": "analyze_response",
+      "name": "Analyze Creator Response",
+      "type": "n8n-nodes-base.googleAi",
+      "typeVersion": 1,
+      "position": [680, 720]
+    },
+    {
+      "parameters": {
+        "url": "https://api.sendgrid.com/v3/mail/send",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "httpMethod": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"personalizations\": [\n    {\n      \"to\": [\n        {\n          \"email\": \"{{ $json.creator.email }}\",\n          \"name\": \"{{ $json.creator.name }}\"\n        }\n      ],\n      \"subject\": \"Re: Exciting News - You're Approved for {{ $json.brand.name }}! 🎉\"\n    }\n  ],\n  \"from\": {\n    \"email\": \"noreply@powerbrief.ai\",\n    \"name\": \"{{ $json.brand.name }}\"\n  },\n  \"reply_to\": {\n    \"email\": \"{{ $json.brand.email_identifier }}@mail.powerbrief.ai\",\n    \"name\": \"{{ $json.brand.name }} Creator Team\"\n  },\n  \"content\": [\n    {\n      \"type\": \"text/html\",\n      \"value\": \"<div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;'>{{ JSON.parse($('Analyze Creator Response').output.text).email_response.replace('\\n', '<br>') }}</div>\"\n    },\n    {\n      \"type\": \"text/plain\",\n      \"value\": \"{{ JSON.parse($('Analyze Creator Response').output.text).email_response }}\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "send_ai_response",
+      "name": "Send AI Response",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 720],
+      "credentials": {
+        "httpHeaderAuth": "sendgrid_api_key"
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.powerbrief_callback_url || 'https://powerbrief.ai/api/ugc/email/store-outbound' }}",
+        "httpMethod": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"brandId\": \"{{ $json.brandId }}\",\n  \"creatorId\": \"{{ $json.creatorId }}\",\n  \"subject\": \"Re: Exciting News - You're Approved for {{ $json.brand.name }}! 🎉\",\n  \"htmlContent\": \"<div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;'>{{ JSON.parse($('Analyze Creator Response').output.text).email_response.replace('\\n', '<br>') }}</div>\",\n  \"textContent\": \"{{ JSON.parse($('Analyze Creator Response').output.text).email_response }}\",\n  \"source\": \"n8n_ai_agent\",\n  \"workflowExecutionId\": \"{{ $workflow.id }}\",\n  \"messageType\": \"ai_response_message\"\n}",
+        "options": {}
+      },
+      "id": "store_response_message",
+      "name": "Store Response Message",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1120, 720]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.powerbrief_callback_url || 'https://powerbrief.ai/api/n8n/update-creator-status' }}",
+        "httpMethod": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"brandId\": \"{{ $json.brandId }}\",\n  \"creatorId\": \"{{ $json.creatorId }}\",\n  \"status\": \"{{ JSON.parse($('Analyze Creator Response').output.text).next_status }}\",\n  \"conversationData\": {\n    \"workflow_execution_id\": \"{{ $workflow.id }}\",\n    \"last_response_at\": \"{{ new Date().toISOString() }}\",\n    \"response_analyzed\": true,\n    \"ai_recommendation\": \"{{ JSON.parse($('Analyze Creator Response').output.text).action_needed }}\"\n  }\n}",
+        "options": {}
+      },
+      "id": "update_status_from_response",
+      "name": "Update Status from Response",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 720]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": true,\n  \"message\": \"Creator response processed successfully\",\n  \"ai_analysis\": {{ $('Analyze Creator Response').output.text }},\n  \"timestamp\": \"{{ new Date().toISOString() }}\"\n}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond_response_success",
+      "name": "Respond Response Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1560, 720]
+    }
+  ],
+  "connections": {
+    "Start": {
+      "main": [
+        [
+          {
+            "node": "Creator Approved Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Creator Approved Webhook": {
+      "main": [
+        [
+          {
+            "node": "Check Workflow Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Workflow Type": {
+      "main": [
+        [
+          {
+            "node": "Generate Initial AI Message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Invalid",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Initial AI Message": {
+      "main": [
+        [
+          {
+            "node": "Send Initial Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Initial Email": {
+      "main": [
+        [
+          {
+            "node": "Store Initial Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Initial Message": {
+      "main": [
+        [
+          {
+            "node": "Update Creator Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Creator Status": {
+      "main": [
+        [
+          {
+            "node": "Respond Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Response Webhook Start": {
+      "main": [
+        [
+          {
+            "node": "Creator Response Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Creator Response Webhook": {
+      "main": [
+        [
+          {
+            "node": "Analyze Creator Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze Creator Response": {
+      "main": [
+        [
+          {
+            "node": "Send AI Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send AI Response": {
+      "main": [
+        [
+          {
+            "node": "Store Response Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Response Message": {
+      "main": [
+        [
+          {
+            "node": "Update Status from Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Status from Response": {
+      "main": [
+        [
+          {
+            "node": "Respond Response Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "instanceId": "powerbrief-creator-ai-agent"
+  },
+  "tags": ["powerbrief", "creator", "ai-agent", "automation"]
+} 

@@ -1,0 +1,16 @@
+-- Update n8n automation templates with working creator acknowledgment template
+-- Remove all existing templates and add the tested working template
+
+-- Clear existing templates
+DELETE FROM public.n8n_automation_templates;
+
+-- Insert the working creator acknowledgment template
+INSERT INTO public.n8n_automation_templates (name, description, category, workflow_definition, required_variables, optional_variables) VALUES
+(
+  'creator_application_acknowledgment',
+  'Send confirmation email when creator applies to brand',
+  'onboarding',
+  '{"name":"Send Confirmation Email For Creator Submission","nodes":[{"parameters":{"method":"POST","url":"https://api.sendgrid.com/v3/mail/send","authentication":"genericCredentialType","genericAuthType":"httpHeaderAuth","sendHeaders":true,"headerParameters":{"parameters":[{"name":"Content-Type","value":"application/json"}]},"sendBody":true,"specifyBody":"json","jsonBody":"={\\n  \"personalizations\": [\\n    {\\n      \"to\": [\\n        {\\n          \"email\": \"{{$json.body.creatorEmail}}\",\\n          \"name\": \"{{$json.body.creatorName}}\"\\n        }\\n      ],\\n      \"subject\": \"Thanks for applying to {{$json.body.brandName}}!\"\\n    }\\n  ],\\n  \"from\": {\\n    \"email\": \"support@powerbrief.ai\",\\n    \"name\": \"{{$json.body.brandName}}\"\\n  },\\n  \"reply_to\": {\\n    \"email\": \"{{$json.body.brandEmail}}\",\\n    \"name\": \"{{$json.body.brandName}}\"\\n  },\\n  \"content\": [\\n    {\\n      \"type\": \"text/html\",\\n      \"value\": \"<p>Hi {{$json.body.creatorName}},</p><p>Thanks so much for applying to be a creator for {{$json.body.brandName}}! We are reviewing your portfolio and will get back to you soon if we think you''re a great fit.</p><p>Best regards,<br>The {{$json.body.brandName}} Team</p>\"\\n    }\\n  ]\\n}","options":{"redirect":{"redirect":{}}}},"type":"n8n-nodes-base.httpRequest","typeVersion":4.2,"position":[460,-40],"id":"f5bda49c-065e-4f38-b931-f90cc9a59357","name":"HTTP Request","credentials":{"httpHeaderAuth":"IR5TeZiJLiu40Kb2"}},{"parameters":{"httpMethod":"POST","path":"powerbrief-creator-acknowledgment","authentication":"jwtAuth","responseMode":"responseNode","options":{"rawBody":false}},"type":"n8n-nodes-base.webhook","typeVersion":2,"position":[220,-40],"id":"e58c7aaa-90d4-4c59-bdfd-2cfb47d9c57e","name":"Webhook","credentials":{"jwtAuth":"hCjAUHTNQVm4Yokx"}},{"parameters":{"respondWith":"json","responseBody":"   {\\n     \"success\": true,\\n     \"message\": \"Email sent successfully\"\\n   }","options":{"responseCode":200}},"type":"n8n-nodes-base.respondToWebhook","typeVersion":1.4,"position":[660,-40],"id":"f611ca0c-ff5e-4111-bc30-3403ea754b73","name":"Respond to Webhook"}],"connections":{"Webhook":{"main":[[{"node":"HTTP Request","type":"main","index":0}]]},"HTTP Request":{"main":[[{"node":"Respond to Webhook","type":"main","index":0}]]}},"active":true,"settings":{"executionOrder":"v1"},"meta":{"instanceId":"a5bc18468da06fe502f370ca500085d808f313ecb13f4d19f5cb9b56b01c904c"},"tags":[]}',
+  '["creatorEmail","creatorName","brandName","brandEmail"]',
+  '{}'
+); 

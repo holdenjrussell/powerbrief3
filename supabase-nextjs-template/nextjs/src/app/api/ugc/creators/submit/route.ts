@@ -97,6 +97,47 @@ export async function POST(request: NextRequest) {
         });
       }
 
+      // Trigger n8n automation for creator application acknowledgment using simplified service
+      try {
+        const { n8nService } = await import('@/lib/services/n8nService');
+        
+        console.log('🚀 [CREATOR SUBMISSION] Triggering creator acknowledgment workflow');
+        
+        // Use the new method that accepts pre-loaded creator data
+        await n8nService.triggerWorkflowWithCreatorData(
+          'creator_application_acknowledgment',
+          brand_id, 
+          creator.id,
+          {
+            name: creator.name,
+            email: creator.email,
+            phone_number: creator.phone_number,
+            instagram_handle: creator.instagram_handle,
+            tiktok_handle: creator.tiktok_handle,
+            portfolio_link: creator.portfolio_link,
+            platforms: creator.platforms,
+            content_types: creator.content_types,
+            per_script_fee: creator.per_script_fee,
+            status: creator.status,
+            contract_status: creator.contract_status
+          },
+          {
+            stepName: 'creator_application_acknowledgment',
+            utm_data: {
+              utm_source,
+              utm_medium,
+              utm_campaign
+            }
+          }
+        );
+        
+        console.log('✅ [CREATOR SUBMISSION] n8n workflow triggered successfully');
+        
+      } catch (automationError) {
+        console.error('⚠️ [CREATOR SUBMISSION] Automation trigger failed (non-critical):', automationError);
+        // Don't fail the creator submission if automation fails
+      }
+
       return NextResponse.json({ 
         success: true, 
         creator,

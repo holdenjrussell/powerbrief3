@@ -455,9 +455,8 @@ export type Database = {
           created_at: string
           id: string
           is_active: boolean | null
-          n8n_workflow_id: string
-          template_name: string
           updated_at: string
+          workflow_name: string
         }
         Insert: {
           brand_id: string
@@ -465,9 +464,8 @@ export type Database = {
           created_at?: string
           id?: string
           is_active?: boolean | null
-          n8n_workflow_id: string
-          template_name: string
           updated_at?: string
+          workflow_name: string
         }
         Update: {
           brand_id?: string
@@ -475,9 +473,8 @@ export type Database = {
           created_at?: string
           id?: string
           is_active?: boolean | null
-          n8n_workflow_id?: string
-          template_name?: string
           updated_at?: string
+          workflow_name?: string
         }
         Relationships: [
           {

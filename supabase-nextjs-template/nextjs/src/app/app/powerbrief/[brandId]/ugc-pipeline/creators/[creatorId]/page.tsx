@@ -144,6 +144,7 @@ export default function CreatorDetailPage({ params }: { params: ParamsType | Pro
       
       const updatedCreator = await updateUgcCreator({
         id: creator.id,
+        brand_id: brandId, // Pass brand_id for n8n workflow trigger
         status: newStatus
       });
       

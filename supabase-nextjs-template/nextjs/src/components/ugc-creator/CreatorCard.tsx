@@ -118,6 +118,7 @@ export default function CreatorCard({ creator, brandId, onUpdate }: CreatorCardP
       
       const updatedCreator = await updateUgcCreator({
         id: creator.id,
+        brand_id: brandId, // Pass brand_id for n8n workflow trigger
         status: newStatus
       });
       

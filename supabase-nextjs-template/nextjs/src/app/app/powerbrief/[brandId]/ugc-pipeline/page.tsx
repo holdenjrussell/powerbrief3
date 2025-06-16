@@ -63,6 +63,7 @@ import WorkflowBuilder from '@/components/ugc/workflow/WorkflowBuilder';
 import CreatorStatusManager from '@/components/ugc/workflow/CreatorStatusManager';
 import MessageTemplateManager from '@/components/ugc/workflow/MessageTemplateManager';
 import WorkflowAnalytics from '@/components/ugc/workflow/WorkflowAnalytics';
+import AutomationManager from '@/components/ugc/automation/AutomationManager';
 
 import {
   getWorkflowTemplates,
@@ -77,7 +78,7 @@ import {
 
 // Helper to unwrap params safely
 type ParamsType = { brandId: string };
-type ViewType = 'concept' | 'script' | 'creator' | 'settings' | 'ai-agent' | 'inbox' | 'templates' | 'workflow' | 'contracts';
+type ViewType = 'concept' | 'script' | 'creator' | 'settings' | 'ai-agent' | 'inbox' | 'templates' | 'workflow' | 'contracts' | 'automation';
 
 const navigationItems = [
   {
@@ -101,6 +102,7 @@ const navigationItems = [
     group: 'Automation',
     icon: Bot,
     items: [
+      { view: 'automation' as ViewType, label: 'Smart Automations', icon: Zap },
       { view: 'workflow' as ViewType, label: 'Workflow Builder', icon: GitBranch },
       { view: 'ai-agent' as ViewType, label: 'AI UGC Agent', icon: Bot },
     ],
@@ -2307,7 +2309,10 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
           </div>
       )}
 
-
+      {/* n8n Smart Automations */}
+      {activeView === 'automation' && (
+        <AutomationManager brandId={brandId} />
+      )}
 
       {activeView === 'contracts' && (
         <>

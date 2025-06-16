@@ -1,0 +1,27 @@
+{
+  "personalizations": [
+    {
+      "to": [
+        {
+          "email": "{{$json.body.creator.email}}",
+          "name": "{{$json.body.creator.name}}"
+        }
+      ],
+      "subject": "Thanks for applying to {{$json.body.brand.name}}!"
+    }
+  ],
+  "from": {
+    "email": "{{$json.body.brand.emailConfig.fromEmail}}",
+    "name": "{{$json.body.brand.name}}"
+  },
+  "reply_to": {
+    "email": "{{$json.body.brand.emailConfig.replyToEmail}}",
+    "name": "{{$json.body.brand.name}}"
+  },
+  "content": [
+    {
+      "type": "text/html",
+      "value": "<p>Hi {{$json.body.creator.name}},</p><p>Thanks so much for applying to be a creator for {{$json.body.brand.name}}! We are reviewing your portfolio and will get back to you soon if we think you're a great fit.</p><p>Best regards,<br>The {{$json.body.brand.name}} Team</p>"
+    }
+  ]
+} 

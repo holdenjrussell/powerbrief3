@@ -85,6 +85,43 @@ export async function createUgcCreator(creator: Omit<UgcCreator, 'id' | 'created
 }
 
 export async function updateUgcCreator(creator: Partial<UgcCreator> & { id: string }): Promise<UgcCreator> {
+  // If status is being updated and it's "Approved for Next Steps", use our API endpoint that triggers n8n
+  if (creator.status === 'Approved for Next Steps' && creator.brand_id) {
+    try {
+      console.log(`🚀 Status update to "Approved for Next Steps" - triggering via API endpoint`);
+      
+      const response = await fetch(`/api/ugc/creators/${creator.id}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          status: creator.status,
+          brandId: creator.brand_id
+        }),
+      });
+
+      if (!response.ok) {
+        console.error('Failed to update via API endpoint, falling back to direct update');
+        throw new Error('API endpoint failed');
+      }
+
+      const result = await response.json();
+      console.log(`✅ Successfully triggered n8n workflow via API endpoint`);
+      
+      return {
+        ...result.creator,
+        products: result.creator.products as string[] || [],
+        content_types: result.creator.content_types as string[] || [],
+        platforms: result.creator.platforms as string[] || []
+      };
+    } catch (error) {
+      console.error('Error using API endpoint, falling back to direct update:', error);
+      // Fall through to direct database update if API fails
+    }
+  }
+
+  // Default behavior: direct database update (for all other status changes)
   const { data, error } = await supabase
     .from('ugc_creators')
     .update({
