@@ -28,10 +28,13 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 // Helper to unwrap params safely
 type ParamsType = { brandId: string, batchId: string };
 
-export default function ConceptBriefingPage({ params }: { params: ParamsType }) {
+export default function ConceptBriefingPage({ params }: { params: Promise<ParamsType> }) {
     const { user } = useGlobal();
     const router = useRouter();
     const searchParams = useSearchParams();
+    
+    // Unwrap the params Promise using React.use()
+    const { brandId, batchId } = React.use(params);
     const [loading, setLoading] = useState<boolean>(true);
     const [brand, setBrand] = useState<Brand | null>(null);
     const [batch, setBatch] = useState<BriefBatch | null>(null);
