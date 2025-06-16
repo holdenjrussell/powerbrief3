@@ -3865,7 +3865,20 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                                     await handleUpdateConcept(updatedConcept);
                                                 } catch (err) {
                                                     console.error('Failed to update concept status:', err);
-                                                    setError(`Failed to update status: ${err instanceof Error ? err.message : 'Unknown error'}`);
+                                                    console.error('Error details:', JSON.stringify(err, null, 2));
+                                                    console.error('Error type:', typeof err);
+                                                    console.error('Error constructor:', err?.constructor?.name);
+                                                    
+                                                    let errorMessage = 'Unknown error';
+                                                    if (err instanceof Error) {
+                                                        errorMessage = err.message;
+                                                    } else if (typeof err === 'string') {
+                                                        errorMessage = err;
+                                                    } else if (err && typeof err === 'object') {
+                                                        errorMessage = err.message || err.error || JSON.stringify(err);
+                                                    }
+                                                    
+                                                    setError(`Failed to update status: ${errorMessage}`);
                                                     // Revert the dropdown by refreshing concepts from the server
                                                     try {
                                                         const refreshedConcepts = await getBriefConcepts(batchId);
