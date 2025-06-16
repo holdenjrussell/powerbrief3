@@ -10,13 +10,70 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, Plus, Building2, AlertCircle, Zap, Mail, MessageSquare, Share2, PenTool, Folder, Calendar, Edit, Trash2, MoreVertical } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { createBriefBatch, getBriefBatches, updateBriefBatch, deleteBriefBatch, getConceptCountsByStatus, getStatusColorConfig } from '@/lib/services/powerbriefService';
+import { createBriefBatch, getBriefBatches, updateBriefBatch, deleteBriefBatch } from '@/lib/services/powerbriefService';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { Database } from '@/lib/types/supabase';
 import { BriefBatch } from '@/lib/types/powerbrief';
 import Link from 'next/link';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+
+// Helper function to get concept counts by status for batches
+async function getConceptCountsByStatus(brandId: string): Promise<Record<string, Record<string, number>>> {
+    const supabase = createClientComponentClient<Database>();
+    
+    // Get all concepts for batches belonging to this brand
+    const { data: conceptsData, error } = await supabase
+        .from('brief_concepts')
+        .select('brief_batch_id, status, brief_batches!inner(brand_id)')
+        .eq('brief_batches.brand_id', brandId);
+
+    if (error) {
+        console.error('Error fetching concept counts by status:', error);
+        return {};
+    }
+
+    // Group by batch_id and count by status
+    const counts: Record<string, Record<string, number>> = {};
+    
+    conceptsData.forEach((concept) => {
+        const batchId = concept.brief_batch_id;
+        const status = concept.status || 'No Status';
+        
+        if (!counts[batchId]) {
+            counts[batchId] = {};
+        }
+        
+        if (!counts[batchId][status]) {
+            counts[batchId][status] = 0;
+        }
+        
+        counts[batchId][status]++;
+    });
+
+    return counts;
+}
+
+// Helper function to get status color configuration
+function getStatusColorConfig(status: string): { bg: string; text: string; border: string } {
+    const statusColors: Record<string, { bg: string; text: string; border: string }> = {
+        'No Status': { bg: 'bg-gray-100', text: 'text-gray-800', border: 'border-gray-300' },
+        'BRIEFING IN PROGRESS': { bg: 'bg-blue-100', text: 'text-blue-800', border: 'border-blue-300' },
+        'BRIEF REVIEW': { bg: 'bg-purple-100', text: 'text-purple-800', border: 'border-purple-300' },
+        'BRIEF REVISIONS NEEDED': { bg: 'bg-red-100', text: 'text-red-800', border: 'border-red-300' },
+        'READY FOR DESIGNER': { bg: 'bg-orange-100', text: 'text-orange-800', border: 'border-orange-300' },
+        'READY FOR EDITOR': { bg: 'bg-yellow-100', text: 'text-yellow-800', border: 'border-yellow-300' },
+        'READY FOR EDITOR ASSIGNMENT': { bg: 'bg-amber-100', text: 'text-amber-800', border: 'border-amber-300' },
+        'READY FOR REVIEW': { bg: 'bg-indigo-100', text: 'text-indigo-800', border: 'border-indigo-300' },
+        'APPROVED': { bg: 'bg-green-100', text: 'text-green-800', border: 'border-green-300' },
+        'REVISIONS REQUESTED': { bg: 'bg-orange-100', text: 'text-orange-800', border: 'border-orange-300' },
+        'CONCEPT REJECTED': { bg: 'bg-red-100', text: 'text-red-800', border: 'border-red-300' }
+    };
+
+    return statusColors[status] || { bg: 'bg-gray-100', text: 'text-gray-800', border: 'border-gray-300' };
+}
 
 export default function PowerBriefPage() {
     const { user } = useGlobal();
@@ -348,13 +405,13 @@ export default function PowerBriefPage() {
                                                             .map(([status, count]) => {
                                                                 const colorConfig = getStatusColorConfig(status);
                                                                 return (
-                                                                    <span
-                                                                        key={status}
-                                                                        className={`px-2 py-1 text-xs rounded-full font-medium border ${colorConfig.bg} ${colorConfig.text} ${colorConfig.border}`}
-                                                                        title={status}
-                                                                    >
-                                                                        {status === 'No Status' ? 'No Status' : status.split(' ').map(word => word.charAt(0)).join('')}: {count}
-                                                                    </span>
+                                                                                                                                            <span
+                                                                            key={status}
+                                                                            className={`px-2 py-1 text-xs rounded-full font-medium border ${colorConfig.bg} ${colorConfig.text} ${colorConfig.border}`}
+                                                                            title={status}
+                                                                        >
+                                                                            {status}: {count}
+                                                                        </span>
                                                                 );
                                                             })}
                                                         {Object.keys(conceptCounts[batch.id]).length > 3 && (
