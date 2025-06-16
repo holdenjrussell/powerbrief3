@@ -484,9 +484,7 @@ Focus on search optimization, reader value, and conversion potential.`
         }
     };
 
-    // Extract params using React.use()
-    const unwrappedParams = params instanceof Promise ? React.use(params) : params;
-    const { brandId, batchId } = unwrappedParams;
+    // Note: brandId and batchId are already extracted at the top of the component using React.use()
 
     // Detect content type from URL params
     useEffect(() => {
@@ -3870,7 +3868,7 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                                     setError(`Failed to update status: ${err instanceof Error ? err.message : 'Unknown error'}`);
                                                     // Revert the dropdown by refreshing concepts from the server
                                                     try {
-                                                        const refreshedConcepts = await getBriefConcepts(params.batchId);
+                                                        const refreshedConcepts = await getBriefConcepts(batchId);
                                                         setConcepts(refreshedConcepts);
                                                     } catch (refreshErr) {
                                                         console.error('Failed to refresh concepts:', refreshErr);
