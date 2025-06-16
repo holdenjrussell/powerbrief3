@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useGlobal } from '@/lib/context/GlobalContext';
 import { useRouter } from 'next/navigation';
-import { getBrandById, getBriefBatches, createBriefBatch, updateBriefBatch, deleteBriefBatch } from '@/lib/services/powerbriefService';
+import { getBrandById, getBriefBatches, createBriefBatch, updateBriefBatch, deleteBriefBatch, getConceptCountsByStatus, getStatusColorConfig } from '@/lib/services/powerbriefService';
 import { Brand, BriefBatch } from '@/lib/types/powerbrief';
 import { Loader2, Plus, Folder, Edit, Trash2, MoreVertical } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -25,6 +25,9 @@ export default function BriefsPage({ params }: { params: ParamsType | Promise<Pa
     const [brand, setBrand] = useState<Brand | null>(null);
     const [batches, setBatches] = useState<BriefBatch[]>([]);
     const [error, setError] = useState<string | null>(null);
+    
+    // State for concept counts by status
+    const [conceptCounts, setConceptCounts] = useState<Record<string, Record<string, number>>>({});
     const [showNewBatchDialog, setShowNewBatchDialog] = useState<boolean>(false);
     const [newBatchName, setNewBatchName] = useState<string>('');
     const [creatingBatch, setCreatingBatch] = useState<boolean>(false);
@@ -48,9 +51,10 @@ export default function BriefsPage({ params }: { params: ParamsType | Promise<Pa
             
             try {
                 setLoading(true);
-                const [brandData, batchesData] = await Promise.all([
+                const [brandData, batchesData, statusCounts] = await Promise.all([
                     getBrandById(brandId),
-                    getBriefBatches(brandId)
+                    getBriefBatches(brandId),
+                    getConceptCountsByStatus(brandId)
                 ]);
                 
                 if (!brandData) {
@@ -60,6 +64,7 @@ export default function BriefsPage({ params }: { params: ParamsType | Promise<Pa
                 
                 setBrand(brandData);
                 setBatches(batchesData);
+                setConceptCounts(statusCounts);
                 setError(null);
             } catch (err) {
                 console.error('Error fetching data:', err);
@@ -278,8 +283,36 @@ export default function BriefsPage({ params }: { params: ParamsType | Promise<Pa
                                                 </CardDescription>
                                             </CardHeader>
                                             <CardContent>
-                                                <div className="flex items-center justify-center h-20 bg-gray-50 rounded-md">
-                                                    <Folder className="h-8 w-8 text-gray-400" />
+                                                <div className="space-y-3">
+                                                    <div className="flex items-center justify-center h-16 bg-gray-50 rounded-md">
+                                                        <Folder className="h-8 w-8 text-gray-400" />
+                                                    </div>
+                                                    
+                                                    {/* Status Count Tags */}
+                                                    {conceptCounts[batch.id] && (
+                                                        <div className="flex flex-wrap gap-1">
+                                                            {Object.entries(conceptCounts[batch.id])
+                                                                .sort(([, a], [, b]) => b - a) // Sort by count descending
+                                                                .slice(0, 3) // Show only top 3 statuses
+                                                                .map(([status, count]) => {
+                                                                    const colorConfig = getStatusColorConfig(status);
+                                                                    return (
+                                                                        <span
+                                                                            key={status}
+                                                                            className={`px-2 py-1 text-xs rounded-full font-medium border ${colorConfig.bg} ${colorConfig.text} ${colorConfig.border}`}
+                                                                            title={status}
+                                                                        >
+                                                                            {status === 'No Status' ? 'No Status' : status.split(' ').map(word => word.charAt(0)).join('')}: {count}
+                                                                        </span>
+                                                                    );
+                                                                })}
+                                                            {Object.keys(conceptCounts[batch.id]).length > 3 && (
+                                                                <span className="px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded-full font-medium border border-gray-300">
+                                                                    +{Object.keys(conceptCounts[batch.id]).length - 3} more
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </CardContent>
                                         </Card>

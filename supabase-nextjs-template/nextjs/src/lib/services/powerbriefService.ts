@@ -1,6 +1,8 @@
 import { createSSRClient } from '@/lib/supabase/server';
 import { Brand, BriefBatch, BriefConcept, DbBrand, DbBriefConcept, DbBriefBatch, ShareSettings, ShareResult, Scene, Hook, EditingResource, ResourceLogin, DosAndDonts } from '@/lib/types/powerbrief';
 import { v4 as uuidv4 } from 'uuid';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { Database } from '@/lib/types/supabase';
 
 const getSupabaseClient = async () => await createSSRClient();
 
@@ -65,7 +67,8 @@ export async function getBrands(userId: string): Promise<Brand[]> {
   }
   
   // Fallback to the old method if RPC function doesn't exist yet
-  const { data: fallbackData, error: fallbackError } = await supabase
+  const fallbackSupabase = await getSupabaseClient();
+  const { data: fallbackData, error: fallbackError } = await fallbackSupabase
     .from('brands')
     .select('*')
     .eq('user_id', userId)
@@ -765,4 +768,59 @@ export async function getPendingReviewsCount(userId: string): Promise<number> {
   }
   
   return count || 0;
+}
+
+// Get concept counts by status for batches
+export async function getConceptCountsByStatus(brandId: string): Promise<Record<string, Record<string, number>>> {
+  const supabase = await getSupabaseClient();
+  
+  // Get all concepts for batches belonging to this brand
+  const { data: conceptsData, error } = await supabase
+    .from('brief_concepts')
+    .select('brief_batch_id, status, brief_batches!inner(brand_id)')
+    .eq('brief_batches.brand_id', brandId);
+
+  if (error) {
+    console.error('Error fetching concept counts by status:', error);
+    throw new Error(`Failed to fetch concept counts: ${error.message}`);
+  }
+
+  // Group by batch_id and count by status
+  const counts: Record<string, Record<string, number>> = {};
+  
+  conceptsData.forEach((concept: any) => {
+    const batchId = concept.brief_batch_id;
+    const status = concept.status || 'No Status';
+    
+    if (!counts[batchId]) {
+      counts[batchId] = {};
+    }
+    
+    if (!counts[batchId][status]) {
+      counts[batchId][status] = 0;
+    }
+    
+    counts[batchId][status]++;
+  });
+
+  return counts;
+}
+
+// Helper function to get status color configuration
+export function getStatusColorConfig(status: string): { bg: string; text: string; border: string } {
+  const statusColors: Record<string, { bg: string; text: string; border: string }> = {
+    'No Status': { bg: 'bg-gray-100', text: 'text-gray-800', border: 'border-gray-300' },
+    'BRIEFING IN PROGRESS': { bg: 'bg-blue-100', text: 'text-blue-800', border: 'border-blue-300' },
+    'BRIEF REVIEW': { bg: 'bg-purple-100', text: 'text-purple-800', border: 'border-purple-300' },
+    'BRIEF REVISIONS NEEDED': { bg: 'bg-red-100', text: 'text-red-800', border: 'border-red-300' },
+    'READY FOR DESIGNER': { bg: 'bg-orange-100', text: 'text-orange-800', border: 'border-orange-300' },
+    'READY FOR EDITOR': { bg: 'bg-yellow-100', text: 'text-yellow-800', border: 'border-yellow-300' },
+    'READY FOR EDITOR ASSIGNMENT': { bg: 'bg-amber-100', text: 'text-amber-800', border: 'border-amber-300' },
+    'READY FOR REVIEW': { bg: 'bg-indigo-100', text: 'text-indigo-800', border: 'border-indigo-300' },
+    'APPROVED': { bg: 'bg-green-100', text: 'text-green-800', border: 'border-green-300' },
+    'REVISIONS REQUESTED': { bg: 'bg-orange-100', text: 'text-orange-800', border: 'border-orange-300' },
+    'CONCEPT REJECTED': { bg: 'bg-red-100', text: 'text-red-800', border: 'border-red-300' }
+  };
+
+  return statusColors[status] || { bg: 'bg-gray-100', text: 'text-gray-800', border: 'border-gray-300' };
 } 
