@@ -349,8 +349,13 @@ export default function BriefsPage({ params }: { params: ParamsType | Promise<Pa
                                                     {conceptCounts[batch.id] && (
                                                         <div className="flex flex-wrap gap-1">
                                                             {Object.entries(conceptCounts[batch.id])
-                                                                .sort(([, a], [, b]) => b - a) // Sort by count descending
-                                                                .slice(0, 3) // Show only top 3 statuses
+                                                                .sort(([statusA, countA], [statusB, countB]) => {
+                                                                    // Always put CONCEPT REJECTED last
+                                                                    if (statusA === 'CONCEPT REJECTED') return 1;
+                                                                    if (statusB === 'CONCEPT REJECTED') return -1;
+                                                                    // Sort others by count descending
+                                                                    return countB - countA;
+                                                                })
                                                                 .map(([status, count]) => {
                                                                     const colorConfig = getStatusColorConfig(status);
                                                                     return (
@@ -363,11 +368,6 @@ export default function BriefsPage({ params }: { params: ParamsType | Promise<Pa
                                                                         </span>
                                                                     );
                                                                 })}
-                                                            {Object.keys(conceptCounts[batch.id]).length > 3 && (
-                                                                <span className="px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded-full font-medium border border-gray-300">
-                                                                    +{Object.keys(conceptCounts[batch.id]).length - 3} more
-                                                                </span>
-                                                            )}
                                                         </div>
                                                     )}
                                                 </div>
