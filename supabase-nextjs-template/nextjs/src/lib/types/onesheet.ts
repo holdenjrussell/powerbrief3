@@ -388,6 +388,14 @@ export interface OneSheet {
   workflow_stage?: WorkflowStage;
   last_context_update?: string;
   
+  // NEW: Stages tracking
+  current_stage?: CurrentStage;
+  stages_completed?: StagesCompleted;
+  audience_research?: AudienceResearchData;
+  competitor_research?: CompetitorResearchData;
+  ad_account_audit?: AdAccountAuditData;
+  creative_brainstorm?: CreativeBrainstormData;
+  
   // Customization
   custom_sections?: Array<{
     id: string;
@@ -534,4 +542,217 @@ export interface ContextLoaded {
   organicContent: boolean;
 }
 
-export type WorkflowStage = 'context_loading' | 'audience_research' | 'competitor_analysis' | 'social_listening' | 'performance_audit' | 'synthesis' | 'creative_generation' | 'completed'; 
+export type WorkflowStage = 'context_loading' | 'audience_research' | 'competitor_analysis' | 'social_listening' | 'performance_audit' | 'synthesis' | 'creative_generation' | 'completed';
+
+// New types for OneSheet Stages
+
+// Stage 1: Audience Research Types
+export interface AudienceResearchItem {
+  id: string;
+  content: string;
+  evidence: Array<{
+    type: 'review' | 'statistic' | 'information' | 'social';
+    text: string;
+    source: string;
+    url?: string;
+  }>;
+  priority?: number;
+  aiGenerated: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AudiencePersona {
+  id: string;
+  name: string;
+  demographics: {
+    age: string;
+    gender: string;
+    location: string;
+    income: string;
+    education: string;
+    occupation: string;
+  };
+  psychographics: {
+    interests: string[];
+    lifestyle: string[];
+    values: string[];
+    painPoints: string[];
+  };
+  awarenessLevel: 'unaware' | 'problemAware' | 'solutionAware' | 'productAware' | 'mostAware';
+  quote?: string; // Representative quote from this persona
+  priority?: number;
+  aiGenerated: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AudienceResearchData {
+  angles: AudienceResearchItem[];
+  benefits: AudienceResearchItem[];
+  painPoints: AudienceResearchItem[];
+  features: AudienceResearchItem[];
+  objections: AudienceResearchItem[];
+  failedSolutions: AudienceResearchItem[];
+  other: AudienceResearchItem[];
+  personas: AudiencePersona[];
+}
+
+// Stage 2: Enhanced Competitor Research Types
+export interface CompetitorData {
+  id: string;
+  name: string;
+  website?: string;
+  similarities: string[];
+  differences: string[];
+  opportunities: {
+    formats: string[];
+    messaging: string[];
+  };
+  landingPages: Array<{
+    url: string;
+    description: string;
+  }>;
+  adLinks: Array<{
+    platform: 'facebook' | 'instagram' | 'tiktok' | 'youtube';
+    url: string;
+    description?: string;
+  }>;
+  deepAnalysis?: {
+    isHigherQuality: string;
+    whyBetterChoice: string;
+    formatStrategies: string[];
+    creatorApproaches: string[];
+    learningsOverTime: Array<{
+      date: string;
+      learning: string;
+      source: string;
+    }>;
+  };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CompetitorResearchData {
+  competitors: CompetitorData[];
+  deepAnalysis: {
+    qualityComparison: Record<string, string>;
+    formatStrategies: Record<string, string[]>;
+    creatorApproaches: Record<string, string[]>;
+    learningsOverTime: Array<{
+      date: string;
+      learning: string;
+      competitorId: string;
+    }>;
+  };
+}
+
+// Stage 3: Ad Account Audit Types
+export interface AdData {
+  id: string;
+  url: string;
+  adName?: string;
+  landingPage: string;
+  spend: number;
+  cpa: number;
+  hookRate: number;
+  holdRate: number;
+  type: 'highProductionVideo' | 'lowProductionVideo' | 'static' | 'gif' | 'carousel';
+  duration?: number; // in seconds
+  productIntro?: number; // when product is shown (seconds)
+  creatorsUsed: number;
+  angle: string;
+  format: string;
+  emotion: 'happiness' | 'excitement' | 'hopefulness' | 'curiosity' | 'urgency' | 'fear';
+  framework: 'AIDA' | 'PAS' | 'QUEST' | 'other';
+  transcription?: string;
+  dateRange: string;
+  createdAt: string;
+}
+
+export interface AdAccountAuditData {
+  ads: AdData[];
+  demographicBreakdown: {
+    age: Record<string, number>;
+    gender: Record<string, number>;
+    placement: Record<string, number>;
+  };
+  performanceByAngle: Record<string, {
+    spend: number;
+    avgCPA: number;
+    avgHoldRate: number;
+    count: number;
+  }>;
+  performanceByFormat: Record<string, {
+    spend: number;
+    avgCPA: number;
+    avgHoldRate: number;
+    count: number;
+  }>;
+  performanceByEmotion: Record<string, {
+    spend: number;
+    avgCPA: number;
+    avgHoldRate: number;
+    count: number;
+  }>;
+  performanceByFramework: Record<string, {
+    spend: number;
+    avgCPA: number;
+    avgHoldRate: number;
+    count: number;
+  }>;
+}
+
+// Stage 4: Creative Brainstorm Types
+export interface CreativeConcept {
+  id: string;
+  title: string;
+  description: string;
+  angle: string;
+  targetPersona?: string;
+  priority: number;
+  aiGenerated: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreativeHook {
+  id: string;
+  text: string;
+  angle: string;
+  targetPersona?: string;
+  variations?: string[];
+  priority: number;
+  aiGenerated: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreativeVisual {
+  id: string;
+  description: string;
+  angle: string;
+  type: 'static' | 'video' | 'carousel' | 'gif';
+  style?: string;
+  priority: number;
+  aiGenerated: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreativeBrainstormData {
+  concepts: CreativeConcept[];
+  hooks: CreativeHook[];
+  visuals: CreativeVisual[];
+}
+
+// Stage tracking
+export interface StagesCompleted {
+  context: boolean;
+  audience_research: boolean;
+  competitor_research: boolean;
+  ad_audit: boolean;
+  creative_brainstorm: boolean;
+}
+
+export type CurrentStage = 'context_loading' | 'audience_research' | 'competitor_research' | 'ad_audit' | 'creative_brainstorm' | 'completed'; 

@@ -15,7 +15,7 @@ import {
 import Link from 'next/link';
 import { toast } from '@/components/ui/use-toast';
 import { OneSheet } from '@/lib/types/onesheet';
-import { HybridOneSheet } from '@/components/onesheet/HybridOneSheet';
+import { HybridOneSheetV2 } from '@/components/onesheet/HybridOneSheetV2';
 
 // Simple debounce implementation
 const debounce = (func: Function, wait: number) => {
@@ -163,7 +163,7 @@ export default function OneSheetPage({ params }: { params: ParamsType | Promise<
       </div>
 
       {/* Main Content */}
-      <HybridOneSheet
+      <HybridOneSheetV2
         onesheet={onesheet}
         onUpdate={handleUpdate}
         onAutoSave={debouncedAutoSave}
