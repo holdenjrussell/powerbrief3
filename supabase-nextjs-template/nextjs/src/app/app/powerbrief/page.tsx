@@ -79,7 +79,7 @@ export default function PowerBriefPage() {
     const { user } = useGlobal();
     const { brands, selectedBrand } = useBrand();
     const router = useRouter();
-    const [activeTab, setActiveTab] = useState('ads');
+    const [activeTab, setActiveTab] = useState('onesheet');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -622,7 +622,11 @@ export default function PowerBriefPage() {
                 </div>
 
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                    <TabsList className="grid w-full grid-cols-6 mb-8">
+                    <TabsList className="grid w-full grid-cols-7 mb-8">
+                        <TabsTrigger value="onesheet" className="flex items-center gap-2">
+                            <Folder className="h-4 w-4" />
+                            OneSheet
+                        </TabsTrigger>
                         <TabsTrigger value="ads" className="flex items-center gap-2">
                             <Zap className="h-4 w-4" />
                             Ads
@@ -648,6 +652,58 @@ export default function PowerBriefPage() {
                             Blog
                         </TabsTrigger>
                     </TabsList>
+
+                    <TabsContent value="onesheet" className="space-y-6">
+                        <div className="text-center mb-6">
+                            <h3 className="text-2xl font-semibold mb-2">Creative Strategy OneSheet</h3>
+                            <p className="text-gray-600">
+                                Your comprehensive research foundation for data-driven creative campaigns. Access the{' '}
+                                <Link 
+                                    href="/app/sops/creative-feedback-loop" 
+                                    className="text-blue-600 hover:underline font-medium"
+                                    target="_blank"
+                                >
+                                    Creative Feedback Loop SOP
+                                </Link>
+                                {' '}to learn how to use this strategically.
+                            </p>
+                        </div>
+                        
+                        {selectedBrand && (
+                            <div className="max-w-4xl mx-auto">
+                                <Card className="border-2 border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50">
+                                    <CardHeader className="text-center">
+                                        <CardTitle className="text-xl flex items-center justify-center gap-2">
+                                            <Folder className="h-6 w-6 text-blue-600" />
+                                            {selectedBrand.name} - Creative Strategy OneSheet
+                                        </CardTitle>
+                                                                                 <CardDescription>
+                                             Click below to access your brand&apos;s comprehensive creative strategy document
+                                         </CardDescription>
+                                    </CardHeader>
+                                    <CardContent className="text-center">
+                                        <Link href={`/app/powerbrief/${selectedBrand.id}/onesheet`}>
+                                            <Button size="lg" className="bg-blue-600 hover:bg-blue-700 text-white">
+                                                <Folder className="h-5 w-5 mr-2" />
+                                                Open OneSheet Editor
+                                            </Button>
+                                        </Link>
+                                        <div className="mt-4 text-sm text-gray-600">
+                                            <p>Your OneSheet includes:</p>
+                                            <div className="grid grid-cols-2 gap-2 mt-2 text-left max-w-md mx-auto">
+                                                <span>• Audience Research</span>
+                                                <span>• Competitor Analysis</span>
+                                                <span>• Ad Account Audit</span>
+                                                <span>• Creative Brainstorming</span>
+                                                <span>• AI-Powered Insights</span>
+                                                <span>• Strategy Documentation</span>
+                                            </div>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            </div>
+                        )}
+                    </TabsContent>
 
                     <TabsContent value="ads" className="space-y-6">
                         <div className="text-center mb-6">

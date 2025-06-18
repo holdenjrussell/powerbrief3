@@ -102,9 +102,11 @@ export async function updateSession(request: NextRequest) {
   try {
     await supabase.auth.getUser();
   } catch (error) {
-    // Log the error but don't crash the middleware
-    console.warn('Middleware auth error:', error);
-    // Continue processing the request even if auth fails
+    // Log the error but don't crash the middleware (only in development)
+    if (process.env.NODE_ENV === 'development') {
+      console.warn('Middleware auth session refresh failed (non-critical):', error instanceof Error ? error.message : error);
+    }
+    // Continue processing the request even if auth fails - this is expected behavior
   }
 
   return response;

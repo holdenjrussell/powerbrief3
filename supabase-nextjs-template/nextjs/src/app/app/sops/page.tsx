@@ -12,7 +12,8 @@ import {
   Download,
   Clock,
   BookOpen,
-  AlertTriangle
+  AlertTriangle,
+  RefreshCw
 } from 'lucide-react';
 
 const modules = [
@@ -87,6 +88,15 @@ const modules = [
     duration: '14 min',
     difficulty: 'Beginner',
     topics: ['File Upload', 'Campaign Organization', 'Asset Management', 'Metadata Tagging']
+  },
+  {
+    id: 'creative-feedback-loop',
+    title: 'The Ultimate Guide to Never-Ending Ad Ideas',
+    description: 'Master the strategic feedback loop system used by multi-million dollar brands to generate continuous winning ad concepts.',
+    icon: RefreshCw,
+    duration: '32 min',
+    difficulty: 'Advanced',
+    topics: ['Creative Strategy', 'Research Methods', 'AI Integration', 'Performance Analysis', 'Continuous Improvement']
   }
 ];
 
