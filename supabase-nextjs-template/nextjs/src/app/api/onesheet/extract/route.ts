@@ -26,6 +26,7 @@ interface ScrapedData {
 async function scrapeWithHTTP(url: string, crawlLinks: boolean = false, maxPages: number = 3): Promise<ScrapedData[]> {
   const results: ScrapedData[] = [];
   const processedUrls = new Set<string>();
+  const contentHashes = new Set<string>(); // Track content to avoid duplicates
   const urlsToProcess = [url];
 
   console.log(`[HTTPScraper] Starting extraction for: ${url} (max ${maxPages} pages)`);
@@ -110,6 +111,16 @@ async function scrapeWithHTTP(url: string, crawlLinks: boolean = false, maxPages
         .trim();
         // Remove character limit to capture full content
 
+      // Create a simple hash of content to detect duplicates
+      const contentHash = content.slice(0, 500) + content.length; // Simple hash using first 500 chars + length
+      
+      // Skip if we've already processed this content
+      if (contentHashes.has(contentHash)) {
+        console.log(`[HTTPScraper] Skipping duplicate content for: ${currentUrl}`);
+        continue;
+      }
+      contentHashes.add(contentHash);
+
       // Extract links for crawling
       const discoveredLinks: string[] = [];
       if (crawlLinks && results.length < maxPages - 1) {
@@ -121,16 +132,60 @@ async function scrapeWithHTTP(url: string, crawlLinks: boolean = false, maxPages
               const baseUrl = new URL(url);
               const linkUrl = new URL(absoluteUrl);
               
-              // Only crawl same domain links
-              if (linkUrl.hostname === baseUrl.hostname && 
-                  !processedUrls.has(absoluteUrl) && 
-                  !urlsToProcess.includes(absoluteUrl) &&
-                  discoveredLinks.length < 10) { // Limit links discovered
-                discoveredLinks.push(absoluteUrl);
+              // Special handling for Archive.org URLs
+              const isArchiveUrl = baseUrl.hostname.includes('web.archive.org');
+              
+              if (isArchiveUrl) {
+                // For Archive.org, only follow links that are also archived versions of the original domain
+                // Skip Archive.org internal links like screenshots, calendars, etc.
+                const skipPatterns = [
+                  '/screenshot/',
+                  '/web/*/http://web.archive.org/',
+                  '*/http://web.archive.org/',
+                  'web.archive.org/save/',
+                  'web.archive.org/web/timemap/',
+                  '#close',
+                  '#expand'
+                ];
+                
+                const shouldSkip = skipPatterns.some(pattern => absoluteUrl.includes(pattern));
+                
+                // Only include if it's an archived page of the original domain and not an internal Archive.org feature
+                if (!shouldSkip && 
+                    absoluteUrl.includes('web.archive.org/web/') && 
+                    !processedUrls.has(absoluteUrl) && 
+                    !urlsToProcess.includes(absoluteUrl) &&
+                    discoveredLinks.length < 10) {
+                  
+                  // Extract the original URL from the archive URL to check if it's the same domain
+                  const archiveMatch = absoluteUrl.match(/web\.archive\.org\/web\/\d+\*?\/(https?:\/\/.+)/);
+                  if (archiveMatch) {
+                    try {
+                      const originalUrl = new URL(archiveMatch[1]);
+                      const targetDomain = url.includes('web.archive.org/web/') 
+                        ? url.match(/web\.archive\.org\/web\/\d+\*?\/(https?:\/\/[^\/]+)/)?.[1]
+                        : baseUrl.origin;
+                      
+                      if (targetDomain && originalUrl.origin === new URL(targetDomain).origin) {
+                        discoveredLinks.push(absoluteUrl);
+                      }
+                    } catch {
+                      // Skip malformed URLs
+                    }
+                  }
+                }
+              } else {
+                // Regular domain logic for non-archive URLs
+                if (linkUrl.hostname === baseUrl.hostname && 
+                    !processedUrls.has(absoluteUrl) && 
+                    !urlsToProcess.includes(absoluteUrl) &&
+                    discoveredLinks.length < 10) {
+                  discoveredLinks.push(absoluteUrl);
+                }
               }
-                         } catch {
-               // Skip invalid URLs
-             }
+            } catch {
+              // Skip invalid URLs
+            }
           }
         });
 

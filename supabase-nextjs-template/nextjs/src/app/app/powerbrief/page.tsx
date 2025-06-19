@@ -9,6 +9,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, Plus, Building2, AlertCircle, Zap, Mail, MessageSquare, Share2, PenTool, Folder, Calendar, Edit, Trash2, MoreVertical } from 'lucide-react';
+import OneSheetManager from '@/components/OneSheetManager';
 import { useRouter } from 'next/navigation';
 import { createBriefBatch, getBriefBatches, updateBriefBatch, deleteBriefBatch } from '@/lib/services/powerbriefService';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
@@ -655,7 +656,7 @@ export default function PowerBriefPage() {
 
                     <TabsContent value="onesheet" className="space-y-6">
                         <div className="text-center mb-6">
-                            <h3 className="text-2xl font-semibold mb-2">Creative Strategy OneSheet</h3>
+                            <h3 className="text-2xl font-semibold mb-2">Creative Strategy OneSheets</h3>
                             <p className="text-gray-600">
                                 Your comprehensive research foundation for data-driven creative campaigns. Access the{' '}
                                 <Link 
@@ -670,40 +671,11 @@ export default function PowerBriefPage() {
                         </div>
                         
                         {selectedBrand && (
-                            <div className="max-w-4xl mx-auto">
-                                <Card className="border-2 border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50">
-                                    <CardHeader className="text-center">
-                                        <CardTitle className="text-xl flex items-center justify-center gap-2">
-                                            <Folder className="h-6 w-6 text-blue-600" />
-                                            {selectedBrand.name} - Creative Strategy OneSheet
-                                        </CardTitle>
-                                                                                 <CardDescription>
-                                             Click below to access your brand&apos;s comprehensive creative strategy document
-                                         </CardDescription>
-                                    </CardHeader>
-                                    <CardContent className="text-center">
-                                        <Link href={`/app/powerbrief/${selectedBrand.id}/onesheet`}>
-                                            <Button size="lg" className="bg-blue-600 hover:bg-blue-700 text-white">
-                                                <Folder className="h-5 w-5 mr-2" />
-                                                Open OneSheet Editor
-                                            </Button>
-                                        </Link>
-                                        <div className="mt-4 text-sm text-gray-600">
-                                            <p>Your OneSheet includes:</p>
-                                            <div className="grid grid-cols-2 gap-2 mt-2 text-left max-w-md mx-auto">
-                                                <span>• Audience Research</span>
-                                                <span>• Competitor Analysis</span>
-                                                <span>• Ad Account Audit</span>
-                                                <span>• Creative Brainstorming</span>
-                                                <span>• AI-Powered Insights</span>
-                                                <span>• Strategy Documentation</span>
-                                            </div>
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            </div>
+                            <OneSheetManager brandId={selectedBrand.id} />
                         )}
                     </TabsContent>
+
+
 
                     <TabsContent value="ads" className="space-y-6">
                         <div className="text-center mb-6">

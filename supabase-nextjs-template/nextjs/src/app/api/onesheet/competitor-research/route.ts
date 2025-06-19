@@ -1,16 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
-import { v4 as uuidv4 } from 'uuid';
 import { Database } from '@/lib/types/supabase';
+import { v4 as uuidv4 } from 'uuid';
+import type { CompetitorResearchData, CompetitorData } from '@/lib/types/onesheet';
 
-// GET - Get audience research data
+// GET - Fetch competitor research data
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const onesheet_id = searchParams.get('onesheet_id');
+    const onesheetId = searchParams.get('onesheet_id');
 
-    if (!onesheet_id) {
+    if (!onesheetId) {
       return NextResponse.json({ error: 'OneSheet ID is required' }, { status: 400 });
     }
 
@@ -41,57 +42,43 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Get OneSheet and verify access
+    // Get OneSheet data
     const { data: onesheet, error } = await supabase
       .from('onesheet')
-      .select('audience_research')
-      .eq('id', onesheet_id)
+      .select('competitor_research')
+      .eq('id', onesheetId)
       .single();
 
     if (error || !onesheet) {
       return NextResponse.json({ error: 'OneSheet not found' }, { status: 404 });
     }
 
-    return NextResponse.json({
-      success: true,
-      data: onesheet.audience_research || {
-        angles: [],
-        benefits: [],
-        painPoints: [],
-        features: [],
-        objections: [],
-        failedSolutions: [],
-        other: [],
-        personas: []
+    return NextResponse.json(onesheet.competitor_research || {
+      competitors: [],
+      deepAnalysis: {
+        qualityComparison: {},
+        formatStrategies: {},
+        creatorApproaches: {},
+        learningsOverTime: []
       }
     });
 
   } catch (error) {
-    console.error('Error fetching audience research:', error);
+    console.error('Error fetching competitor research:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch audience research' },
+      { error: 'Failed to fetch competitor research' },
       { status: 500 }
     );
   }
 }
 
-// POST - Create new audience research item
+// POST - Add new competitor
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { onesheet_id, section, item } = body;
+    const { onesheet_id, competitor } = await request.json();
 
-    if (!onesheet_id || !section || !item) {
-      return NextResponse.json({ 
-        error: 'Missing required fields: onesheet_id, section, item' 
-      }, { status: 400 });
-    }
-
-    const validSections = ['angles', 'benefits', 'painPoints', 'features', 'objections', 'failedSolutions', 'other', 'personas'];
-    if (!validSections.includes(section)) {
-      return NextResponse.json({ 
-        error: `Invalid section. Must be one of: ${validSections.join(', ')}` 
-      }, { status: 400 });
+    if (!onesheet_id || !competitor) {
+      return NextResponse.json({ error: 'OneSheet ID and competitor data are required' }, { status: 400 });
     }
 
     const cookieStore = await cookies();
@@ -121,10 +108,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Get current audience research
+    // Get current competitor research
     const { data: onesheet, error: fetchError } = await supabase
       .from('onesheet')
-      .select('audience_research')
+      .select('competitor_research')
       .eq('id', onesheet_id)
       .single();
 
@@ -132,35 +119,32 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'OneSheet not found' }, { status: 404 });
     }
 
-    const currentResearch = onesheet.audience_research || {
-      angles: [],
-      benefits: [],
-      painPoints: [],
-      features: [],
-      objections: [],
-      failedSolutions: [],
-      other: [],
-      personas: []
+    const currentResearch = onesheet.competitor_research as CompetitorResearchData || {
+      competitors: [],
+      deepAnalysis: {
+        qualityComparison: {},
+        formatStrategies: {},
+        creatorApproaches: {},
+        learningsOverTime: []
+      }
     };
 
-    // Create new item with metadata
+    // Add new competitor
     const timestamp = new Date().toISOString();
-    const newItem = {
+    const newCompetitor: CompetitorData = {
       id: uuidv4(),
-      ...item,
-      aiGenerated: false,
+      ...competitor,
       createdAt: timestamp,
       updatedAt: timestamp
     };
 
-    // Add to appropriate section
-    currentResearch[section].push(newItem);
+    currentResearch.competitors.push(newCompetitor);
 
     // Update OneSheet
     const { error: updateError } = await supabase
       .from('onesheet')
       .update({
-        audience_research: currentResearch,
+        competitor_research: currentResearch,
         updated_at: timestamp
       })
       .eq('id', onesheet_id);
@@ -171,29 +155,25 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: newItem,
-      message: `${section} item created successfully`
+      competitor: newCompetitor
     });
 
   } catch (error) {
-    console.error('Error creating audience research item:', error);
+    console.error('Error adding competitor:', error);
     return NextResponse.json(
-      { error: 'Failed to create audience research item' },
+      { error: 'Failed to add competitor' },
       { status: 500 }
     );
   }
 }
 
-// PUT - Update existing audience research item
+// PUT - Update existing competitor
 export async function PUT(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { onesheet_id, section, item_id, updates } = body;
+    const { onesheet_id, competitor } = await request.json();
 
-    if (!onesheet_id || !section || !item_id || !updates) {
-      return NextResponse.json({ 
-        error: 'Missing required fields: onesheet_id, section, item_id, updates' 
-      }, { status: 400 });
+    if (!onesheet_id || !competitor || !competitor.id) {
+      return NextResponse.json({ error: 'OneSheet ID and competitor data with ID are required' }, { status: 400 });
     }
 
     const cookieStore = await cookies();
@@ -223,10 +203,10 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Get current audience research
+    // Get current competitor research
     const { data: onesheet, error: fetchError } = await supabase
       .from('onesheet')
-      .select('audience_research')
+      .select('competitor_research')
       .eq('id', onesheet_id)
       .single();
 
@@ -234,33 +214,31 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'OneSheet not found' }, { status: 404 });
     }
 
-    const currentResearch = onesheet.audience_research || {};
-    
-    // Find and update the item
-    const sectionData = currentResearch[section];
-    if (!Array.isArray(sectionData)) {
-      return NextResponse.json({ error: 'Invalid section' }, { status: 400 });
-    }
-
-    const itemIndex = sectionData.findIndex((item: any) => item.id === item_id);
-    if (itemIndex === -1) {
-      return NextResponse.json({ error: 'Item not found' }, { status: 404 });
-    }
-
-    // Update the item
-    const timestamp = new Date().toISOString();
-    currentResearch[section][itemIndex] = {
-      ...currentResearch[section][itemIndex],
-      ...updates,
-      id: item_id, // Preserve ID
-      updatedAt: timestamp
+    const currentResearch = onesheet.competitor_research as CompetitorResearchData || {
+      competitors: [],
+      deepAnalysis: {
+        qualityComparison: {},
+        formatStrategies: {},
+        creatorApproaches: {},
+        learningsOverTime: []
+      }
     };
+
+    // Update competitor
+    const timestamp = new Date().toISOString();
+    const updatedCompetitors = currentResearch.competitors.map(c => 
+      c.id === competitor.id 
+        ? { ...c, ...competitor, updatedAt: timestamp }
+        : c
+    );
+
+    currentResearch.competitors = updatedCompetitors;
 
     // Update OneSheet
     const { error: updateError } = await supabase
       .from('onesheet')
       .update({
-        audience_research: currentResearch,
+        competitor_research: currentResearch,
         updated_at: timestamp
       })
       .eq('id', onesheet_id);
@@ -271,31 +249,27 @@ export async function PUT(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: currentResearch[section][itemIndex],
-      message: 'Item updated successfully'
+      message: 'Competitor updated successfully'
     });
 
   } catch (error) {
-    console.error('Error updating audience research item:', error);
+    console.error('Error updating competitor:', error);
     return NextResponse.json(
-      { error: 'Failed to update audience research item' },
+      { error: 'Failed to update competitor' },
       { status: 500 }
     );
   }
 }
 
-// DELETE - Delete audience research item
+// DELETE - Remove competitor
 export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const onesheet_id = searchParams.get('onesheet_id');
-    const section = searchParams.get('section');
-    const item_id = searchParams.get('item_id');
+    const onesheetId = searchParams.get('onesheet_id');
+    const competitorId = searchParams.get('competitor_id');
 
-    if (!onesheet_id || !section || !item_id) {
-      return NextResponse.json({ 
-        error: 'Missing required parameters: onesheet_id, section, item_id' 
-      }, { status: 400 });
+    if (!onesheetId || !competitorId) {
+      return NextResponse.json({ error: 'OneSheet ID and competitor ID are required' }, { status: 400 });
     }
 
     const cookieStore = await cookies();
@@ -325,42 +299,39 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Get current audience research
+    // Get current competitor research
     const { data: onesheet, error: fetchError } = await supabase
       .from('onesheet')
-      .select('audience_research')
-      .eq('id', onesheet_id)
+      .select('competitor_research')
+      .eq('id', onesheetId)
       .single();
 
     if (fetchError || !onesheet) {
       return NextResponse.json({ error: 'OneSheet not found' }, { status: 404 });
     }
 
-    const currentResearch = onesheet.audience_research || {};
-    
-    // Find and remove the item
-    const sectionData = currentResearch[section];
-    if (!Array.isArray(sectionData)) {
-      return NextResponse.json({ error: 'Invalid section' }, { status: 400 });
-    }
+    const currentResearch = onesheet.competitor_research as CompetitorResearchData || {
+      competitors: [],
+      deepAnalysis: {
+        qualityComparison: {},
+        formatStrategies: {},
+        creatorApproaches: {},
+        learningsOverTime: []
+      }
+    };
 
-    const filteredSection = sectionData.filter((item: any) => item.id !== item_id);
-    
-    if (filteredSection.length === sectionData.length) {
-      return NextResponse.json({ error: 'Item not found' }, { status: 404 });
-    }
-
-    currentResearch[section] = filteredSection;
+    // Remove competitor
+    currentResearch.competitors = currentResearch.competitors.filter(c => c.id !== competitorId);
 
     // Update OneSheet
     const timestamp = new Date().toISOString();
     const { error: updateError } = await supabase
       .from('onesheet')
       .update({
-        audience_research: currentResearch,
+        competitor_research: currentResearch,
         updated_at: timestamp
       })
-      .eq('id', onesheet_id);
+      .eq('id', onesheetId);
 
     if (updateError) {
       throw updateError;
@@ -368,13 +339,13 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: 'Item deleted successfully'
+      message: 'Competitor deleted successfully'
     });
 
   } catch (error) {
-    console.error('Error deleting audience research item:', error);
+    console.error('Error deleting competitor:', error);
     return NextResponse.json(
-      { error: 'Failed to delete audience research item' },
+      { error: 'Failed to delete competitor' },
       { status: 500 }
     );
   }

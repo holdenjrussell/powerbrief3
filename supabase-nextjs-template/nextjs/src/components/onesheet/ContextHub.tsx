@@ -84,7 +84,7 @@ const contextSources = [
     title: 'Organic Social',
     icon: Instagram,
     description: 'Organic social media content from all platforms',
-    instructions: 'Paste links to organic posts from Facebook, Instagram, TikTok, YouTube, etc. We\'ll download, transcribe videos, and provide detailed breakdowns including hooks, structure, emotions, and more.',
+    instructions: 'Paste links to organic posts from Facebook, Instagram, TikTok, YouTube, etc. You can paste multiple URLs (one per line) for batch processing. We\'ll download, transcribe videos, and provide detailed breakdowns including hooks, structure, emotions, and more.',
     required: false,
   },
   {
@@ -92,7 +92,7 @@ const contextSources = [
     title: 'Paid Social',
     icon: Play,
     description: 'Paid social media ads from all platforms',
-    instructions: 'Paste links to ads from Facebook Ad Library, TikTok Creative Center, or any paid social content. We\'ll analyze ad formats, copywriting frameworks, targeting emotions, and creative strategies.',
+    instructions: 'Paste links to ads from Facebook Ad Library, TikTok Creative Center, or any paid social content. You can paste multiple URLs (one per line) for batch processing. We\'ll analyze ad formats, copywriting frameworks, targeting emotions, and creative strategies.',
     required: false,
   },
 ];
@@ -114,7 +114,6 @@ export function ContextHub({ onesheet, onUpdate }: ContextHubProps) {
         const data = await response.json();
         setContextData(data);
         
-        // Recalculate context_loaded status based on actual data
         // Map source IDs to ContextLoaded property names
         const sourceMapping: Record<string, keyof ContextLoaded> = {
           'brand_website': 'brandWebsite',
@@ -197,22 +196,12 @@ export function ContextHub({ onesheet, onUpdate }: ContextHubProps) {
     };
 
     try {
-      const savedData = await saveWithRetry();
+      await saveWithRetry();
       
-      // Add new data to local state (don't filter existing ones)
-      setContextData(prev => [...prev, savedData]);
+      // Refresh all context data from server to ensure we have the complete list
+      // This is especially important for Reddit extraction which may create multiple entries
+      await fetchContextData();
       
-      // Update context_loaded status
-      const updatedContextLoaded = {
-        ...onesheet.context_loaded,
-        [sourceType]: true,
-      };
-      
-      onUpdate({ 
-        context_loaded: updatedContextLoaded,
-        last_context_update: new Date().toISOString(),
-      });
-
       toast({
         title: 'Context Saved',
         description: 'Your context has been saved and is ready for analysis.',
@@ -244,14 +233,10 @@ export function ContextHub({ onesheet, onUpdate }: ContextHubProps) {
 
       if (!response.ok) throw new Error('Failed to update context');
 
-      const updatedData = await response.json();
+      await response.json(); // Consume the response
       
-      // Update local state
-      setContextData(prev => prev.map(c => c.id === id ? updatedData : c));
-      
-      onUpdate({ 
-        last_context_update: new Date().toISOString(),
-      });
+      // Refresh all context data from server to ensure consistency
+      await fetchContextData();
 
       toast({
         title: 'Context Updated',
@@ -287,9 +272,20 @@ export function ContextHub({ onesheet, onUpdate }: ContextHubProps) {
       // Update context_loaded status if no more items of this type
       const remainingItems = contextData.filter(c => c.source_type === sourceType && c.id !== id);
       if (remainingItems.length === 0) {
+        const sourceMapping: Record<string, keyof ContextLoaded> = {
+          'brand_website': 'brandWebsite',
+          'competitor_website': 'competitorWebsite',
+          'reviews': 'reviews',
+          'reddit': 'reddit',
+          'articles': 'articles',
+          'organic_social': 'organicContent',
+          'paid_social': 'competitorAds',
+        };
+        
+        const mappedKey = sourceMapping[sourceType];
         const updatedContextLoaded = {
           ...onesheet.context_loaded,
-          [sourceType]: false,
+          [mappedKey || sourceType]: false,
         };
         onUpdate({ 
           context_loaded: updatedContextLoaded,

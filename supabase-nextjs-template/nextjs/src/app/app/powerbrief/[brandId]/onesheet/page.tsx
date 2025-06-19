@@ -13,14 +13,15 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { toast } from '@/components/ui/use-toast';
 import { OneSheet } from '@/lib/types/onesheet';
 import { HybridOneSheetV2 } from '@/components/onesheet/HybridOneSheetV2';
 
 // Simple debounce implementation
-const debounce = (func: Function, wait: number) => {
+const debounce = <T extends unknown[]>(func: (...args: T) => void, wait: number) => {
   let timeout: NodeJS.Timeout;
-  return function executedFunction(...args: any[]) {
+  return function executedFunction(...args: T) {
     const later = () => {
       clearTimeout(timeout);
       func(...args);
@@ -35,6 +36,7 @@ type ParamsType = { brandId: string };
 
 export default function OneSheetPage({ params }: { params: ParamsType | Promise<ParamsType> }) {
   const { selectedBrand } = useBrand();
+  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [onesheet, setOnesheet] = useState<OneSheet | null>(null);
@@ -43,6 +45,9 @@ export default function OneSheetPage({ params }: { params: ParamsType | Promise<
   // Extract params using React.use()
   const unwrappedParams = params instanceof Promise ? React.use(params) : params;
   const { brandId } = unwrappedParams;
+  
+  // Get OneSheet ID from URL parameters
+  const onesheetId = searchParams.get('id');
 
   // Debounced auto-save function
   const debouncedAutoSave = useCallback(
@@ -82,7 +87,15 @@ export default function OneSheetPage({ params }: { params: ParamsType | Promise<
       
       try {
         setLoading(true);
-        const response = await fetch(`/api/onesheet?brandId=${brandId}`);
+        let response;
+        
+        if (onesheetId) {
+          // Load specific OneSheet by ID
+          response = await fetch(`/api/onesheet/${onesheetId}`);
+        } else {
+          // Fallback to brand-based loading (legacy)
+          response = await fetch(`/api/onesheet?brandId=${brandId}`);
+        }
         
         if (!response.ok) throw new Error('Failed to fetch OneSheet');
         
@@ -97,7 +110,7 @@ export default function OneSheetPage({ params }: { params: ParamsType | Promise<
     };
 
     fetchOneSheet();
-  }, [brandId]);
+  }, [brandId, onesheetId]);
 
   // Handle updates from hybrid component
   const handleUpdate = (updates: Partial<OneSheet>) => {

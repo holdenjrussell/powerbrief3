@@ -473,6 +473,7 @@ export interface ContextData {
   content_text?: string;
   extracted_data?: Record<string, unknown>;
   metadata?: Record<string, unknown>;
+  brand_type?: 'our_brand' | 'competitor' | 'neutral';
   is_active: boolean;
   created_at: string;
   updated_at: string;

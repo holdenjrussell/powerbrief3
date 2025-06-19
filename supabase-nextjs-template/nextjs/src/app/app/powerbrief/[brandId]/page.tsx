@@ -19,6 +19,7 @@ import SlackIntegrationCard from '@/components/SlackIntegrationCard';
 import MetaTokenManager from '@/components/MetaTokenManager';
 import BrandSharingManager from '@/components/BrandSharingManager';
 import BrandEmailSettings from '@/components/brand/BrandEmailSettings';
+import OneSheetManager from '@/components/OneSheetManager';
 
 // Helper to unwrap params safely
 type ParamsType = { brandId: string };
@@ -524,6 +525,9 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
                 brandId={brandId} 
                 isMetaConnected={metaConnectionStatus === 'Connected'} 
             />
+            
+            {/* OneSheet Manager */}
+            <OneSheetManager brandId={brandId} />
             
             <div className="flex overflow-x-auto pb-4 space-x-6 hide-scrollbar" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
                 {/* Brand Info Column */}

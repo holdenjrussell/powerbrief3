@@ -1,126 +1,252 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/utils/supabase/server';
+import { createServerClient } from '@supabase/ssr';
+import { cookies } from 'next/headers';
+import { Database } from '@/lib/types/supabase';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> | { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const supabase = await createClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-    if (authError || !user) {
+    const { id } = await params;
+    
+    const cookieStore = await cookies();
+    const supabase = createServerClient<Database>(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return cookieStore.getAll()
+          },
+          setAll(cookiesToSet) {
+            try {
+              cookiesToSet.forEach(({ name, value, options }) =>
+                cookieStore.set(name, value, options)
+              )
+            } catch {
+              // Ignore if called from Server Component
+            }
+          },
+        }
+      }
+    );
+    
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const resolvedParams = await params;
-    const { id } = resolvedParams;
-    
-    // Get the onesheet directly from the database
+    // Get OneSheet with brand access check
     const { data: onesheet, error } = await supabase
       .from('onesheet')
-      .select('*')
+      .select(`
+        *,
+        brands!inner(
+          id,
+          user_id,
+          name,
+          brand_shares(
+            shared_with_user_id,
+            status
+          )
+        )
+      `)
       .eq('id', id)
-      .eq('user_id', user.id)
       .single();
-    
+
     if (error || !onesheet) {
       return NextResponse.json({ error: 'OneSheet not found' }, { status: 404 });
     }
 
-    return NextResponse.json(onesheet);
-  } catch (error) {
-    console.error('Error fetching OneSheet:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch OneSheet' },
-      { status: 500 }
+    // Check user access to the brand
+    const brand = onesheet.brands;
+    const isOwner = brand.user_id === user.id;
+    const hasSharedAccess = brand.brand_shares?.some((share: { shared_with_user_id: string; status: string }) => 
+      share.shared_with_user_id === user.id && share.status === 'accepted'
     );
+
+    if (!isOwner && !hasSharedAccess) {
+      return NextResponse.json({ error: 'Access denied to this OneSheet' }, { status: 403 });
+    }
+
+    // Remove the brands property from the response to keep the original OneSheet structure
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { brands, ...cleanOnesheet } = onesheet;
+
+    return NextResponse.json(cleanOnesheet);
+  } catch (error) {
+    console.error('OneSheet fetch error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
 export async function PUT(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> | { id: string } }
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const supabase = await createClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const { id } = await params;
     
-    if (authError || !user) {
+    const cookieStore = await cookies();
+    const supabase = createServerClient<Database>(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return cookieStore.getAll()
+          },
+          setAll(cookiesToSet) {
+            try {
+              cookiesToSet.forEach(({ name, value, options }) =>
+                cookieStore.set(name, value, options)
+              )
+            } catch {
+              // Ignore if called from Server Component
+            }
+          },
+        }
+      }
+    );
+    
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Await params before accessing properties
-    const resolvedParams = await params;
-    const { id } = resolvedParams;
+    const updates = await request.json();
 
-    const body = await request.json();
-    
-    // Remove any fields that shouldn't be updated
-    delete body.id;
-    delete body.user_id;
-    delete body.brand_id;
-    delete body.created_at;
-    
-    const { data, error } = await supabase
+    // Verify user has access to this OneSheet
+    const { data: onesheet } = await supabase
       .from('onesheet')
-      .update({
-        ...body,
-        updated_at: new Date().toISOString()
-      })
+      .select(`
+        user_id,
+        brand_id,
+        brands!inner(
+          user_id,
+          brand_shares(
+            shared_with_user_id,
+            status
+          )
+        )
+      `)
       .eq('id', id)
-      .eq('user_id', user.id)
+      .single();
+
+    if (!onesheet) {
+      return NextResponse.json({ error: 'OneSheet not found' }, { status: 404 });
+    }
+
+    const brand = onesheet.brands;
+    const isOwner = brand.user_id === user.id;
+    const hasSharedAccess = brand.brand_shares?.some((share: { shared_with_user_id: string; status: string }) => 
+      share.shared_with_user_id === user.id && share.status === 'accepted'
+    );
+
+    if (!isOwner && !hasSharedAccess) {
+      return NextResponse.json({ error: 'Access denied to this OneSheet' }, { status: 403 });
+    }
+
+    // Update the OneSheet
+    const { data: updatedOnesheet, error: updateError } = await supabase
+      .from('onesheet')
+      .update(updates)
+      .eq('id', id)
       .select()
       .single();
 
-    if (error) {
-      console.error('Error updating OneSheet:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    if (updateError) {
+      console.error('Error updating OneSheet:', updateError);
+      return NextResponse.json({ error: 'Failed to update OneSheet' }, { status: 500 });
     }
 
-    return NextResponse.json(data);
+    return NextResponse.json(updatedOnesheet);
   } catch (error) {
-    console.error('Error in PUT /api/onesheet/[id]:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    console.error('OneSheet update error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> | { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const supabase = await createClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-    if (authError || !user) {
+    const { id } = await params;
+    
+    const cookieStore = await cookies();
+    const supabase = createServerClient<Database>(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return cookieStore.getAll()
+          },
+          setAll(cookiesToSet) {
+            try {
+              cookiesToSet.forEach(({ name, value, options }) =>
+                cookieStore.set(name, value, options)
+              )
+            } catch {
+              // Ignore if called from Server Component
+            }
+          },
+        }
+      }
+    );
+    
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const resolvedParams = await params;
-    const { id } = resolvedParams;
+    // Verify user has access to this OneSheet before deleting
+    const { data: onesheet } = await supabase
+      .from('onesheet')
+      .select(`
+        user_id,
+        brand_id,
+        brands!inner(
+          user_id,
+          brand_shares(
+            shared_with_user_id,
+            status
+          )
+        )
+      `)
+      .eq('id', id)
+      .single();
+
+    if (!onesheet) {
+      return NextResponse.json({ error: 'OneSheet not found' }, { status: 404 });
+    }
+
+    const brand = onesheet.brands;
+    const isOwner = brand.user_id === user.id;
+    const hasSharedAccess = brand.brand_shares?.some((share: { shared_with_user_id: string; status: string }) => 
+      share.shared_with_user_id === user.id && share.status === 'accepted'
+    );
+
+    if (!isOwner && !hasSharedAccess) {
+      return NextResponse.json({ error: 'Access denied to this OneSheet' }, { status: 403 });
+    }
     
-    // Delete the onesheet directly
+    // Delete the OneSheet
     const { error } = await supabase
       .from('onesheet')
       .delete()
-      .eq('id', id)
-      .eq('user_id', user.id);
+      .eq('id', id);
     
     if (error) {
       console.error('Error deleting OneSheet:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ error: 'Failed to delete OneSheet' }, { status: 500 });
     }
     
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Error deleting OneSheet:', error);
-    return NextResponse.json(
-      { error: 'Failed to delete OneSheet' },
-      { status: 500 }
-    );
+    console.error('OneSheet deletion error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 } 

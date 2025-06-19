@@ -698,6 +698,7 @@ export type Database = {
       }
       brief_batches: {
         Row: {
+          allow_new_concepts: boolean
           brand_id: string
           content_type: string | null
           created_at: string
@@ -709,6 +710,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          allow_new_concepts?: boolean
           brand_id: string
           content_type?: string | null
           created_at?: string
@@ -720,6 +722,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          allow_new_concepts?: boolean
           brand_id?: string
           content_type?: string | null
           created_at?: string
@@ -1680,6 +1683,262 @@ export type Database = {
             columns: ["creator_id"]
             isOneToOne: false
             referencedRelation: "ugc_creators"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      onesheet: {
+        Row: {
+          ad_account_audit: Json | null
+          ad_account_data: Json | null
+          ad_performance_data: Json | null
+          ai_analysis_results: Json | null
+          ai_competitor_data: Json | null
+          ai_prompt_templates: Json | null
+          ai_research_data: Json | null
+          angles: Json | null
+          audience_insights: Json | null
+          audience_research: Json | null
+          brainstorm_notes: string | null
+          brand_id: string
+          competitive_notes: string | null
+          competitor_analysis: Json | null
+          competitor_research: Json | null
+          concepts: Json | null
+          context_loaded: Json | null
+          created_at: string
+          creative_brainstorm: Json | null
+          creative_outputs: Json | null
+          current_stage: string | null
+          custom_sections: Json | null
+          customer_reviews_url: string | null
+          hooks: Json | null
+          id: string
+          key_learnings: Json | null
+          landing_page_url: string | null
+          last_context_update: string | null
+          last_synthesis_update: string | null
+          manual_entries: Json | null
+          organic_research_data: Json | null
+          personas: Json | null
+          product: string | null
+          prompt_cheatsheet_url: string | null
+          research_checklist: Json | null
+          social_listening_data: Json | null
+          stages_completed: Json | null
+          synthesis_data: Json | null
+          updated_at: string
+          user_id: string
+          visuals: Json | null
+          workflow_stage: string | null
+        }
+        Insert: {
+          ad_account_audit?: Json | null
+          ad_account_data?: Json | null
+          ad_performance_data?: Json | null
+          ai_analysis_results?: Json | null
+          ai_competitor_data?: Json | null
+          ai_prompt_templates?: Json | null
+          ai_research_data?: Json | null
+          angles?: Json | null
+          audience_insights?: Json | null
+          audience_research?: Json | null
+          brainstorm_notes?: string | null
+          brand_id: string
+          competitive_notes?: string | null
+          competitor_analysis?: Json | null
+          competitor_research?: Json | null
+          concepts?: Json | null
+          context_loaded?: Json | null
+          created_at?: string
+          creative_brainstorm?: Json | null
+          creative_outputs?: Json | null
+          current_stage?: string | null
+          custom_sections?: Json | null
+          customer_reviews_url?: string | null
+          hooks?: Json | null
+          id?: string
+          key_learnings?: Json | null
+          landing_page_url?: string | null
+          last_context_update?: string | null
+          last_synthesis_update?: string | null
+          manual_entries?: Json | null
+          organic_research_data?: Json | null
+          personas?: Json | null
+          product?: string | null
+          prompt_cheatsheet_url?: string | null
+          research_checklist?: Json | null
+          social_listening_data?: Json | null
+          stages_completed?: Json | null
+          synthesis_data?: Json | null
+          updated_at?: string
+          user_id: string
+          visuals?: Json | null
+          workflow_stage?: string | null
+        }
+        Update: {
+          ad_account_audit?: Json | null
+          ad_account_data?: Json | null
+          ad_performance_data?: Json | null
+          ai_analysis_results?: Json | null
+          ai_competitor_data?: Json | null
+          ai_prompt_templates?: Json | null
+          ai_research_data?: Json | null
+          angles?: Json | null
+          audience_insights?: Json | null
+          audience_research?: Json | null
+          brainstorm_notes?: string | null
+          brand_id?: string
+          competitive_notes?: string | null
+          competitor_analysis?: Json | null
+          competitor_research?: Json | null
+          concepts?: Json | null
+          context_loaded?: Json | null
+          created_at?: string
+          creative_brainstorm?: Json | null
+          creative_outputs?: Json | null
+          current_stage?: string | null
+          custom_sections?: Json | null
+          customer_reviews_url?: string | null
+          hooks?: Json | null
+          id?: string
+          key_learnings?: Json | null
+          landing_page_url?: string | null
+          last_context_update?: string | null
+          last_synthesis_update?: string | null
+          manual_entries?: Json | null
+          organic_research_data?: Json | null
+          personas?: Json | null
+          product?: string | null
+          prompt_cheatsheet_url?: string | null
+          research_checklist?: Json | null
+          social_listening_data?: Json | null
+          stages_completed?: Json | null
+          synthesis_data?: Json | null
+          updated_at?: string
+          user_id?: string
+          visuals?: Json | null
+          workflow_stage?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "onesheet_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      onesheet_context_data: {
+        Row: {
+          content_text: string | null
+          created_at: string | null
+          extracted_data: Json | null
+          id: string
+          is_active: boolean | null
+          metadata: Json | null
+          onesheet_id: string | null
+          source_name: string | null
+          source_type: string
+          source_url: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          content_text?: string | null
+          created_at?: string | null
+          extracted_data?: Json | null
+          id?: string
+          is_active?: boolean | null
+          metadata?: Json | null
+          onesheet_id?: string | null
+          source_name?: string | null
+          source_type: string
+          source_url?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          content_text?: string | null
+          created_at?: string | null
+          extracted_data?: Json | null
+          id?: string
+          is_active?: boolean | null
+          metadata?: Json | null
+          onesheet_id?: string | null
+          source_name?: string | null
+          source_type?: string
+          source_url?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "onesheet_context_data_onesheet_id_fkey"
+            columns: ["onesheet_id"]
+            isOneToOne: false
+            referencedRelation: "onesheet"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      onesheet_sync_jobs: {
+        Row: {
+          brand_id: string
+          completed_at: string | null
+          created_at: string
+          created_by: string
+          date_range_end: string
+          date_range_start: string
+          error_message: string | null
+          id: string
+          onesheet_id: string
+          processed_ads: number | null
+          started_at: string | null
+          status: string
+          total_ads: number | null
+        }
+        Insert: {
+          brand_id: string
+          completed_at?: string | null
+          created_at?: string
+          created_by: string
+          date_range_end: string
+          date_range_start: string
+          error_message?: string | null
+          id?: string
+          onesheet_id: string
+          processed_ads?: number | null
+          started_at?: string | null
+          status?: string
+          total_ads?: number | null
+        }
+        Update: {
+          brand_id?: string
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string
+          date_range_end?: string
+          date_range_start?: string
+          error_message?: string | null
+          id?: string
+          onesheet_id?: string
+          processed_ads?: number | null
+          started_at?: string | null
+          status?: string
+          total_ads?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "onesheet_sync_jobs_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "onesheet_sync_jobs_onesheet_id_fkey"
+            columns: ["onesheet_id"]
+            isOneToOne: false
+            referencedRelation: "onesheet"
             referencedColumns: ["id"]
           },
         ]

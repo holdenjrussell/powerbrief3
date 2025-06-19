@@ -114,6 +114,29 @@ function getMimeType(extension: string): string {
   return mimeTypes[extension] || 'application/octet-stream';
 }
 
+// Fix URL encoding issues common with social media scrapers
+function cleanUrl(url: string): string {
+  if (!url) return url;
+  
+  // Fix Unicode escape sequences
+  let cleaned = url.replace(/u002f/gi, '/').replace(/u002F/gi, '/');
+  
+  // Fix other common encoding issues
+  cleaned = cleaned.replace(/u003a/gi, ':').replace(/u003A/gi, ':');
+  cleaned = cleaned.replace(/u003f/gi, '?').replace(/u003F/gi, '?');
+  cleaned = cleaned.replace(/u0026/gi, '&').replace(/u0026/gi, '&');
+  
+  // Try to decode if it's a properly encoded URL
+  try {
+    cleaned = decodeURIComponent(cleaned);
+  } catch (error) {
+    // If decoding fails, use the cleaned version
+    console.warn('[CleanUrl] Could not decode URL, using cleaned version:', error);
+  }
+  
+  return cleaned;
+}
+
 // Save to AdRipper database WITH actual file storage (same as AdRipper)
 async function saveToAdRipper(
   supabase: ReturnType<typeof createServerClient<Database>>,
@@ -158,10 +181,12 @@ async function saveToAdRipper(
     // If we have a download URL, actually download and store the file (like AdRipper)
     if (downloadUrl && downloadUrl !== url) {
       try {
-        console.log(`[AdRipper] Downloading file from: ${downloadUrl}`);
+        // Fix URL encoding issues before downloading
+        const cleanDownloadUrl = cleanUrl(downloadUrl);
+        console.log(`[AdRipper] Downloading file from: ${cleanDownloadUrl}`);
         
         // Download the file
-        const response = await fetch(downloadUrl);
+        const response = await fetch(cleanDownloadUrl);
         if (!response.ok) {
           throw new Error(`Failed to download file: ${response.statusText}`);
         }
@@ -292,8 +317,11 @@ async function downloadVideoUsingAdRipper(url: string): Promise<{ filePath: stri
       return null;
     }
     
-    const downloadUrl = scraperResult.data.url;
+    let downloadUrl = scraperResult.data.url;
     const title = scraperResult.data.title;
+    
+    // Fix URL encoding issues - decode Unicode escape sequences
+    downloadUrl = cleanUrl(downloadUrl);
     
     console.log('[VideoDownload] Got download URL from scraper:', downloadUrl);
     
@@ -737,7 +765,8 @@ export async function POST(request: NextRequest) {
       
       if (scraperResult && scraperResult.status === 200 && scraperResult.data) {
         downloadedTitle = scraperResult.data.title || downloadedTitle;
-        finalDownloadUrl = scraperResult.data.url;
+        // Fix URL encoding issues before using
+        finalDownloadUrl = scraperResult.data.url ? cleanUrl(scraperResult.data.url) : finalDownloadUrl;
         thumbnailUrl = scraperResult.data.thumbnail;
       }
     } catch (error) {
@@ -770,27 +799,15 @@ export async function POST(request: NextRequest) {
     console.log(`[SocialAnalysis] Step 4: Saving analysis to OneSheet context...`);
     
     // Map API sourceType to valid database source_type values
-    const getContextSourceType = (sourceType: string, platform: string): string => {
+    const getContextSourceType = (sourceType: string): string => {
       if (sourceType === 'paid_social') {
-        return 'competitor_ads'; // Paid social maps to competitor ads
-      }
-      
-      // Organic social maps to platform-specific or general social types
-      switch (platform) {
-        case 'tiktok':
-          return 'tiktok';
-        case 'youtube':
-          return 'youtube';
-        case 'facebook':
-        case 'instagram':
-        case 'twitter':
-          return 'brand_social'; // or 'competitor_social' depending on context
-        default:
-          return 'other';
+        return 'competitor_ads'; // Paid social ads
+      } else {
+        return 'competitor_social'; // Organic social content
       }
     };
 
-    const contextSourceType = getContextSourceType(sourceType, platform);
+    const contextSourceType = getContextSourceType(sourceType);
     
     // Save analysis to OneSheet context if we have an onesheet_id (from query params or context)
     // For now, we'll return the data for the frontend to handle context saving

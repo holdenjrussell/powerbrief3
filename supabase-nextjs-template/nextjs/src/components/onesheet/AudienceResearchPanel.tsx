@@ -84,6 +84,8 @@ export default function AudienceResearchPanel({ onesheetId, brandId }: AudienceR
       
       if (data.success) {
         setAudienceData(data.data);
+        // Also refresh from database to ensure consistency
+        await fetchAudienceResearch();
         toast({
           title: 'Success',
           description: 'Audience research generated successfully'

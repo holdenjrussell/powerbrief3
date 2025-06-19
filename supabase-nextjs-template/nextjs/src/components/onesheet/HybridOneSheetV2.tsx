@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import {
   Card,
   CardContent,
@@ -21,10 +21,8 @@ import {
   Users,
   Target,
   BarChart3,
-  Lightbulb,
-  Brain
+  Lightbulb
 } from 'lucide-react';
-import { toast } from '@/components/ui/use-toast';
 import type { OneSheet } from '@/lib/types/onesheet';
 import { ContextHub } from './ContextHub';
 import AudienceResearchPanel from './AudienceResearchPanel';
@@ -38,12 +36,22 @@ interface HybridOneSheetProps {
   onAutoSave?: (field: string, value: unknown) => void;
 }
 
+type StageType = 'context_loading' | 'audience_research' | 'competitor_research' | 'ad_audit' | 'creative_brainstorm' | 'completed';
+
 export function HybridOneSheetV2({ 
   onesheet, 
   onUpdate,
   onAutoSave 
 }: HybridOneSheetProps) {
-  const [activeTab, setActiveTab] = useState(onesheet.current_stage || 'context_loading');
+  const [activeTab, setActiveTab] = useState<StageType>(onesheet.current_stage || 'context_loading');
+
+  // REMOVED: Update activeTab when onesheet.current_stage changes
+  // This was interfering with manual tab switching
+  // useEffect(() => {
+  //   if (onesheet.current_stage && onesheet.current_stage !== activeTab) {
+  //     setActiveTab(onesheet.current_stage);
+  //   }
+  // }, [onesheet.current_stage, activeTab]);
 
   // Get stage completion status
   const stagesCompleted = onesheet.stages_completed || {
@@ -60,20 +68,14 @@ export function HybridOneSheetV2({
 
   // Determine which tabs are enabled based on completion
   const isTabEnabled = (stage: string) => {
-    switch (stage) {
-      case 'context_loading':
-        return true;
-      case 'audience_research':
-        return stagesCompleted.context || hasContextLoaded;
-      case 'competitor_research':
-        return stagesCompleted.audience_research;
-      case 'ad_audit':
-        return stagesCompleted.competitor_research;
-      case 'creative_brainstorm':
-        return stagesCompleted.ad_audit;
-      default:
-        return false;
-    }
+    // SIMPLIFIED: Allow all tabs for now to fix navigation issue
+    return true;
+    
+    // TODO: Re-implement proper logic later
+    // const stageOrder = ['context_loading', 'audience_research', 'competitor_research', 'ad_audit', 'creative_brainstorm'];
+    // const currentIndex = stageOrder.indexOf(onesheet.current_stage || 'context_loading');
+    // const requestedIndex = stageOrder.indexOf(stage);
+    // return requestedIndex <= currentIndex;
   };
 
   // Stage icons based on completion
@@ -144,6 +146,26 @@ export function HybridOneSheetV2({
     return currentIndex < stageOrder.length - 1 ? stageOrder[currentIndex + 1] : 'completed';
   };
 
+  // Custom handler for ContextHub updates
+  const handleContextHubUpdate = (updates: Partial<OneSheet>) => {
+    // If workflow_stage is being updated, handle the stage transition
+    if (updates.workflow_stage === 'audience_research') {
+      // Mark context stage as complete and advance to audience research
+      const stageUpdates = {
+        ...updates,
+        stages_completed: {
+          ...stagesCompleted,
+          context: true
+        },
+        current_stage: 'audience_research' as const
+      };
+      onUpdate(stageUpdates);
+      setActiveTab('audience_research');
+    } else {
+      onUpdate(updates);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Progress Indicator */}
@@ -159,10 +181,8 @@ export function HybridOneSheetV2({
             {stageTabs.map((stage, index) => (
               <div key={stage.id} className="flex items-center">
                 <div 
-                  className={`flex flex-col items-center ${
-                    isTabEnabled(stage.id) ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'
-                  }`}
-                  onClick={() => isTabEnabled(stage.id) && setActiveTab(stage.id)}
+                  className="flex flex-col items-center cursor-pointer"
+                  onClick={() => setActiveTab(stage.id as StageType)}
                 >
                   <div className="flex items-center gap-2 mb-1">
                     {getStageIcon(stage.id)}
@@ -190,13 +210,17 @@ export function HybridOneSheetV2({
       </Card>
 
       {/* Main Content Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+      <Tabs value={activeTab} onValueChange={(value) => {
+        console.log('Tab change requested:', value);
+        console.log('Current activeTab:', activeTab);
+        console.log('isTabEnabled:', isTabEnabled(value));
+        setActiveTab(value as StageType);
+      }} className="w-full">
         <TabsList className="grid w-full grid-cols-5 mb-6">
           {stageTabs.map(stage => (
             <TabsTrigger 
               key={stage.id} 
               value={stage.id}
-              disabled={!isTabEnabled(stage.id)}
               className="relative"
             >
               <span className="mr-2">{getStageIcon(stage.id)}</span>
@@ -208,7 +232,7 @@ export function HybridOneSheetV2({
         <TabsContent value="context_loading" className="space-y-6">
           <ContextHub 
             onesheet={onesheet}
-            onUpdate={onUpdate}
+            onUpdate={handleContextHubUpdate}
           />
         </TabsContent>
 

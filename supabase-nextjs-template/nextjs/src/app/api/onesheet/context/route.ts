@@ -129,7 +129,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { onesheet_id, source_type, source_name, source_url, content_text, extracted_data, metadata } = body;
+    const { onesheet_id, source_type, source_name, source_url, content_text, extracted_data, metadata, brand_type } = body;
 
     if (!onesheet_id || !source_type) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -185,6 +185,7 @@ export async function POST(request: NextRequest) {
         content_text: content_text || null,
         extracted_data: extracted_data || {},
         metadata: metadata || {},
+        brand_type: brand_type || 'our_brand',
       })
       .select()
       .single();
@@ -231,7 +232,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { id, source_name, source_url, content_text, extracted_data, metadata } = body;
+    const { id, source_name, source_url, content_text, extracted_data, metadata, brand_type } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'Context ID required' }, { status: 400 });
@@ -288,6 +289,7 @@ export async function PUT(request: NextRequest) {
         content_text: content_text || null,
         extracted_data: extracted_data || {},
         metadata: metadata || {},
+        brand_type: brand_type !== undefined ? brand_type : 'our_brand',
         updated_at: new Date().toISOString(),
       })
       .eq('id', id)

@@ -21,6 +21,7 @@ import {
     AlertTriangle,
     Settings,
     FileText,
+    Link2,
 } from 'lucide-react';
 import { useGlobal } from "@/lib/context/GlobalContext";
 import { createSPASassClient } from "@/lib/supabase/client";
@@ -123,6 +124,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         { name: 'AdRipper', href: '/app/adripper', icon: DownloadCloud },
         { name: 'Ad Upload Tool', href: '/app/ad-upload-tool', icon: UploadCloud },
         { name: 'SOPs', href: '/app/sops', icon: BookOpen },
+        { name: 'URL to Markdown', href: '/app/url-to-markdown', icon: Link2 },
     ];
 
     const toggleSidebar = () => setSidebarOpen(!isSidebarOpen);

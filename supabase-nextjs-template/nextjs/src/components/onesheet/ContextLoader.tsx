@@ -20,6 +20,11 @@ import {
   TabsTrigger,
   Badge,
   Checkbox,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from '@/components/ui';
 import { 
   Link2,
@@ -87,6 +92,7 @@ export function ContextLoader({
   const [extractedResults, setExtractedResults] = useState<ExtractedResult[]>([]);
   const [convertingToMarkdown, setConvertingToMarkdown] = useState(false);
   const [convertedToMarkdown, setConvertedToMarkdown] = useState(false);
+  const [brandType, setBrandType] = useState<'our_brand' | 'competitor' | 'neutral'>('our_brand');
 
   const isWebsiteSource = ['brand_website', 'competitor_website', 'articles'].includes(sourceType);
   const isVideoSource = ['tiktok', 'youtube'].includes(sourceType);
@@ -153,6 +159,78 @@ export function ContextLoader({
 
     setExtracting(true);
     
+    // Check if social source with multiple URLs (one per line)
+    if (isSocialSource) {
+      const urls = sourceUrl.split('\n').map(url => url.trim()).filter(Boolean);
+      
+      if (urls.length > 1) {
+        // Handle batch processing for multiple social media URLs
+        try {
+          const response = await fetch('/api/onesheet/analyze-social-batch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              urls,
+              sourceType: sourceType,
+              brandId
+            }),
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.details || errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+          }
+
+          const data = await response.json();
+          
+          // Combine all results into markdown
+          let combinedContent = `# Batch Social Media Analysis\n\n**Total URLs:** ${urls.length}\n**Successful:** ${data.successful}\n**Failed:** ${data.failed}\n\n---\n\n`;
+          
+          data.results.forEach((result: any, index: number) => {
+            combinedContent += `## ${index + 1}. ${result.data?.result?.title || 'Social Media Post'}\n\n`;
+            combinedContent += `**URL:** ${result.url}\n\n`;
+            if (result.data?.result?.markdown) {
+              combinedContent += result.data.result.markdown + '\n\n---\n\n';
+            }
+          });
+
+          if (data.errors.length > 0) {
+            combinedContent += `## Failed URLs\n\n`;
+            data.errors.forEach((error: any) => {
+              combinedContent += `- **${error.url}:** ${error.error}\n`;
+            });
+          }
+
+          setContentText(combinedContent);
+          setExtracted(true);
+          
+          // Auto-save after batch processing
+          setTimeout(() => {
+            if (combinedContent.trim()) {
+              handleSave();
+            }
+          }, 1000);
+
+          toast({
+            title: 'Batch Analysis Complete',
+            description: `Processed ${urls.length} URLs. ${data.successful} successful, ${data.failed} failed. Auto-saving...`,
+          });
+
+          return;
+        } catch (error) {
+          console.error('Batch extraction error:', error);
+          toast({
+            title: 'Batch Extraction Failed',
+            description: error instanceof Error ? error.message : 'Failed to process multiple URLs.',
+            variant: 'destructive',
+          });
+          setExtracting(false);
+          return;
+        }
+      }
+    }
+    
+    // Single URL processing (existing logic)
     let endpoint = '';
     let body = {};
 
@@ -229,13 +307,21 @@ export function ContextLoader({
         
         setExtracted(true);
         
+        // Auto-save extracted content to make the UX smoother
+        // Use a longer timeout to ensure all state updates are complete
+        setTimeout(() => {
+          if (contentText.trim()) {
+            handleSave();
+          }
+        }, 1000);
+        
         toast({
           title: 'Content Extracted',
           description: data.results 
-            ? `Successfully extracted content from ${data.results.length} page(s).`
+            ? `Successfully extracted content from ${data.results.length} page(s). Auto-saving...`
             : data.result && data.adripper_integrated
             ? 'Successfully analyzed social media content and saved to AdRipper.'
-            : 'Successfully extracted and analyzed the content.',
+            : 'Successfully extracted and analyzed the content. Auto-saving...',
         });
       }
     } catch (error) {
@@ -278,6 +364,7 @@ export function ContextLoader({
         source_name: sourceName,
         source_url: sourceUrl,
         content_text: contentText,
+        brand_type: sourceType === 'reviews' ? brandType : undefined,
         extracted_data: extracted ? { 
           extracted: true, 
           crawlLinks,
@@ -291,6 +378,7 @@ export function ContextLoader({
         source_name: sourceName,
         source_url: sourceUrl,
         content_text: contentText,
+        brand_type: sourceType === 'reviews' ? brandType : undefined,
         extracted_data: extracted ? { 
           extracted: true, 
           crawlLinks,
@@ -314,6 +402,7 @@ export function ContextLoader({
     setCrawlPosts(false);
     setMaxPosts(5);
     setIncludeComments(true);
+    setBrandType('our_brand');
     setEditingId(null);
   };
 
@@ -322,6 +411,7 @@ export function ContextLoader({
     setSourceName(item.source_name || '');
     setSourceUrl(item.source_url || '');
     setContentText(item.content_text || '');
+    setBrandType(item.brand_type || 'our_brand');
     setExtracted(!!item.extracted_data);
     setExtractedResults([]);
     setShowAddForm(true);
@@ -401,6 +491,15 @@ export function ContextLoader({
                           Extracted
                         </Badge>
                       )}
+                      {sourceType === 'reviews' && item.brand_type && (
+                        <Badge 
+                          variant={item.brand_type === 'our_brand' ? 'default' : item.brand_type === 'competitor' ? 'destructive' : 'secondary'} 
+                          className="text-xs"
+                        >
+                          {item.brand_type === 'our_brand' ? 'Our Brand' : 
+                           item.brand_type === 'competitor' ? 'Competitor' : 'Neutral'}
+                        </Badge>
+                      )}
                     </div>
                   </div>
                   <div className="flex gap-1 ml-4">
@@ -463,6 +562,26 @@ export function ContextLoader({
               />
             </div>
 
+            {/* Brand Type Selector - Only show for reviews */}
+            {sourceType === 'reviews' && (
+              <div>
+                <Label htmlFor="brand-type">Brand Type</Label>
+                <Select value={brandType} onValueChange={(value: 'our_brand' | 'competitor' | 'neutral') => setBrandType(value)}>
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="Select brand type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="our_brand">Our Brand Reviews</SelectItem>
+                    <SelectItem value="competitor">Competitor Reviews</SelectItem>
+                    <SelectItem value="neutral">Neutral/Industry Reviews</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-gray-600 mt-1">
+                  This helps the AI understand whose product the reviews are about to avoid confusion.
+                </p>
+              </div>
+            )}
+
             {/* Input Mode Tabs */}
             <Tabs value={inputMode} onValueChange={(v) => setInputMode(v as 'url' | 'text')}>
               <TabsList className="grid w-full grid-cols-2">
@@ -499,7 +618,11 @@ export function ContextLoader({
                           setContentText(e.target.value);
                           setConvertedToMarkdown(false); // Reset conversion state when text changes
                         }}
-                        className="min-h-[300px] max-h-80 overflow-y-auto border-0 rounded-none rounded-b-lg font-mono text-sm resize-none"
+                        className="min-h-[300px] max-h-80 overflow-y-scroll border-0 rounded-none rounded-b-lg font-mono text-sm resize-none"
+                        style={{ 
+                          scrollbarWidth: 'thin',
+                          scrollbarColor: '#CBD5E0 #F7FAFC'
+                        }}
                       />
                     </div>
                   </div>
@@ -565,7 +688,7 @@ export function ContextLoader({
                     <Input
                       id="source-url"
                       type="url"
-                      placeholder="https://example.com"
+                      placeholder={isSocialSource ? "https://example.com (or paste multiple URLs, one per line)" : "https://example.com"}
                       value={sourceUrl}
                       onChange={(e) => setSourceUrl(e.target.value)}
                       className="flex-1"
@@ -605,10 +728,10 @@ export function ContextLoader({
                           id="max-pages"
                           type="number"
                           min="1"
-                          max="10"
+                          max="50"
                           value={maxPages}
-                          onChange={(e) => setMaxPages(Math.min(10, Math.max(1, parseInt(e.target.value) || 1)))}
-                          className="mt-1 w-20"
+                          onChange={(e) => setMaxPages(Math.min(50, Math.max(1, parseInt(e.target.value) || 1)))}
+                          className="mt-1 w-24"
                         />
                         <p className="text-xs text-gray-600 mt-1">
                           This will automatically discover and extract content from linked pages on the same domain.
@@ -642,10 +765,10 @@ export function ContextLoader({
                             id="max-posts"
                             type="number"
                             min="1"
-                            max="20"
+                            max="50"
                             value={maxPosts}
-                            onChange={(e) => setMaxPosts(Math.min(20, Math.max(1, parseInt(e.target.value) || 1)))}
-                            className="mt-1 w-20"
+                            onChange={(e) => setMaxPosts(Math.min(50, Math.max(1, parseInt(e.target.value) || 1)))}
+                            className="mt-1 w-24"
                           />
                         </div>
                       </div>
@@ -763,7 +886,11 @@ export function ContextLoader({
                         placeholder={extracted ? 'Edit the extracted content...' : 'If the URL doesn\'t auto-extract, paste the content here...'}
                         value={contentText}
                         onChange={(e) => setContentText(e.target.value)}
-                        className="min-h-[200px] max-h-80 border-0 rounded-none rounded-b-lg font-mono text-sm resize-none"
+                        className="min-h-[200px] max-h-80 overflow-y-scroll border-0 rounded-none rounded-b-lg font-mono text-sm resize-none"
+                        style={{ 
+                          scrollbarWidth: 'thin',
+                          scrollbarColor: '#CBD5E0 #F7FAFC'
+                        }}
                       />
                     </div>
                   </div>
