@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { createSPAClient } from '@/lib/supabase/client';
+import { createClient } from '@supabase/supabase-js';
 import { getProductsByBrand } from '@/lib/services/productService';
 import { Hook, Product } from '@/lib/types/powerbrief';
 import { Loader2, Eye, EyeOff, X, MessageCircle } from 'lucide-react';
@@ -464,19 +465,71 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
     const fetchSharedBatch = async () => {
       try {
         setLoading(true);
-        const supabase = createSPAClient();
+        // Create an anonymous client for public access to bypass user auth checks
+        const supabase = createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+          {
+            auth: {
+              persistSession: false,
+              autoRefreshToken: false,
+            }
+          }
+        );
 
+        // First, let's check if we can access ANY batches with share_settings
+        console.log('Testing basic access to brief_batches with share_settings...');
+        const { data: testData, error: testError } = await supabase
+          .from('brief_batches')
+          .select('id, name, share_settings')
+          .not('share_settings', 'is', null)
+          .limit(5);
+        
+        console.log('Test query result:', { testData, testError });
+        
         // Find the batch with this shareId in its share_settings
-        const { data: batchData, error: batchError } = await supabase
+        // We need to get all shared batches and filter in JavaScript due to PostgREST limitations
+        console.log('Looking for shareId:', shareId);
+        const { data: allSharedBatches, error: batchError } = await supabase
           .from('brief_batches')
           .select('*, brands(*)')
-          .contains('share_settings', { [shareId]: {} });
+          .not('share_settings', 'is', null);
 
         if (batchError) {
+          console.error('Batch query error:', batchError);
           throw batchError;
         }
 
+        // Filter to find the batch with our shareId
+        const batchData = allSharedBatches?.filter(batch => {
+          const shareSettings = batch.share_settings as Record<string, any>;
+          return shareSettings && shareSettings[shareId];
+        });
+
         if (!batchData || batchData.length === 0) {
+          console.log('No batch found with shareId:', shareId);
+          // Try a more permissive query as fallback
+          const { data: fallbackData } = await supabase
+            .from('brief_batches')
+            .select('*, brands(*)')
+            .not('share_settings', 'is', null);
+          
+          console.log('Fallback query found batches:', fallbackData?.length || 0);
+          if (fallbackData) {
+            const matchingBatch = fallbackData.find(batch => {
+              const settings = batch.share_settings as Record<string, any>;
+              const hasShare = settings && settings[shareId];
+              if (hasShare) {
+                console.log('Found batch with shareId in fallback:', batch.id, batch.name);
+              }
+              return hasShare;
+            });
+            
+            if (!matchingBatch) {
+              console.log('Share ID not found in any batch share_settings');
+            }
+          }
+          
           setError('Shared content not found or has expired. You might need to log in to view this content.');
           setShowLoginPrompt(true);
           setLoading(false);
@@ -551,15 +604,35 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
       } catch (err: unknown) {
         console.error('Error fetching shared batch:', err);
         const errorMessage = err instanceof Error ? err.message : 'Failed to load shared content';
+        console.log('Detailed error analysis:', {
+          errorMessage,
+          shareId,
+          errorType: err instanceof Error ? err.constructor.name : typeof err
+        });
+        
         setError(errorMessage);
-        // Show login prompt if content not found (RLS) or specific auth-related errors
+        
+        // More specific error handling for public sharing issues
+        const errorLower = errorMessage.toLowerCase();
+        
+        // Show login prompt only for authentication-related errors, not RLS policy issues
         if (
-          (errorMessage.toLowerCase().includes('not found') && 
-           !errorMessage.toLowerCase().includes('share settings not found')) || 
-          errorMessage.includes('FetchError') || 
-          errorMessage.includes('User not found') // Added "User not found"
+          errorLower.includes('permission denied') ||
+          errorLower.includes('unauthorized') ||
+          errorLower.includes('authentication required') ||
+          (errorLower.includes('not found') && 
+           !errorLower.includes('share settings not found') &&
+           !errorLower.includes('batch') && 
+           !errorLower.includes('concept'))
         ) {
+            console.log('Showing login prompt due to auth error');
             setShowLoginPrompt(true);
+        } else {
+            console.log('Not showing login prompt - appears to be a data/sharing issue');
+            // For RLS or sharing issues, provide more helpful error message
+            if (errorLower.includes('not found') || errorLower.includes('no rows')) {
+              setError('This shared link may have expired or been removed. Please contact the person who shared it with you.');
+            }
         }
       } finally {
         setLoading(false);
