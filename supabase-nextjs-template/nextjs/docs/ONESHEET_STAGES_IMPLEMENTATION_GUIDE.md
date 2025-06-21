@@ -20,17 +20,23 @@ This guide outlines the implementation of the next stages of OneSheet after cont
 
 ### Stage 2: Competitor Research
 - [x] Create competitor analysis table schema
-- [ ] Build competitor extraction from context
-- [x] Create competitor analysis UI table (placeholder)
-- [ ] Add deep analysis prompts
-- [ ] Implement CRUD operations
+- [x] Build competitor extraction from context
+- [x] Create competitor analysis UI table
+- [x] Add extraction API endpoint
+- [ ] Implement deep analysis prompts
+- [ ] Add CRUD operations for manual editing
 
 ### Stage 3: Ad Account Audit
 - [x] Enhance existing ad performance schema
-- [ ] Create data visualization components
-- [x] Build demographic analysis charts (placeholder)
-- [ ] Implement performance tagging system
-- [ ] Add framework/emotion analysis
+- [x] Create data import API from Meta
+- [x] Build demographic analysis charts
+- [x] Implement performance visualization
+- [x] Add framework/emotion analysis
+- [x] Create export functionality
+- [x] Implement two-phase approach (import then analyze)
+- [x] Create spreadsheet-style interface
+- [x] Filter ads with 0 impressions
+- [x] Move demographics below spreadsheet
 
 ### Stage 4: Creative Brainstorm
 - [x] Create concepts/hooks/visuals schema
@@ -49,18 +55,37 @@ This guide outlines the implementation of the next stages of OneSheet after cont
    - AI generation from context using Gemini 2.0
    - Complete UI with manual editing
    - Export functionality
-4. **Workflow UI** - Created staged workflow with progress tracking
+4. **Stage 2: Competitor Research**
+   - Extraction API endpoint implemented
+   - Basic UI component created
+   - AI-powered competitor identification from context
+5. **Stage 3: Ad Account Audit**
+   - **Phase 1: Import API** - Fetches ads from Meta with 0 impression filtering
+   - **Phase 2: Analyze API** - Uses Gemini to analyze creative attributes
+   - **Spreadsheet-style UI** with all requested columns:
+     - Asset (Image/Video indicator)
+     - Ad Name, Landing Page
+     - Performance metrics (Spend, CPA, ROAS, Hook Rate, Hold Rate)
+     - Creative attributes (Type, Duration, Product Intro, Sit in Problem %)
+     - Strategic analysis (Angle, Format, Emotion, Framework)
+     - Transcription field
+   - Demographics moved below the spreadsheet
+   - Checkbox selection for batch analysis
+   - Export to CSV functionality
+   - Clear data option
+6. **Workflow UI** - Created staged workflow with progress tracking
 
 ### 🚧 In Progress
-1. **Stage 2: Competitor Research** - Placeholder UI created, needs implementation
-2. **Stage 3: Ad Account Audit** - Placeholder UI created, needs implementation
-3. **Stage 4: Creative Brainstorm** - Placeholder UI created, needs implementation
+1. **Stage 2: Competitor Research** - Deep analysis features
+2. **Stage 4: Creative Brainstorm** - AI generation implementation
 
 ### 📝 Next Steps
-1. Implement competitor extraction from context API
-2. Build ad performance data import/analysis
-3. Create creative concept generation prompts
-4. Add visualization components for data analysis
+1. Implement deep competitor analysis prompts
+2. Create creative concept generation prompts
+3. Add manual CRUD for competitor data
+4. Complete creative brainstorm functionality
+5. Implement asset download and storage to Supabase
+6. Add Gemini Files API integration for video analysis
 
 ## Database Schema Updates
 
@@ -146,7 +171,7 @@ PUT - Update specific item
 DELETE - Delete specific item
 ```
 
-### Stage 2: Competitor Research 🚧
+### Stage 2: Competitor Research ✅
 
 ```typescript
 // /api/onesheet/competitor-research/extract
@@ -163,20 +188,47 @@ Response: { analysis: {...} }
 CRUD operations for competitor data
 ```
 
-### Stage 3: Ad Account Audit 🚧
+### Stage 3: Ad Account Audit ✅
 
 ```typescript
+// Phase 1: Import ads from Meta
 // /api/onesheet/ad-audit/import
-POST - Import ad performance data
-Request: { onesheet_id, ads: [...] }
+POST - Import ad performance data from Meta
+Request: { onesheet_id, date_range?, fetch_limit? }
+Response: { 
+  success: true, 
+  data: { 
+    adsImported: number,
+    dateRange: {...},
+    summary: {...}
+  }
+}
 
+// Phase 2: Analyze ads with Gemini
 // /api/onesheet/ad-audit/analyze
-POST - Analyze performance patterns
-Request: { onesheet_id }
-Response: { demographics: {...}, insights: {...} }
+POST - Analyze creative attributes using Gemini
+Request: { onesheet_id, ad_ids?: string[] }
+Response: {
+  success: true,
+  data: {
+    adsAnalyzed: number,
+    totalAds: number
+  }
+}
 
-// /api/onesheet/ad-audit
-CRUD operations for ad data
+// Clear all ad data
+// /api/onesheet/ad-audit/clear
+POST - Clear all ad audit data
+Request: { onesheet_id }
+
+// Features implemented:
+- Automatic Meta OAuth token usage
+- Filters out ads with 0 impressions
+- Extracts asset URLs and types
+- Calculates performance metrics (CPA, ROAS, Hook Rate, Hold Rate)
+- Two-phase approach: import first, then analyze
+- Batch processing for Gemini analysis
+- Spreadsheet-style data structure
 ```
 
 ### Stage 4: Creative Brainstorm 🚧
@@ -198,19 +250,31 @@ CRUD operations for creative elements
 - Manual CRUD operations
 - Export functionality
 
-### 2. CompetitorResearchTable.tsx 🚧
-- Placeholder created
-- Needs implementation for:
-  - Table with competitor data
-  - Deep analysis modal
-  - CRUD operations
+### 2. CompetitorResearchTable.tsx ✅
+- Basic implementation completed
+- Displays extracted competitors
+- Shows similarities, differences, opportunities
+- Needs deep analysis features
 
-### 3. AdAccountAuditDashboard.tsx 🚧
-- Placeholder created
-- Needs implementation for:
-  - Data import/upload
-  - Performance charts
-  - Demographic visualizations
+### 3. AdAccountAuditDashboard.tsx ✅
+- **Spreadsheet-style interface** with all columns
+- **Two-phase operation:**
+  - Import button fetches ads from Meta
+  - Analyze button processes with Gemini
+- **Features:**
+  - Checkbox selection for batch operations
+  - Asset type indicators (video/image icons)
+  - All requested metrics and attributes
+  - Demographics charts moved below table
+  - Export to CSV
+  - Clear data option
+  - Direct links to Facebook Ads Manager
+- **Columns:**
+  - Asset, Ad Name, Landing Page
+  - Spend, CPA, ROAS, Hook Rate, Hold Rate
+  - Type, Ad Duration, Product Intro, Sit in Problem %
+  - Creators Used, Angle, Format, Emotion, Framework
+  - Actions (link to Ads Manager)
 
 ### 4. CreativeBrainstormPanel.tsx 🚧
 - Placeholder created
@@ -265,24 +329,68 @@ Format as JSON with evidence links.
 `;
 ```
 
-### Stage 2: Competitor Analysis Prompt 🚧
+### Stage 2: Competitor Analysis Prompt ✅
 ```typescript
-const competitorAnalysisPrompt = `
-Analyze the competitor data and provide:
+const competitorExtractionPrompt = `
+Analyze the context data to identify and extract competitor information:
 
-1. For each competitor, identify:
-   - Similarities to our product
+1. Direct Competitors:
+   - Companies offering similar products/services
+   - Extract from competitor websites, ads, reviews
+   
+2. Indirect Competitors:
+   - Alternative solutions mentioned
+   - DIY approaches or substitutes
+
+3. For each competitor, identify:
+   - Product/service similarities
    - Key differences
-   - Opportunities (gaps, complaints)
-   - Format strategies
-   - Creator approaches
+   - Customer complaints/dissatisfaction
+   - Pricing information
+   - Marketing approaches
 
-2. Answer these questions:
-   - Is our product better quality? Why?
-   - What makes us the best choice?
-   - What can we learn from their evolution?
+4. Opportunities:
+   - Gaps in competitor offerings
+   - Common customer complaints
+   - Unmet needs
 
-Format as structured JSON.
+Format as structured JSON with source references.
+`;
+```
+
+### Stage 3: Ad Audit Analysis ✅
+The ad audit stage uses a two-phase approach:
+
+**Phase 1: Direct Meta API Integration**
+- Fetches real ad performance data
+- Filters out ads with 0 impressions
+- Calculates key metrics (CPA, ROAS, hook rate, hold rate)
+- Extracts asset URLs and basic info
+
+**Phase 2: Gemini Analysis Prompt**
+```typescript
+const adAnalysisPrompt = `
+Analyze this Facebook ad creative and provide the following information:
+
+Ad Name: ${ad.name}
+Creative Title: ${ad.creativeTitle}
+Creative Body: ${ad.creativeBody}
+Asset Type: ${ad.assetType}
+
+Please analyze and return in JSON format:
+{
+  "type": "High Production Video|Low Production Video (UGC)|Static Image|Carousel|GIF",
+  "adDuration": number (in seconds, estimate if image),
+  "productIntro": number (seconds when product first shown/mentioned),
+  "creatorsUsed": number (visible people in the ad),
+  "angle": "Weight Management|Time/Convenience|Energy/Focus|Digestive Health|Immunity Support|etc",
+  "format": "Testimonial|Podcast Clip|Authority Figure|3 Reasons Why|Unboxing|etc",
+  "emotion": "Hopefulness|Excitement|Curiosity|Urgency|Fear|Trust|etc",
+  "framework": "PAS|AIDA|FAB|Star Story Solution|Before After Bridge|etc",
+  "transcription": "Full transcription if video, or main text if image"
+}
+
+Base your analysis on the creative text and ad name patterns.
 `;
 ```
 
@@ -290,33 +398,78 @@ Format as structured JSON.
 
 ### Week 1: Database & API Foundation ✅
 - Created migrations
-- Built core API endpoints for Stage 1
+- Built core API endpoints for Stages 1-3
 - Set up data models
 
 ### Week 2: AI Integration ✅
-- Implemented Gemini prompts for Stage 1
+- Implemented Gemini prompts for Stages 1-2
 - Built context processing
 - Created auto-population logic
 
-### Week 3: UI Components 🚧
-- Built audience research panel ✅
-- Create competitor table (in progress)
-- Implement CRUD operations
+### Week 3: UI Components ✅
+- Built audience research panel
+- Created competitor table
+- Implemented ad audit dashboard with spreadsheet interface
+- Added CRUD operations
 
-### Week 4: Advanced Features
-- Add ad audit dashboard
-- Build creative brainstorm
-- Implement export/import
+### Week 4: Advanced Features 🚧
+- Deep competitor analysis (pending)
+- Creative brainstorm generation (pending)
+- Enhanced export/import features
 
 ### Week 5: Polish & Testing
-- Add loading states
-- Implement error handling
+- Add loading states ✅
+- Implement error handling ✅
 - Create user guides
+- Add tooltips and help text
+
+## Technical Details
+
+### Ad Account Audit Implementation
+The ad audit feature uses a two-phase approach:
+
+**Phase 1: Import**
+1. Uses brand's stored Meta access token
+2. Fetches ads with performance metrics
+3. Filters out ads with 0 impressions
+4. Extracts landing pages from object_story_spec
+5. Calculates video engagement metrics
+6. Stores raw data for Phase 2
+
+**Phase 2: Analyze**
+1. Processes ads that haven't been analyzed
+2. Uses Gemini to detect creative attributes
+3. Analyzes emotion and framework from ad creative
+4. Calculates sit in problem percentage
+5. Updates ads with analysis results
+
+### Key Metrics Calculated
+- **CPA**: Cost per acquisition (spend / purchases)
+- **ROAS**: Return on ad spend (revenue / spend)
+- **Hook Rate**: 3-second video views / impressions × 100
+- **Hold Rate**: 50% video views / 3-second views × 100
+- **Sit in Problem %**: (Product intro time / Ad duration) × 100
+- **Demographics**: Age and gender distribution
 
 ## Next Steps
 
-1. ~~Start with database migration~~ ✅
-2. ~~Build API endpoints for Stage 1~~ ✅
-3. ~~Create UI components incrementally~~ 🚧
-4. Test AI prompts with real data
-5. Iterate based on user feedback 
+1. **Complete Stage 4: Creative Brainstorm**
+   - Build AI prompts for concept generation
+   - Create hook and visual generation logic
+   - Implement priority ranking system
+
+2. **Enhance Stage 2: Competitor Research**
+   - Add deep analysis questions
+   - Implement manual editing capabilities
+   - Create comparison visualizations
+
+3. **Add Asset Management**
+   - Download and store ad assets to Supabase
+   - Implement Gemini Files API for video analysis
+   - Create asset library interface
+
+4. **Improve User Experience**
+   - Add contextual help and tooltips
+   - Create video tutorials
+   - Implement keyboard shortcuts
+   - Add collaborative features 

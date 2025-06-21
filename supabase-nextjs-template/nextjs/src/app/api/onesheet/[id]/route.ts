@@ -54,7 +54,7 @@ export async function GET(
       `)
       .eq('id', id)
       .single();
-
+    
     if (error || !onesheet) {
       return NextResponse.json({ error: 'OneSheet not found' }, { status: 404 });
     }

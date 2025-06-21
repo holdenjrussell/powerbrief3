@@ -8,7 +8,7 @@ import * as os from 'os';
 import * as path from 'path';
 
 // Use the correct model name as shown in the endpoint
-const MODEL_NAME = 'gemini-2.5-pro';
+const MODEL_NAME = 'gemini-2.5-pro-preview-06-05';
 
 // Helper to get more specific mime types
 const getProperMimeType = (mediaType: string | undefined, fileUrl: string): string => {
@@ -590,58 +590,25 @@ IMPORTANT: Your response MUST be valid JSON and nothing else. Format:
 }`;
       }
 
-      // ENHANCED system prompt with format requirements FIRST
-      const enhancedSystemPrompt = `CRITICAL: You are an AD CREATIVE GENERATOR, NOT a video analyzer. 
-
-REQUIRED JSON OUTPUT FORMAT (MUST BE EXACTLY THIS):
-{
-  "text_hook_options": ["Hook 1 with emojis 🎯", "Hook 2 with emojis 💪"],
-  "spoken_hook_options": ["Verbal hook 1", "Verbal hook 2"], 
-  "body_content_structured_scenes": [{"scene_title": "Scene 1", "script": "Script text", "visuals": "Visual description"}],
-  "cta_script": "Call to action script",
-  "cta_text_overlay": "Text overlay for CTA"
-}
-
-DO NOT RETURN:
-- Video analysis or transcription
-- Product analysis or descriptions
-- Advertisement analysis 
-- Any fields other than the 5 required above
-
-BRAND-SPECIFIC INSTRUCTIONS:
-${systemPrompt}
-
-YOUR TASK: Generate ${body.hookOptions?.count || 1} creative ad hooks and scenes for the brand using the context below.
-
+      // Construct user prompt
+      const userPrompt = `${enhancedCustomPrompt ? `${enhancedCustomPrompt}\n\n` : ''}${hookInstructions}
 BRAND CONTEXT:
-${brandContextStr}${productContext}
+\`\`\`json
+${brandContextStr}
+\`\`\`${productContext}
 
-${hookInstructions}
-
-CURRENT CONTENT (for reference):
+CURRENT CONTENT (for refinement):
+\`\`\`json
 ${currentDataStr}
+\`\`\`
 
-GENERATE FOR: ${fieldsStr}
-MEDIA: ${body.media?.type || 'none'} provided for creative reference`;
-
-      // User prompt should ONLY be the concept-specific prompt from the user
-      const userPrompt = enhancedCustomPrompt || "Generate creative ad content based on the provided brand context and media.";
-
-      console.log('📜 ENHANCED SYSTEM PROMPT being sent to Gemini:', enhancedSystemPrompt.substring(0, 1000) + '...');
-      console.log('👤 SIMPLIFIED USER PROMPT being sent to Gemini:', userPrompt);
-      console.log('🎯 CORRECTED prompt structure:', {
-        systemPromptLength: enhancedSystemPrompt.length,
-        userPromptLength: userPrompt.length,
-        hasMedia: !!body.media?.url,
-        mediaType: body.media?.type
-      });
+Please generate content for these fields: ${fieldsStr}
+If media is provided, make sure your content directly references and relates to what's shown in the media.
+Ensure your response is ONLY valid JSON matching the structure in my instructions. Do not include any other text.`;
 
       // Make the request
       try {
-        // Create user content parts (just media, text handled separately)
-        const userParts: Part[] = [];
-        
-        console.log('📋 Creating user content parts...');
+        const parts: Part[] = [{ text: systemPrompt + "\n\n" + userPrompt }];
         
         // If media is provided, fetch and add it as binary data
         if (body.media && body.media.url) {
@@ -659,7 +626,7 @@ MEDIA: ${body.media?.type || 'none'} provided for creative reference`;
             console.log(`Adding media to request with MIME type: ${finalMimeType}`);
             
             // Add media as inline data
-            userParts.push({
+            parts.push({
               inlineData: {
                 data: Buffer.from(mediaData).toString('base64'),
                 mimeType: finalMimeType
@@ -668,49 +635,24 @@ MEDIA: ${body.media?.type || 'none'} provided for creative reference`;
           } catch (mediaError) {
             console.error('Failed to fetch media:', mediaError);
             // If media fetching fails, add a text note about it
-            userParts.push({ 
+            parts.push({ 
               text: `NOTE: Tried to include media from ${body.media.url} but failed to fetch it.` 
             });
           }
         }
 
-        // Use proper Gemini API structure with separate system instruction and user content
-        console.log('📡 Sending request to Gemini with PROPER API structure...');
-        console.log('🔧 SYSTEM INSTRUCTION BEING SENT:');
-        console.log('=====================================');
-        console.log(enhancedSystemPrompt);
-        console.log('=====================================');
-        console.log('👤 USER CONTENT BEING SENT:');
-        console.log('=====================================');
-        console.log(userPrompt);
-        console.log('=====================================');
-        
+        // Use the chat method with the system prompt included
         const result = await model.generateContent({
-          systemInstruction: enhancedSystemPrompt,
           contents: [
             { 
               role: "user", 
-              parts: [
-                { text: userPrompt },
-                ...userParts // Add media parts if any
-              ]
+              parts
             }
           ]
         });
 
         const responseText = result.response.text();
-        console.log('🎉 Raw Gemini response received (standard API):', responseText?.substring(0, 500) + (responseText?.length > 500 ? '...' : ''));
-        
-        // Check if response looks like transcription data (starts with [ and contains timing)
-        if (responseText && responseText.trim().startsWith('[') && responseText.includes('"start"') && responseText.includes('"end"')) {
-          console.error('❌ DETECTED TRANSCRIPTION RESPONSE INSTEAD OF AD CONTENT!');
-          console.error('Full transcription response:', responseText);
-          return NextResponse.json({ 
-            error: 'AI returned video transcription instead of ad content. This indicates a system prompt issue.',
-            responseType: 'transcription',
-            rawResponse: responseText.substring(0, 1000)
-          }, { status: 500 });
-        }
+        console.log('Received response from Gemini API');
         
         // Validate that responseText is a string before calling .match()
         if (typeof responseText !== 'string') {
@@ -735,7 +677,7 @@ MEDIA: ${body.media?.type || 'none'} provided for creative reference`;
           const jsonResponse = JSON.parse(jsonStr);
           
           // Log for debugging
-          console.log(`🔍 Debug prompt structure:\nSYSTEM: ${enhancedSystemPrompt.substring(0, 500)}...\nUSER: ${userPrompt}\nMEDIA: Type=${body.media?.type || 'none'}, URL=${body.media?.url ? 'provided' : 'none'}`);
+          console.log(`Debug prompt:\n/* Using ${body.media?.type === 'image' ? 'image' : 'video'} system instructions */\n\n${systemPrompt}\n\nMEDIA INFORMATION:\nType: ${body.media?.type || 'none'}\nURL: ${body.media?.url || 'none'}\n\nNOTE: In the actual API request, the media file is downloaded and sent as binary data directly to Gemini, \nallowing it to properly analyze images and videos. This is just a text representation for debugging purposes.\n\nCURRENT CONTENT (for refinement):\n\`\`\`json\n${currentDataStr}\n\`\`\`\n\nPlease generate content for these fields: ${fieldsStr}\nIf media is provided, make sure your content directly references and relates to what's shown in the media.\nEnsure your response is ONLY valid JSON matching the structure in my instructions. Do not include any other text.`);
           
           // Transform the response to match expected structure based on media type
           let responseData: AiBriefingResponse;
@@ -812,8 +754,8 @@ MEDIA: ${body.media?.type || 'none'} provided for creative reference`;
           console.log('Raw response text:', responseText);
           
           // Log additional diagnostic information
-          console.log('Enhanced system instructions used:');
-          console.log(enhancedSystemPrompt.substring(0, 1000) + '...');
+          console.log('System instructions used:');
+          console.log(systemPrompt);
           
           if (body.media?.type === 'image') {
             console.log('This was an IMAGE request. Expected format with cta field.');

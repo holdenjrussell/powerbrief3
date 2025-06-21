@@ -201,7 +201,7 @@ export function ContextHub({ onesheet, onUpdate }: ContextHubProps) {
       // Refresh all context data from server to ensure we have the complete list
       // This is especially important for Reddit extraction which may create multiple entries
       await fetchContextData();
-      
+
       toast({
         title: 'Context Saved',
         description: 'Your context has been saved and is ready for analysis.',

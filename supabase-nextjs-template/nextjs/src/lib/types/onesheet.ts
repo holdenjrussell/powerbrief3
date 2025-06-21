@@ -543,7 +543,7 @@ export interface ContextLoaded {
   organicContent: boolean;
 }
 
-export type WorkflowStage = 'context_loading' | 'audience_research' | 'competitor_analysis' | 'social_listening' | 'performance_audit' | 'synthesis' | 'creative_generation' | 'completed';
+export type WorkflowStage = 'context_loading' | 'audience_research' | 'competitor_analysis' | 'social_listening' | 'performance_audit' | 'synthesis' | 'creative_generation' | 'completed'; 
 
 // New types for OneSheet Stages
 

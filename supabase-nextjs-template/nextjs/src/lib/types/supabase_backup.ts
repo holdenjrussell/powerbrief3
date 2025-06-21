@@ -1689,7 +1689,6 @@ export type Database = {
       }
       onesheet: {
         Row: {
-          ad_account_audit: Json | null
           ad_account_data: Json | null
           ad_performance_data: Json | null
           ai_analysis_results: Json | null
@@ -1698,18 +1697,14 @@ export type Database = {
           ai_research_data: Json | null
           angles: Json | null
           audience_insights: Json | null
-          audience_research: Json | null
           brainstorm_notes: string | null
           brand_id: string
           competitive_notes: string | null
           competitor_analysis: Json | null
-          competitor_research: Json | null
           concepts: Json | null
           context_loaded: Json | null
           created_at: string
-          creative_brainstorm: Json | null
           creative_outputs: Json | null
-          current_stage: string | null
           custom_sections: Json | null
           customer_reviews_url: string | null
           hooks: Json | null
@@ -1719,14 +1714,12 @@ export type Database = {
           last_context_update: string | null
           last_synthesis_update: string | null
           manual_entries: Json | null
-          name: string | null
           organic_research_data: Json | null
           personas: Json | null
           product: string | null
           prompt_cheatsheet_url: string | null
           research_checklist: Json | null
           social_listening_data: Json | null
-          stages_completed: Json | null
           synthesis_data: Json | null
           updated_at: string
           user_id: string
@@ -1734,7 +1727,6 @@ export type Database = {
           workflow_stage: string | null
         }
         Insert: {
-          ad_account_audit?: Json | null
           ad_account_data?: Json | null
           ad_performance_data?: Json | null
           ai_analysis_results?: Json | null
@@ -1743,18 +1735,14 @@ export type Database = {
           ai_research_data?: Json | null
           angles?: Json | null
           audience_insights?: Json | null
-          audience_research?: Json | null
           brainstorm_notes?: string | null
           brand_id: string
           competitive_notes?: string | null
           competitor_analysis?: Json | null
-          competitor_research?: Json | null
           concepts?: Json | null
           context_loaded?: Json | null
           created_at?: string
-          creative_brainstorm?: Json | null
           creative_outputs?: Json | null
-          current_stage?: string | null
           custom_sections?: Json | null
           customer_reviews_url?: string | null
           hooks?: Json | null
@@ -1764,14 +1752,12 @@ export type Database = {
           last_context_update?: string | null
           last_synthesis_update?: string | null
           manual_entries?: Json | null
-          name?: string | null
           organic_research_data?: Json | null
           personas?: Json | null
           product?: string | null
           prompt_cheatsheet_url?: string | null
           research_checklist?: Json | null
           social_listening_data?: Json | null
-          stages_completed?: Json | null
           synthesis_data?: Json | null
           updated_at?: string
           user_id: string
@@ -1779,7 +1765,6 @@ export type Database = {
           workflow_stage?: string | null
         }
         Update: {
-          ad_account_audit?: Json | null
           ad_account_data?: Json | null
           ad_performance_data?: Json | null
           ai_analysis_results?: Json | null
@@ -1788,18 +1773,14 @@ export type Database = {
           ai_research_data?: Json | null
           angles?: Json | null
           audience_insights?: Json | null
-          audience_research?: Json | null
           brainstorm_notes?: string | null
           brand_id?: string
           competitive_notes?: string | null
           competitor_analysis?: Json | null
-          competitor_research?: Json | null
           concepts?: Json | null
           context_loaded?: Json | null
           created_at?: string
-          creative_brainstorm?: Json | null
           creative_outputs?: Json | null
-          current_stage?: string | null
           custom_sections?: Json | null
           customer_reviews_url?: string | null
           hooks?: Json | null
@@ -1809,14 +1790,12 @@ export type Database = {
           last_context_update?: string | null
           last_synthesis_update?: string | null
           manual_entries?: Json | null
-          name?: string | null
           organic_research_data?: Json | null
           personas?: Json | null
           product?: string | null
           prompt_cheatsheet_url?: string | null
           research_checklist?: Json | null
           social_listening_data?: Json | null
-          stages_completed?: Json | null
           synthesis_data?: Json | null
           updated_at?: string
           user_id?: string
@@ -1833,53 +1812,8 @@ export type Database = {
           },
         ]
       }
-      onesheet_ad_assets: {
-        Row: {
-          ad_id: string
-          asset_type: string
-          asset_url: string
-          created_at: string | null
-          file_path: string | null
-          id: string
-          metadata: Json | null
-          onesheet_id: string
-          updated_at: string | null
-        }
-        Insert: {
-          ad_id: string
-          asset_type: string
-          asset_url: string
-          created_at?: string | null
-          file_path?: string | null
-          id?: string
-          metadata?: Json | null
-          onesheet_id: string
-          updated_at?: string | null
-        }
-        Update: {
-          ad_id?: string
-          asset_type?: string
-          asset_url?: string
-          created_at?: string | null
-          file_path?: string | null
-          id?: string
-          metadata?: Json | null
-          onesheet_id?: string
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "onesheet_ad_assets_onesheet_id_fkey"
-            columns: ["onesheet_id"]
-            isOneToOne: false
-            referencedRelation: "onesheet"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       onesheet_context_data: {
         Row: {
-          brand_type: string | null
           content_text: string | null
           created_at: string | null
           extracted_data: Json | null
@@ -1893,7 +1827,6 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
-          brand_type?: string | null
           content_text?: string | null
           created_at?: string | null
           extracted_data?: Json | null
@@ -1907,7 +1840,6 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
-          brand_type?: string | null
           content_text?: string | null
           created_at?: string | null
           extracted_data?: Json | null
