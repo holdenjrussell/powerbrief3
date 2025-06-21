@@ -1187,6 +1187,42 @@ Focus on search optimization, reader value, and conversion potential.`
         }
     };
 
+    // Remove media for a concept
+    const handleRemoveMedia = async (conceptId: string) => {
+        if (!user?.id) return;
+        
+        try {
+            setSavingConceptId(conceptId);
+            
+            const concept = concepts.find(c => c.id === conceptId);
+            
+            if (concept) {
+                const updatedConcept = await updateBriefConcept({
+                    ...concept,
+                    id: conceptId,
+                    media_url: null,
+                    media_type: null
+                });
+                
+                setConcepts(prev => 
+                    prev.map(c => c.id === updatedConcept.id ? updatedConcept : c)
+                );
+                
+                // Also clear local media type
+                setLocalMediaTypes(prev => {
+                    const updated = { ...prev };
+                    delete updated[conceptId];
+                    return updated;
+                });
+            }
+        } catch (err) {
+            console.error('Failed to remove media:', err);
+            setError('Failed to remove media. Please try again.');
+        } finally {
+            setSavingConceptId(null);
+        }
+    };
+
     // Bulk upload media (EZ UPLOAD)
     const handleBulkUploadMedia = async (files: FileList) => {
         if (!user?.id || !batch) return;
@@ -4199,34 +4235,52 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                                 </CardHeader>
                                 <CardContent className="space-y-4">
                                     {/* Media Preview */}
-                                    <div 
-                                        className="h-[150px] bg-gray-100 rounded flex items-center justify-center cursor-pointer"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            if (fileInputRef.current) {
-                                                fileInputRef.current.setAttribute('data-concept-id', concept.id);
-                                                fileInputRef.current.click();
-                                            }
-                                        }}
-                                    >
-                                        {concept.media_url ? (
-                                            concept.media_type === 'video' ? (
-                                                <video
-                                                    src={concept.media_url}
-                                                    controls
-                                                    crossOrigin="anonymous"
-                                                    className="h-full w-full object-contain"
-                                                />
+                                    <div className="relative">
+                                        <div 
+                                            className="h-[150px] bg-gray-100 rounded flex items-center justify-center cursor-pointer"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                if (fileInputRef.current) {
+                                                    fileInputRef.current.setAttribute('data-concept-id', concept.id);
+                                                    fileInputRef.current.click();
+                                                }
+                                            }}
+                                        >
+                                            {concept.media_url ? (
+                                                concept.media_type === 'video' ? (
+                                                    <video
+                                                        src={concept.media_url}
+                                                        controls
+                                                        crossOrigin="anonymous"
+                                                        className="h-full w-full object-contain"
+                                                    />
+                                                ) : (
+                                                    <img
+                                                        src={concept.media_url}
+                                                        alt="Concept media"
+                                                        crossOrigin="anonymous"
+                                                        className="h-full w-full object-contain"
+                                                    />
+                                                )
                                             ) : (
-                                                <img
-                                                    src={concept.media_url}
-                                                    alt="Concept media"
-                                                    crossOrigin="anonymous"
-                                                    className="h-full w-full object-contain"
-                                                />
-                                            )
-                                        ) : (
-                                            <p className="text-gray-500">Upload video/image</p>
+                                                <p className="text-gray-500">Upload video/image</p>
+                                            )}
+                                        </div>
+                                        
+                                        {/* Remove Media Button */}
+                                        {concept.media_url && (
+                                            <Button
+                                                variant="destructive"
+                                                size="sm"
+                                                className="absolute top-2 right-2 opacity-80 hover:opacity-100"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleRemoveMedia(concept.id);
+                                                }}
+                                                disabled={savingConceptId === concept.id}
+                                            >
+                                                <X className="h-3 w-3" />
+                                            </Button>
                                         )}
                                     </div>
                                     
