@@ -1,5 +1,4 @@
-import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold, Part } from '@google/generative-ai';
-import { GoogleGenAI, createUserContent, createPartFromUri } from '@google/genai';
+import { GoogleGenAI, createUserContent, createPartFromUri, Type } from '@google/genai';
 import { NextRequest, NextResponse } from 'next/server';
 import { AiBriefingRequest, AiBriefingResponse } from '@/lib/types/powerbrief';
 import { createClient } from '@/utils/supabase/server';
@@ -8,7 +7,7 @@ import * as os from 'os';
 import * as path from 'path';
 
 // Use the correct model name as shown in the endpoint
-const MODEL_NAME = 'gemini-2.5-pro-preview-06-05';
+const MODEL_NAME = 'gemini-2.5-flash';
 
 // Helper to get more specific mime types
 const getProperMimeType = (mediaType: string | undefined, fileUrl: string): string => {
@@ -36,30 +35,7 @@ const getProperMimeType = (mediaType: string | undefined, fileUrl: string): stri
   return 'application/octet-stream';
 };
 
-// Helper function to fetch media as binary data
-async function fetchMediaFile(url: string): Promise<{data: Uint8Array, mimeType: string}> {
-  try {
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch media file: ${response.status} ${response.statusText}`);
-    }
-    
-    // Get the actual content type from the response if available
-    const contentType = response.headers.get('content-type') || '';
-    
-    // Convert the response to ArrayBuffer and then to Uint8Array
-    const arrayBuffer = await response.arrayBuffer();
-    const uint8Array = new Uint8Array(arrayBuffer);
-    
-    return {
-      data: uint8Array,
-      mimeType: contentType
-    };
-  } catch (error) {
-    console.error('Error fetching media file:', error);
-    throw error;
-  }
-}
+
 
 // Helper function to upload files using Files API (for larger videos or multiple files)
 async function uploadFilesUsingFilesAPI(fileUrls: string[], ai: GoogleGenAI): Promise<{ fileUri: string; mimeType: string }[]> {
@@ -335,19 +311,169 @@ Please generate content for these fields: ${fieldsStr}
 Use the visual inspiration from the uploaded files to inform the style, tone, and approach of your generated content.
 Ensure your response is ONLY valid JSON matching the structure in my instructions. Do not include any other text.`;
 
+      // Define structured output schema based on request type
+      const responseSchema = isEmailRequest ? {
+        type: Type.OBJECT,
+        description: "Schema for email marketing campaign content.",
+        required: ["campaign_type", "inbox_presence", "email_storyboard", "primary_cta", "design_notes", "personalization_elements"],
+        properties: {
+          campaign_type: {
+            type: Type.STRING,
+            description: "Type of email campaign (promotional, welcome_series, nurture, cart_abandonment, re_engagement).",
+          },
+          inbox_presence: {
+            type: Type.OBJECT,
+            properties: {
+              subject_line_variations: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    subject: { type: Type.STRING },
+                    preheader: { type: Type.STRING },
+                    tone_rationale: { type: Type.STRING },
+                  },
+                },
+              },
+            },
+          },
+          email_storyboard: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                section_type: { type: Type.STRING },
+                content: {
+                  type: Type.OBJECT,
+                  properties: {
+                    headline: { type: Type.STRING },
+                    body_text: { type: Type.STRING },
+                    cta_text: { type: Type.STRING },
+                  },
+                },
+                visual_direction: { type: Type.STRING },
+              },
+            },
+          },
+          primary_cta: {
+            type: Type.OBJECT,
+            properties: {
+              button_text: { type: Type.STRING },
+              destination_url_placeholder: { type: Type.STRING },
+              visual_recommendation: { type: Type.STRING },
+            },
+          },
+          design_notes: {
+            type: Type.OBJECT,
+            properties: {
+              overall_aesthetic: { type: Type.STRING },
+              color_palette: { type: Type.STRING },
+              typography_style: { type: Type.STRING },
+              layout_approach: { type: Type.STRING },
+              mobile_optimization: { type: Type.STRING },
+            },
+          },
+          personalization_elements: {
+            type: Type.ARRAY,
+            items: { type: Type.STRING },
+          },
+        },
+      } : {
+        type: Type.OBJECT,
+        description: "Schema for a video script with hooks, scenes, and a call to action.",
+        required: ["text_hook_options", "spoken_hook_options", "body_content_structured_scenes", "cta_script", "cta_text_overlay"],
+        properties: {
+          text_hook_options: {
+            type: Type.ARRAY,
+            description: "A list of potential text hooks for the video, often with emojis.",
+            items: {
+              type: Type.STRING,
+            },
+          },
+          spoken_hook_options: {
+            type: Type.ARRAY,
+            description: "A list of potential spoken hooks to be said verbally at the start of the video.",
+            items: {
+              type: Type.STRING,
+            },
+          },
+          body_content_structured_scenes: {
+            type: Type.ARRAY,
+            description: "An array of structured scenes for the main body of the video.",
+            items: {
+              type: Type.OBJECT,
+              description: "A single scene in the video script.",
+              required: ["script", "visuals"],
+              properties: {
+                scene_title: {
+                  type: Type.STRING,
+                  description: "An optional title for the scene.",
+                },
+                script: {
+                  type: Type.STRING,
+                  description: "The script content for this particular scene.",
+                },
+                visuals: {
+                  type: Type.STRING,
+                  description: "A description of the visuals that should appear on screen during this scene.",
+                },
+              },
+            },
+          },
+          cta_script: {
+            type: Type.STRING,
+            description: "The script for the final call to action.",
+          },
+          cta_text_overlay: {
+            type: Type.STRING,
+            description: "The text overlay for the call to action screen.",
+          },
+        },
+      };
+
+      // Create configuration with structured output
+      const config = {
+        responseMimeType: 'application/json',
+        responseSchema,
+        systemInstruction: [
+          {
+            text: systemPrompt,
+          }
+        ],
+      };
+
       // Create content parts including uploaded files
       const contentParts = [
-        systemPrompt + "\n\n" + userPrompt,
+        userPrompt,
         ...uploadedFiles.map(file => createPartFromUri(file.fileUri, file.mimeType))
       ];
 
-      // Generate content using new SDK
+      // ADD COMPREHENSIVE LOGGING
+      console.log('\n--------------------------');
+      console.log('System Instructions');
+      console.log('--------------------------');
+      console.log(systemPrompt);
+      console.log('\n--------------------------');
+      console.log('PROMPT');
+      console.log('----------------------------');
+      console.log(userPrompt);
+      console.log('\n');
+
+      // Generate content using new SDK with structured output
       const response = await ai.models.generateContent({
         model: MODEL_NAME,
+        config,
         contents: createUserContent(contentParts),
       });
 
       const responseText = response.text;
+      
+      // LOG THE RESPONSE
+      console.log('\n--------------------------');
+      console.log('RESPONSE');
+      console.log('--------------------------');
+      console.log(responseText);
+      console.log('\n');
       
       // Parse and return response
       try {
@@ -433,39 +559,11 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
         }, { status: 500 });
       }
     } else {
-      // Use existing GoogleGenerativeAI client for backward compatibility
-      console.log('Using GoogleGenerativeAI client for standard media processing');
+      // Use GoogleGenAI (new SDK) for standard media processing with structured output
+      console.log('Using GoogleGenAI client for standard media processing');
       
       // Initialize the API
-      const genAI = new GoogleGenerativeAI(apiKey);
-
-      // Get the model
-      const model = genAI.getGenerativeModel({
-        model: MODEL_NAME,
-        generationConfig: {
-          temperature: 0.7,
-          responseMimeType: "application/json",
-          maxOutputTokens: 64000, // Maximum output token limit
-        },
-        safetySettings: [
-          {
-            category: HarmCategory.HARM_CATEGORY_HARASSMENT,
-            threshold: HarmBlockThreshold.BLOCK_NONE,
-          },
-          {
-            category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-            threshold: HarmBlockThreshold.BLOCK_NONE,
-          },
-          {
-            category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-            threshold: HarmBlockThreshold.BLOCK_NONE,
-          },
-          {
-            category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-            threshold: HarmBlockThreshold.BLOCK_NONE,
-          },
-        ],
-      });
+      const ai = new GoogleGenAI({ apiKey });
 
       // Prepare the prompt and content
       const brandContextStr = JSON.stringify(body.brandContext, null, 2);
@@ -606,52 +704,186 @@ Please generate content for these fields: ${fieldsStr}
 If media is provided, make sure your content directly references and relates to what's shown in the media.
 Ensure your response is ONLY valid JSON matching the structure in my instructions. Do not include any other text.`;
 
+      // Define structured output schema (same as inspiration files path)
+      const responseSchema = isEmailRequest ? {
+        type: Type.OBJECT,
+        description: "Schema for email marketing campaign content.",
+        required: ["campaign_type", "inbox_presence", "email_storyboard", "primary_cta", "design_notes", "personalization_elements"],
+        properties: {
+          campaign_type: {
+            type: Type.STRING,
+            description: "Type of email campaign (promotional, welcome_series, nurture, cart_abandonment, re_engagement).",
+          },
+          inbox_presence: {
+            type: Type.OBJECT,
+            properties: {
+              subject_line_variations: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    subject: { type: Type.STRING },
+                    preheader: { type: Type.STRING },
+                    tone_rationale: { type: Type.STRING },
+                  },
+                },
+              },
+            },
+          },
+          email_storyboard: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                section_type: { type: Type.STRING },
+                content: {
+                  type: Type.OBJECT,
+                  properties: {
+                    headline: { type: Type.STRING },
+                    body_text: { type: Type.STRING },
+                    cta_text: { type: Type.STRING },
+                  },
+                },
+                visual_direction: { type: Type.STRING },
+              },
+            },
+          },
+          primary_cta: {
+            type: Type.OBJECT,
+            properties: {
+              button_text: { type: Type.STRING },
+              destination_url_placeholder: { type: Type.STRING },
+              visual_recommendation: { type: Type.STRING },
+            },
+          },
+          design_notes: {
+            type: Type.OBJECT,
+            properties: {
+              overall_aesthetic: { type: Type.STRING },
+              color_palette: { type: Type.STRING },
+              typography_style: { type: Type.STRING },
+              layout_approach: { type: Type.STRING },
+              mobile_optimization: { type: Type.STRING },
+            },
+          },
+          personalization_elements: {
+            type: Type.ARRAY,
+            items: { type: Type.STRING },
+          },
+        },
+      } : {
+        type: Type.OBJECT,
+        description: "Schema for a video script with hooks, scenes, and a call to action.",
+        required: ["text_hook_options", "spoken_hook_options", "body_content_structured_scenes", "cta_script", "cta_text_overlay"],
+        properties: {
+          text_hook_options: {
+            type: Type.ARRAY,
+            description: "A list of potential text hooks for the video, often with emojis.",
+            items: {
+              type: Type.STRING,
+            },
+          },
+          spoken_hook_options: {
+            type: Type.ARRAY,
+            description: "A list of potential spoken hooks to be said verbally at the start of the video.",
+            items: {
+              type: Type.STRING,
+            },
+          },
+          body_content_structured_scenes: {
+            type: Type.ARRAY,
+            description: "An array of structured scenes for the main body of the video.",
+            items: {
+              type: Type.OBJECT,
+              description: "A single scene in the video script.",
+              required: ["script", "visuals"],
+              properties: {
+                scene_title: {
+                  type: Type.STRING,
+                  description: "An optional title for the scene.",
+                },
+                script: {
+                  type: Type.STRING,
+                  description: "The script content for this particular scene.",
+                },
+                visuals: {
+                  type: Type.STRING,
+                  description: "A description of the visuals that should appear on screen during this scene.",
+                },
+              },
+            },
+          },
+          cta_script: {
+            type: Type.STRING,
+            description: "The script for the final call to action.",
+          },
+          cta_text_overlay: {
+            type: Type.STRING,
+            description: "The text overlay for the call to action screen.",
+          },
+        },
+      };
+
+      // Create configuration with structured output
+      const config = {
+        responseMimeType: 'application/json',
+        responseSchema,
+        systemInstruction: [
+          {
+            text: systemPrompt,
+          }
+        ],
+      };
+
       // Make the request
       try {
-        const parts: Part[] = [{ text: systemPrompt + "\n\n" + userPrompt }];
+        const contentParts = [userPrompt];
         
-        // If media is provided, fetch and add it as binary data
+        // Handle media files for the new SDK (similar to inspiration files)
+        const mediaParts = [];
         if (body.media && body.media.url) {
           console.log('Fetching media file from:', body.media.url);
           try {
-            // Determine MIME type
-            const expectedMimeType = getProperMimeType(body.media.type, body.media.url);
-            
-            // Fetch the media file
-            const { data: mediaData, mimeType: detectedMimeType } = await fetchMediaFile(body.media.url);
-            
-            // Use detected MIME type if available, otherwise use expected type
-            const finalMimeType = detectedMimeType || expectedMimeType;
-            
-            console.log(`Adding media to request with MIME type: ${finalMimeType}`);
-            
-            // Add media as inline data
-            parts.push({
-              inlineData: {
-                data: Buffer.from(mediaData).toString('base64'),
-                mimeType: finalMimeType
-              }
-            });
+            // For the new SDK, we'll upload media files similar to inspiration files
+            const mediaFiles = await uploadFilesUsingFilesAPI([body.media.url], ai);
+            mediaParts.push(...mediaFiles.map(file => createPartFromUri(file.fileUri, file.mimeType)));
           } catch (mediaError) {
             console.error('Failed to fetch media:', mediaError);
             // If media fetching fails, add a text note about it
-            parts.push({ 
-              text: `NOTE: Tried to include media from ${body.media.url} but failed to fetch it.` 
-            });
+            contentParts[0] = userPrompt + `\n\nNOTE: Tried to include media from ${body.media.url} but failed to fetch it.`;
           }
         }
 
-        // Use the chat method with the system prompt included
-        const result = await model.generateContent({
-          contents: [
-            { 
-              role: "user", 
-              parts
-            }
-          ]
+        // Combine text and media parts
+        const allContentParts = [contentParts[0], ...mediaParts];
+
+        // ADD COMPREHENSIVE LOGGING
+        console.log('\n--------------------------');
+        console.log('System Instructions');
+        console.log('--------------------------');
+        console.log(systemPrompt);
+        console.log('\n--------------------------');
+        console.log('PROMPT');
+        console.log('----------------------------');
+        console.log(userPrompt);
+        console.log('\n');
+
+        // Use the new SDK with structured output
+        const response = await ai.models.generateContent({
+          model: MODEL_NAME,
+          config,
+          contents: createUserContent(allContentParts),
         });
 
-        const responseText = result.response.text();
+        const responseText = response.text;
+        
+        // LOG THE RESPONSE
+        console.log('\n--------------------------');
+        console.log('RESPONSE');
+        console.log('--------------------------');
+        console.log(responseText);
+        console.log('\n');
+        
         console.log('Received response from Gemini API');
         
         // Validate that responseText is a string before calling .match()
@@ -676,8 +908,7 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
           const jsonStr = jsonMatch ? jsonMatch[0] : responseText;
           const jsonResponse = JSON.parse(jsonStr);
           
-          // Log for debugging
-          console.log(`Debug prompt:\n/* Using ${body.media?.type === 'image' ? 'image' : 'video'} system instructions */\n\n${systemPrompt}\n\nMEDIA INFORMATION:\nType: ${body.media?.type || 'none'}\nURL: ${body.media?.url || 'none'}\n\nNOTE: In the actual API request, the media file is downloaded and sent as binary data directly to Gemini, \nallowing it to properly analyze images and videos. This is just a text representation for debugging purposes.\n\nCURRENT CONTENT (for refinement):\n\`\`\`json\n${currentDataStr}\n\`\`\`\n\nPlease generate content for these fields: ${fieldsStr}\nIf media is provided, make sure your content directly references and relates to what's shown in the media.\nEnsure your response is ONLY valid JSON matching the structure in my instructions. Do not include any other text.`);
+          // Note: Comprehensive logging is now handled above before the API call
           
           // Transform the response to match expected structure based on media type
           let responseData: AiBriefingResponse;
