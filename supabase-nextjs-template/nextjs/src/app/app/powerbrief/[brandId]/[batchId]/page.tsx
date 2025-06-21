@@ -1471,12 +1471,23 @@ Focus on search optimization, reader value, and conversion potential.`
             
             const aiResponse = await response.json();
             
+            // Handle description - either single or multiple variations
+            let finalDescription = conceptWithSavedPrompt.description;
+            if (aiResponse.description) {
+                finalDescription = aiResponse.description;
+            } else if (aiResponse.variations && Array.isArray(aiResponse.variations)) {
+                // For variations, concatenate all descriptions with separators
+                finalDescription = aiResponse.variations
+                    .map((variation: {description: string, cta?: string}, index: number) => `**Variation ${index + 1}:**\n${variation.description}`)
+                    .join('\n\n---\n\n');
+            }
+            
             // Update concept with AI response
             const updatedConceptData: Partial<BriefConcept> = {
                 body_content_structured: aiResponse.body_content_structured_scenes || conceptWithSavedPrompt.body_content_structured,
                 cta_script: aiResponse.cta_script || conceptWithSavedPrompt.cta_script,
                 cta_text_overlay: aiResponse.cta_text_overlay || conceptWithSavedPrompt.cta_text_overlay,
-                description: aiResponse.description || conceptWithSavedPrompt.description
+                description: finalDescription
             };
             
             if (aiResponse.text_hook_options && Array.isArray(aiResponse.text_hook_options)) {
@@ -1534,10 +1545,21 @@ Focus on search optimization, reader value, and conversion potential.`
             
             // Update local description state when received from AI (for image concepts)
             if (aiResponse.description) {
-                console.log('AI Response - Description received:', aiResponse.description);
+                console.log('AI Response - Single description received:', aiResponse.description);
                 setLocalDescriptions(prev => ({
                     ...prev,
                     [conceptId]: aiResponse.description
+                }));
+            } else if (aiResponse.variations && Array.isArray(aiResponse.variations)) {
+                console.log('AI Response - Multiple variations received:', aiResponse.variations);
+                // For variations, concatenate all descriptions with separators for now
+                // TODO: Consider creating a better UI for multiple variations
+                const combinedDescriptions = aiResponse.variations
+                    .map((variation: {description: string, cta?: string}, index: number) => `**Variation ${index + 1}:**\n${variation.description}`)
+                    .join('\n\n---\n\n');
+                setLocalDescriptions(prev => ({
+                    ...prev,
+                    [conceptId]: combinedDescriptions
                 }));
             }
             
@@ -1932,12 +1954,23 @@ Focus on search optimization, reader value, and conversion potential.`
                     
                     const aiResponse = await response.json();
                     
+                    // Handle description - either single or multiple variations  
+                    let finalDescription = concept.description;
+                    if (aiResponse.description) {
+                        finalDescription = aiResponse.description;
+                    } else if (aiResponse.variations && Array.isArray(aiResponse.variations)) {
+                        // For variations, concatenate all descriptions with separators
+                        finalDescription = aiResponse.variations
+                            .map((variation: {description: string, cta?: string}, index: number) => `**Variation ${index + 1}:**\n${variation.description}`)
+                            .join('\n\n---\n\n');
+                    }
+
                     // Update concept with AI response
                     const updatedConceptData: Partial<BriefConcept> = {
                         body_content_structured: aiResponse.body_content_structured_scenes || concept.body_content_structured,
                         cta_script: aiResponse.cta_script || concept.cta_script,
                         cta_text_overlay: aiResponse.cta_text_overlay || concept.cta_text_overlay,
-                        description: aiResponse.description || concept.description
+                        description: finalDescription
                     };
                     
                     if (aiResponse.text_hook_options && Array.isArray(aiResponse.text_hook_options)) {
@@ -1971,10 +2004,20 @@ Focus on search optimization, reader value, and conversion potential.`
                     
                     // Update local description state when received from AI (for image concepts)
                     if (aiResponse.description) {
-                        console.log(`Generate All AI - Description received for concept ${concept.id}:`, aiResponse.description);
+                        console.log(`Generate All AI - Single description received for concept ${concept.id}:`, aiResponse.description);
                         setLocalDescriptions(prev => ({
                             ...prev,
                             [concept.id]: aiResponse.description
+                        }));
+                    } else if (aiResponse.variations && Array.isArray(aiResponse.variations)) {
+                        console.log(`Generate All AI - Multiple variations received for concept ${concept.id}:`, aiResponse.variations);
+                        // For variations, concatenate all descriptions with separators for now
+                        const combinedDescriptions = aiResponse.variations
+                            .map((variation: {description: string, cta?: string}, index: number) => `**Variation ${index + 1}:**\n${variation.description}`)
+                            .join('\n\n---\n\n');
+                        setLocalDescriptions(prev => ({
+                            ...prev,
+                            [concept.id]: combinedDescriptions
                         }));
                     }
                     

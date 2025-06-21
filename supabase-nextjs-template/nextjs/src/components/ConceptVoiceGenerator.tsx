@@ -581,353 +581,353 @@ export default function ConceptVoiceGenerator({
           )}
           
           {hasInitialized && (
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="mb-4">
-                <TabsTrigger value="generate">Generate Voice</TabsTrigger>
-                {conceptId && <TabsTrigger value="saved">Saved Voiceovers</TabsTrigger>}
-              </TabsList>
-              
-              <TabsContent value="generate" className="space-y-4">
-                {error && (
-                  <Alert variant="destructive">
-                    <AlertDescription>{error}</AlertDescription>
-                  </Alert>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="mb-4">
+          <TabsTrigger value="generate">Generate Voice</TabsTrigger>
+          {conceptId && <TabsTrigger value="saved">Saved Voiceovers</TabsTrigger>}
+        </TabsList>
+        
+        <TabsContent value="generate" className="space-y-4">
+          {error && (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+          
+          <div className="space-y-3">
+            {/* Voice Selection with Preview */}
+            <div>
+              <label className="text-xs text-gray-500 mb-2 block">Select Voice</label>
+              <div className="border rounded-md p-3 max-h-[300px] overflow-y-auto">
+                {Object.entries(groupVoicesByCategory(voices)).map(([category, groupVoices]) => (
+                  <div key={category} className="mb-4 last:mb-0">
+                    <div className="text-xs font-semibold text-gray-600 mb-2 pb-1 border-b">
+                      {category}
+                    </div>
+                    <div className="space-y-1">
+                      {groupVoices.map(voice => (
+                        <div 
+                          key={voice.voice_id} 
+                          className={`flex items-center justify-between p-2 rounded cursor-pointer transition-colors ${
+                            selectedVoice === voice.voice_id 
+                              ? 'bg-blue-50 border border-blue-200' 
+                              : 'hover:bg-gray-50'
+                          }`}
+                          onClick={() => setSelectedVoice(voice.voice_id)}
+                        >
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="radio"
+                              checked={selectedVoice === voice.voice_id}
+                              onChange={() => setSelectedVoice(voice.voice_id)}
+                              className="text-blue-600"
+                              aria-label={`Select ${voice.name} voice`}
+                            />
+                            <span className="text-sm font-medium">{voice.name}</span>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (isPreviewPlaying && currentPreviewVoice === voice.voice_id) {
+                                stopPreview();
+                              } else {
+                                handleVoicePreview(voice.voice_id);
+                              }
+                            }}
+                            disabled={previewLoading === voice.voice_id}
+                            className="h-8 w-8 p-0"
+                          >
+                            {previewLoading === voice.voice_id ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : isPreviewPlaying && currentPreviewVoice === voice.voice_id ? (
+                              <Pause className="h-3 w-3" />
+                            ) : (
+                              <Play className="h-3 w-3" />
+                            )}
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+                {voices.length === 0 && (
+                  <div className="text-center py-4 text-gray-500 text-sm">
+                    No voices available. Click refresh to load voices.
+                  </div>
                 )}
-                
-                <div className="space-y-3">
-                  {/* Voice Selection with Preview */}
-                  <div>
-                    <label className="text-xs text-gray-500 mb-2 block">Select Voice</label>
-                    <div className="border rounded-md p-3 max-h-[300px] overflow-y-auto">
-                      {Object.entries(groupVoicesByCategory(voices)).map(([category, groupVoices]) => (
-                        <div key={category} className="mb-4 last:mb-0">
-                          <div className="text-xs font-semibold text-gray-600 mb-2 pb-1 border-b">
-                            {category}
-                          </div>
-                          <div className="space-y-1">
-                            {groupVoices.map(voice => (
-                              <div 
-                                key={voice.voice_id} 
-                                className={`flex items-center justify-between p-2 rounded cursor-pointer transition-colors ${
-                                  selectedVoice === voice.voice_id 
-                                    ? 'bg-blue-50 border border-blue-200' 
-                                    : 'hover:bg-gray-50'
-                                }`}
-                                onClick={() => setSelectedVoice(voice.voice_id)}
-                              >
-                                <div className="flex items-center space-x-2">
-                                  <input
-                                    type="radio"
-                                    checked={selectedVoice === voice.voice_id}
-                                    onChange={() => setSelectedVoice(voice.voice_id)}
-                                    className="text-blue-600"
-                                    aria-label={`Select ${voice.name} voice`}
-                                  />
-                                  <span className="text-sm font-medium">{voice.name}</span>
-                                </div>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (isPreviewPlaying && currentPreviewVoice === voice.voice_id) {
-                                      stopPreview();
-                                    } else {
-                                      handleVoicePreview(voice.voice_id);
-                                    }
-                                  }}
-                                  disabled={previewLoading === voice.voice_id}
-                                  className="h-8 w-8 p-0"
-                                >
-                                  {previewLoading === voice.voice_id ? (
-                                    <Loader2 className="h-3 w-3 animate-spin" />
-                                  ) : isPreviewPlaying && currentPreviewVoice === voice.voice_id ? (
-                                    <Pause className="h-3 w-3" />
-                                  ) : (
-                                    <Play className="h-3 w-3" />
-                                  )}
-                                </Button>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                      {voices.length === 0 && (
-                        <div className="text-center py-4 text-gray-500 text-sm">
-                          No voices available. Click refresh to load voices.
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex justify-end mt-2">
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        onClick={fetchVoices} 
-                        title="Refresh voices"
-                        className="text-xs"
-                      >
-                        <RefreshCw className="h-3 w-3 mr-1" />
-                        Refresh
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-                
-                {/* Model Selection */}
-                <div className="mt-2">
-                  <label className="text-xs text-gray-500 mb-1 block">Select Model</label>
-                  <Select 
-                    value={selectedModel} 
-                    onValueChange={setSelectedModel} 
-                    disabled={loading}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select model" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {VOICE_MODELS.map((model) => (
-                        <SelectItem key={model.id} value={model.id}>
-                          {model.name} {model.isDiscounted && (
-                            <span className="ml-2 text-xs bg-emerald-100 text-emerald-800 rounded px-1.5 py-0.5">
-                              50% cheaper
-                            </span>
-                          )}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  
-                  {/* Display the selected model description separately */}
-                  {selectedModel && (
-                    <div className="text-xs text-gray-500 mt-1">
-                      {VOICE_MODELS.find(m => m.id === selectedModel)?.description}
-                    </div>
-                  )}
-                </div>
-                
-                {/* Voice settings sliders */}
-                <div className="space-y-4 pt-2">
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-xs text-gray-500">
-                      <span>Speed</span>
-                      <div className="flex justify-between w-full">
-                        <span className="ml-4">Slower</span>
-                        <span>Faster</span>
-                      </div>
-                    </div>
-                    <Slider
-                      value={[speed]}
-                      min={0.5}
-                      max={2.0}
-                      step={0.05}
-                      onValueChange={(values) => setSpeed(values[0])}
-                      disabled={loading}
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-xs text-gray-500">
-                      <span>Stability</span>
-                      <div className="flex justify-between w-full">
-                        <span className="ml-4">More variable</span>
-                        <span>More stable</span>
-                      </div>
-                    </div>
-                    <Slider
-                      value={[stability]}
-                      min={0}
-                      max={1}
-                      step={0.05}
-                      onValueChange={(values) => setStability(values[0])}
-                      disabled={loading}
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-xs text-gray-500">
-                      <span>Similarity</span>
-                      <div className="flex justify-between w-full">
-                        <span className="ml-4">Low</span>
-                        <span>High</span>
-                      </div>
-                    </div>
-                    <Slider
-                      value={[similarity]}
-                      min={0}
-                      max={1}
-                      step={0.05}
-                      onValueChange={(values) => setSimilarity(values[0])}
-                      disabled={loading}
-                    />
-                  </div>
-                  
-                  <div className="flex justify-end">
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      onClick={handleResetValues}
-                      disabled={loading}
-                      className="text-xs"
-                    >
-                      Reset values
-                    </Button>
-                  </div>
-                </div>
-                
+              </div>
+              <div className="flex justify-end mt-2">
                 <Button 
-                  onClick={handleGenerateVoice} 
-                  disabled={loading || !selectedVoice || !combinedScript}
-                  className="bg-primary-600 text-white hover:bg-primary-700"
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={fetchVoices} 
+                  title="Refresh voices"
+                  className="text-xs"
                 >
-                  {loading ? (
+                  <RefreshCw className="h-3 w-3 mr-1" />
+                  Refresh
+                </Button>
+              </div>
+            </div>
+          </div>
+          
+          {/* Model Selection */}
+          <div className="mt-2">
+            <label className="text-xs text-gray-500 mb-1 block">Select Model</label>
+            <Select 
+              value={selectedModel} 
+              onValueChange={setSelectedModel} 
+              disabled={loading}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select model" />
+              </SelectTrigger>
+              <SelectContent>
+                {VOICE_MODELS.map((model) => (
+                  <SelectItem key={model.id} value={model.id}>
+                    {model.name} {model.isDiscounted && (
+                      <span className="ml-2 text-xs bg-emerald-100 text-emerald-800 rounded px-1.5 py-0.5">
+                        50% cheaper
+                      </span>
+                    )}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            
+            {/* Display the selected model description separately */}
+            {selectedModel && (
+              <div className="text-xs text-gray-500 mt-1">
+                {VOICE_MODELS.find(m => m.id === selectedModel)?.description}
+              </div>
+            )}
+          </div>
+          
+          {/* Voice settings sliders */}
+          <div className="space-y-4 pt-2">
+            <div className="space-y-2">
+              <div className="flex justify-between text-xs text-gray-500">
+                <span>Speed</span>
+                <div className="flex justify-between w-full">
+                  <span className="ml-4">Slower</span>
+                  <span>Faster</span>
+                </div>
+              </div>
+              <Slider
+                value={[speed]}
+                min={0.5}
+                max={2.0}
+                step={0.05}
+                onValueChange={(values) => setSpeed(values[0])}
+                disabled={loading}
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <div className="flex justify-between text-xs text-gray-500">
+                <span>Stability</span>
+                <div className="flex justify-between w-full">
+                  <span className="ml-4">More variable</span>
+                  <span>More stable</span>
+                </div>
+              </div>
+              <Slider
+                value={[stability]}
+                min={0}
+                max={1}
+                step={0.05}
+                onValueChange={(values) => setStability(values[0])}
+                disabled={loading}
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <div className="flex justify-between text-xs text-gray-500">
+                <span>Similarity</span>
+                <div className="flex justify-between w-full">
+                  <span className="ml-4">Low</span>
+                  <span>High</span>
+                </div>
+              </div>
+              <Slider
+                value={[similarity]}
+                min={0}
+                max={1}
+                step={0.05}
+                onValueChange={(values) => setSimilarity(values[0])}
+                disabled={loading}
+              />
+            </div>
+            
+            <div className="flex justify-end">
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={handleResetValues}
+                disabled={loading}
+                className="text-xs"
+              >
+                Reset values
+              </Button>
+            </div>
+          </div>
+          
+          <Button 
+            onClick={handleGenerateVoice} 
+            disabled={loading || !selectedVoice || !combinedScript}
+            className="bg-primary-600 text-white hover:bg-primary-700"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Generating...
+              </>
+            ) : (
+              <>
+                <Volume2 className="h-4 w-4 mr-2" />
+                Generate Voice
+              </>
+            )}
+          </Button>
+          
+          {audioUrl && (
+            <div className="flex items-center space-x-2 mt-2">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => handlePlayAudio()}
+              >
+                {isPlaying && currentPlayingUrl === audioUrl ? (
+                  <>
+                    <Pause className="h-4 w-4 mr-1" />
+                    Pause
+                  </>
+                ) : (
+                  <>
+                    <Play className="h-4 w-4 mr-1" />
+                    Play
+                  </>
+                )}
+              </Button>
+              
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleSaveAudio}
+              >
+                <Save className="h-4 w-4 mr-1" />
+                Download
+              </Button>
+              
+              {conceptId && (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={handleSaveToSupabase}
+                  disabled={savingToSupabase}
+                >
+                  {savingToSupabase ? (
                     <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Generating...
+                      <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                      Saving...
                     </>
                   ) : (
                     <>
-                      <Volume2 className="h-4 w-4 mr-2" />
-                      Generate Voice
+                      <Database className="h-4 w-4 mr-1" />
+                      Save to Library
                     </>
                   )}
                 </Button>
-                
-                {audioUrl && (
-                  <div className="flex items-center space-x-2 mt-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={() => handlePlayAudio()}
-                    >
-                      {isPlaying && currentPlayingUrl === audioUrl ? (
-                        <>
-                          <Pause className="h-4 w-4 mr-1" />
-                          Pause
-                        </>
-                      ) : (
-                        <>
-                          <Play className="h-4 w-4 mr-1" />
-                          Play
-                        </>
-                      )}
-                    </Button>
-                    
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={handleSaveAudio}
-                    >
-                      <Save className="h-4 w-4 mr-1" />
-                      Download
-                    </Button>
-                    
-                    {conceptId && (
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        onClick={handleSaveToSupabase}
-                        disabled={savingToSupabase}
-                      >
-                        {savingToSupabase ? (
-                          <>
-                            <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                            Saving...
-                          </>
-                        ) : (
-                          <>
-                            <Database className="h-4 w-4 mr-1" />
-                            Save to Library
-                          </>
-                        )}
-                      </Button>
-                    )}
-                  </div>
-                )}
-                
-                {/* Display saved URL if available */}
-                {savedUrl && (
-                  <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded text-sm">
-                    <div className="font-medium text-green-700">Audio saved to library</div>
-                    <p className="text-xs text-green-600">
-                      This voiceover has been saved to your library and will be available in the &quot;Saved Voiceovers&quot; tab.
-                    </p>
-                  </div>
-                )}
-              </TabsContent>
-              
-              {conceptId && (
-                <TabsContent value="saved" className="space-y-4">
-                  {loadingSaved ? (
-                    <div className="flex justify-center p-8">
-                      <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                    </div>
-                  ) : savedVoiceovers.length === 0 ? (
-                    <div className="text-center p-6 bg-gray-50 rounded">
-                      <FileAudio className="h-8 w-8 mx-auto text-gray-400 mb-2" />
-                      <p className="text-gray-500">No saved voiceovers yet</p>
-                      <p className="text-sm text-gray-400 mt-1">
-                        Generate a voice and click &quot;Save to Library&quot; to save it here
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {savedVoiceovers.map((voiceover, index) => (
-                        <Card key={index} className="overflow-hidden">
-                          <div className="flex items-center p-3">
-                            <div className="flex-1">
-                              <h4 className="font-medium text-sm">{voiceover.name.split('-').pop()}</h4>
-                              <div className="flex space-x-4 text-xs text-gray-500 mt-1">
-                                <span>{formatDate(voiceover.created_at)}</span>
-                                <span>{formatFileSize(voiceover.size)}</span>
-                              </div>
-                            </div>
-                            <div className="flex space-x-2">
-                              <Button 
-                                variant="outline" 
-                                size="sm"
-                                onClick={() => handlePlayAudio(voiceover.url)}
-                              >
-                                {isPlaying && currentPlayingUrl === voiceover.url ? (
-                                  <>
-                                    <Pause className="h-4 w-4 mr-1" />
-                                    Pause
-                                  </>
-                                ) : (
-                                  <>
-                                    <Play className="h-4 w-4 mr-1" />
-                                    Play
-                                  </>
-                                )}
-                              </Button>
-                              <a 
-                                href={voiceover.url}
-                                download
-                                target="_blank"
-                                className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-3"
-                              >
-                                <Save className="h-4 w-4 mr-1" />
-                                Download
-                              </a>
-                            </div>
-                          </div>
-                        </Card>
-                      ))}
-                      <div className="flex justify-end">
+              )}
+            </div>
+          )}
+          
+          {/* Display saved URL if available */}
+          {savedUrl && (
+            <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded text-sm">
+              <div className="font-medium text-green-700">Audio saved to library</div>
+              <p className="text-xs text-green-600">
+                This voiceover has been saved to your library and will be available in the &quot;Saved Voiceovers&quot; tab.
+              </p>
+            </div>
+          )}
+        </TabsContent>
+        
+        {conceptId && (
+          <TabsContent value="saved" className="space-y-4">
+            {loadingSaved ? (
+              <div className="flex justify-center p-8">
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              </div>
+            ) : savedVoiceovers.length === 0 ? (
+              <div className="text-center p-6 bg-gray-50 rounded">
+                <FileAudio className="h-8 w-8 mx-auto text-gray-400 mb-2" />
+                <p className="text-gray-500">No saved voiceovers yet</p>
+                <p className="text-sm text-gray-400 mt-1">
+                  Generate a voice and click &quot;Save to Library&quot; to save it here
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {savedVoiceovers.map((voiceover, index) => (
+                  <Card key={index} className="overflow-hidden">
+                    <div className="flex items-center p-3">
+                      <div className="flex-1">
+                        <h4 className="font-medium text-sm">{voiceover.name.split('-').pop()}</h4>
+                        <div className="flex space-x-4 text-xs text-gray-500 mt-1">
+                          <span>{formatDate(voiceover.created_at)}</span>
+                          <span>{formatFileSize(voiceover.size)}</span>
+                        </div>
+                      </div>
+                      <div className="flex space-x-2">
                         <Button 
                           variant="outline" 
-                          size="sm" 
-                          onClick={fetchSavedVoiceovers}
-                          className="mt-2"
+                          size="sm"
+                          onClick={() => handlePlayAudio(voiceover.url)}
                         >
-                          <RefreshCw className="h-4 w-4 mr-1" />
-                          Refresh
+                          {isPlaying && currentPlayingUrl === voiceover.url ? (
+                            <>
+                              <Pause className="h-4 w-4 mr-1" />
+                              Pause
+                            </>
+                          ) : (
+                            <>
+                              <Play className="h-4 w-4 mr-1" />
+                              Play
+                            </>
+                          )}
                         </Button>
+                        <a 
+                          href={voiceover.url}
+                          download
+                          target="_blank"
+                          className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-3"
+                        >
+                          <Save className="h-4 w-4 mr-1" />
+                          Download
+                        </a>
                       </div>
                     </div>
-                  )}
-                </TabsContent>
-              )}
-            </Tabs>
+                  </Card>
+                ))}
+                <div className="flex justify-end">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={fetchSavedVoiceovers}
+                    className="mt-2"
+                  >
+                    <RefreshCw className="h-4 w-4 mr-1" />
+                    Refresh
+                  </Button>
+                </div>
+              </div>
+            )}
+          </TabsContent>
+        )}
+      </Tabs>
           )}
         </CollapsibleContent>
       </Collapsible>

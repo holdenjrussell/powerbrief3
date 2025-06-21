@@ -201,15 +201,23 @@ ${product.price && product.currency ? `Price: ${product.currency} ${product.pric
 IMPORTANT: Make sure all creative content specifically relates to and promotes this product. Reference the product name and its unique features in your generated content.`;
       }
       
+      // 🚀 NEW: Detect request type based on desired output fields OR concept markers FIRST
+      const isImageRequest = body.media?.type === 'image' && 
+                             (body.desiredOutputFields.includes('description') || 
+                              body.desiredOutputFields.includes('cta')) &&
+                             !body.desiredOutputFields.includes('text_hook_options') &&
+                             !body.desiredOutputFields.includes('spoken_hook_options') &&
+                             !body.desiredOutputFields.includes('body_content_structured_scenes');
+
       // Enhance custom prompt importance
       let enhancedCustomPrompt = body.conceptSpecificPrompt || "";
       if (enhancedCustomPrompt) {
         enhancedCustomPrompt = `IMPORTANT INSTRUCTION: ${enhancedCustomPrompt.toUpperCase()}`;
       }
 
-      // Handle hook options if provided
+      // Handle hook options if provided (but not for image requests)
       let hookInstructions = '';
-      if (body.hookOptions) {
+      if (body.hookOptions && !isImageRequest) {
         const { type, count } = body.hookOptions;
         hookInstructions = `\nHOOK OPTIONS INSTRUCTIONS:
 - Generate ${count} unique hook options
@@ -224,8 +232,7 @@ IMPORTANT: Make sure all creative content specifically relates to and promotes t
 
       // Get system instructions
       let systemPrompt = '';
-      
-      // 🚀 NEW: Detect if this is an email request based on desired output fields OR concept markers
+                             
       const isEmailRequest = body.desiredOutputFields.includes('email_storyboard') || 
                              body.desiredOutputFields.includes('inbox_presence') || 
                              body.desiredOutputFields.includes('campaign_type') ||
@@ -311,8 +318,47 @@ Please generate content for these fields: ${fieldsStr}
 Use the visual inspiration from the uploaded files to inform the style, tone, and approach of your generated content.
 Ensure your response is ONLY valid JSON matching the structure in my instructions. Do not include any other text.`;
 
+      // Check if multiple variations are requested
+      const isMultipleVariations = isImageRequest && enhancedCustomPrompt && 
+                                   /(\d+)\s*(new\s+)?(variations?|versions?)/i.test(enhancedCustomPrompt);
+      
       // Define structured output schema based on request type
-      const responseSchema = isEmailRequest ? {
+      const responseSchema = isImageRequest ? {
+        type: Type.OBJECT,
+        description: isMultipleVariations ? 
+          "Schema for multiple image-based creative brief variations with descriptions and CTA." :
+          "Schema for image-based creative brief with description and CTA.",
+        required: isMultipleVariations ? ["variations"] : ["description"],
+        properties: isMultipleVariations ? {
+          variations: {
+            type: Type.ARRAY,
+            description: "Array of different creative variations for the image",
+            items: {
+              type: Type.OBJECT,
+              required: ["description"],
+              properties: {
+                description: {
+                  type: Type.STRING,
+                  description: "Designer-facing instructions for this variation including tone, layout, copy changes, and shot composition",
+                },
+                cta: {
+                  type: Type.STRING,
+                  description: "Call to action text for this variation (only include if explicitly requested)",
+                },
+              },
+            },
+          },
+        } : {
+          description: {
+            type: Type.STRING,
+            description: "Designer-facing instructions based on the image analysis including tone, layout, copy length, and shot composition",
+          },
+          cta: {
+            type: Type.STRING,
+            description: "Call to action text (only include if explicitly requested)",
+          },
+        },
+      } : isEmailRequest ? {
         type: Type.OBJECT,
         description: "Schema for email marketing campaign content.",
         required: ["campaign_type", "inbox_presence", "email_storyboard", "primary_cta", "design_notes", "personalization_elements"],
@@ -484,8 +530,12 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
         // Transform the response to match expected structure based on media type
         let responseData: AiBriefingResponse;
         
-        // 🚀 NEW: Check if this is an email request and handle email-specific response
-        if (isEmailRequest) {
+        // 🚀 NEW: Check request type and handle appropriate response
+        if (isImageRequest) {
+          // Handle image-specific response format - return description and cta directly  
+          console.log('Detected image request - returning image-specific response format');
+          return NextResponse.json(jsonResponse);
+        } else if (isEmailRequest) {
           // Handle email-specific response format - return the email data directly
           console.log('Detected email request in standard processing - returning email-specific response format');
           return NextResponse.json(jsonResponse);
@@ -583,6 +633,14 @@ ${product.price && product.currency ? `Price: ${product.currency} ${product.pric
 IMPORTANT: Make sure all creative content specifically relates to and promotes this product. Reference the product name and its unique features in your generated content.`;
       }
       
+      // 🚀 NEW: Detect request type based on desired output fields OR concept markers FIRST
+      const isImageRequest = body.media?.type === 'image' && 
+                             (body.desiredOutputFields.includes('description') || 
+                              body.desiredOutputFields.includes('cta')) &&
+                             !body.desiredOutputFields.includes('text_hook_options') &&
+                             !body.desiredOutputFields.includes('spoken_hook_options') &&
+                             !body.desiredOutputFields.includes('body_content_structured_scenes');
+
       // Enhance custom prompt importance
       let enhancedCustomPrompt = body.conceptSpecificPrompt || "";
       if (enhancedCustomPrompt) {
@@ -590,9 +648,9 @@ IMPORTANT: Make sure all creative content specifically relates to and promotes t
         enhancedCustomPrompt = `IMPORTANT INSTRUCTION: ${enhancedCustomPrompt.toUpperCase()}`;
       }
 
-      // Handle hook options if provided
+      // Handle hook options if provided (but not for image requests)
       let hookInstructions = '';
-      if (body.hookOptions) {
+      if (body.hookOptions && !isImageRequest) {
         const { type, count } = body.hookOptions;
         hookInstructions = `\nHOOK OPTIONS INSTRUCTIONS:
 - Generate ${count} unique hook options
@@ -607,8 +665,7 @@ IMPORTANT: Make sure all creative content specifically relates to and promotes t
 
       // Get the appropriate system instructions based on media type
       let systemPrompt = '';
-      
-      // 🚀 NEW: Detect if this is an email request based on desired output fields OR concept markers
+                             
       const isEmailRequest = body.desiredOutputFields.includes('email_storyboard') || 
                              body.desiredOutputFields.includes('inbox_presence') || 
                              body.desiredOutputFields.includes('campaign_type') ||
@@ -704,8 +761,47 @@ Please generate content for these fields: ${fieldsStr}
 If media is provided, make sure your content directly references and relates to what's shown in the media.
 Ensure your response is ONLY valid JSON matching the structure in my instructions. Do not include any other text.`;
 
+      // Check if multiple variations are requested
+      const isMultipleVariations = isImageRequest && enhancedCustomPrompt && 
+                                   /(\d+)\s*(new\s+)?(variations?|versions?)/i.test(enhancedCustomPrompt);
+      
       // Define structured output schema (same as inspiration files path)
-      const responseSchema = isEmailRequest ? {
+      const responseSchema = isImageRequest ? {
+        type: Type.OBJECT,
+        description: isMultipleVariations ? 
+          "Schema for multiple image-based creative brief variations with descriptions and CTA." :
+          "Schema for image-based creative brief with description and CTA.",
+        required: isMultipleVariations ? ["variations"] : ["description"],
+        properties: isMultipleVariations ? {
+          variations: {
+            type: Type.ARRAY,
+            description: "Array of different creative variations for the image",
+            items: {
+              type: Type.OBJECT,
+              required: ["description"],
+              properties: {
+                description: {
+                  type: Type.STRING,
+                  description: "Designer-facing instructions for this variation including tone, layout, copy changes, and shot composition",
+                },
+                cta: {
+                  type: Type.STRING,
+                  description: "Call to action text for this variation (only include if explicitly requested)",
+                },
+              },
+            },
+          },
+        } : {
+          description: {
+            type: Type.STRING,
+            description: "Designer-facing instructions based on the image analysis including tone, layout, copy length, and shot composition",
+          },
+          cta: {
+            type: Type.STRING,
+            description: "Call to action text (only include if explicitly requested)",
+          },
+        },
+      } : isEmailRequest ? {
         type: Type.OBJECT,
         description: "Schema for email marketing campaign content.",
         required: ["campaign_type", "inbox_presence", "email_storyboard", "primary_cta", "design_notes", "personalization_elements"],
@@ -913,34 +1009,38 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
           // Transform the response to match expected structure based on media type
           let responseData: AiBriefingResponse;
           
-          // 🚀 NEW: Check if this is an email request and handle email-specific response
-          if (isEmailRequest) {
-            // Handle email-specific response format - return the email data directly
-            console.log('Detected email request in standard processing - returning email-specific response format');
-            return NextResponse.json(jsonResponse);
-          } else if (body.media?.type === 'image' && (jsonResponse.description !== undefined || jsonResponse.cta !== undefined)) {
-            // Handle image-specific format (description and cta)
-            console.log('Detected image-specific response format with description and/or cta');
-            responseData = {
-              text_hook_options: [],
-              spoken_hook_options: [],
-              body_content_structured_scenes: [],
-              cta_script: jsonResponse.cta || "",
-              cta_text_overlay: jsonResponse.cta || "",
-              description: jsonResponse.description || ""
-            };
-          } else if (body.media?.type === 'image') {
-            // Handle case where image was requested but response doesn't match expected format
-            console.log('Image request but response format not recognized, attempting to extract description and cta');
-            responseData = {
-              text_hook_options: [],
-              spoken_hook_options: [],
-              body_content_structured_scenes: [],
-              cta_script: jsonResponse.cta_script || jsonResponse.cta || "",
-              cta_text_overlay: jsonResponse.cta_text_overlay || jsonResponse.cta || "",
-              description: jsonResponse.description || ""
-            };
-          } else {
+                  // 🚀 NEW: Check request type and handle appropriate response
+        if (isImageRequest) {
+          // Handle image-specific response format - return description and cta directly  
+          console.log('Detected image request - returning image-specific response format');
+          return NextResponse.json(jsonResponse);
+        } else if (isEmailRequest) {
+          // Handle email-specific response format - return the email data directly
+          console.log('Detected email request in standard processing - returning email-specific response format');
+          return NextResponse.json(jsonResponse);
+        } else if (body.media?.type === 'image' && (jsonResponse.description !== undefined || jsonResponse.cta !== undefined)) {
+          // Handle image-specific format (description and cta) - fallback for edge cases
+          console.log('Detected image-specific response format with description and/or cta');
+          responseData = {
+            text_hook_options: [],
+            spoken_hook_options: [],
+            body_content_structured_scenes: [],
+            cta_script: jsonResponse.cta || "",
+            cta_text_overlay: jsonResponse.cta || "",
+            description: jsonResponse.description || ""
+          };
+        } else if (body.media?.type === 'image') {
+          // Handle case where image was requested but response doesn't match expected format
+          console.log('Image request but response format not recognized, attempting to extract description and cta');
+          responseData = {
+            text_hook_options: [],
+            spoken_hook_options: [],
+            body_content_structured_scenes: [],
+            cta_script: jsonResponse.cta_script || jsonResponse.cta || "",
+            cta_text_overlay: jsonResponse.cta_text_overlay || jsonResponse.cta || "",
+            description: jsonResponse.description || ""
+          };
+        } else {
             // Handle regular ad format (video or default)
             const hookType = body.hookOptions?.type || 'both';
             
