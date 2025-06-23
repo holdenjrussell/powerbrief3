@@ -23,6 +23,7 @@ interface AdData {
   impressions: number;
   cpa: string;
   roas: string;
+  purchaseRevenue: string;
   hookRate: string;
   holdRate: string;
   purchases: number;
@@ -50,6 +51,7 @@ interface AdData {
   emotion?: string | null;
   framework?: string | null;
   transcription?: string | null;
+  visualDescription?: string | null;
 }
 
 interface AdAccountAuditDashboardProps {
@@ -175,9 +177,11 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
 
       const result = await response.json();
       
+      console.log('Analyze response:', result); // Debug logging
+      
       toast({
         title: "Success",
-        description: `Successfully analyzed ${result.data.adsAnalyzed} ads`
+        description: `Successfully analyzed ${result.data?.adsAnalyzed || 0} ads`
       });
       
       // Refresh the data
@@ -239,6 +243,7 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
       'Spend',
       'CPA',
       'ROAS',
+      'Website Purchase Revenue',
       'Hook Rate',
       'Hold Rate',
       'Type',
@@ -250,7 +255,8 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
       'Format',
       'Emotion',
       'Framework',
-      'Transcription'
+      'Transcription',
+      'Visual Description'
     ];
 
     const rows = ads.map(ad => [
@@ -259,6 +265,7 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
       `$${ad.spend}`,
       `$${ad.cpa}`,
       ad.roas,
+      `$${ad.purchaseRevenue || '0.00'}`,
       `${ad.hookRate}%`,
       `${ad.holdRate}%`,
       ad.type || '',
@@ -270,7 +277,8 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
       ad.format || '',
       ad.emotion || '',
       ad.framework || '',
-      ad.transcription || ''
+      ad.transcription || '',
+      ad.visualDescription || ''
     ]);
 
     const csv = [
@@ -406,7 +414,7 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
             <div className="flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-amber-600" />
               <p className="text-sm text-amber-800">
-                Click &quot;Analyze with AI&quot; to extract creative attributes like Type, Duration, Angle, Format, Emotion, and Framework from your ads.
+                Click &quot;Analyze with AI&quot; to extract creative attributes like Type, Duration, Angle, Format, Emotion, Framework, Transcript/Text, and Visual Description (with hex colors for images) from your ads.
                 {selectedAds.size > 0 && ` You have ${selectedAds.size} ads selected for analysis.`}
               </p>
             </div>
@@ -438,6 +446,7 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
                     <th className="p-2 text-right">Spend</th>
                     <th className="p-2 text-right">CPA</th>
                     <th className="p-2 text-right">ROAS</th>
+                    <th className="p-2 text-right">Website Purchase Revenue</th>
                     <th className="p-2 text-right">Hook Rate</th>
                     <th className="p-2 text-right">Hold Rate</th>
                     <th className="p-2 text-left bg-blue-50">Type</th>
@@ -449,6 +458,8 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
                     <th className="p-2 text-left bg-green-50">Format</th>
                     <th className="p-2 text-left bg-green-50">Emotion</th>
                     <th className="p-2 text-left bg-green-50">Framework</th>
+                    <th className="p-2 text-left bg-purple-50 min-w-[300px]">Transcript/Text</th>
+                    <th className="p-2 text-left bg-orange-50 min-w-[350px]">Visual Description</th>
                     <th className="p-2 text-left">Actions</th>
                   </tr>
                 </thead>
@@ -553,6 +564,7 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
                       <td className="p-2 text-right">${ad.spend}</td>
                       <td className="p-2 text-right">${ad.cpa}</td>
                       <td className="p-2 text-right">{ad.roas}</td>
+                      <td className="p-2 text-right">${ad.purchaseRevenue || '0.00'}</td>
                       <td className="p-2 text-right">{ad.hookRate}%</td>
                       <td className="p-2 text-right">{ad.holdRate}%</td>
                       <td className={`p-2 ${!ad.type ? 'text-gray-400 bg-blue-50' : 'bg-blue-50'}`}>
@@ -581,6 +593,30 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
                       </td>
                       <td className={`p-2 ${!ad.framework ? 'text-gray-400 bg-green-50' : 'bg-green-50'}`}>
                         {ad.framework || <span className="italic">Needs AI</span>}
+                      </td>
+                      <td className={`p-2 bg-purple-50 max-w-[300px] ${!ad.transcription ? 'text-gray-400' : ''}`}>
+                        {ad.transcription ? (
+                          <div 
+                            className="max-h-20 overflow-y-auto text-wrap break-words text-xs leading-tight scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent"
+                            style={{ wordBreak: 'break-word', hyphens: 'auto' }}
+                          >
+                            {ad.transcription}
+                          </div>
+                        ) : (
+                          <span className="italic">Needs AI</span>
+                        )}
+                      </td>
+                      <td className={`p-2 bg-orange-50 max-w-[350px] ${!ad.visualDescription ? 'text-gray-400' : ''}`}>
+                        {ad.visualDescription ? (
+                          <div 
+                            className="max-h-20 overflow-y-auto text-wrap break-words text-xs leading-tight scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent"
+                            style={{ wordBreak: 'break-word', hyphens: 'auto' }}
+                          >
+                            {ad.visualDescription}
+                          </div>
+                        ) : (
+                          <span className="italic">Needs AI</span>
+                        )}
                       </td>
                       <td className="p-2">
                         <a

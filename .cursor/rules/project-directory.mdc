@@ -1,0 +1,8 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+the main project should always be ran from
+cd supabase-nextjs-template/nextjs
+

@@ -1,10 +1,126 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
-import { GoogleGenerativeAI } from '@google/generative-ai';
-import { GoogleAIFileManager } from '@google/generative-ai/server';
+import { GoogleGenAI } from '@google/genai';
+import { promises as fs } from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY!);
-const fileManager = new GoogleAIFileManager(process.env.GOOGLE_GEMINI_API_KEY!);
+// Helper to get proper MIME type from URL
+const getProperMimeType = (fileUrl: string): string => {
+  const urlLower = fileUrl.toLowerCase();
+  
+  // Check for specific file extensions
+  if (urlLower.includes('.mp4')) return 'video/mp4';
+  if (urlLower.includes('.mov')) return 'video/quicktime';
+  if (urlLower.includes('.avi')) return 'video/x-msvideo';
+  if (urlLower.includes('.webm')) return 'video/webm';
+  if (urlLower.includes('.jpg') || urlLower.includes('.jpeg')) return 'image/jpeg';
+  if (urlLower.includes('.png')) return 'image/png';
+  if (urlLower.includes('.gif')) return 'image/gif';
+  if (urlLower.includes('.webp')) return 'image/webp';
+  
+  // Default fallbacks based on common asset types
+  if (urlLower.includes('video') || urlLower.includes('.mp4')) return 'video/mp4';
+  return 'image/jpeg'; // Default to image since most ads are images
+};
+
+// Helper function to upload files to Gemini Files API
+async function uploadAssetToGeminiFilesAPI(assetUrl: string, ai: GoogleGenAI): Promise<{ fileUri: string; mimeType: string } | null> {
+  let tempFilePath: string | null = null;
+  let uploadedFile: { name?: string; uri?: string; mimeType?: string; state?: string } | null = null;
+  
+  try {
+    console.log(`[Analyze] Uploading asset to Files API: ${assetUrl}`);
+    
+    // Fetch the file from Supabase storage
+    const fileResponse = await fetch(assetUrl);
+    if (!fileResponse.ok) {
+      throw new Error(`Failed to fetch asset: ${fileResponse.statusText}`);
+    }
+    const fileBuffer = await fileResponse.arrayBuffer();
+    
+    // Create temp file
+    const safeFileName = assetUrl.split('/').pop()?.replace(/[^a-zA-Z0-9._-]/g, '_') || 'asset';
+    const tempFileName = `temp_ad_asset_${Date.now()}_${safeFileName}`;
+    tempFilePath = path.join(os.tmpdir(), tempFileName);
+    await fs.writeFile(tempFilePath, Buffer.from(fileBuffer));
+
+    // Determine MIME type
+    const mimeType = getProperMimeType(assetUrl);
+    
+    // Upload to Google Files API
+    uploadedFile = await ai.files.upload({
+      file: tempFilePath,
+      config: { mimeType },
+    });
+    
+    console.log(`[Analyze] File uploaded, initial state: ${uploadedFile.state}`);
+
+    if (!uploadedFile.name) {
+      throw new Error('Failed to obtain file name for uploaded file');
+    }
+
+    // Wait for file to become ACTIVE
+    let attempts = 0;
+    const maxAttempts = 30;
+    let fileStatus = uploadedFile;
+    
+    while (fileStatus.state !== 'ACTIVE' && attempts < maxAttempts) {
+      if (fileStatus.state === 'FAILED') {
+        throw new Error('File processing failed');
+      }
+      
+      console.log(`[Analyze] File state: ${fileStatus.state}. Waiting for ACTIVE... (${attempts + 1}/${maxAttempts})`);
+      
+      // Wait 10 seconds before checking again
+      await new Promise(resolve => setTimeout(resolve, 10000));
+      
+      // Check file status
+      fileStatus = await ai.files.get({ name: uploadedFile.name });
+      attempts++;
+    }
+    
+    if (fileStatus.state !== 'ACTIVE') {
+      throw new Error(`File did not become ACTIVE after ${maxAttempts} attempts. Final state: ${fileStatus.state}`);
+    }
+
+    if (!fileStatus.uri) {
+      throw new Error('Failed to obtain URI for uploaded file');
+    }
+
+    console.log(`[Analyze] File is now ACTIVE. URI: ${fileStatus.uri}`);
+    
+    return {
+      fileUri: fileStatus.uri,
+      mimeType: fileStatus.mimeType || mimeType
+    };
+    
+  } catch (error) {
+    console.error(`[Analyze] Error uploading asset to Files API:`, error);
+    
+    // Clean up uploaded file if it exists
+    if (uploadedFile && uploadedFile.name) {
+      try {
+        await ai.files.delete({ name: uploadedFile.name });
+        console.log(`[Analyze] Cleaned up uploaded file: ${uploadedFile.name}`);
+      } catch (deleteError) {
+        console.error(`[Analyze] Failed to delete uploaded file:`, deleteError);
+      }
+    }
+    
+    return null;
+  } finally {
+    // Clean up temporary file
+    if (tempFilePath) {
+      try {
+        await fs.unlink(tempFilePath);
+        console.log(`[Analyze] Deleted temporary file: ${tempFilePath}`);
+      } catch (cleanupError) {
+        console.error(`[Analyze] Error deleting temporary file:`, cleanupError);
+      }
+    }
+  }
+}
 
 export async function POST(request: Request) {
   try {
@@ -37,11 +153,18 @@ export async function POST(request: Request) {
 
     // Filter to specific ads if provided
     if (ad_ids && ad_ids.length > 0) {
-      adsToAnalyze = adsToAnalyze.filter((ad: any) => ad_ids.includes(ad.id));
+      adsToAnalyze = adsToAnalyze.filter((ad: Record<string, unknown>) => ad_ids.includes(String(ad.id)));
     }
 
-    // Filter to only ads that haven't been analyzed yet
-    adsToAnalyze = adsToAnalyze.filter((ad: any) => !ad.angle);
+    // Filter to only ads that haven't been analyzed yet OR need re-analysis for new fields
+    // If specific ads are selected, always re-analyze them. Otherwise, only analyze ads missing visualDescription
+    if (ad_ids && ad_ids.length > 0) {
+      // Re-analyze selected ads regardless of existing analysis
+      console.log(`[Analyze] Re-analyzing ${adsToAnalyze.length} selected ads`);
+    } else {
+      // Only analyze ads that don't have the latest analysis (missing visualDescription)
+      adsToAnalyze = adsToAnalyze.filter((ad: Record<string, unknown>) => !ad.visualDescription);
+    }
 
     if (adsToAnalyze.length === 0) {
       return NextResponse.json({ 
@@ -50,72 +173,194 @@ export async function POST(request: Request) {
       });
     }
 
-    console.log(`Analyzing ${adsToAnalyze.length} ads with Gemini`);
+    console.log(`[Analyze] Analyzing ${adsToAnalyze.length} ads with Gemini Files API`);
+
+    // Get Gemini API key
+    const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      console.error('[Analyze] Missing Gemini API key');
+      return NextResponse.json({ error: 'AI service not configured' }, { status: 500 });
+    }
+
+    const ai = new GoogleGenAI({ apiKey });
 
     // Process ads in batches
-    const batchSize = 5;
+    const batchSize = 3; // Reduced batch size due to Files API operations
     const analyzedAds = [];
 
     for (let i = 0; i < adsToAnalyze.length; i += batchSize) {
       const batch = adsToAnalyze.slice(i, i + batchSize);
       
       // Process each ad in the batch
-      const batchPromises = batch.map(async (ad: any) => {
+      const batchPromises = batch.map(async (ad: Record<string, unknown>) => {
         try {
-          // Skip if no video/image asset
-          if (!ad.assetUrl || ad.assetType === 'unknown') {
-            return ad;
+          // Skip if no asset or not stored in Supabase
+          if (!ad.assetUrl || ad.assetType === 'unknown' || !String(ad.assetUrl).includes('supabase')) {
+            console.log(`[Analyze] Skipping ad ${ad.id} - no valid Supabase asset`);
+            
+            // Fallback to text-only analysis for ads without proper assets
+            const analysisPrompt = `
+            Analyze this Facebook ad creative based on text content only and provide the following information:
+
+            Ad Name: ${ad.name}
+            Creative Title: ${ad.creativeTitle}
+            Creative Body: ${ad.creativeBody}
+            Asset Type: ${ad.assetType}
+
+            Please analyze and return in JSON format:
+            {
+              "type": "High Production Video|Low Production Video (UGC)|Static Image|Carousel|GIF",
+              "adDuration": number (in seconds, estimate if image),
+              "productIntro": number (seconds when product first shown/mentioned),
+              "creatorsUsed": number (visible people in the ad),
+              "angle": "Weight Management|Time/Convenience|Energy/Focus|Digestive Health|Immunity Support|etc",
+              "format": "Testimonial|Podcast Clip|Authority Figure|3 Reasons Why|Unboxing|etc",
+              "emotion": "Hopefulness|Excitement|Curiosity|Urgency|Fear|Trust|etc",
+              "framework": "PAS|AIDA|FAB|Star Story Solution|Before After Bridge|etc",
+              "transcription": "Only text content that would be spoken (no visual descriptions)",
+              "visualDescription": "Visual description based on creative text patterns only"
+            }
+
+            Base your analysis on the creative text and ad name patterns only.
+            `;
+
+            const result = await ai.models.generateContent({
+              model: 'gemini-2.5-flash',
+              contents: [{ role: 'user', parts: [{ text: analysisPrompt }] }],
+              config: { responseMimeType: 'application/json' }
+            });
+            const analysis = JSON.parse(result.text);
+
+            // Calculate sit in problem percentage
+            const sitInProblem = analysis.adDuration > 0 
+              ? ((analysis.productIntro / analysis.adDuration) * 100).toFixed(1)
+              : '0';
+
+            return {
+              ...ad,
+              ...analysis,
+              sitInProblem,
+              analysisMethod: 'text-only'
+            };
           }
 
-          // For video ads, we'll analyze the thumbnail and creative text
-          // In a production environment, you'd download and upload the video to Gemini
+          // Upload asset to Files API
+          const uploadedAsset = await uploadAssetToGeminiFilesAPI(String(ad.assetUrl), ai);
           
+          if (!uploadedAsset) {
+            console.log(`[Analyze] Failed to upload asset for ad ${ad.id}, falling back to text analysis`);
+            // Fallback to text-only analysis - same as above
+            const analysisPrompt = `
+            Analyze this Facebook ad creative based on text content only and provide the following information:
+
+            Ad Name: ${ad.name}
+            Creative Title: ${ad.creativeTitle}
+            Creative Body: ${ad.creativeBody}
+            Asset Type: ${ad.assetType}
+
+            Please analyze and return in JSON format:
+            {
+              "type": "High Production Video|Low Production Video (UGC)|Static Image|Carousel|GIF",
+              "adDuration": number (in seconds, estimate if image),
+              "productIntro": number (seconds when product first shown/mentioned),
+              "creatorsUsed": number (visible people in the ad),
+              "angle": "Weight Management|Time/Convenience|Energy/Focus|Digestive Health|Immunity Support|etc",
+              "format": "Testimonial|Podcast Clip|Authority Figure|3 Reasons Why|Unboxing|etc",
+              "emotion": "Hopefulness|Excitement|Curiosity|Urgency|Fear|Trust|etc",
+              "framework": "PAS|AIDA|FAB|Star Story Solution|Before After Bridge|etc",
+              "transcription": "Only text content that would be spoken (no visual descriptions)",
+              "visualDescription": "Visual description based on creative text patterns only"
+            }
+
+            Base your analysis on the creative text and ad name patterns only.
+            `;
+
+            const result = await ai.models.generateContent({
+              model: 'gemini-2.5-flash',
+              contents: [{ role: 'user', parts: [{ text: analysisPrompt }] }],
+              config: { responseMimeType: 'application/json' }
+            });
+            const analysis = JSON.parse(result.text);
+
+            // Calculate sit in problem percentage
+            const sitInProblem = analysis.adDuration > 0 
+              ? ((analysis.productIntro / analysis.adDuration) * 100).toFixed(1)
+              : '0';
+
+            return {
+              ...ad,
+              ...analysis,
+              sitInProblem,
+              analysisMethod: 'text-fallback'
+            };
+          }
+
+          // Analyze with both visual content and text
           const analysisPrompt = `
-          Analyze this Facebook ad creative and provide the following information:
+          Analyze this Facebook ad creative comprehensively using both the visual content and text information:
 
           Ad Name: ${ad.name}
           Creative Title: ${ad.creativeTitle}
           Creative Body: ${ad.creativeBody}
           Asset Type: ${ad.assetType}
 
-          Please analyze and return in JSON format:
+          Please analyze the visual content (image/video) along with the text and return in JSON format:
           {
             "type": "High Production Video|Low Production Video (UGC)|Static Image|Carousel|GIF",
-            "adDuration": number (in seconds, estimate if image),
-            "productIntro": number (seconds when product first shown/mentioned),
-            "creatorsUsed": number (visible people in the ad),
-            "angle": "Weight Management|Time/Convenience|Energy/Focus|Digestive Health|Immunity Support|etc",
-            "format": "Testimonial|Podcast Clip|Authority Figure|3 Reasons Why|Unboxing|etc",
-            "emotion": "Hopefulness|Excitement|Curiosity|Urgency|Fear|Trust|etc",
-            "framework": "PAS|AIDA|FAB|Star Story Solution|Before After Bridge|etc",
-            "transcription": "Full transcription if video, or main text if image"
+            "adDuration": number (in seconds for videos, estimate based on content density for images),
+            "productIntro": number (seconds when product first shown/mentioned in video, or estimated for images),
+            "creatorsUsed": number (count actual people visible in the visual content),
+            "angle": "Weight Management|Time/Convenience|Energy/Focus|Digestive Health|Immunity Support|General Wellness|Value/Price|Quality|Social Proof|etc",
+            "format": "Testimonial|Podcast Clip|Authority Figure|3 Reasons Why|Unboxing|Problem/Solution|Demonstration|Comparison|Story|Educational|etc",
+            "emotion": "Hopefulness|Excitement|Curiosity|Urgency|Fear|Trust|Confidence|Empowerment|etc",
+            "framework": "PAS|AIDA|FAB|Star Story Solution|Before After Bridge|QUEST|etc",
+            "transcription": "For videos: exact spoken words/dialogue only. For images: any visible text/captions only (no descriptions)",
+            "visualDescription": "For videos: detailed description of visual elements, scenes, people, products, setting. For images: comprehensive visual description including composition, people, products, setting, mood, AND primary/secondary/tertiary hex color codes (e.g. Primary: #FF5733, Secondary: #33FF57, Tertiary: #3357FF)"
           }
 
-          Base your analysis on the creative text and ad name patterns.
+          Base your analysis on BOTH the visual content you can see AND the provided text information. Pay special attention to:
+          - Visual elements, people, products shown
+          - Text overlays or captions in the visual
+          - Overall production quality and style
+          - Emotional tone conveyed through visuals
+          - How the visual and text work together
           `;
 
-          const model = genAI.getGenerativeModel({ 
-            model: "gemini-2.0-flash-thinking-exp",
-            generationConfig: {
-              responseMimeType: "application/json"
-            }
+          const result = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: [{
+              role: 'user',
+              parts: [
+                { text: analysisPrompt },
+                {
+                  fileData: {
+                    mimeType: uploadedAsset.mimeType,
+                    fileUri: uploadedAsset.fileUri
+                  }
+                }
+              ]
+            }],
+            config: { responseMimeType: 'application/json' }
           });
 
-          const result = await model.generateContent(analysisPrompt);
-          const analysis = JSON.parse(result.response.text());
+          const analysis = JSON.parse(result.text);
 
           // Calculate sit in problem percentage
           const sitInProblem = analysis.adDuration > 0 
             ? ((analysis.productIntro / analysis.adDuration) * 100).toFixed(1)
             : '0';
 
+          console.log(`[Analyze] Successfully analyzed ad ${ad.id} with visual content`);
+
           return {
             ...ad,
             ...analysis,
-            sitInProblem
+            sitInProblem,
+            analysisMethod: 'visual-and-text'
           };
+
         } catch (error) {
-          console.error(`Error analyzing ad ${ad.id}:`, error);
+          console.error(`[Analyze] Error analyzing ad ${ad.id}:`, error);
           return ad; // Return unmodified if analysis fails
         }
       });
@@ -125,13 +370,13 @@ export async function POST(request: Request) {
 
       // Add delay between batches to respect rate limits
       if (i + batchSize < adsToAnalyze.length) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise(resolve => setTimeout(resolve, 2000)); // Increased delay for Files API
       }
     }
 
     // Update the onesheet with analyzed ads
-    const updatedAds = adAuditData.ads.map((ad: any) => {
-      const analyzed = analyzedAds.find((a: any) => a.id === ad.id);
+    const updatedAds = adAuditData.ads.map((ad: Record<string, unknown>) => {
+      const analyzed = analyzedAds.find((a: Record<string, unknown>) => a.id === ad.id);
       return analyzed || ad;
     });
 
@@ -147,7 +392,7 @@ export async function POST(request: Request) {
       .eq('id', onesheet_id);
 
     if (updateError) {
-      console.error('Error updating onesheet:', updateError);
+      console.error('[Analyze] Error updating onesheet:', updateError);
       return NextResponse.json({ error: 'Failed to save analysis' }, { status: 500 });
     }
 
@@ -155,12 +400,17 @@ export async function POST(request: Request) {
       success: true,
       data: {
         adsAnalyzed: analyzedAds.length,
-        totalAds: updatedAds.length
+        totalAds: updatedAds.length,
+        analysisBreakdown: {
+          visualAndText: analyzedAds.filter(ad => ad.analysisMethod === 'visual-and-text').length,
+          textOnly: analyzedAds.filter(ad => ad.analysisMethod === 'text-only').length,
+          textFallback: analyzedAds.filter(ad => ad.analysisMethod === 'text-fallback').length
+        }
       }
     });
 
   } catch (error) {
-    console.error('Error in ad analysis:', error);
+    console.error('[Analyze] Error in ad analysis:', error);
     return NextResponse.json(
       { error: 'Failed to analyze ads' },
       { status: 500 }

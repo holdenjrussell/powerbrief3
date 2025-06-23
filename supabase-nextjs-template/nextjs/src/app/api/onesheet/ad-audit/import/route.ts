@@ -29,7 +29,7 @@ async function fetchAllAds(
     'name',
     'status',
     'creative{id,name,title,body,image_url,video_id,thumbnail_url,object_story_spec,asset_feed_spec,image_hash}',
-    'insights{spend,impressions,clicks,ctr,cpm,cpp,actions,video_p25_watched_actions,video_p50_watched_actions,video_p75_watched_actions,video_p100_watched_actions,video_play_actions,video_avg_time_watched_actions}',
+    'insights{spend,impressions,clicks,ctr,cpm,cpp,actions,action_values,video_p25_watched_actions,video_p50_watched_actions,video_p75_watched_actions,video_p100_watched_actions,video_play_actions,video_avg_time_watched_actions}',
     'adset{id,name,targeting}',
     'campaign{id,name,objective}'
   ].join(',');
@@ -1241,8 +1241,18 @@ async function processAdsBatched(
         return total;
       }, 0) || 0;
       
+      // Calculate actual purchase revenue from action_values
+      const purchaseRevenue = insights.action_values?.reduce((total: number, action: any) => {
+        if (action.action_type === 'purchase' || 
+            action.action_type === 'omni_purchase' ||
+            action.action_type === 'offline_conversion.purchase') {
+          return total + parseFloat(action.value || '0');
+        }
+        return total;
+      }, 0) || 0;
+      
       const cpa = purchases > 0 ? spend / purchases : (spend > 0 ? spend : 0);
-      const roas = spend > 0 && purchases > 0 ? (purchases * 50) / spend : 0; // Assuming $50 AOV
+      const roas = spend > 0 && purchaseRevenue > 0 ? purchaseRevenue / spend : 0; // Real ROAS calculation
       
       // Video metrics
       const videoPlays = parseInt(insights.video_play_actions?.[0]?.value || '0');
@@ -1276,6 +1286,7 @@ async function processAdsBatched(
         impressions,
         cpa: cpa.toFixed(2),
         roas: roas.toFixed(2),
+        purchaseRevenue: purchaseRevenue.toFixed(2),
         hookRate: hookRate.toFixed(1),
         holdRate: holdRate.toFixed(1),
         
@@ -1489,9 +1500,11 @@ export async function POST(request: NextRequest) {
         importMethod: 'tiered_spending',
         summary: {
           totalSpend: processedAds.reduce((sum, ad) => sum + parseFloat(ad.spend), 0).toFixed(2),
+          totalPurchaseRevenue: processedAds.reduce((sum, ad) => sum + parseFloat(ad.purchaseRevenue || '0'), 0).toFixed(2),
           totalImpressions: processedAds.reduce((sum, ad) => sum + ad.impressions, 0),
           totalPurchases: processedAds.reduce((sum, ad) => sum + ad.purchases, 0),
           averageCPA: processedAds.reduce((sum, ad) => sum + parseFloat(ad.cpa), 0) / processedAds.length || 0,
+          averageROAS: processedAds.reduce((sum, ad) => sum + parseFloat(ad.roas), 0) / processedAds.length || 0,
           averageHookRate: processedAds.reduce((sum, ad) => sum + parseFloat(ad.hookRate), 0) / processedAds.length || 0,
           averageHoldRate: processedAds.reduce((sum, ad) => sum + parseFloat(ad.holdRate), 0) / processedAds.length || 0,
           highestSpend: Math.max(...processedAds.map(ad => parseFloat(ad.spend))),
