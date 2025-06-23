@@ -432,6 +432,7 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
                       />
                     </th>
                     <th className="p-2 text-left">Asset</th>
+                    <th className="p-2 text-left bg-red-50 min-w-[100px]">Video ID (Debug)</th>
                     <th className="p-2 text-left min-w-[200px]">Ad Name</th>
                     <th className="p-2 text-left min-w-[200px]">Landing Page</th>
                     <th className="p-2 text-right">Spend</th>
@@ -533,6 +534,15 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
                             </div>
                           )}
                         </div>
+                      </td>
+                      <td className="p-2 bg-red-50 font-mono text-xs">
+                        {ad.videoId ? (
+                          <span className="text-blue-600" title={ad.videoId}>
+                            {ad.videoId.substring(0, 12)}...
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
                       </td>
                       <td className="p-2 font-medium">{ad.name}</td>
                       <td className="p-2">
@@ -660,7 +670,7 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
       {/* Video Modal */}
       {selectedVideo && (
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50" onClick={() => setSelectedVideo(null)}>
-          <div className="bg-white rounded-lg p-4 max-w-4xl max-h-[90vh] w-full mx-4" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-lg p-4 max-w-4xl max-h-[90vh] w-full mx-4" onClick={(event) => event.stopPropagation()}>
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold truncate">{selectedVideo.adName}</h3>
               <Button
@@ -682,7 +692,7 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
                   muted
                   playsInline
                   className="w-full h-full object-contain"
-                  onError={(e) => {
+                  onError={() => {
                     console.error('Video playback failed, falling back to Facebook iframe');
                     // Could add fallback logic here
                   }}
@@ -714,7 +724,7 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
       {/* Image Modal */}
       {selectedImage && (
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50" onClick={() => setSelectedImage(null)}>
-          <div className="bg-white rounded-lg p-4 max-w-4xl max-h-[90vh] w-full mx-4" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-lg p-4 max-w-4xl max-h-[90vh] w-full mx-4" onClick={(event) => event.stopPropagation()}>
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold truncate">{selectedImage.adName}</h3>
               <Button
@@ -731,9 +741,9 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
                 src={selectedImage.imageUrl}
                 alt={`Full size preview of ${selectedImage.adName}`}
                 className="max-w-full max-h-full object-contain"
-                onError={(e) => {
+                onError={(event) => {
                   console.error('Image failed to load:', selectedImage.imageUrl);
-                  e.currentTarget.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDIwMCAyMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iMjAwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik04NSA4NUwxMTUgMTE1TTE4NSA4NUwxMTUgMTE1TDE4NSAxMTVNODUgMTE1TDExNSA4NU04NSA4NUwxMTUgMTE1IiBzdHJva2U9IiM5Q0EzQUYiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+CjwvdGV4dD4KPC9zdmc+';
+                  (event.target as HTMLImageElement).src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDIwMCAyMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iMjAwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik04NSA4NUwxMTUgMTE1TTE4NSA4NUwxMTUgMTE1TDE4NSAxMTVNODUgMTE1TDExNSA4NU04NSA4NUwxMTUgMTE1IiBzdHJva2U9IiM5Q0EzQUYiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+CjwvdGV4dD4KPC9zdmc+';
                 }}
               />
             </div>

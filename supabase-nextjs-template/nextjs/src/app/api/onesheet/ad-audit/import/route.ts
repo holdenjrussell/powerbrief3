@@ -15,6 +15,9 @@ const MAX_CONCURRENT_DOWNLOADS = 2; // Limit concurrent downloads
 // Spending tier thresholds in descending order
 const SPENDING_TIERS = [20000, 10000, 5000, 1000, 500, 100, 50, 10];
 
+// Cache to prevent duplicate scraper calls for the same video ID (module-level)
+const scraperCache = new Map<string, string | null>();
+
 async function fetchAllAds(
   adAccountId: string, 
   metaAccessToken: string, 
@@ -436,9 +439,6 @@ async function downloadAndStoreAsset(
   return null;
 }
 
-// Cache to prevent duplicate scraper calls for the same video ID
-const scraperCache = new Map<string, string | null>();
-
 // Enhanced function to extract video URLs using scraper with multiple URL formats
 async function tryExtractVideoWithScraper(
   videoId: string, 
@@ -449,9 +449,11 @@ async function tryExtractVideoWithScraper(
   // Check cache first to prevent duplicate scraping
   if (scraperCache.has(videoId)) {
     const cachedResult = scraperCache.get(videoId);
-    console.log(`🔄 Using cached scraper result for video ${videoId}: ${cachedResult ? 'success' : 'failed'}`);
+    console.log(`🔄 Using cached scraper result for video ${videoId}: ${cachedResult ? 'success (' + cachedResult.substring(0, 50) + '...)' : 'failed'}`);
     return cachedResult;
   }
+  
+  console.log(`🆕 No cache found for video ${videoId}, starting fresh scraper attempt`);
   try {
     const { scrapeFacebook } = await import('@/lib/social-media-scrapers');
     
@@ -558,6 +560,7 @@ async function tryExtractVideoWithScraper(
           console.log(`✅ Successfully extracted video URL using format ${i + 1}: ${scraperResult.data.url}`);
           // Cache the successful result
           scraperCache.set(videoId, scraperResult.data.url);
+          console.log(`💾 Cached successful result for video ${videoId} (${scraperResult.data.url.substring(0, 50)}...)`);
           return scraperResult.data.url;
         } else {
           console.log(`❌ Format ${i + 1} failed:`, scraperResult.msg);
@@ -575,6 +578,7 @@ async function tryExtractVideoWithScraper(
     console.log(`❌ All URL formats failed for video ID ${videoId}`);
     // Cache the failed result to prevent retries
     scraperCache.set(videoId, null);
+    console.log(`💾 Cached failed result for video ${videoId}`);
     return null;
     
   } catch (error) {
@@ -1197,6 +1201,32 @@ async function processAdsBatched(
         errorCount++;
       }
       
+      // ENHANCED: Extract video ID from multiple sources for debug visibility
+      let extractedVideoId: string | null = null;
+      try {
+        // First check the creative object (most common)
+        if (creative.video_id) {
+          extractedVideoId = creative.video_id;
+          console.log(`🎥 Video ID from creative: ${extractedVideoId} (ad: ${ad.id})`);
+        } else {
+          // Try to get detailed creative info to find video ID
+          const adCreativeDetails = await fetchAdCreativeDetails(ad.id, accessToken);
+          if (adCreativeDetails?.video_id) {
+            extractedVideoId = adCreativeDetails.video_id;
+            console.log(`🎥 Video ID from adCreativeDetails: ${extractedVideoId} (ad: ${ad.id})`);
+          } else if (adCreativeDetails?.asset_feed_spec?.videos?.length > 0) {
+            // Check asset_feed_spec for video assets
+            const firstVideo = adCreativeDetails.asset_feed_spec.videos[0];
+            if (firstVideo.video_id) {
+              extractedVideoId = firstVideo.video_id;
+              console.log(`🎥 Video ID from asset_feed_spec: ${extractedVideoId} (ad: ${ad.id})`);
+            }
+          }
+        }
+      } catch (videoIdError) {
+        console.warn(`Failed to extract video ID for ad ${ad.id}:`, videoIdError);
+      }
+      
       // Calculate metrics
       const spend = parseFloat(insights.spend || '0');
       const impressions = parseInt(insights.impressions || '0');
@@ -1268,7 +1298,7 @@ async function processAdsBatched(
         // Creative preview URLs
         thumbnailUrl: creative.thumbnail_url || null,
         imageUrl: creative.image_url || null,
-        videoId: creative.video_id || null,
+        videoId: extractedVideoId || creative.video_id || null, // Use enhanced extracted video ID first
         
         // Placeholder fields for Gemini analysis (Phase 2)
         type: null,
@@ -1294,13 +1324,16 @@ async function processAdsBatched(
       } else {
         console.warn(`Failed to process ad in batch ${Math.floor(i / BATCH_SIZE) + 1}, index ${index}:`, result.reason);
         // Add a placeholder for failed ads to maintain count
+        const failedAd = batch[index];
         processedAds.push({
-          id: batch[index]?.id || 'unknown',
+          id: failedAd?.id || 'unknown',
           name: 'Processing Failed',
           status: 'error',
           assetUrl: '',
           assetType: 'error',
-          error: 'Processing failed'
+          error: 'Processing failed',
+          // Still try to get video ID even if processing failed
+          videoId: failedAd?.creative?.video_id || null
         });
       }
     });
