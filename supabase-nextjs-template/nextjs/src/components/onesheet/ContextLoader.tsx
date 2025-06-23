@@ -263,9 +263,11 @@ export function ContextLoader({
       } else if (isSocialSource) {
         // Use social media analysis for organic/paid social
         endpoint = '/api/onesheet/analyze-social';
+        // Map the UI sourceType to API format
+        const apiSourceType = postType === 'paid' ? 'paid_social' : 'organic_social';
         body = { 
           url: sourceUrl, 
-          sourceType: sourceType,
+          sourceType: apiSourceType,
           brandId
         };
       }

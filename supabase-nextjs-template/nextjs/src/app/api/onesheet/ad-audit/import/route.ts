@@ -24,7 +24,7 @@ async function fetchAllAds(
     'name',
     'status',
     'creative{id,name,title,body,image_url,video_id,thumbnail_url,object_story_spec,asset_feed_spec,image_hash}',
-    'insights{spend,impressions,clicks,ctr,cpm,cpp,actions,action_values,video_3_sec_watched_actions,video_p25_watched_actions,video_p50_watched_actions,video_p75_watched_actions,video_p100_watched_actions,video_play_actions,video_avg_time_watched_actions,video_thruplay_watched_actions}',
+    'insights{spend,impressions,clicks,ctr,cpm,cpp,actions,action_values,video_p25_watched_actions,video_p50_watched_actions,video_p75_watched_actions,video_p100_watched_actions,video_play_actions,video_avg_time_watched_actions,video_thruplay_watched_actions}',
     'adset{id,name,targeting}',
     'campaign{id,name,objective}'
   ].join(',');
@@ -1268,8 +1268,13 @@ async function processAdsBatched(
       const cpa = purchases > 0 ? spend / purchases : (spend > 0 ? spend : 0);
       const roas = spend > 0 && purchaseRevenue > 0 ? purchaseRevenue / spend : 0; // Real ROAS calculation
       
-      // Video metrics - Updated to match Facebook API naming conventions
-      const video3s = parseInt(insights.video_3_sec_watched_actions?.[0]?.value || '0');
+      // Video metrics - Get 3-second video views from actions array
+      const video3s = insights.actions?.reduce((total: number, action: any) => {
+        if (action.action_type === 'video_view') {
+          return total + parseInt(action.value || '0');
+        }
+        return total;
+      }, 0) || 0;
       // Use video_thruplay_watched_actions as primary, fallback to video_p100_watched_actions
       const thruplays = parseInt(insights.video_thruplay_watched_actions?.[0]?.value || insights.video_p100_watched_actions?.[0]?.value || '0');
       const video25 = parseInt(insights.video_p25_watched_actions?.[0]?.value || '0');
