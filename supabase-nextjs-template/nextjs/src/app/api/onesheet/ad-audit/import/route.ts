@@ -13,7 +13,7 @@ const BATCH_SIZE = 5; // Process assets in very small batches
 const MAX_CONCURRENT_DOWNLOADS = 2; // Limit concurrent downloads
 
 // Spending tier thresholds in descending order
-const SPENDING_TIERS = [50000, 40000, 20000, 10000, 5000, 1000, 500, 100, 50, 10];
+const SPENDING_TIERS = [20000, 10000, 5000, 1000, 500, 100, 50, 10];
 
 async function fetchAllAds(
   adAccountId: string, 
@@ -165,6 +165,10 @@ async function fetchVideoUrl(videoId: string, accessToken: string): Promise<stri
         const errorData = JSON.parse(errorText);
         if (errorData.error?.code === 10) {
           console.warn(`⚠️ OAuth Permission Error: The access token doesn't have permission to fetch video sources. This is expected for some accounts.`);
+          
+                      // ENHANCEMENT: Try using Facebook scraper as fallback to get real video URL
+            console.log(`🔄 Attempting to extract video URL using Facebook scraper for video ${videoId}`);
+            return await tryExtractVideoWithScraper(videoId);
         }
       } catch (e) {
         // Not JSON, ignore
@@ -427,6 +431,72 @@ async function downloadAndStoreAsset(
   return null;
 }
 
+// Enhanced function to extract video URLs using scraper with multiple URL formats
+async function tryExtractVideoWithScraper(videoId: string): Promise<string | null> {
+  try {
+    const { scrapeFacebook } = await import('@/lib/social-media-scrapers');
+    
+    // Try different URL formats that Facebook uses for videos
+    const urlFormats = [
+      `https://www.facebook.com/video.php?v=${videoId}`,
+      `https://www.facebook.com/watch/?v=${videoId}`,
+      `https://fb.watch/${videoId}`,
+      `https://www.facebook.com/videos/${videoId}`,
+    ];
+    
+    for (let i = 0; i < urlFormats.length; i++) {
+      const url = urlFormats[i];
+      console.log(`🔍 Trying format ${i + 1}/${urlFormats.length}: ${url}`);
+      
+      try {
+        const scraperResult = await scrapeFacebook(url);
+        
+        if (scraperResult.status === 200 && scraperResult.data?.type === 'video' && scraperResult.data.url) {
+          console.log(`✅ Successfully extracted video URL using format ${i + 1}: ${scraperResult.data.url}`);
+          return scraperResult.data.url;
+        } else {
+          console.log(`❌ Format ${i + 1} failed:`, scraperResult.msg);
+        }
+      } catch (formatError) {
+        console.log(`❌ Error with format ${i + 1}:`, formatError);
+      }
+      
+      // Add delay between attempts to avoid rate limiting
+      if (i < urlFormats.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+    }
+    
+    console.log(`❌ All URL formats failed for video ID ${videoId}`);
+    return null;
+    
+  } catch (error) {
+    console.log(`❌ Error in tryExtractVideoWithScraper:`, error);
+    return null;
+  }
+}
+
+// Helper function to get ad preview thumbnail
+async function fetchAdPreviewThumbnail(adId: string, accessToken: string): Promise<string | null> {
+  try {
+    const previewUrl = `https://graph.facebook.com/v22.0/${adId}/previews?ad_format=MOBILE_FEED_STANDARD&access_token=${accessToken}`;
+    const previewResponse = await fetch(previewUrl);
+    
+    if (previewResponse.ok) {
+      const previewData = await previewResponse.json();
+      // The preview data contains an iframe with the ad preview
+      // While we can't extract the actual image from the iframe, we know the ad has visual content
+      if (previewData.data && previewData.data.length > 0) {
+        console.log(`✅ Ad preview available for ad ${adId}`);
+        return `https://graph.facebook.com/v22.0/${adId}/previews?ad_format=MOBILE_FEED_STANDARD&access_token=${accessToken}`;
+      }
+    }
+  } catch (error) {
+    console.warn(`Could not get preview for ad ${adId}:`, error);
+  }
+  return null;
+}
+
 // Helper function to get ad creative details with asset_feed_spec
 async function fetchAdCreativeDetails(adId: string, accessToken: string): Promise<any> {
   try {
@@ -436,8 +506,8 @@ async function fetchAdCreativeDetails(adId: string, accessToken: string): Promis
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
     
-    // First get the ad creative ID from the ad
-    const url1 = `https://graph.facebook.com/v22.0/${adId}?fields=ad_creatives{id}&access_token=${accessToken}`;
+    // First get the ad creative ID from the ad using the 'creative' field
+    const url1 = `https://graph.facebook.com/v22.0/${adId}?fields=creative{id,name,title,body,image_url,video_id,thumbnail_url,object_story_spec,asset_feed_spec,image_hash}&access_token=${accessToken}`;
     console.log(`🔍 Step 1 URL: ${url1.replace(accessToken, 'REDACTED_TOKEN')}`);
     
     const adResponse = await fetch(url1, {
@@ -451,7 +521,7 @@ async function fetchAdCreativeDetails(adId: string, accessToken: string): Promis
     
     if (!adResponse.ok) {
       const errorText = await adResponse.text();
-      console.error(`❌ Failed to fetch ad creatives for ad ${adId}`);
+      console.error(`❌ Failed to fetch ad creative for ad ${adId}`);
       console.error(`Status: ${adResponse.status} ${adResponse.statusText}`);
       console.error(`Headers:`, Object.fromEntries(adResponse.headers.entries()));
       console.error(`Response Body:`, errorText);
@@ -472,15 +542,29 @@ async function fetchAdCreativeDetails(adId: string, accessToken: string): Promis
     console.log(`Status: ${adResponse.status} ${adResponse.statusText}`);
     console.log(`Response:`, JSON.stringify(adData, null, 2));
     
-    const adCreatives = adData.ad_creatives?.data;
+    const creative = adData.creative;
     
-    if (!adCreatives || adCreatives.length === 0) {
-      console.warn(`No ad creatives found for ad ${adId}`);
+    if (!creative) {
+      console.warn(`No creative found for ad ${adId}`);
       return null;
     }
     
-    const adCreativeId = adCreatives[0].id;
-    console.log(`Found ad_creative_id: ${adCreativeId} for ad ${adId}`);
+    console.log(`Found creative data for ad ${adId}:`, creative);
+    
+    // If we already have enough creative data, return it
+    if (creative.asset_feed_spec || creative.object_story_spec || creative.image_url || creative.video_id) {
+      console.log(`✅ Creative data retrieved directly for ad ${adId}`);
+      return creative;
+    }
+    
+    // If we need more details, fetch the full creative
+    const adCreativeId = creative.id;
+    if (!adCreativeId) {
+      console.warn(`No creative ID found for ad ${adId}`);
+      return creative; // Return what we have
+    }
+    
+    console.log(`Fetching additional creative details for creative ${adCreativeId}`);
     
     // Add another delay before the second request
     await new Promise(resolve => setTimeout(resolve, 200));
@@ -488,8 +572,8 @@ async function fetchAdCreativeDetails(adId: string, accessToken: string): Promis
     const controller2 = new AbortController();
     const timeoutId2 = setTimeout(() => controller2.abort(), 10000);
     
-    // Now fetch the full ad creative details with asset_feed_spec
-    const url2 = `https://graph.facebook.com/v22.0/${adCreativeId}?fields=asset_feed_spec,object_story_spec,image_url,video_id,image_hash,title,body&access_token=${accessToken}`;
+    // Now fetch the full ad creative details with asset_feed_spec and full-size images
+    const url2 = `https://graph.facebook.com/v22.0/${adCreativeId}?fields=asset_feed_spec,object_story_spec,image_url,video_id,image_hash,title,body,thumbnail_url&access_token=${accessToken}`;
     console.log(`🔍 Step 2 URL: ${url2.replace(accessToken, 'REDACTED_TOKEN')}`);
     
     const creativeResponse = await fetch(url2, {
@@ -516,7 +600,8 @@ async function fetchAdCreativeDetails(adId: string, accessToken: string): Promis
         console.error(`Unable to parse error as JSON`);
       }
       
-      return null;
+      // Return the basic creative data we already have
+      return creative;
     }
     
     const creativeData = await creativeResponse.json();
@@ -524,16 +609,25 @@ async function fetchAdCreativeDetails(adId: string, accessToken: string): Promis
     console.log(`Status: ${creativeResponse.status} ${creativeResponse.statusText}`);
     console.log(`Response:`, JSON.stringify(creativeData, null, 2));
     
-    // Ensure the creative ID is included in the response
-    creativeData.id = adCreativeId;
+    // Merge the creative data with what we already have
+    const mergedCreative = { ...creative, ...creativeData };
     
-    return creativeData;
-  } catch (error) {
-    if (error.name === 'AbortError') {
-      console.warn(`Timeout fetching ad creative details for ${adId}`);
-    } else {
-      console.warn(`Error fetching ad creative details for ${adId}:`, error.message || error);
+    // Ensure the creative ID is included in the response
+    mergedCreative.id = adCreativeId;
+    
+    // If we still don't have a thumbnail_url but have other asset info, try to get ad preview for thumbnail
+    if (!mergedCreative.thumbnail_url && (mergedCreative.video_id || mergedCreative.image_url || mergedCreative.image_hash)) {
+      console.log(`Attempting to get ad preview for thumbnail for ad ${adId}`);
+      const previewThumbnail = await fetchAdPreviewThumbnail(adId, accessToken);
+      if (previewThumbnail) {
+        mergedCreative.preview_thumbnail_url = previewThumbnail;
+      }
     }
+    
+    return mergedCreative;
+    
+  } catch (error) {
+    console.error(`❌ ERROR in fetchAdCreativeDetails for ad ${adId}:`, error);
     return null;
   }
 }
@@ -1061,6 +1155,11 @@ async function processAdsBatched(
         // Creative details (for later Gemini analysis)
         creativeTitle: creative.title || '',
         creativeBody: creative.body || '',
+        
+        // Creative preview URLs
+        thumbnailUrl: creative.thumbnail_url || null,
+        imageUrl: creative.image_url || null,
+        videoId: creative.video_id || null,
         
         // Placeholder fields for Gemini analysis (Phase 2)
         type: null,

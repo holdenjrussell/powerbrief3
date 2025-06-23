@@ -3,9 +3,11 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Download, RefreshCw, Trash2, Play, ExternalLink, Image, Video, Sparkles } from 'lucide-react';
+import { Download, RefreshCw, Trash2, ExternalLink, Image, Video, Sparkles, Play, X } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { createClient } from '@/utils/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 
@@ -33,6 +35,10 @@ interface AdData {
   adsetName: string;
   creativeTitle: string;
   creativeBody: string;
+  // Creative preview fields
+  thumbnailUrl?: string | null;
+  imageUrl?: string | null;
+  videoId?: string | null;
   // Gemini analysis fields
   type?: string | null;
   adDuration?: number | null;
@@ -49,7 +55,19 @@ interface AdData {
 interface AdAccountAuditDashboardProps {
   onesheetId: string;
   brandId: string;
-  initialData?: any;
+  initialData?: {
+    ad_account_audit?: {
+      ads?: AdData[];
+      demographicBreakdown?: {
+        age: Record<string, number>;
+        gender: Record<string, number>;
+      };
+      lastImported?: string;
+      dateRange?: string;
+      totalAdsImported?: number;
+      importMethod?: string;
+    };
+  };
 }
 
 export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: AdAccountAuditDashboardProps) {
@@ -57,8 +75,11 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
   const [dateRange, setDateRange] = useState('last_30d');
-  const [auditData, setAuditData] = useState<any>(initialData?.ad_account_audit || null);
+  const [maxAds, setMaxAds] = useState(100);
+  const [auditData, setAuditData] = useState<typeof initialData['ad_account_audit'] | null>(initialData?.ad_account_audit || null);
   const [selectedAds, setSelectedAds] = useState<Set<string>>(new Set());
+  const [selectedVideo, setSelectedVideo] = useState<{ videoId: string; thumbnailUrl: string; adName: string } | null>(null);
+  const [selectedImage, setSelectedImage] = useState<{ imageUrl: string; adName: string } | null>(null);
   const supabase = createClient();
   const { toast } = useToast();
 
@@ -84,7 +105,7 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
       if (error) throw error;
       
       if (data?.ad_account_audit) {
-        setAuditData(data.ad_account_audit as any);
+        setAuditData(data.ad_account_audit);
       }
     } catch (error) {
       console.error('Error loading audit data:', error);
@@ -105,7 +126,7 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
         body: JSON.stringify({ 
           onesheet_id: onesheetId,
           date_range: dateRange,
-          fetch_limit: 800
+          max_ads: maxAds
         }),
       });
 
@@ -254,7 +275,7 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
 
     const csv = [
       headers.join(','),
-      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+      ...rows.map(row => row.map(cell => `&quot;${cell}&quot;`).join(','))
     ].join('\n');
 
     const blob = new Blob([csv], { type: 'text/csv' });
@@ -333,6 +354,19 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
                       <SelectItem value="last_90d">Last 90 days</SelectItem>
                     </SelectContent>
                   </Select>
+                  <div className="flex flex-col gap-1">
+                    <Label htmlFor="max-ads" className="text-xs text-muted-foreground">Max Ads</Label>
+                    <Input
+                      id="max-ads"
+                      type="number"
+                      min={10}
+                      max={1000}
+                      value={maxAds}
+                      onChange={(e) => setMaxAds(Math.min(Math.max(parseInt(e.target.value) || 100, 10), 1000))}
+                      className="w-20 h-8 text-sm"
+                      placeholder="100"
+                    />
+                  </div>
                   <Button onClick={handleImport} disabled={isImporting}>
                     <RefreshCw className={`mr-2 h-4 w-4 ${isImporting ? 'animate-spin' : ''}`} />
                     Import Ads
@@ -372,7 +406,7 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
             <div className="flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-amber-600" />
               <p className="text-sm text-amber-800">
-                Click "Analyze with AI" to extract creative attributes like Type, Duration, Angle, Format, Emotion, and Framework from your ads.
+                Click &quot;Analyze with AI&quot; to extract creative attributes like Type, Duration, Angle, Format, Emotion, and Framework from your ads.
                 {selectedAds.size > 0 && ` You have ${selectedAds.size} ads selected for analysis.`}
               </p>
             </div>
@@ -430,13 +464,75 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
                         />
                       </td>
                       <td className="p-2">
-                        {ad.assetType === 'video' ? (
-                          <Video className="h-5 w-5 text-blue-500" />
-                        ) : ad.assetType === 'image' ? (
-                          <Image className="h-5 w-5 text-green-500" />
-                        ) : (
-                          <div className="h-5 w-5 rounded bg-gray-200" />
-                        )}
+                        <div 
+                          className="relative w-16 h-12 bg-gray-100 rounded-md overflow-hidden flex items-center justify-center group cursor-pointer"
+                          onClick={() => {
+                            if (ad.videoId && (ad.thumbnailUrl || ad.imageUrl)) {
+                              // Open video in modal
+                              setSelectedVideo({
+                                videoId: ad.videoId,
+                                thumbnailUrl: ad.assetUrl || ad.thumbnailUrl || ad.imageUrl || '', // Use assetUrl (Supabase stored) first
+                                adName: ad.name
+                              });
+                            } else if (ad.thumbnailUrl || ad.imageUrl) {
+                              // Open image in modal
+                              setSelectedImage({
+                                imageUrl: ad.assetUrl || ad.imageUrl || ad.thumbnailUrl || '', // Use assetUrl (Supabase stored) first
+                                adName: ad.name
+                              });
+                            }
+                          }}
+                        >
+                          {ad.thumbnailUrl || ad.imageUrl ? (
+                            <>
+                              <img
+                                src={ad.thumbnailUrl || ad.imageUrl || ''}
+                                alt={`Preview of ${ad.name}`}
+                                className="w-full h-full object-cover transition-opacity group-hover:opacity-80"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                  const nextElement = e.currentTarget.nextElementSibling as HTMLElement;
+                                  if (nextElement) {
+                                    nextElement.style.display = 'flex';
+                                  }
+                                }}
+                              />
+                              <div className="hidden w-full h-full items-center justify-center">
+                                {ad.assetType === 'video' ? (
+                                  <Video className="h-6 w-6 text-blue-500" />
+                                ) : (
+                                  <Image className="h-6 w-6 text-green-500" />
+                                )}
+                              </div>
+                              {/* Play overlay for videos */}
+                              {ad.videoId && (
+                                <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all duration-200 flex items-center justify-center">
+                                  <div className="bg-white bg-opacity-90 rounded-full p-1.5 opacity-70 group-hover:opacity-100 transition-opacity duration-200">
+                                    <Play className="h-3 w-3 text-blue-600 fill-current" />
+                                  </div>
+                                </div>
+                              )}
+                              {/* Image overlay for images */}
+                              {!ad.videoId && (ad.thumbnailUrl || ad.imageUrl) && (
+                                <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all duration-200 flex items-center justify-center">
+                                  <div className="bg-white bg-opacity-90 rounded-full p-1.5 opacity-70 group-hover:opacity-100 transition-opacity duration-200">
+                                    <Image className="h-3 w-3 text-green-600" />
+                                  </div>
+                                </div>
+                              )}
+                            </>
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center">
+                              {ad.assetType === 'video' ? (
+                                <Video className="h-6 w-6 text-blue-500" />
+                              ) : ad.assetType === 'image' ? (
+                                <Image className="h-6 w-6 text-green-500" />
+                              ) : (
+                                <div className="h-6 w-6 rounded bg-gray-300" />
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </td>
                       <td className="p-2 font-medium">{ad.name}</td>
                       <td className="p-2">
@@ -555,10 +651,97 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
         <Card>
           <CardContent className="py-12 text-center">
             <p className="text-muted-foreground mb-4">
-              No ad data imported yet. Select a date range and click "Import Ads" to get started.
+              No ad data imported yet. Select a date range and click &quot;Import Ads&quot; to get started.
             </p>
           </CardContent>
         </Card>
+      )}
+
+      {/* Video Modal */}
+      {selectedVideo && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50" onClick={() => setSelectedVideo(null)}>
+          <div className="bg-white rounded-lg p-4 max-w-4xl max-h-[90vh] w-full mx-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold truncate">{selectedVideo.adName}</h3>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSelectedVideo(null)}
+                className="shrink-0"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="aspect-video bg-gray-100 rounded-md overflow-hidden">
+              {/* Check if we have a local video URL stored in Supabase */}
+              {selectedVideo.thumbnailUrl && (selectedVideo.thumbnailUrl.includes('supabase') || selectedVideo.thumbnailUrl.includes('.mp4')) ? (
+                // Local video stored in Supabase or direct video URL - use HTML5 video player
+                <video
+                  controls
+                  autoPlay
+                  muted
+                  playsInline
+                  className="w-full h-full object-contain"
+                  onError={(e) => {
+                    console.error('Video playback failed, falling back to Facebook iframe');
+                    // Could add fallback logic here
+                  }}
+                >
+                  <source src={selectedVideo.thumbnailUrl} type="video/mp4" />
+                  Your browser does not support the video tag.
+                </video>
+              ) : (
+                // External video - use Facebook iframe fallback
+                <iframe
+                  src={`https://www.facebook.com/plugins/video.php?height=480&href=https%3A%2F%2Fwww.facebook.com%2Fvideo.php%3Fv%3D${selectedVideo.videoId}&show_text=false&width=854&t=0`}
+                  width="100%"
+                  height="100%"
+                  style={{ border: 'none', overflow: 'hidden' }}
+                  scrolling="no"
+                  frameBorder="0"
+                  allowFullScreen={true}
+                  allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
+                />
+              )}
+            </div>
+            <p className="text-sm text-gray-600 mt-2">
+              Click outside the video or press the X button to close
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Image Modal */}
+      {selectedImage && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50" onClick={() => setSelectedImage(null)}>
+          <div className="bg-white rounded-lg p-4 max-w-4xl max-h-[90vh] w-full mx-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold truncate">{selectedImage.adName}</h3>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSelectedImage(null)}
+                className="shrink-0"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="max-h-[75vh] bg-gray-100 rounded-md overflow-hidden flex items-center justify-center">
+              <img
+                src={selectedImage.imageUrl}
+                alt={`Full size preview of ${selectedImage.adName}`}
+                className="max-w-full max-h-full object-contain"
+                onError={(e) => {
+                  console.error('Image failed to load:', selectedImage.imageUrl);
+                  e.currentTarget.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDIwMCAyMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iMjAwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik04NSA4NUwxMTUgMTE1TTE4NSA4NUwxMTUgMTE1TDE4NSAxMTVNODUgMTE1TDExNSA4NU04NSA4NUwxMTUgMTE1IiBzdHJva2U9IiM5Q0EzQUYiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+CjwvdGV4dD4KPC9zdmc+';
+                }}
+              />
+            </div>
+            <p className="text-sm text-gray-600 mt-2">
+              Click outside the image or press the X button to close
+            </p>
+          </div>
+        </div>
       )}
     </div>
   );
