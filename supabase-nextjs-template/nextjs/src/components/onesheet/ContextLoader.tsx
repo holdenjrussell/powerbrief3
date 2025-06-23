@@ -93,12 +93,14 @@ export function ContextLoader({
   const [convertingToMarkdown, setConvertingToMarkdown] = useState(false);
   const [convertedToMarkdown, setConvertedToMarkdown] = useState(false);
   const [brandType, setBrandType] = useState<'our_brand' | 'competitor' | 'neutral'>('our_brand');
+  const [postType, setPostType] = useState<'organic' | 'paid'>('organic');
+  const [platform, setPlatform] = useState<'meta' | 'tiktok' | 'youtube' | 'x' | 'other'>('meta');
 
   const isWebsiteSource = ['brand_website', 'competitor_website', 'articles'].includes(sourceType);
   const isVideoSource = ['tiktok', 'youtube'].includes(sourceType);
   const isCompetitorAds = sourceType === 'competitor_ads';
   const isRedditSource = sourceType === 'reddit';
-  const isSocialSource = ['organic_social', 'paid_social'].includes(sourceType);
+  const isSocialSource = ['organic_social', 'paid_social', 'social_content'].includes(sourceType);
 
   const handleConvertToMarkdown = async () => {
     if (!contentText.trim()) {
@@ -359,33 +361,26 @@ export function ContextLoader({
       return;
     }
 
+    const saveData = {
+      source_name: sourceName,
+      source_url: sourceUrl,
+      content_text: contentText,
+      brand_type: (sourceType === 'reviews' || sourceType === 'brand_website' || sourceType === 'social_content') ? brandType : undefined,
+      post_type: sourceType === 'social_content' ? postType : undefined,
+      platform: sourceType === 'social_content' ? platform : undefined,
+      extracted_data: extracted ? { 
+        extracted: true, 
+        crawlLinks,
+        maxPages,
+        results: extractedResults 
+      } : undefined,
+    };
+
     if (editingId) {
-      onUpdate(editingId, {
-        source_name: sourceName,
-        source_url: sourceUrl,
-        content_text: contentText,
-        brand_type: sourceType === 'reviews' ? brandType : undefined,
-        extracted_data: extracted ? { 
-          extracted: true, 
-          crawlLinks,
-          maxPages,
-          results: extractedResults 
-        } : undefined,
-      });
+      onUpdate(editingId, saveData);
       setEditingId(null);
     } else {
-      onSave({
-        source_name: sourceName,
-        source_url: sourceUrl,
-        content_text: contentText,
-        brand_type: sourceType === 'reviews' ? brandType : undefined,
-        extracted_data: extracted ? { 
-          extracted: true, 
-          crawlLinks,
-          maxPages,
-          results: extractedResults 
-        } : undefined,
-      });
+      onSave(saveData);
     }
     
     handleClear();
@@ -403,6 +398,8 @@ export function ContextLoader({
     setMaxPosts(5);
     setIncludeComments(true);
     setBrandType('our_brand');
+    setPostType('organic');
+    setPlatform('meta');
     setEditingId(null);
   };
 
@@ -412,6 +409,8 @@ export function ContextLoader({
     setSourceUrl(item.source_url || '');
     setContentText(item.content_text || '');
     setBrandType(item.brand_type || 'our_brand');
+    setPostType(item.post_type || 'organic');
+    setPlatform(item.platform || 'meta');
     setExtracted(!!item.extracted_data);
     setExtractedResults([]);
     setShowAddForm(true);
@@ -491,13 +490,26 @@ export function ContextLoader({
                           Extracted
                         </Badge>
                       )}
-                      {sourceType === 'reviews' && item.brand_type && (
+                      {/* Brand Type Badge */}
+                      {(sourceType === 'reviews' || sourceType === 'brand_website' || sourceType === 'social_content') && item.brand_type && (
                         <Badge 
                           variant={item.brand_type === 'our_brand' ? 'default' : item.brand_type === 'competitor' ? 'destructive' : 'secondary'} 
                           className="text-xs"
                         >
                           {item.brand_type === 'our_brand' ? 'Our Brand' : 
                            item.brand_type === 'competitor' ? 'Competitor' : 'Neutral'}
+                        </Badge>
+                      )}
+                      {/* Post Type Badge */}
+                      {sourceType === 'social_content' && item.post_type && (
+                        <Badge variant="outline" className="text-xs">
+                          {item.post_type === 'organic' ? 'Organic' : 'Paid'}
+                        </Badge>
+                      )}
+                      {/* Platform Badge */}
+                      {sourceType === 'social_content' && item.platform && (
+                        <Badge variant="secondary" className="text-xs">
+                          {item.platform.charAt(0).toUpperCase() + item.platform.slice(1)}
                         </Badge>
                       )}
                     </div>
@@ -562,23 +574,86 @@ export function ContextLoader({
               />
             </div>
 
-            {/* Brand Type Selector - Only show for reviews */}
-            {sourceType === 'reviews' && (
-              <div>
-                <Label htmlFor="brand-type">Brand Type</Label>
-                <Select value={brandType} onValueChange={(value: 'our_brand' | 'competitor' | 'neutral') => setBrandType(value)}>
-                  <SelectTrigger className="mt-1">
-                    <SelectValue placeholder="Select brand type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="our_brand">Our Brand Reviews</SelectItem>
-                    <SelectItem value="competitor">Competitor Reviews</SelectItem>
-                    <SelectItem value="neutral">Neutral/Industry Reviews</SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-gray-600 mt-1">
-                  This helps the AI understand whose product the reviews are about to avoid confusion.
-                </p>
+            {/* Tagging Controls */}
+            {(sourceType === 'reviews' || sourceType === 'brand_website' || sourceType === 'social_content') && (
+              <div className="space-y-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <h4 className="font-medium text-sm">Content Tags</h4>
+                
+                {/* Brand Type - for reviews and websites */}
+                {(sourceType === 'reviews' || sourceType === 'brand_website') && (
+                  <div>
+                    <Label htmlFor="brand-type">Brand Type</Label>
+                    <Select value={brandType} onValueChange={(value: 'our_brand' | 'competitor' | 'neutral') => setBrandType(value)}>
+                      <SelectTrigger className="mt-1">
+                        <SelectValue placeholder="Select brand type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="our_brand">
+                          {sourceType === 'reviews' ? 'Our Brand Reviews' : 'Our Brand Website'}
+                        </SelectItem>
+                        <SelectItem value="competitor">
+                          {sourceType === 'reviews' ? 'Competitor Reviews' : 'Competitor Website'}
+                        </SelectItem>
+                        <SelectItem value="neutral">Neutral/Industry Content</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-gray-600 mt-1">
+                      This helps the AI understand whose content this is to avoid confusion.
+                    </p>
+                  </div>
+                )}
+
+                {/* Social Content Tags */}
+                {sourceType === 'social_content' && (
+                  <>
+                    <div>
+                      <Label htmlFor="brand-type-social">Brand Type</Label>
+                      <Select value={brandType} onValueChange={(value: 'our_brand' | 'competitor' | 'neutral') => setBrandType(value)}>
+                        <SelectTrigger className="mt-1">
+                          <SelectValue placeholder="Select brand type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="our_brand">Our Brand Content</SelectItem>
+                          <SelectItem value="competitor">Competitor Content</SelectItem>
+                          <SelectItem value="neutral">Neutral/Industry Content</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div>
+                      <Label htmlFor="post-type">Post Type</Label>
+                      <Select value={postType} onValueChange={(value: 'organic' | 'paid') => setPostType(value)}>
+                        <SelectTrigger className="mt-1">
+                          <SelectValue placeholder="Select post type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="organic">Organic Social</SelectItem>
+                          <SelectItem value="paid">Paid Social/Ads</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div>
+                      <Label htmlFor="platform">Platform</Label>
+                      <Select value={platform} onValueChange={(value: 'meta' | 'tiktok' | 'youtube' | 'x' | 'other') => setPlatform(value)}>
+                        <SelectTrigger className="mt-1">
+                          <SelectValue placeholder="Select platform" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="meta">Meta (Facebook/Instagram)</SelectItem>
+                          <SelectItem value="tiktok">TikTok</SelectItem>
+                          <SelectItem value="youtube">YouTube</SelectItem>
+                          <SelectItem value="x">X (Twitter)</SelectItem>
+                          <SelectItem value="other">Other Platform</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <p className="text-xs text-gray-600">
+                      These tags help categorize social content for better analysis and filtering.
+                    </p>
+                  </>
+                )}
               </div>
             )}
 

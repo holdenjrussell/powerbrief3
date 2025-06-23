@@ -467,13 +467,15 @@ export interface AIPromptResponse {
 export interface ContextData {
   id: string;
   onesheet_id: string;
-  source_type: 'brand_website' | 'brand_social' | 'competitor_website' | 'competitor_social' | 'competitor_ads' | 'reddit' | 'quora' | 'tiktok' | 'youtube' | 'reviews' | 'articles' | 'other';
+  source_type: 'brand_website' | 'brand_social' | 'competitor_website' | 'competitor_social' | 'competitor_ads' | 'reddit' | 'quora' | 'tiktok' | 'youtube' | 'reviews' | 'articles' | 'social_content' | 'other';
   source_name?: string;
   source_url?: string;
   content_text?: string;
   extracted_data?: Record<string, unknown>;
   metadata?: Record<string, unknown>;
   brand_type?: 'our_brand' | 'competitor' | 'neutral';
+  post_type?: 'organic' | 'paid';
+  platform?: 'meta' | 'tiktok' | 'youtube' | 'x' | 'other';
   is_active: boolean;
   created_at: string;
   updated_at: string;

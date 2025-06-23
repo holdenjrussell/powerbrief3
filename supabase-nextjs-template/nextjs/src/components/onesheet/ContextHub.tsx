@@ -19,14 +19,12 @@ import {
 import { 
   Globe,
   Instagram,
-  Link2,
   MessageSquare,
   FileText,
   CheckCircle2,
   AlertCircle,
   Upload,
   Sparkles,
-  Play,
   Hash,
 } from 'lucide-react';
 import { ContextLoader } from './ContextLoader';
@@ -41,18 +39,10 @@ interface ContextHubProps {
 const contextSources = [
   {
     id: 'brand_website',
-    title: 'Brand Website',
+    title: 'Websites',
     icon: Globe,
-    description: 'Your main website content and pages',
-    instructions: 'Copy and paste content from your homepage, product pages, about page, and any other relevant pages.',
-    required: true,
-  },
-  {
-    id: 'competitor_website',
-    title: 'Competitor Websites',
-    icon: Link2,
-    description: 'Competitor sites and product pages',
-    instructions: 'Copy content from competitor homepages, product descriptions, and unique value propositions.',
+    description: 'Your brand and competitor websites, landing pages, and product descriptions',
+    instructions: 'Copy and paste content from homepages, product pages, about pages, and any other relevant pages. Use the brand tagging to categorize as your brand or competitor content.',
     required: true,
   },
   {
@@ -80,19 +70,11 @@ const contextSources = [
     required: false,
   },
   {
-    id: 'organic_social',
-    title: 'Organic Social',
+    id: 'social_content',
+    title: 'Social Content',
     icon: Instagram,
-    description: 'Organic social media content from all platforms',
-    instructions: 'Paste links to organic posts from Facebook, Instagram, TikTok, YouTube, etc. You can paste multiple URLs (one per line) for batch processing. We\'ll download, transcribe videos, and provide detailed breakdowns including hooks, structure, emotions, and more.',
-    required: false,
-  },
-  {
-    id: 'paid_social',
-    title: 'Paid Social',
-    icon: Play,
-    description: 'Paid social media ads from all platforms',
-    instructions: 'Paste links to ads from Facebook Ad Library, TikTok Creative Center, or any paid social content. You can paste multiple URLs (one per line) for batch processing. We\'ll analyze ad formats, copywriting frameworks, targeting emotions, and creative strategies.',
+    description: 'Social media content from all platforms (organic and paid)',
+    instructions: 'Paste links to posts and ads from Facebook, Instagram, TikTok, YouTube, etc. You can paste multiple URLs (one per line) for batch processing. We\'ll download, transcribe videos, and provide detailed breakdowns including hooks, structure, emotions, and more. Use tags to categorize by platform, post type (organic/paid), and brand.',
     required: false,
   },
 ];
@@ -117,12 +99,10 @@ export function ContextHub({ onesheet, onUpdate }: ContextHubProps) {
         // Map source IDs to ContextLoaded property names
         const sourceMapping: Record<string, keyof ContextLoaded> = {
           'brand_website': 'brandWebsite',
-          'competitor_website': 'competitorWebsite',
           'reviews': 'reviews',
           'reddit': 'reddit',
           'articles': 'articles',
-          'organic_social': 'organicContent',
-          'paid_social': 'competitorAds', // Reuse competitorAds for paid social
+          'social_content': 'organicContent',
         };
         
         const contextLoaded: Partial<ContextLoaded> = {};
@@ -274,12 +254,10 @@ export function ContextHub({ onesheet, onUpdate }: ContextHubProps) {
       if (remainingItems.length === 0) {
         const sourceMapping: Record<string, keyof ContextLoaded> = {
           'brand_website': 'brandWebsite',
-          'competitor_website': 'competitorWebsite',
           'reviews': 'reviews',
           'reddit': 'reddit',
           'articles': 'articles',
-          'organic_social': 'organicContent',
-          'paid_social': 'competitorAds',
+          'social_content': 'organicContent',
         };
         
         const mappedKey = sourceMapping[sourceType];
@@ -314,12 +292,10 @@ export function ContextHub({ onesheet, onUpdate }: ContextHubProps) {
     const loaded = onesheet.context_loaded || {};
     const sourceMapping: Record<string, keyof ContextLoaded> = {
       'brand_website': 'brandWebsite',
-      'competitor_website': 'competitorWebsite',
       'reviews': 'reviews',
       'reddit': 'reddit',
       'articles': 'articles',
-      'organic_social': 'organicContent',
-      'paid_social': 'competitorAds', // Reuse competitorAds for paid social
+      'social_content': 'organicContent',
     };
     
     const requiredSources = contextSources.filter(s => s.required);
@@ -334,12 +310,10 @@ export function ContextHub({ onesheet, onUpdate }: ContextHubProps) {
     const loaded = onesheet.context_loaded || {};
     const sourceMapping: Record<string, keyof ContextLoaded> = {
       'brand_website': 'brandWebsite',
-      'competitor_website': 'competitorWebsite',
       'reviews': 'reviews',
       'reddit': 'reddit',
       'articles': 'articles',
-      'organic_social': 'organicContent',
-      'paid_social': 'competitorAds', // Reuse competitorAds for paid social
+      'social_content': 'organicContent',
     };
     
     return contextSources.filter(s => s.required).every(s => {
@@ -389,12 +363,10 @@ export function ContextHub({ onesheet, onUpdate }: ContextHubProps) {
                 // Map source ID to ContextLoaded property name
                 const sourceMapping: Record<string, keyof ContextLoaded> = {
                   'brand_website': 'brandWebsite',
-                  'competitor_website': 'competitorWebsite',
                   'reviews': 'reviews',
                   'reddit': 'reddit',
                   'articles': 'articles',
-                  'organic_social': 'organicContent',
-                  'paid_social': 'competitorAds', // Reuse competitorAds for paid social
+                  'social_content': 'organicContent',
                 };
                 const mappedKey = sourceMapping[source.id];
                 const isLoaded = mappedKey ? onesheet.context_loaded?.[mappedKey] : false;
