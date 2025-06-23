@@ -532,7 +532,7 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
               {!hasAds ? (
                 <>
                   <Select value={dateRange} onValueChange={setDateRange}>
-                    <SelectTrigger className="w-40 bg-white">
+                    <SelectTrigger className="w-40 bg-white text-gray-900 border border-gray-300">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
