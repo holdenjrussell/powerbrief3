@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Download, RefreshCw, Trash2, ExternalLink, Image, Video, Sparkles, Play, X } from 'lucide-react';
+import { Download, RefreshCw, Trash2, ExternalLink, Image, Video, Sparkles, Play, X, AlertTriangle } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -18,6 +18,7 @@ interface AdData {
   assetUrl: string;
   assetType: string;
   assetId: string;
+  assetLoadFailed: boolean;
   landingPage: string;
   spend: string;
   impressions: number;
@@ -416,6 +417,10 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
               <p className="text-sm text-amber-800">
                 Click &quot;Analyze with AI&quot; to extract creative attributes like Type, Duration, Angle, Format, Emotion, Framework, Transcript/Text, and Visual Description (with hex colors for images) from your ads.
                 {selectedAds.size > 0 && ` You have ${selectedAds.size} ads selected for analysis.`}
+                <br />
+                <span className="text-xs text-amber-700 mt-1 inline-block">
+                  Red flags (🔺) on assets indicate they failed to download to Supabase and are using Meta fallback URLs.
+                </span>
               </p>
             </div>
           </CardContent>
@@ -476,9 +481,10 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
                         />
                       </td>
                       <td className="p-2">
-                        <div 
-                          className="relative w-16 h-12 bg-gray-100 rounded-md overflow-hidden flex items-center justify-center group cursor-pointer"
-                          onClick={() => {
+                        <div className="relative">
+                          <div 
+                            className="relative w-16 h-12 bg-gray-100 rounded-md overflow-hidden flex items-center justify-center group cursor-pointer"
+                            onClick={() => {
                             if (ad.videoId && (ad.thumbnailUrl || ad.imageUrl)) {
                               // Open video in modal
                               setSelectedVideo({
@@ -542,6 +548,16 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
                               ) : (
                                 <div className="h-6 w-6 rounded bg-gray-300" />
                               )}
+                            </div>
+                          )}
+                          </div>
+                          {/* Red flag for failed asset loads */}
+                          {ad.assetLoadFailed && (
+                            <div 
+                              className="absolute -top-1 -right-1 z-10"
+                              title="Asset failed to load from Supabase, using Meta fallback"
+                            >
+                              <AlertTriangle className="h-3 w-3 text-red-500 bg-white rounded-full border border-red-500" />
                             </div>
                           )}
                         </div>

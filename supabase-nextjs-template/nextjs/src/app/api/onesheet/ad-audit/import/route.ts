@@ -1277,6 +1277,7 @@ async function processAdsBatched(
         assetType: assetInfo.type,
         assetId: creative.video_id || creative.image_hash || creative.id || '',
         assetPlacement: assetInfo.placement || 'unknown', // Track which placement this asset is for
+        assetLoadFailed: assetInfo.url && !assetInfo.localUrl, // Red flag: has original URL but failed to store in Supabase
         
         // Landing page
         landingPage,
