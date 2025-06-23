@@ -436,6 +436,9 @@ async function downloadAndStoreAsset(
   return null;
 }
 
+// Cache to prevent duplicate scraper calls for the same video ID
+const scraperCache = new Map<string, string | null>();
+
 // Enhanced function to extract video URLs using scraper with multiple URL formats
 async function tryExtractVideoWithScraper(
   videoId: string, 
@@ -443,6 +446,12 @@ async function tryExtractVideoWithScraper(
   brandId?: string,
   supabase?: any
 ): Promise<string | null> {
+  // Check cache first to prevent duplicate scraping
+  if (scraperCache.has(videoId)) {
+    const cachedResult = scraperCache.get(videoId);
+    console.log(`🔄 Using cached scraper result for video ${videoId}: ${cachedResult ? 'success' : 'failed'}`);
+    return cachedResult;
+  }
   try {
     const { scrapeFacebook } = await import('@/lib/social-media-scrapers');
     
@@ -547,6 +556,8 @@ async function tryExtractVideoWithScraper(
         
         if (scraperResult.status === 200 && scraperResult.data?.type === 'video' && scraperResult.data.url) {
           console.log(`✅ Successfully extracted video URL using format ${i + 1}: ${scraperResult.data.url}`);
+          // Cache the successful result
+          scraperCache.set(videoId, scraperResult.data.url);
           return scraperResult.data.url;
         } else {
           console.log(`❌ Format ${i + 1} failed:`, scraperResult.msg);
@@ -562,10 +573,14 @@ async function tryExtractVideoWithScraper(
     }
     
     console.log(`❌ All URL formats failed for video ID ${videoId}`);
+    // Cache the failed result to prevent retries
+    scraperCache.set(videoId, null);
     return null;
     
   } catch (error) {
     console.log(`❌ Error in tryExtractVideoWithScraper:`, error);
+    // Cache the error result to prevent retries
+    scraperCache.set(videoId, null);
     return null;
   }
 }
