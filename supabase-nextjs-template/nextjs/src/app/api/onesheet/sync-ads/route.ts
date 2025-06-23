@@ -233,13 +233,14 @@ async function startAsyncSync(
       const conversions = insights.actions?.find((a: any) => a.action_type === 'purchase')?.value || 0;
       const cpa = conversions > 0 ? spend / conversions : 0;
       const impressions = parseInt(insights.impressions || '0');
-      const video3SecWatched = parseInt(insights.video_3_sec_watched_actions?.value || '0');
-      const thruplays = parseInt(insights.video_p100_watched_actions?.value || '0');
+      const video3SecWatched = parseInt(insights.video_3_sec_watched_actions?.[0]?.value || '0');
+      // Use video_thruplay_watched_actions as primary, fallback to video_p100_watched_actions
+      const thruplays = parseInt(insights.video_thruplay_watched_actions?.[0]?.value || insights.video_p100_watched_actions?.[0]?.value || '0');
       
       // CORRECTED CALCULATIONS:
-      // Hook rate = 3-second video views divided by impressions (%)
+      // Hook rate = 3-second video views divided by impressions (%) 
       const hookRate = impressions > 0 ? (video3SecWatched / impressions) * 100 : 0;
-      // Hold rate = thruplays (100% completion) divided by impressions (%)
+      // Hold rate = thruplays (video completion) divided by impressions (%)
       const holdRate = impressions > 0 ? (thruplays / impressions) * 100 : 0;
 
       console.log(`[OneSheet Sync ${requestId}] Ad ${ad.id} metrics:`, {

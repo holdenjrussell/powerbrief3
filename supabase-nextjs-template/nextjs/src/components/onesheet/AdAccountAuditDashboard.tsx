@@ -3,11 +3,12 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Download, RefreshCw, Trash2, ExternalLink, Image, Video, Sparkles, Play, X, AlertTriangle, Upload } from 'lucide-react';
+import { Download, RefreshCw, Trash2, ExternalLink, Image, Video, Sparkles, Play, X, AlertTriangle, Upload, BarChart3, PieChart as PieChartIcon, Users, MapPin, Settings, Plus, Edit, Trash, MessageSquare } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { createClient } from '@/utils/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 
@@ -44,14 +45,17 @@ interface AdData {
   videoId?: string | null;
   // Gemini analysis fields
   type?: string | null;
-  adDuration?: number | null;
-  productIntro?: number | null;
+  adDuration?: number | string | null;
+  productIntro?: number | string | null;
   sitInProblem?: string | null;
+  sitInProblemPercent?: number | null;
   creatorsUsed?: number | null;
   angle?: string | null;
   format?: string | null;
   emotion?: string | null;
   framework?: string | null;
+  awarenessLevel?: string | null;
+  contentVariables?: string | null;
   transcription?: string | null;
   visualDescription?: string | null;
 }
@@ -65,6 +69,7 @@ interface AdAccountAuditDashboardProps {
       demographicBreakdown?: {
         age: Record<string, number>;
         gender: Record<string, number>;
+        placement: Record<string, number>;
       };
       lastImported?: string;
       dateRange?: string;
@@ -78,6 +83,7 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
   const [isImporting, setIsImporting] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
+  const [importProgress, setImportProgress] = useState(0);
   const [dateRange, setDateRange] = useState('last_30d');
   const [maxAds, setMaxAds] = useState(100);
   const [auditData, setAuditData] = useState<typeof initialData['ad_account_audit'] | null>(initialData?.ad_account_audit || null);
@@ -86,6 +92,33 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
   const [selectedImage, setSelectedImage] = useState<{ imageUrl: string; adName: string } | null>(null);
   const [uploadingAd, setUploadingAd] = useState<string | null>(null);
   const [showUploadDialog, setShowUploadDialog] = useState<{ adId: string; adName: string } | null>(null);
+  const [activeTab, setActiveTab] = useState('data');
+  const [aiInstructions, setAiInstructions] = useState<{
+    contentVariables: Array<{ name: string; description: string }>;
+    awarenessLevels: Array<{ name: string; description: string }>;
+    discoveredContentVariables: Array<{ name: string; description: string }>;
+    discoveredAwarenessLevels: Array<{ name: string; description: string }>;
+    returnMultiple: boolean;
+    selectionGuidance: string;
+    allowNewContentVariables: boolean;
+    allowNewAwarenessLevels: boolean;
+    mainAnalysisPrompt?: string;
+    contentVariablesPrompt?: string;
+    awarenessLevelsPrompt?: string;
+  }>({
+    contentVariables: [],
+    awarenessLevels: [],
+    discoveredContentVariables: [],
+    discoveredAwarenessLevels: [],
+    returnMultiple: false,
+    selectionGuidance: "When multiple variables are present, prioritize the most prominent or impactful element in the ad.",
+    allowNewContentVariables: true,
+    allowNewAwarenessLevels: true,
+    mainAnalysisPrompt: undefined,
+    contentVariablesPrompt: undefined,
+    awarenessLevelsPrompt: undefined
+  });
+  const [isLoadingInstructions, setIsLoadingInstructions] = useState(false);
   const supabase = createClient();
   const { toast } = useToast();
 
@@ -98,6 +131,7 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
     if (!initialData) {
       loadAuditData();
     }
+    loadAiInstructions();
   }, [onesheetId]);
 
   const loadAuditData = async () => {
@@ -123,8 +157,64 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
     }
   };
 
+  const loadAiInstructions = async () => {
+    setIsLoadingInstructions(true);
+    try {
+      const response = await fetch(`/api/onesheet/ai-instructions?onesheet_id=${onesheetId}`);
+      if (!response.ok) throw new Error('Failed to load AI instructions');
+      
+      const result = await response.json();
+      const instructions = result.data;
+      
+      setAiInstructions({
+        contentVariables: instructions.content_variables || [],
+        awarenessLevels: instructions.awareness_levels || [],
+        discoveredContentVariables: instructions.discovered_content_variables || [],
+        discoveredAwarenessLevels: instructions.discovered_awareness_levels || [],
+        returnMultiple: instructions.content_variables_return_multiple || false,
+        selectionGuidance: instructions.content_variables_selection_guidance || "When multiple variables are present, prioritize the most prominent or impactful element in the ad.",
+        allowNewContentVariables: instructions.content_variables_allow_new !== false,
+        allowNewAwarenessLevels: instructions.awareness_levels_allow_new !== false,
+        mainAnalysisPrompt: instructions.main_analysis_prompt || undefined,
+        contentVariablesPrompt: instructions.content_variables_prompt || undefined,
+        awarenessLevelsPrompt: instructions.awareness_levels_prompt || undefined
+      });
+    } catch (error) {
+      console.error('Error loading AI instructions:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load AI instructions",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoadingInstructions(false);
+    }
+  };
+
   const handleImport = async () => {
     setIsImporting(true);
+    setImportProgress(0);
+    
+    // More realistic progress simulation tied to actual fetching process
+    const progressTimer = setInterval(() => {
+      setImportProgress(prev => {
+        // Very slow initial progress for tier setup
+        if (prev < 5) return Math.min(prev + 0.5, 5); // Setup: 0-5%
+        // Slow progress for first tier ($20k+)
+        if (prev < 15) return Math.min(prev + 0.3, 15); // Tier 1: 5-15%
+        // Medium progress for second tier ($10k+)
+        if (prev < 35) return Math.min(prev + 0.4, 35); // Tier 2: 15-35%
+        // Medium progress for third tier ($5k+)
+        if (prev < 55) return Math.min(prev + 0.4, 55); // Tier 3: 35-55%
+        // Slower progress for fourth tier ($1k+)
+        if (prev < 70) return Math.min(prev + 0.3, 70); // Tier 4: 55-70%
+        // Very slow progress for final tier and asset processing
+        if (prev < 90) return Math.min(prev + 0.1, 90); // Final tier + assets: 70-90%
+        // Stay at 90% until completion
+        return prev;
+      });
+    }, 1000); // Slower interval for more realistic timing
+
     try {
       const response = await fetch('/api/onesheet/ad-audit/import', {
         method: 'POST',
@@ -143,6 +233,15 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
 
       const result = await response.json();
       
+      // Complete progress
+      clearInterval(progressTimer);
+      setImportProgress(100);
+      
+      // Brief delay to show 100% before hiding
+      setTimeout(() => {
+        setImportProgress(0);
+      }, 1500);
+      
       toast({
         title: "Success",
         description: `Successfully imported ${result.data.adsImported} ads`
@@ -151,6 +250,8 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
       // Refresh the data
       await loadAuditData();
     } catch (error) {
+      clearInterval(progressTimer);
+      setImportProgress(0);
       console.error('Error importing ads:', error);
       toast({
         title: "Error",
@@ -203,7 +304,7 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
   };
 
   const handleClear = async () => {
-    if (!confirm('Are you sure you want to clear all ad data? This cannot be undone.')) {
+    if (!confirm('Are you sure you want to clear all ad data? AI instructions will be preserved.')) {
       return;
     }
 
@@ -221,10 +322,10 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
 
       toast({
         title: "Success",
-        description: "Ad data cleared successfully"
+        description: "Ad data cleared successfully. AI instructions preserved."
       });
       
-      // Reload the audit data
+      // Reload the audit data (AI instructions are preserved on the server)
       await loadAuditData();
     } catch (error) {
       console.error('Error clearing data:', error);
@@ -363,17 +464,43 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
     }
   };
 
-  // Calculate demographic data
-  const demographicData = auditData?.demographicBreakdown || { age: {}, gender: {} };
+  // Calculate demographic data with null safety
+  const demographicData = {
+    age: auditData?.demographicBreakdown?.age || {},
+    gender: auditData?.demographicBreakdown?.gender || {},
+    placement: auditData?.demographicBreakdown?.placement || {}
+  };
 
   if (isImporting || isAnalyzing || isClearing) {
     return (
       <div className="flex items-center justify-center p-12">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4" />
-          <p className="text-muted-foreground">
+          <p className="text-muted-foreground mb-2">
             {isImporting ? 'Importing ads...' : isAnalyzing ? 'Analyzing ads...' : 'Clearing data...'}
           </p>
+          {isImporting && importProgress > 0 && (
+            <div className="w-64 mx-auto">
+              <div className="flex justify-between text-sm text-muted-foreground mb-1">
+                <span>
+                  {importProgress < 5 ? 'Setting up...' :
+                   importProgress < 15 ? 'Fetching tier 1 ($20k+)' :
+                   importProgress < 35 ? 'Fetching tier 2 ($10k+)' :
+                   importProgress < 55 ? 'Fetching tier 3 ($5k+)' :
+                   importProgress < 70 ? 'Fetching tier 4 ($1k+)' :
+                   importProgress < 90 ? 'Processing assets...' :
+                   'Finalizing...'}
+                </span>
+                <span>{Math.round(importProgress)}%</span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div 
+                  className="bg-primary h-2 rounded-full transition-all duration-1000 ease-out"
+                  style={{ width: `${importProgress}%` }}
+                />
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -382,15 +509,20 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
   return (
     <div className="space-y-6">
       {/* Header Actions */}
-      <Card>
-        <CardHeader>
+      <Card className="border-0 shadow-lg bg-gradient-to-br from-emerald-50 to-teal-50">
+        <CardHeader className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-t-lg">
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>Ad Account Audit</CardTitle>
-              <CardDescription>
+              <CardTitle className="flex items-center gap-2">
+                <div className="p-2 bg-white/20 rounded-full">
+                  <BarChart3 className="h-5 w-5" />
+                </div>
+                Ad Account Audit
+              </CardTitle>
+              <CardDescription className="text-emerald-100">
                 Import and analyze your ad performance data
                 {hasAds && needsAnalysis && (
-                  <span className="text-amber-600 ml-2">
+                  <span className="text-amber-200 ml-2 font-semibold">
                     ({analyzedCount}/{ads.length} ads analyzed)
                   </span>
                 )}
@@ -400,7 +532,7 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
               {!hasAds ? (
                 <>
                   <Select value={dateRange} onValueChange={setDateRange}>
-                    <SelectTrigger className="w-40">
+                    <SelectTrigger className="w-40 bg-white">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -411,7 +543,7 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
                     </SelectContent>
                   </Select>
                   <div className="flex flex-col gap-1">
-                    <Label htmlFor="max-ads" className="text-xs text-muted-foreground">Max Ads</Label>
+                    <Label htmlFor="max-ads" className="text-xs text-emerald-200">Max Ads</Label>
                     <Input
                       id="max-ads"
                       type="number"
@@ -419,11 +551,11 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
                       max={1000}
                       value={maxAds}
                       onChange={(e) => setMaxAds(Math.min(Math.max(parseInt(e.target.value) || 100, 10), 1000))}
-                      className="w-20 h-8 text-sm"
+                      className="w-20 h-8 text-sm bg-white text-gray-900"
                       placeholder="100"
                     />
                   </div>
-                  <Button onClick={handleImport} disabled={isImporting}>
+                  <Button onClick={handleImport} disabled={isImporting} className="bg-white text-emerald-700 hover:bg-emerald-50 border border-emerald-200">
                     <RefreshCw className={`mr-2 h-4 w-4 ${isImporting ? 'animate-spin' : ''}`} />
                     Import Ads
                   </Button>
@@ -434,20 +566,31 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
                     onClick={handleAnalyze} 
                     disabled={isAnalyzing} 
                     variant={needsAnalysis ? "default" : "outline"}
-                    className={needsAnalysis ? "animate-pulse" : ""}
+                    className={`${needsAnalysis ? "animate-pulse bg-white text-emerald-700 hover:bg-emerald-50" : "border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 bg-white"}`}
                   >
                     <Sparkles className={`mr-2 h-4 w-4 ${isAnalyzing ? 'animate-spin' : ''}`} />
                     {isAnalyzing ? 'Analyzing...' : needsAnalysis ? 'Analyze with AI' : 'Re-analyze'}
                     {selectedAds.size > 0 && ` (${selectedAds.size})`}
                   </Button>
-                  <Button onClick={handleExport} variant="outline">
+                  <Button onClick={handleExport} variant="outline" className="border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 bg-white">
                     <Download className="mr-2 h-4 w-4" />
                     Export CSV
                   </Button>
-                  <Button onClick={handleClear} disabled={isClearing} variant="destructive">
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Clear Data
-                  </Button>
+                  {hasAds && (
+                    <Button 
+                      onClick={handleClear} 
+                      disabled={isClearing} 
+                      className="!bg-red-500 hover:!bg-red-600 disabled:!bg-red-400 disabled:hover:!bg-red-400 !text-white !border-red-500 hover:!border-red-600 disabled:!border-red-400"
+                      style={{
+                        backgroundColor: isClearing ? '#f87171' : '#ef4444',
+                        borderColor: isClearing ? '#f87171' : '#ef4444',
+                        color: 'white'
+                      }}
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      {isClearing ? 'Clearing...' : 'Clear Data'}
+                    </Button>
+                  )}
                 </>
               )}
             </div>
@@ -491,11 +634,28 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
         </Card>
       )}
 
-      {/* Spreadsheet Table */}
+      {/* Main Content with Tabs */}
       {hasAds && (
-        <Card>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid w-full grid-cols-3 mb-6">
+            <TabsTrigger value="data" className="flex items-center gap-2">
+              <BarChart3 className="h-4 w-4" />
+              Data Table
+            </TabsTrigger>
+            <TabsTrigger value="visualizations" className="flex items-center gap-2">
+              <PieChartIcon className="h-4 w-4" />
+              Visualizations
+            </TabsTrigger>
+            <TabsTrigger value="ai-instructions" className="flex items-center gap-2">
+              <Settings className="h-4 w-4" />
+              AI Instructions
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="data">
+            <Card>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b bg-muted/50">
@@ -522,8 +682,11 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
                     <th className="p-2 text-right bg-blue-50">Duration</th>
                     <th className="p-2 text-right bg-blue-50">Product Intro</th>
                     <th className="p-2 text-right bg-blue-50">Sit in Problem</th>
+                    <th className="p-2 text-right bg-blue-50">Sit in Problem %</th>
                     <th className="p-2 text-right bg-blue-50">Creators</th>
                     <th className="p-2 text-left bg-green-50">Angle</th>
+                    <th className="p-2 text-left bg-green-50">Awareness Level</th>
+                    <th className="p-2 text-left bg-green-50">Content Variables</th>
                     <th className="p-2 text-left bg-green-50">Format</th>
                     <th className="p-2 text-left bg-green-50">Emotion</th>
                     <th className="p-2 text-left bg-green-50">Framework</th>
@@ -662,25 +825,43 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
                       <td className="p-2 text-right">${ad.cpa}</td>
                       <td className="p-2 text-right">{ad.roas}</td>
                       <td className="p-2 text-right">${ad.purchaseRevenue || '0.00'}</td>
-                      <td className="p-2 text-right">{ad.hookRate}%</td>
-                      <td className="p-2 text-right">{ad.holdRate}%</td>
+                      <td className="p-2 text-right">{ad.hookRate === 'N/A' ? 'N/A' : `${ad.hookRate}%`}</td>
+                      <td className="p-2 text-right">{ad.holdRate === 'N/A' ? 'N/A' : `${ad.holdRate}%`}</td>
                       <td className={`p-2 ${!ad.type ? 'text-gray-400 bg-blue-50' : 'bg-blue-50'}`}>
                         {ad.type || <span className="italic">Needs AI</span>}
                       </td>
-                      <td className={`p-2 text-right ${!ad.adDuration ? 'text-gray-400 bg-blue-50' : 'bg-blue-50'}`}>
-                        {ad.adDuration ? `${ad.adDuration}s` : '-'}
+                      <td className={`p-2 text-right ${!ad.adDuration || ad.adDuration === 'N/A' ? 'text-gray-400 bg-blue-50' : 'bg-blue-50'}`}>
+                        {ad.adDuration === 'N/A' ? 'N/A' : ad.adDuration ? `${ad.adDuration}s` : '-'}
                       </td>
-                      <td className={`p-2 text-right ${!ad.productIntro ? 'text-gray-400 bg-blue-50' : 'bg-blue-50'}`}>
-                        {ad.productIntro ? `${ad.productIntro}s` : '-'}
+                      <td className={`p-2 text-right ${!ad.productIntro || ad.productIntro === 'N/A' ? 'text-gray-400 bg-blue-50' : 'bg-blue-50'}`}>
+                        {ad.productIntro === 'N/A' ? 'N/A' : ad.productIntro ? `${ad.productIntro}s` : '-'}
                       </td>
-                      <td className={`p-2 text-right ${!ad.sitInProblem ? 'text-gray-400 bg-blue-50' : 'bg-blue-50'}`}>
-                        {ad.sitInProblem || '-'}
+                      <td className={`p-2 text-right ${!ad.sitInProblem || ad.sitInProblem === 'N/A' ? 'text-gray-400 bg-blue-50' : 'bg-blue-50'}`}>
+                        {ad.sitInProblem === 'N/A' ? 'N/A' : ad.sitInProblem || '-'}
+                      </td>
+                      <td className={`p-2 text-right ${!ad.sitInProblemPercent ? 'text-gray-400 bg-blue-50' : 'bg-blue-50'}`}>
+                        {ad.sitInProblemPercent ? `${ad.sitInProblemPercent}%` : '-'}
                       </td>
                       <td className={`p-2 text-right ${!ad.creatorsUsed ? 'text-gray-400 bg-blue-50' : 'bg-blue-50'}`}>
                         {ad.creatorsUsed || '-'}
                       </td>
                       <td className={`p-2 ${!ad.angle ? 'text-gray-400 bg-green-50' : 'bg-green-50'}`}>
                         {ad.angle || <span className="italic">Needs AI</span>}
+                      </td>
+                      <td className={`p-2 ${!ad.awarenessLevel ? 'text-gray-400 bg-green-50' : 'bg-green-50'}`}>
+                        {ad.awarenessLevel || <span className="italic">Needs AI</span>}
+                      </td>
+                      <td className={`p-2 ${!ad.contentVariables ? 'text-gray-400 bg-green-50' : 'bg-green-50'} max-w-[200px]`}>
+                        {ad.contentVariables ? (
+                          <div 
+                            className="max-h-20 overflow-y-auto text-wrap break-words text-xs leading-tight scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent"
+                            style={{ wordBreak: 'break-word', hyphens: 'auto' }}
+                          >
+                            {ad.contentVariables}
+                          </div>
+                        ) : (
+                          <span className="italic">Needs AI</span>
+                        )}
                       </td>
                       <td className={`p-2 ${!ad.format ? 'text-gray-400 bg-green-50' : 'bg-green-50'}`}>
                         {ad.format || <span className="italic">Needs AI</span>}
@@ -732,61 +913,510 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
             </div>
           </CardContent>
         </Card>
-      )}
+          </TabsContent>
 
-      {/* Demographics Section (moved below) */}
-      {hasAds && Object.keys(demographicData.age).length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Age Distribution</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={Object.entries(demographicData.age).map(([age, value]) => ({
-                  age,
-                  value: value as number
-                }))}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="age" />
-                  <YAxis />
-                  <Tooltip formatter={(value) => `${value}%`} />
-                  <Bar dataKey="value" fill="#3b82f6" />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
+          <TabsContent value="visualizations">
+            {(demographicData?.age && Object.keys(demographicData.age).length > 0) || 
+             (demographicData?.gender && Object.keys(demographicData.gender).length > 0) || 
+             (demographicData?.placement && Object.keys(demographicData.placement).length > 0) ? (
+              <div className="space-y-8">
+                {/* Header */}
+                <div className="text-center">
+                  <h2 className="text-2xl font-bold text-gray-900 mb-2">Demographics Data</h2>
+                  <p className="text-gray-600">Audience insights from your ad performance</p>
+                </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Gender Distribution</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={Object.entries(demographicData.gender).map(([gender, value]) => ({
-                      name: gender,
-                      value: value as number
-                    }))}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="value"
-                  >
-                    {Object.entries(demographicData.gender).map((_, index) => (
-                      <Cell key={`cell-${index}`} fill={['#3b82f6', '#ec4899', '#8b5cf6'][index % 3]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </div>
+                {/* Demographics Charts Grid */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {/* Age Distribution */}
+                  {demographicData?.age && Object.keys(demographicData.age).length > 0 && (
+                    <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200">
+                      <CardHeader className="text-center">
+                        <CardTitle className="flex items-center justify-center gap-2 text-blue-800">
+                          <Users className="h-5 w-5" />
+                          Demographics Data: AGE
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <ResponsiveContainer width="100%" height={300}>
+                          <PieChart>
+                            <Pie
+                              data={Object.entries(demographicData.age).map(([age, value]) => ({
+                                name: age,
+                                value: value as number
+                              }))}
+                              cx="50%"
+                              cy="50%"
+                              labelLine={false}
+                              label={({ name, percent }) => `${name}\n${(percent * 100).toFixed(1)}%`}
+                              outerRadius={80}
+                              fill="#3b82f6"
+                              dataKey="value"
+                            >
+                              {Object.entries(demographicData.age).map((_, index) => (
+                                <Cell key={`age-${index}`} fill={[
+                                  '#3b82f6', '#6366f1', '#8b5cf6', '#a855f7', '#c084fc', '#d8b4fe'
+                                ][index % 6]} />
+                              ))}
+                            </Pie>
+                            <Tooltip formatter={(value) => [`${value}%`, 'Percentage']} />
+                            <Legend />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Gender Distribution */}
+                  {demographicData?.gender && Object.keys(demographicData.gender).length > 0 && (
+                    <Card className="bg-gradient-to-br from-pink-50 to-rose-50 border-pink-200">
+                      <CardHeader className="text-center">
+                        <CardTitle className="flex items-center justify-center gap-2 text-pink-800">
+                          <Users className="h-5 w-5" />
+                          Demographics Data: GENDER
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <ResponsiveContainer width="100%" height={300}>
+                          <PieChart>
+                            <Pie
+                              data={Object.entries(demographicData.gender).map(([gender, value]) => ({
+                                name: gender,
+                                value: value as number
+                              }))}
+                              cx="50%"
+                              cy="50%"
+                              labelLine={false}
+                              label={({ name, percent }) => `${name}\n${(percent * 100).toFixed(1)}%`}
+                              outerRadius={80}
+                              fill="#ec4899"
+                              dataKey="value"
+                            >
+                              {Object.entries(demographicData.gender).map((_, index) => (
+                                <Cell key={`gender-${index}`} fill={[
+                                  '#ec4899', '#f472b6', '#f9a8d4', '#fbcfe8'
+                                ][index % 4]} />
+                              ))}
+                            </Pie>
+                            <Tooltip formatter={(value) => [`${value}%`, 'Percentage']} />
+                            <Legend />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Placement Distribution */}
+                  {demographicData?.placement && Object.keys(demographicData.placement).length > 0 && (
+                    <Card className="bg-gradient-to-br from-green-50 to-emerald-50 border-green-200">
+                      <CardHeader className="text-center">
+                        <CardTitle className="flex items-center justify-center gap-2 text-green-800">
+                          <MapPin className="h-5 w-5" />
+                          Demographics Data: PLACEMENT
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <ResponsiveContainer width="100%" height={300}>
+                          <PieChart>
+                            <Pie
+                              data={Object.entries(demographicData.placement).map(([placement, value]) => ({
+                                name: placement.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()),
+                                value: value as number
+                              }))}
+                              cx="50%"
+                              cy="50%"
+                              labelLine={false}
+                              label={({ name, percent }) => `${name}\n${(percent * 100).toFixed(1)}%`}
+                              outerRadius={80}
+                              fill="#10b981"
+                              dataKey="value"
+                            >
+                              {Object.entries(demographicData.placement).map((_, index) => (
+                                <Cell key={`placement-${index}`} fill={[
+                                  '#10b981', '#34d399', '#6ee7b7', '#9deccd', '#c6f6d5'
+                                ][index % 5]} />
+                              ))}
+                            </Pie>
+                            <Tooltip formatter={(value) => [`${value}%`, 'Percentage']} />
+                            <Legend />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <Card>
+                <CardContent className="py-12 text-center">
+                  <PieChartIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-muted-foreground mb-2">No demographic data available</p>
+                  <p className="text-sm text-gray-500">Import ads with demographic breakdowns to see visualizations here</p>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
+          <TabsContent value="ai-instructions">
+            <div className="space-y-6">
+              {/* Header */}
+              <div className="text-center">
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">AI Analysis Instructions</h2>
+                <p className="text-gray-600">Customize how AI analyzes your ad content</p>
+              </div>
+
+              {/* Content Variables Section */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Edit className="h-5 w-5" />
+                    Content Variables
+                  </CardTitle>
+                  <CardDescription>
+                    Define the types of content variables the AI should look for in ads. The AI can identify multiple variables or be restricted to one based on your settings.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                                    {/* Settings Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Return Multiple Toggle */}
+                    <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                      <div>
+                        <Label className="text-sm font-medium">Return Multiple Values</Label>
+                        <p className="text-xs text-gray-600">Allow AI to return multiple content variables per ad</p>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          id="returnMultiple"
+                          checked={aiInstructions.returnMultiple}
+                          onChange={(e) => setAiInstructions(prev => ({ ...prev, returnMultiple: e.target.checked }))}
+                          className="rounded"
+                          aria-label="Enable returning multiple content variables"
+                        />
+                        <Label htmlFor="returnMultiple" className="text-sm">Enabled</Label>
+                      </div>
+                    </div>
+
+                    {/* Allow New Variables Toggle */}
+                    <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg">
+                      <div>
+                        <Label className="text-sm font-medium">Allow New Variables</Label>
+                        <p className="text-xs text-gray-600">Let AI create new variables not in your predefined list</p>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          id="allowNewVariables"
+                          checked={aiInstructions.allowNewContentVariables}
+                          onChange={(e) => setAiInstructions(prev => ({ ...prev, allowNewContentVariables: e.target.checked }))}
+                          className="rounded"
+                          aria-label="Allow AI to create new content variables"
+                        />
+                        <Label htmlFor="allowNewVariables" className="text-sm">Enabled</Label>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Selection Guidance */}
+                  {!aiInstructions.returnMultiple && (
+                    <div className="space-y-2">
+                      <Label htmlFor="selectionGuidance" className="text-sm font-medium">Selection Guidance</Label>
+                      <textarea
+                        id="selectionGuidance"
+                        value={aiInstructions.selectionGuidance}
+                        onChange={(e) => setAiInstructions(prev => ({ ...prev, selectionGuidance: e.target.value }))}
+                        className="w-full p-3 border border-gray-300 rounded-md text-sm"
+                        rows={3}
+                        placeholder="Provide guidance on how AI should select a single content variable when multiple are present..."
+                      />
+                    </div>
+                  )}
+
+                  {/* Content Variables List */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm font-medium">Content Variable Definitions</Label>
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          setAiInstructions(prev => ({
+                            ...prev,
+                            contentVariables: [...prev.contentVariables, { name: "", description: "" }]
+                          }));
+                        }}
+                        className="flex items-center gap-1"
+                      >
+                        <Plus className="h-4 w-4" />
+                        Add Variable
+                      </Button>
+                    </div>
+                    
+                    <div className="space-y-2 max-h-64 overflow-y-auto">
+                      {aiInstructions.contentVariables.map((variable, index) => (
+                        <div key={index} className="flex gap-2 p-3 border border-gray-200 rounded-md">
+                          <div className="flex-1 space-y-2">
+                            <Input
+                              placeholder="Variable name (e.g., Podcast)"
+                              value={variable.name}
+                              onChange={(e) => {
+                                const newVariables = [...aiInstructions.contentVariables];
+                                newVariables[index].name = e.target.value;
+                                setAiInstructions(prev => ({ ...prev, contentVariables: newVariables }));
+                              }}
+                              className="text-sm"
+                            />
+                            <Input
+                              placeholder="Description (e.g., Usually in a podcast studio...)"
+                              value={variable.description}
+                              onChange={(e) => {
+                                const newVariables = [...aiInstructions.contentVariables];
+                                newVariables[index].description = e.target.value;
+                                setAiInstructions(prev => ({ ...prev, contentVariables: newVariables }));
+                              }}
+                              className="text-sm"
+                            />
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              const newVariables = aiInstructions.contentVariables.filter((_, i) => i !== index);
+                              setAiInstructions(prev => ({ ...prev, contentVariables: newVariables }));
+                            }}
+                            className="shrink-0"
+                          >
+                            <Trash className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Awareness Levels Section */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Users className="h-5 w-5" />
+                    Awareness Levels
+                  </CardTitle>
+                  <CardDescription>
+                    Define the customer awareness levels the AI should identify based on ad targeting and messaging.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Allow New Awareness Levels Toggle */}
+                  <div className="flex items-center justify-between p-4 bg-purple-50 rounded-lg">
+                    <div>
+                      <Label className="text-sm font-medium">Allow New Awareness Levels</Label>
+                      <p className="text-xs text-gray-600">Let AI identify awareness levels beyond your predefined list</p>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        id="allowNewAwareness"
+                        checked={aiInstructions.allowNewAwarenessLevels}
+                        onChange={(e) => setAiInstructions(prev => ({ ...prev, allowNewAwarenessLevels: e.target.checked }))}
+                        className="rounded"
+                        aria-label="Allow AI to create new awareness levels"
+                      />
+                      <Label htmlFor="allowNewAwareness" className="text-sm">Enabled</Label>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm font-medium">Awareness Level Definitions</Label>
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          setAiInstructions(prev => ({
+                            ...prev,
+                            awarenessLevels: [...prev.awarenessLevels, { name: "", description: "" }]
+                          }));
+                        }}
+                        className="flex items-center gap-1"
+                      >
+                        <Plus className="h-4 w-4" />
+                        Add Level
+                      </Button>
+                    </div>
+                    
+                    <div className="space-y-2 max-h-64 overflow-y-auto">
+                      {aiInstructions.awarenessLevels.map((level, index) => (
+                        <div key={index} className="flex gap-2 p-3 border border-gray-200 rounded-md">
+                          <div className="flex-1 space-y-2">
+                            <Input
+                              placeholder="Awareness level (e.g., Problem Aware)"
+                              value={level.name}
+                              onChange={(e) => {
+                                const newLevels = [...aiInstructions.awarenessLevels];
+                                newLevels[index].name = e.target.value;
+                                setAiInstructions(prev => ({ ...prev, awarenessLevels: newLevels }));
+                              }}
+                              className="text-sm"
+                            />
+                            <Input
+                              placeholder="Description (e.g., Knows they have a problem...)"
+                              value={level.description}
+                              onChange={(e) => {
+                                const newLevels = [...aiInstructions.awarenessLevels];
+                                newLevels[index].description = e.target.value;
+                                setAiInstructions(prev => ({ ...prev, awarenessLevels: newLevels }));
+                              }}
+                              className="text-sm"
+                            />
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              const newLevels = aiInstructions.awarenessLevels.filter((_, i) => i !== index);
+                              setAiInstructions(prev => ({ ...prev, awarenessLevels: newLevels }));
+                            }}
+                            className="shrink-0"
+                          >
+                            <Trash className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* AI Prompts Section */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <MessageSquare className="h-5 w-5" />
+                    AI Analysis Prompts
+                  </CardTitle>
+                  <CardDescription>
+                    Customize the prompts used by AI to analyze your ads. These prompts determine how the AI interprets and categorizes your ad content.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Main Analysis Prompt */}
+                  <div className="space-y-2">
+                    <Label htmlFor="mainPrompt" className="text-sm font-medium">Main Analysis Prompt</Label>
+                    <textarea
+                      id="mainPrompt"
+                      value={aiInstructions.mainAnalysisPrompt || `Analyze this Facebook ad creative and provide the following information:
+
+Ad Name: {{ad.name}}
+Creative Title: {{ad.creativeTitle}}
+Creative Body: {{ad.creativeBody}}
+Asset Type: {{ad.assetType}}
+
+Please analyze and return in JSON format:
+{
+  "type": "High Production Video|Low Production Video (UGC)|Static Image|Carousel|GIF",
+  "adDuration": number (in seconds, estimate if image),
+  "productIntro": number (seconds when product first shown/mentioned),
+  "creatorsUsed": number (visible people in the ad),
+  "angle": "Weight Management|Time/Convenience|Energy/Focus|Digestive Health|Immunity Support|etc",
+  "format": "Testimonial|Podcast Clip|Authority Figure|3 Reasons Why|Unboxing|etc",
+  "emotion": "Hopefulness|Excitement|Curiosity|Urgency|Fear|Trust|etc",
+  "framework": "PAS|AIDA|FAB|Star Story Solution|Before After Bridge|etc",
+  "awarenessLevel": "{{awarenessLevelsPrompt}}",
+  "contentVariables": "{{contentVariablesPrompt}}",
+  "transcription": "Full transcription if video, or main text if image",
+  "visualDescription": "Detailed description of visual elements, including colors (provide hex codes for dominant colors in images)"
+}
+
+Base your analysis on the creative text and ad name patterns.`}
+                      onChange={(e) => setAiInstructions(prev => ({ ...prev, mainAnalysisPrompt: e.target.value }))}
+                      className="w-full p-3 border border-gray-300 rounded-md text-sm font-mono"
+                      rows={20}
+                      placeholder="Enter the main prompt for AI analysis..."
+                    />
+                                                              <p className="text-xs text-gray-500">
+                        Use {"{"}{"{"}{"}"}ad.name{"}"}{"}"}{"}"}, {"{"}{"{"}{"}"}ad.creativeTitle{"}"}{"}"}{"}"}, etc. for dynamic values. 
+                        {"{"}{"{"}{"}"}awarenessLevelsPrompt{"}"}{"}"}{"}"} and {"{"}{"{"}{"}"}contentVariablesPrompt{"}"}{"}"}{"}"} will be replaced with your custom instructions.
+                     </p>
+                  </div>
+
+                  {/* Content Variables Prompt */}
+                  <div className="space-y-2">
+                    <Label htmlFor="contentVariablesPrompt" className="text-sm font-medium">Content Variables Analysis Instructions</Label>
+                    <textarea
+                      id="contentVariablesPrompt"
+                      value={aiInstructions.contentVariablesPrompt || `Identify the content variables from this list: {{contentVariablesList}}. ${aiInstructions.allowNewContentVariables ? 'If none match exactly, you may create a new appropriate variable.' : 'Choose the best match from the list only.'} ${aiInstructions.returnMultiple ? 'You may return multiple variables separated by commas.' : 'Return only one variable. ' + (aiInstructions.selectionGuidance || 'Choose the most prominent variable.')}`}
+                      onChange={(e) => setAiInstructions(prev => ({ ...prev, contentVariablesPrompt: e.target.value }))}
+                      className="w-full p-3 border border-gray-300 rounded-md text-sm"
+                      rows={4}
+                      placeholder="Instructions for content variable analysis..."
+                    />
+                  </div>
+
+                  {/* Awareness Levels Prompt */}
+                  <div className="space-y-2">
+                    <Label htmlFor="awarenessPrompt" className="text-sm font-medium">Awareness Level Analysis Instructions</Label>
+                    <textarea
+                      id="awarenessPrompt"
+                      value={aiInstructions.awarenessLevelsPrompt || `Determine the customer awareness level this ad targets from: {{awarenessLevelsList}}. ${aiInstructions.allowNewAwarenessLevels ? 'If none fit exactly, you may create a new appropriate awareness level.' : 'Choose the best match from the list only.'} Base this on the ad's messaging, targeting approach, and how it introduces the problem/solution.`}
+                      onChange={(e) => setAiInstructions(prev => ({ ...prev, awarenessLevelsPrompt: e.target.value }))}
+                      className="w-full p-3 border border-gray-300 rounded-md text-sm"
+                      rows={4}
+                      placeholder="Instructions for awareness level analysis..."
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Save Instructions */}
+              <div className="flex justify-end">
+                <Button 
+                  onClick={async () => {
+                    setIsLoadingInstructions(true);
+                    try {
+                      const response = await fetch('/api/onesheet/ai-instructions', {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          onesheet_id: onesheetId,
+                          content_variables: aiInstructions.contentVariables,
+                          awareness_levels: aiInstructions.awarenessLevels,
+                          content_variables_return_multiple: aiInstructions.returnMultiple,
+                          content_variables_selection_guidance: aiInstructions.selectionGuidance,
+                          content_variables_allow_new: aiInstructions.allowNewContentVariables,
+                          awareness_levels_allow_new: aiInstructions.allowNewAwarenessLevels,
+                          main_analysis_prompt: aiInstructions.mainAnalysisPrompt,
+                          content_variables_prompt: aiInstructions.contentVariablesPrompt,
+                          awareness_levels_prompt: aiInstructions.awarenessLevelsPrompt
+                        })
+                      });
+
+                      if (!response.ok) throw new Error('Failed to save instructions');
+
+                      toast({
+                        title: "Instructions Saved",
+                        description: "AI analysis instructions have been updated and will be used for future analyses."
+                      });
+                    } catch (error) {
+                      console.error('Error saving AI instructions:', error);
+                      toast({
+                        title: "Error",
+                        description: "Failed to save AI instructions",
+                        variant: "destructive"
+                      });
+                    } finally {
+                      setIsLoadingInstructions(false);
+                    }
+                  }} 
+                  disabled={isLoadingInstructions}
+                  className="flex items-center gap-2"
+                >
+                  <Settings className="h-4 w-4" />
+                  {isLoadingInstructions ? 'Saving...' : 'Save Instructions'}
+                </Button>
+              </div>
+            </div>
+          </TabsContent>
+        </Tabs>
       )}
 
       {/* Empty State */}

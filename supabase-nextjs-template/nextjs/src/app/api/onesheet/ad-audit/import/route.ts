@@ -24,7 +24,7 @@ async function fetchAllAds(
     'name',
     'status',
     'creative{id,name,title,body,image_url,video_id,thumbnail_url,object_story_spec,asset_feed_spec,image_hash}',
-    'insights{spend,impressions,clicks,ctr,cpm,cpp,actions,action_values,video_p25_watched_actions,video_p50_watched_actions,video_p75_watched_actions,video_p100_watched_actions,video_play_actions,video_avg_time_watched_actions}',
+    'insights{spend,impressions,clicks,ctr,cpm,cpp,actions,action_values,video_3_sec_watched_actions,video_p25_watched_actions,video_p50_watched_actions,video_p75_watched_actions,video_p100_watched_actions,video_play_actions,video_avg_time_watched_actions,video_thruplay_watched_actions}',
     'adset{id,name,targeting}',
     'campaign{id,name,objective}'
   ].join(',');
@@ -1270,17 +1270,18 @@ async function processAdsBatched(
       
       // Video metrics - Updated to match Facebook API naming conventions
       const video3s = parseInt(insights.video_3_sec_watched_actions?.[0]?.value || '0');
-      const thruplays = parseInt(insights.video_p100_watched_actions?.[0]?.value || '0');
+      // Use video_thruplay_watched_actions as primary, fallback to video_p100_watched_actions
+      const thruplays = parseInt(insights.video_thruplay_watched_actions?.[0]?.value || insights.video_p100_watched_actions?.[0]?.value || '0');
       const video25 = parseInt(insights.video_p25_watched_actions?.[0]?.value || '0');
       const video50 = parseInt(insights.video_p50_watched_actions?.[0]?.value || '0');
       const video75 = parseInt(insights.video_p75_watched_actions?.[0]?.value || '0');
-      const video100 = thruplays; // Same as thruplays
+      const video100 = parseInt(insights.video_p100_watched_actions?.[0]?.value || '0');
       
       // CORRECTED CALCULATIONS:
-      // Hook rate = 3-second video views divided by impressions (%)
-      const hookRate = impressions > 0 ? (video3s / impressions) * 100 : 0;
-      // Hold rate = thruplays (100% completion) divided by impressions (%)
-      const holdRate = impressions > 0 ? (thruplays / impressions) * 100 : 0;
+      // Hook rate = 3-second video views divided by impressions (%) - only for videos
+      const hookRate = assetInfo.type === 'video' && impressions > 0 ? (video3s / impressions) * 100 : 0;
+      // Hold rate = thruplays (video completion) divided by impressions (%) - only for videos  
+      const holdRate = assetInfo.type === 'video' && impressions > 0 ? (thruplays / impressions) * 100 : 0;
       
       return {
         // Identifiers
@@ -1305,8 +1306,8 @@ async function processAdsBatched(
         cpa: cpa.toFixed(2),
         roas: roas.toFixed(2),
         purchaseRevenue: purchaseRevenue.toFixed(2),
-        hookRate: hookRate.toFixed(1),
-        holdRate: holdRate.toFixed(1),
+        hookRate: assetInfo.type === 'video' ? hookRate.toFixed(1) : 'N/A',
+        holdRate: assetInfo.type === 'video' ? holdRate.toFixed(1) : 'N/A',
         
         // Raw metrics for calculations
         purchases,
@@ -1331,9 +1332,9 @@ async function processAdsBatched(
         
         // Placeholder fields for Gemini analysis (Phase 2)
         type: null,
-        adDuration: null,
-        productIntro: null,
-        sitInProblem: null,
+        adDuration: assetInfo.type === 'image' ? 'N/A' : null,
+        productIntro: assetInfo.type === 'image' ? 'N/A' : null,
+        sitInProblem: assetInfo.type === 'image' ? 'N/A' : null,
         creatorsUsed: null,
         angle: null,
         format: null,

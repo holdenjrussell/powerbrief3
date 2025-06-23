@@ -167,67 +167,86 @@ export function HybridOneSheetV2({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 min-h-screen p-6">
       {/* Progress Indicator */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Creative Strategy Workflow</CardTitle>
-          <CardDescription>
+      <Card className="border-0 shadow-xl bg-white/80 backdrop-blur-sm">
+        <CardHeader className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-white rounded-t-lg">
+          <CardTitle className="text-xl font-bold flex items-center gap-2">
+            <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
+              <Lightbulb className="h-5 w-5" />
+            </div>
+            Creative Strategy Workflow
+          </CardTitle>
+          <CardDescription className="text-blue-100">
             Complete each stage to build your comprehensive creative strategy
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-6">
           <div className="flex items-center justify-between">
-            {stageTabs.map((stage, index) => (
-              <div key={stage.id} className="flex items-center">
-                <div 
-                  className="flex flex-col items-center cursor-pointer"
-                  onClick={() => setActiveTab(stage.id as StageType)}
-                >
-                  <div className="flex items-center gap-2 mb-1">
-                    {getStageIcon(stage.id)}
-                    <span className={`text-sm font-medium ${
-                      activeTab === stage.id ? 'text-primary' : ''
+            {stageTabs.map((stage, index) => {
+              const IconComponent = stage.icon;
+              const isActive = activeTab === stage.id;
+              const isCompleted = stagesCompleted[stage.id === 'context_loading' ? 'context' : stage.id as keyof typeof stagesCompleted];
+              
+              return (
+                <div key={stage.id} className="flex items-center">
+                  <div 
+                    className={`flex flex-col items-center cursor-pointer p-3 rounded-xl transition-all duration-300 hover:scale-105 ${
+                      isActive 
+                        ? 'bg-gradient-to-br from-blue-100 to-purple-100 shadow-md transform scale-105' 
+                        : 'hover:bg-gray-50'
+                    }`}
+                    onClick={() => setActiveTab(stage.id as StageType)}
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className={`p-2 rounded-full ${
+                        isCompleted 
+                          ? 'bg-green-500 text-white' 
+                          : isActive 
+                            ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white'
+                            : 'bg-gray-200 text-gray-600'
+                      }`}>
+                        {isCompleted ? (
+                          <CheckCircle2 className="h-4 w-4" />
+                        ) : (
+                          <IconComponent className="h-4 w-4" />
+                        )}
+                      </div>
+                    </div>
+                    <span className={`text-sm font-semibold text-center ${
+                      isActive ? 'text-purple-700' : isCompleted ? 'text-green-700' : 'text-gray-700'
                     }`}>
                       {stage.label}
                     </span>
+                    <span className="text-xs text-gray-500 text-center max-w-[120px] mt-1">
+                      {stage.description}
+                    </span>
                   </div>
-                  <span className="text-xs text-muted-foreground text-center max-w-[120px]">
-                    {stage.description}
-                  </span>
+                  {index < stageTabs.length - 1 && (
+                    <div className={`h-1 w-12 mx-4 rounded-full ${
+                      stagesCompleted[stage.id === 'context_loading' ? 'context' : stage.id as keyof typeof stagesCompleted] 
+                        ? 'bg-gradient-to-r from-green-400 to-emerald-500' 
+                        : 'bg-gray-300'
+                    }`} />
+                  )}
                 </div>
-                {index < stageTabs.length - 1 && (
-                  <div className={`h-px w-12 mx-2 ${
-                    stagesCompleted[stage.id === 'context_loading' ? 'context' : stage.id as keyof typeof stagesCompleted] 
-                      ? 'bg-green-500' 
-                      : 'bg-gray-300'
-                  }`} />
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
         </CardContent>
       </Card>
 
-      {/* Main Content Tabs */}
-      <Tabs value={activeTab} onValueChange={(value) => {
-        console.log('Tab change requested:', value);
-        console.log('Current activeTab:', activeTab);
-        console.log('isTabEnabled:', isTabEnabled(value));
-        setActiveTab(value as StageType);
-      }} className="w-full">
-        <TabsList className="grid w-full grid-cols-5 mb-6">
-          {stageTabs.map(stage => (
-            <TabsTrigger 
-              key={stage.id} 
-              value={stage.id}
-              className="relative"
-            >
-              <span className="mr-2">{getStageIcon(stage.id)}</span>
-              {stage.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
+      {/* Main Content */}
+      <div className="mt-8">
+        <Tabs value={activeTab} onValueChange={(value) => {
+          setActiveTab(value as StageType);
+        }} className="w-full">
+          {/* Hidden TabsList - navigation handled by progress indicator */}
+          <TabsList className="hidden">
+            {stageTabs.map(stage => (
+              <TabsTrigger key={stage.id} value={stage.id} />
+            ))}
+          </TabsList>
 
         <TabsContent value="context_loading" className="space-y-6">
           <ContextHub 
@@ -303,7 +322,8 @@ export function HybridOneSheetV2({
             </Button>
           </div>
         </TabsContent>
-      </Tabs>
+        </Tabs>
+      </div>
     </div>
   );
 } 

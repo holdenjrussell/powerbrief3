@@ -134,7 +134,7 @@ export function ContextHub({ onesheet, onUpdate }: ContextHubProps) {
   const handleContextSave = async (sourceType: string, data: Partial<ContextData>) => {
     setLoading(true);
     
-    const saveWithRetry = async (retryCount = 0): Promise<any> => {
+    const saveWithRetry = async (retryCount = 0): Promise<ContextData> => {
       try {
         console.log(`Attempting to save context (attempt ${retryCount + 1}):`, { sourceType, onesheetId: onesheet.id });
         
@@ -324,32 +324,34 @@ export function ContextHub({ onesheet, onUpdate }: ContextHubProps) {
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
+      <Card className="border-0 shadow-lg bg-gradient-to-br from-blue-50 to-cyan-50">
+        <CardHeader className="bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-t-lg">
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="flex items-center gap-2">
-                <Upload className="h-5 w-5" />
+                <div className="p-2 bg-white/20 rounded-full">
+                  <Upload className="h-5 w-5" />
+                </div>
                 Context Hub
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="text-blue-100">
                 Load all your research materials in one place. This context will be used across all AI prompts.
               </CardDescription>
             </div>
             <div className="text-right">
-              <div className="text-sm text-gray-500 mb-1">Required Context</div>
+              <div className="text-sm text-blue-200 mb-1">Required Context</div>
               <div className="flex items-center gap-2">
-                <Progress value={getCompletionPercentage()} className="w-32" />
-                <span className="text-sm font-medium">{getCompletionPercentage()}%</span>
+                <Progress value={getCompletionPercentage()} className="w-32 bg-white/20" />
+                <span className="text-sm font-bold text-white">{getCompletionPercentage()}%</span>
               </div>
             </div>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-6 bg-white/50 backdrop-blur-sm">
           {!canProceed() && (
-            <Alert className="mb-6">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
+            <Alert className="mb-6 border-amber-200 bg-amber-50">
+              <AlertCircle className="h-4 w-4 text-amber-600" />
+              <AlertDescription className="text-amber-800">
                 Please complete all required context sources before proceeding to research. 
                 Required sources are marked with a red asterisk (*).
               </AlertDescription>
@@ -357,7 +359,7 @@ export function ContextHub({ onesheet, onUpdate }: ContextHubProps) {
           )}
 
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid grid-cols-4 lg:grid-cols-8 w-full mb-6">
+            <TabsList className="grid grid-cols-5 w-full mb-6 bg-gradient-to-r from-gray-100 to-gray-200 p-1 rounded-xl shadow-inner">
               {contextSources.map((source) => {
                 const Icon = source.icon;
                 // Map source ID to ContextLoaded property name
