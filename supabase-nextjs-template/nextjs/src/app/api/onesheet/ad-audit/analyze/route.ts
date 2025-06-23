@@ -245,6 +245,24 @@ export async function POST(request: Request) {
       // Process each ad in the batch
       const batchPromises = batch.map(async (ad: Record<string, unknown>) => {
         try {
+          // Check if this is an embedded video (Facebook/Meta URL that failed to download)
+          const isEmbeddedVideo = ad.assetType === 'video' && ad.assetLoadFailed && 
+                                  (String(ad.assetUrl).includes('facebook.com') || 
+                                   String(ad.assetUrl).includes('fbcdn.net') || 
+                                   String(ad.assetUrl).includes('scontent'));
+
+          if (isEmbeddedVideo) {
+            console.log(`[Analyze] Skipping ad ${ad.id} - embedded video requires manual upload`);
+            return {
+              ...ad,
+              analysisMethod: 'embedded-video-skipped',
+              angle: 'VIDEO REQUIRES MANUAL UPLOAD',
+              format: 'Embedded video - cannot analyze',
+              transcription: 'Video is embedded from Meta and cannot be analyzed. Please upload manually.',
+              visualDescription: 'Embedded video from Facebook/Meta. Manual upload required for AI analysis.'
+            };
+          }
+          
           // Skip if no asset or not stored in Supabase
           if (!ad.assetUrl || ad.assetType === 'unknown' || !String(ad.assetUrl).includes('supabase')) {
             console.log(`[Analyze] Skipping ad ${ad.id} - no valid Supabase asset`);

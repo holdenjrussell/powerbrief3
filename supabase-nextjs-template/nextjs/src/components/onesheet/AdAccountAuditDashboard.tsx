@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Download, RefreshCw, Trash2, ExternalLink, Image, Video, Sparkles, Play, X, AlertTriangle } from 'lucide-react';
+import { Download, RefreshCw, Trash2, ExternalLink, Image, Video, Sparkles, Play, X, AlertTriangle, Upload } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -19,6 +19,7 @@ interface AdData {
   assetType: string;
   assetId: string;
   assetLoadFailed: boolean;
+  manuallyUploaded?: boolean;
   landingPage: string;
   spend: string;
   impressions: number;
@@ -83,6 +84,8 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
   const [selectedAds, setSelectedAds] = useState<Set<string>>(new Set());
   const [selectedVideo, setSelectedVideo] = useState<{ videoId: string; thumbnailUrl: string; adName: string } | null>(null);
   const [selectedImage, setSelectedImage] = useState<{ imageUrl: string; adName: string } | null>(null);
+  const [uploadingAd, setUploadingAd] = useState<string | null>(null);
+  const [showUploadDialog, setShowUploadDialog] = useState<{ adId: string; adName: string } | null>(null);
   const supabase = createClient();
   const { toast } = useToast();
 
@@ -232,6 +235,50 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
       });
     } finally {
       setIsClearing(false);
+    }
+  };
+
+  const handleUploadAsset = async (file: File, adId: string) => {
+    if (!file || !adId) return;
+
+    setUploadingAd(adId);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('onesheetId', onesheetId);
+      formData.append('adId', adId);
+      formData.append('brandId', brandId);
+
+      const response = await fetch('/api/onesheet/ad-audit/upload-asset', {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Upload failed');
+      }
+
+      const result = await response.json();
+      
+      toast({
+        title: "Asset uploaded successfully",
+        description: `New ${result.data.assetType} uploaded and ready for AI analysis`,
+      });
+
+      // Refresh the data
+      await loadAuditData();
+
+    } catch (error) {
+      console.error('Upload error:', error);
+      toast({
+        title: "Upload failed",
+        description: error instanceof Error ? error.message : "Failed to upload asset",
+        variant: "destructive",
+      });
+    } finally {
+      setUploadingAd(null);
+      setShowUploadDialog(null);
     }
   };
 
@@ -551,14 +598,31 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
                             </div>
                           )}
                           </div>
-                          {/* Red flag for failed asset loads */}
+                          {/* Red flag for failed asset loads and upload button */}
                           {ad.assetLoadFailed && (
-                            <div 
-                              className="absolute -top-1 -right-1 z-10"
-                              title="Asset failed to load from Supabase, using Meta fallback"
-                            >
-                              <AlertTriangle className="h-3 w-3 text-red-500 bg-white rounded-full border border-red-500" />
-                            </div>
+                            <>
+                              <div 
+                                className="absolute -top-1 -right-1 z-10"
+                                title="Asset failed to load from Supabase, using Meta fallback"
+                              >
+                                <AlertTriangle className="h-3 w-3 text-red-500 bg-white rounded-full border border-red-500" />
+                              </div>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setShowUploadDialog({ adId: ad.id, adName: ad.name });
+                                }}
+                                className="absolute -bottom-1 -right-1 z-10 bg-blue-500 hover:bg-blue-600 text-white rounded-full p-1 transition-colors"
+                                title="Upload replacement asset"
+                                disabled={uploadingAd === ad.id}
+                              >
+                                {uploadingAd === ad.id ? (
+                                  <div className="animate-spin h-2 w-2 border border-white border-t-transparent rounded-full" />
+                                ) : (
+                                  <Upload className="h-2 w-2" />
+                                )}
+                              </button>
+                            </>
                           )}
                         </div>
                       </td>
@@ -802,6 +866,66 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
             <p className="text-sm text-gray-600 mt-2">
               Click outside the image or press the X button to close
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* Upload Asset Dialog */}
+      {showUploadDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">Upload Replacement Asset</h3>
+              <button
+                onClick={() => setShowUploadDialog(null)}
+                className="text-gray-400 hover:text-gray-600"
+                aria-label="Close dialog"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            
+            <div className="mb-4">
+              <p className="text-sm text-gray-600 mb-2">
+                Upload a new asset for: <strong>{showUploadDialog.adName}</strong>
+              </p>
+              <p className="text-xs text-gray-500">
+                Supported formats: JPEG, PNG, WebP, GIF, MP4, MOV, AVI, WebM (Max: 50MB)
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                <input
+                  type="file"
+                  accept="image/*,video/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      handleUploadAsset(file, showUploadDialog.adId);
+                    }
+                  }}
+                  className="hidden"
+                  id="asset-upload"
+                />
+                <label htmlFor="asset-upload" className="cursor-pointer">
+                  <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                  <p className="text-sm text-gray-600">
+                    Click to upload or drag and drop
+                  </p>
+                </label>
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowUploadDialog(null)}
+                  disabled={uploadingAd === showUploadDialog.adId}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
       )}
