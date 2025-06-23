@@ -246,10 +246,14 @@ export async function POST(request: Request) {
       const batchPromises = batch.map(async (ad: Record<string, unknown>) => {
         try {
           // Check if this is an embedded video (Facebook/Meta URL that failed to download)
-          const isEmbeddedVideo = ad.assetType === 'video' && ad.assetLoadFailed && 
-                                  (String(ad.assetUrl).includes('facebook.com') || 
-                                   String(ad.assetUrl).includes('fbcdn.net') || 
-                                   String(ad.assetUrl).includes('scontent'));
+          const isEmbeddedVideo = ad.assetType === 'video' && (
+                                    ad.assetLoadFailed || 
+                                    String(ad.assetUrl).includes('graph.facebook.com') ||
+                                    String(ad.assetUrl).includes('facebook.com') || 
+                                    String(ad.assetUrl).includes('fbcdn.net') || 
+                                    String(ad.assetUrl).includes('scontent') ||
+                                    String(ad.assetUrl).includes('thumbnail_url')
+                                  );
 
           if (isEmbeddedVideo) {
             console.log(`[Analyze] Skipping ad ${ad.id} - embedded video requires manual upload`);

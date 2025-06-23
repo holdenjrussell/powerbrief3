@@ -1278,7 +1278,13 @@ async function processAdsBatched(
         assetId: creative.video_id || creative.image_hash || creative.id || '',
         assetPlacement: assetInfo.placement || 'unknown', // Track which placement this asset is for
         assetLoadFailed: (assetInfo.url && !assetInfo.localUrl) || 
-                         (assetInfo.type === 'video' && assetInfo.placement === 'fallback'), // Red flag: failed to store in Supabase OR video using fallback thumbnail
+                         (assetInfo.type === 'video' && (
+                           assetInfo.placement === 'fallback' ||
+                           assetInfo.url.includes('graph.facebook.com') ||
+                           assetInfo.url.includes('scontent') ||
+                           assetInfo.url.includes('fbcdn.net') ||
+                           assetInfo.url.includes('thumbnail_url')
+                         )), // Red flag: failed to store in Supabase OR video using Facebook/Meta URLs (indicates failed download)
         
         // Landing page
         landingPage,
