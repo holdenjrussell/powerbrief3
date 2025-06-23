@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
 
     // Master tagging prompt
     const prompt = `
-Analyze the following ad transcript. Based on the content, classify the ad across these five categories: [Type, Angle, Format, Emotion, Framework, Product Intro].
+Analyze the following ad transcript. Based on the content, classify the ad across these categories and provide enhanced transcript analysis.
 Return your answer ONLY in a valid JSON format.
 
 Here are the possible values for each category:
@@ -59,9 +59,12 @@ Here are the possible values for each category:
 "Framework": ["PAS (Problem, Agitate, Solve)", "AIDA (Attention, Interest, Desire, Action)", "Features, Advantages, Benefits (FAB)", "Star, Story, Solution", "Before/After", "QUEST (Qualify, Understand, Educate, Stimulate, Transition)"]
 "Product Intro (s)": [Provide an integer representing the timestamp in seconds when the product is first mentioned or shown clearly. If unknown, use 0]
 "Creators Used": [Provide the number of distinct speakers/creators in the video as an integer. If unknown, use 1]
+"Enhanced Transcript": [If the provided transcript lacks timestamps, create a timecoded version with [MM:SS] format based on speech patterns and content flow. If timestamps already exist, preserve them. This helps with sit-in-problem analysis.]
 
 Here is the ad transcript:
 "${transcript}"
+
+IMPORTANT: For the "Enhanced Transcript" field, if the transcript doesn't have timestamps, estimate them based on typical speech patterns (150-200 words per minute) and add [MM:SS] timestamps throughout. This will enable better "sit in problem" percentage calculations.
 
 Example response format:
 {
@@ -71,7 +74,8 @@ Example response format:
   "emotion": "Trust",
   "framework": "PAS (Problem, Agitate, Solve)",
   "productIntro": 5,
-  "creatorsUsed": 2
+  "creatorsUsed": 2,
+  "enhancedTranscript": "[00:00] Are you tired of feeling sluggish? [00:05] I was too until I found this amazing supplement..."
 }
 `;
 

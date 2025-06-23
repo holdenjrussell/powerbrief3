@@ -3,14 +3,9 @@ import { createSSRClient } from '@/lib/supabase/server';
 import { decryptToken } from '@/lib/utils/tokenEncryption';
 import { v4 as uuidv4 } from 'uuid';
 
-// Facebook API Best Practices from documentation
-const RATE_LIMIT_DELAY = 1000; // 1 second delay between requests
-
 const REQUEST_DELAY = 1000; // 1 second delay between requests
 const ASSET_DOWNLOAD_DELAY = 2000; // 2 second delay for asset downloads
-const MAX_RETRIES = 2;
 const BATCH_SIZE = 5; // Process assets in very small batches
-const MAX_CONCURRENT_DOWNLOADS = 2; // Limit concurrent downloads
 
 // Spending tier thresholds in descending order
 const SPENDING_TIERS = [20000, 10000, 5000, 1000, 500, 100, 50, 10];
@@ -178,7 +173,7 @@ async function fetchVideoUrl(
             console.log(`🔄 Attempting to extract video URL using Facebook scraper for video ${videoId}`);
             return await tryExtractVideoWithScraper(videoId, accessToken, brandId, supabase);
         }
-      } catch (e) {
+      } catch {
         // Not JSON, ignore
       }
       
@@ -380,7 +375,7 @@ async function downloadAndStoreAsset(
       const fileName = `onesheet-assets/${brandId}/${assetId}.${fileExtension}`;
       
       // Upload to Supabase storage
-      const { data, error } = await supabase.storage
+      const { error } = await supabase.storage
         .from('onesheet-assets')
         .upload(fileName, buffer, {
           contentType: type === 'video' ? 'video/mp4' : 'image/jpeg',
@@ -1140,6 +1135,29 @@ function extractLandingPageUrl(creative: any): string {
   return '';
 }
 
+// Helper function to determine if an asset failed to load properly
+function isAssetLoadFailed(assetInfo: { url: string; type: string; localUrl?: string; placement?: string }): boolean {
+  // Rule 1: Images are never flagged as failed for manual upload purposes.
+  if (assetInfo.type === 'image') {
+    return false;
+  }
+
+  // Rule 2: If we couldn't determine the asset type or URL, it's a definite failure.
+  // This catches cases where asset extraction completely fails.
+  if (assetInfo.type === 'unknown' || !assetInfo.url) {
+    return true;
+  }
+
+  // Rule 3: For videos, the only success condition is having a localUrl from Supabase.
+  // Any other state for a video (e.g., fallback URL, no localUrl) is a failure.
+  if (assetInfo.type === 'video') {
+    return !assetInfo.localUrl; // Returns true if localUrl is missing
+  }
+
+  // Default to not failed for any other unforeseen cases.
+  return false;
+}
+
 // Process ads in batches to prevent overwhelming the Meta API and storage system
 async function processAdsBatched(
   ads: any[],
@@ -1231,21 +1249,17 @@ async function processAdsBatched(
       const spend = parseFloat(insights.spend || '0');
       const impressions = parseInt(insights.impressions || '0');
       
-      // Calculate conversions (purchases)
+      // Calculate purchases from actions (count) - using omni_purchase only as it covers all purchase sources
       const purchases = insights.actions?.reduce((total: number, action: any) => {
-        if (action.action_type === 'purchase' || 
-            action.action_type === 'omni_purchase' ||
-            action.action_type === 'offline_conversion.purchase') {
+        if (action.action_type === 'omni_purchase') {
           return total + parseInt(action.value || '0');
         }
         return total;
       }, 0) || 0;
       
-      // Calculate actual purchase revenue from action_values
+      // Calculate actual purchase revenue from action_values (monetary value) - using omni_purchase only
       const purchaseRevenue = insights.action_values?.reduce((total: number, action: any) => {
-        if (action.action_type === 'purchase' || 
-            action.action_type === 'omni_purchase' ||
-            action.action_type === 'offline_conversion.purchase') {
+        if (action.action_type === 'omni_purchase') {
           return total + parseFloat(action.value || '0');
         }
         return total;
@@ -1254,16 +1268,19 @@ async function processAdsBatched(
       const cpa = purchases > 0 ? spend / purchases : (spend > 0 ? spend : 0);
       const roas = spend > 0 && purchaseRevenue > 0 ? purchaseRevenue / spend : 0; // Real ROAS calculation
       
-      // Video metrics
-      const videoPlays = parseInt(insights.video_play_actions?.[0]?.value || '0');
-      const video3s = videoPlays; // Use video plays as proxy for 3-second views
+      // Video metrics - Updated to match Facebook API naming conventions
+      const video3s = parseInt(insights.video_3_sec_watched_actions?.[0]?.value || '0');
+      const thruplays = parseInt(insights.video_p100_watched_actions?.[0]?.value || '0');
       const video25 = parseInt(insights.video_p25_watched_actions?.[0]?.value || '0');
       const video50 = parseInt(insights.video_p50_watched_actions?.[0]?.value || '0');
       const video75 = parseInt(insights.video_p75_watched_actions?.[0]?.value || '0');
-      const video100 = parseInt(insights.video_p100_watched_actions?.[0]?.value || '0');
+      const video100 = thruplays; // Same as thruplays
       
+      // CORRECTED CALCULATIONS:
+      // Hook rate = 3-second video views divided by impressions (%)
       const hookRate = impressions > 0 ? (video3s / impressions) * 100 : 0;
-      const holdRate = video3s > 0 ? (video50 / video3s) * 100 : 0;
+      // Hold rate = thruplays (100% completion) divided by impressions (%)
+      const holdRate = impressions > 0 ? (thruplays / impressions) * 100 : 0;
       
       return {
         // Identifiers
@@ -1277,14 +1294,7 @@ async function processAdsBatched(
         assetType: assetInfo.type,
         assetId: creative.video_id || creative.image_hash || creative.id || '',
         assetPlacement: assetInfo.placement || 'unknown', // Track which placement this asset is for
-        assetLoadFailed: (assetInfo.url && !assetInfo.localUrl) || 
-                         (assetInfo.type === 'video' && (
-                           assetInfo.placement === 'fallback' ||
-                           assetInfo.url.includes('graph.facebook.com') ||
-                           assetInfo.url.includes('scontent') ||
-                           assetInfo.url.includes('fbcdn.net') ||
-                           assetInfo.url.includes('thumbnail_url')
-                         )), // Red flag: failed to store in Supabase OR video using Facebook/Meta URLs (indicates failed download)
+        assetLoadFailed: isAssetLoadFailed(assetInfo), // Determine if asset failed to load properly
         
         // Landing page
         landingPage,

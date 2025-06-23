@@ -1,0 +1,6 @@
+---
+description: when encountering linter errors
+globs: 
+alwaysApply: false
+---
+when encountering linter errors, especially related to types. regen supabase types from remote not local. use this project: jypbohpvphcigmfnxmmq

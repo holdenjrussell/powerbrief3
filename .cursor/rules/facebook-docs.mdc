@@ -1,0 +1,6 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+when doing anything related to the facebook api reference the facebookapi_docs.md file.

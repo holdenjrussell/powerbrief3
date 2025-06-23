@@ -245,75 +245,33 @@ export async function POST(request: Request) {
       // Process each ad in the batch
       const batchPromises = batch.map(async (ad: Record<string, unknown>) => {
         try {
-          // Check if this is an embedded video (Facebook/Meta URL that failed to download)
-          const isEmbeddedVideo = ad.assetType === 'video' && (
-                                    ad.assetLoadFailed || 
-                                    String(ad.assetUrl).includes('graph.facebook.com') ||
-                                    String(ad.assetUrl).includes('facebook.com') || 
-                                    String(ad.assetUrl).includes('fbcdn.net') || 
-                                    String(ad.assetUrl).includes('scontent') ||
-                                    String(ad.assetUrl).includes('thumbnail_url')
-                                  );
-
-          if (isEmbeddedVideo) {
-            console.log(`[Analyze] Skipping ad ${ad.id} - embedded video requires manual upload`);
+          // Skip all failed assets completely - no analysis for failed assets
+          if (ad.assetLoadFailed) {
+            console.log(`[Analyze] Skipping ad ${ad.id} - asset load failed, no analysis performed`);
             return {
               ...ad,
-              analysisMethod: 'embedded-video-skipped',
-              angle: 'VIDEO REQUIRES MANUAL UPLOAD',
-              format: 'Embedded video - cannot analyze',
-              transcription: 'Video is embedded from Meta and cannot be analyzed. Please upload manually.',
-              visualDescription: 'Embedded video from Facebook/Meta. Manual upload required for AI analysis.'
+              analysisMethod: 'skipped-failed-asset',
+              message: 'Asset failed to load - analysis skipped. Please upload asset manually first.'
             };
           }
           
-          // Skip if no asset or not stored in Supabase
-          if (!ad.assetUrl || ad.assetType === 'unknown' || !String(ad.assetUrl).includes('supabase')) {
-            console.log(`[Analyze] Skipping ad ${ad.id} - no valid Supabase asset`);
-            
-            // Fallback to text-only analysis for ads without proper assets
-            const analysisPrompt = `
-            Analyze this Facebook ad creative based on text content only and provide the following information:
-
-            Ad Name: ${ad.name}
-            Creative Title: ${ad.creativeTitle}
-            Creative Body: ${ad.creativeBody}
-            Asset Type: ${ad.assetType}
-
-            Please analyze and return in JSON format:
-            {
-              "type": "High Production Video|Low Production Video (UGC)|Static Image|Carousel|GIF",
-              "adDuration": number (in seconds, estimate if image),
-              "productIntro": number (seconds when product first shown/mentioned),
-              "creatorsUsed": number (visible people in the ad),
-              "angle": "Weight Management|Time/Convenience|Energy/Focus|Digestive Health|Immunity Support|etc",
-              "format": "Testimonial|Podcast Clip|Authority Figure|3 Reasons Why|Unboxing|etc",
-              "emotion": "Hopefulness|Excitement|Curiosity|Urgency|Fear|Trust|etc",
-              "framework": "PAS|AIDA|FAB|Star Story Solution|Before After Bridge|etc",
-              "transcription": "Only text content that would be spoken (no visual descriptions)",
-              "visualDescription": "Visual description based on creative text patterns only"
-            }
-
-            Base your analysis on the creative text and ad name patterns only.
-            `;
-
-            const result = await ai.models.generateContent({
-              model: 'gemini-2.5-flash',
-              contents: [{ role: 'user', parts: [{ text: analysisPrompt }] }],
-              config: { responseMimeType: 'application/json' }
-            });
-            const analysis = parseGeminiJSON(result.text, String(ad.id));
-
-            // Calculate sit in problem percentage
-            const sitInProblem = analysis.adDuration > 0 
-              ? ((analysis.productIntro / analysis.adDuration) * 100).toFixed(1)
-              : '0';
-
+          // Skip if no asset URL (these should also be marked as failed, but double-check)
+          if (!ad.assetUrl) {
+            console.log(`[Analyze] Skipping ad ${ad.id} - no asset URL`);
             return {
               ...ad,
-              ...analysis,
-              sitInProblem,
-              analysisMethod: 'text-only'
+              analysisMethod: 'skipped-no-asset',
+              message: 'No asset available - analysis skipped.'
+            };
+          }
+
+          // Only analyze ads with valid Supabase assets
+          if (!String(ad.assetUrl).includes('supabase')) {
+            console.log(`[Analyze] Skipping ad ${ad.id} - asset not stored in Supabase`);
+            return {
+              ...ad,
+              analysisMethod: 'skipped-external-asset',
+              message: 'Asset not stored in Supabase - analysis skipped.'
             };
           }
 
@@ -321,50 +279,11 @@ export async function POST(request: Request) {
           const uploadedAsset = await uploadAssetToGeminiFilesAPI(String(ad.assetUrl), ai);
           
           if (!uploadedAsset) {
-            console.log(`[Analyze] Failed to upload asset for ad ${ad.id}, falling back to text analysis`);
-            // Fallback to text-only analysis - same as above
-            const analysisPrompt = `
-            Analyze this Facebook ad creative based on text content only and provide the following information:
-
-            Ad Name: ${ad.name}
-            Creative Title: ${ad.creativeTitle}
-            Creative Body: ${ad.creativeBody}
-            Asset Type: ${ad.assetType}
-
-            Please analyze and return in JSON format:
-            {
-              "type": "High Production Video|Low Production Video (UGC)|Static Image|Carousel|GIF",
-              "adDuration": number (in seconds, estimate if image),
-              "productIntro": number (seconds when product first shown/mentioned),
-              "creatorsUsed": number (visible people in the ad),
-              "angle": "Weight Management|Time/Convenience|Energy/Focus|Digestive Health|Immunity Support|etc",
-              "format": "Testimonial|Podcast Clip|Authority Figure|3 Reasons Why|Unboxing|etc",
-              "emotion": "Hopefulness|Excitement|Curiosity|Urgency|Fear|Trust|etc",
-              "framework": "PAS|AIDA|FAB|Star Story Solution|Before After Bridge|etc",
-              "transcription": "Only text content that would be spoken (no visual descriptions)",
-              "visualDescription": "Visual description based on creative text patterns only"
-            }
-
-            Base your analysis on the creative text and ad name patterns only.
-            `;
-
-            const result = await ai.models.generateContent({
-              model: 'gemini-2.5-flash',
-              contents: [{ role: 'user', parts: [{ text: analysisPrompt }] }],
-              config: { responseMimeType: 'application/json' }
-            });
-            const analysis = parseGeminiJSON(result.text, String(ad.id));
-
-            // Calculate sit in problem percentage
-            const sitInProblem = analysis.adDuration > 0 
-              ? ((analysis.productIntro / analysis.adDuration) * 100).toFixed(1)
-              : '0';
-
+            console.log(`[Analyze] Failed to upload asset for ad ${ad.id} to Gemini`);
             return {
               ...ad,
-              ...analysis,
-              sitInProblem,
-              analysisMethod: 'text-fallback'
+              analysisMethod: 'upload-failed',
+              message: 'Failed to upload asset to AI service - please try again.'
             };
           }
 
@@ -387,7 +306,7 @@ export async function POST(request: Request) {
             "format": "Testimonial|Podcast Clip|Authority Figure|3 Reasons Why|Unboxing|Problem/Solution|Demonstration|Comparison|Story|Educational|etc",
             "emotion": "Hopefulness|Excitement|Curiosity|Urgency|Fear|Trust|Confidence|Empowerment|etc",
             "framework": "PAS|AIDA|FAB|Star Story Solution|Before After Bridge|QUEST|etc",
-            "transcription": "For videos: exact spoken words/dialogue only. For images: any visible text/captions only (no descriptions)",
+            "transcription": "For videos: provide a timecoded transcript with timestamps in [MM:SS] format (e.g., [00:05] Hello there! [00:12] Check out this amazing product). Include exact spoken words/dialogue only. For images: any visible text/captions only (no descriptions)",
             "visualDescription": "For videos: detailed description of visual elements, scenes, people, products, setting. For images: comprehensive visual description including composition, people, products, setting, mood, AND primary/secondary/tertiary hex color codes (e.g. Primary: #FF5733, Secondary: #33FF57, Tertiary: #3357FF)"
           }
 
@@ -397,6 +316,8 @@ export async function POST(request: Request) {
           - Overall production quality and style
           - Emotional tone conveyed through visuals
           - How the visual and text work together
+          - For videos: Provide accurate timestamps for when the product first appears or is mentioned to help calculate "sit in problem" percentage (productIntro / adDuration * 100)
+          - For videos: Include timecoded transcript to enable precise analysis of when problems are discussed vs when solutions/products are introduced
           `;
 
           const result = await ai.models.generateContent({

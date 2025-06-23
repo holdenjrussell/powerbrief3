@@ -474,6 +474,23 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
         </Card>
       )}
 
+      {/* Failed Assets Help Banner */}
+      {hasAds && ads.some(ad => ad.assetLoadFailed) && (
+        <Card className="border-red-200 bg-red-50">
+          <CardContent className="py-4">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-red-600" />
+              <div className="text-sm text-red-800">
+                <p className="font-semibold mb-1">Asset Upload Required</p>
+                <p>
+                  Rows highlighted in red have assets that failed to download. Click the blue upload button (📤) on these rows to manually upload the video or image files for better AI analysis.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Spreadsheet Table */}
       {hasAds && (
         <Card>
@@ -517,7 +534,7 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
                 </thead>
                 <tbody>
                   {ads.map((ad, index) => (
-                    <tr key={ad.id} className={`border-b hover:bg-muted/30 ${index % 2 === 0 ? 'bg-white' : 'bg-muted/10'}`}>
+                    <tr key={ad.id} className={`border-b hover:bg-muted/30 ${ad.assetLoadFailed ? 'bg-red-50 hover:bg-red-100' : (index % 2 === 0 ? 'bg-white' : 'bg-muted/10')}`}>
                       <td className="p-2">
                         <input
                           type="checkbox"
@@ -602,24 +619,24 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
                           {ad.assetLoadFailed && (
                             <>
                               <div 
-                                className="absolute -top-1 -right-1 z-10"
+                                className="absolute -top-2 -right-2 z-10"
                                 title="Asset failed to load from Supabase, using Meta fallback"
                               >
-                                <AlertTriangle className="h-3 w-3 text-red-500 bg-white rounded-full border border-red-500" />
+                                <AlertTriangle className="h-5 w-5 text-red-500 bg-white rounded-full border-2 border-red-500 p-0.5" />
                               </div>
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setShowUploadDialog({ adId: ad.id, adName: ad.name });
                                 }}
-                                className="absolute -bottom-1 -right-1 z-10 bg-blue-500 hover:bg-blue-600 text-white rounded-full p-1 transition-colors"
+                                className="absolute -bottom-2 -right-2 z-10 bg-blue-500 hover:bg-blue-600 text-white rounded-full p-1.5 transition-transform hover:scale-110"
                                 title="Upload replacement asset"
                                 disabled={uploadingAd === ad.id}
                               >
                                 {uploadingAd === ad.id ? (
-                                  <div className="animate-spin h-2 w-2 border border-white border-t-transparent rounded-full" />
+                                  <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
                                 ) : (
-                                  <Upload className="h-2 w-2" />
+                                  <Upload className="h-4 w-4" />
                                 )}
                               </button>
                             </>

@@ -234,10 +234,13 @@ async function startAsyncSync(
       const cpa = conversions > 0 ? spend / conversions : 0;
       const impressions = parseInt(insights.impressions || '0');
       const video3SecWatched = parseInt(insights.video_3_sec_watched_actions?.value || '0');
-      const videoPComplete = parseInt(insights.video_p100_watched_actions?.value || '0');
+      const thruplays = parseInt(insights.video_p100_watched_actions?.value || '0');
       
+      // CORRECTED CALCULATIONS:
+      // Hook rate = 3-second video views divided by impressions (%)
       const hookRate = impressions > 0 ? (video3SecWatched / impressions) * 100 : 0;
-      const holdRate = impressions > 0 ? (videoPComplete / impressions) * 100 : 0;
+      // Hold rate = thruplays (100% completion) divided by impressions (%)
+      const holdRate = impressions > 0 ? (thruplays / impressions) * 100 : 0;
 
       console.log(`[OneSheet Sync ${requestId}] Ad ${ad.id} metrics:`, {
         spend,

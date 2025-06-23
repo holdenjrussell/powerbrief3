@@ -113,11 +113,50 @@ export default function OneSheetPage({ params }: { params: ParamsType | Promise<
   }, [brandId, onesheetId]);
 
   // Handle updates from hybrid component
-  const handleUpdate = (updates: Partial<OneSheet>) => {
+  const handleUpdate = async (updates: Partial<OneSheet>) => {
     if (!onesheet) return;
     
+    // Update local state immediately for responsive UI
     const updatedOnesheet = { ...onesheet, ...updates };
     setOnesheet(updatedOnesheet);
+    
+    // Persist changes to database
+    try {
+      setSaving(true);
+      const response = await fetch(`/api/onesheet/${onesheet.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates)
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save updates');
+      }
+      
+      const savedOneSheet = await response.json();
+      setOnesheet(savedOneSheet);
+      
+      // Only show success message for major updates like stage completion
+      if (updates.stages_completed || updates.current_stage) {
+        toast({
+          title: "Progress Saved",
+          description: "Your OneSheet progress has been saved successfully.",
+        });
+      }
+    } catch (err) {
+      console.error('Failed to save updates:', err);
+      
+      // Revert local state on error
+      setOnesheet(onesheet);
+      
+      toast({
+        title: "Save Failed",
+        description: "Your changes could not be saved. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (loading) {

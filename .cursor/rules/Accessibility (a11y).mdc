@@ -1,0 +1,11 @@
+---
+description: Semantic HTML, ARIA attributes, keyboard nav
+globs: 
+alwaysApply: false
+---
+
+Use semantic HTML.
+
+Apply appropriate ARIA attributes.
+
+Ensure full keyboard navigation.
