@@ -72,15 +72,47 @@ async function scrapeSubredditPosts(subredditUrl: string, maxPosts: number, incl
   const response = await fetch(jsonUrl, {
     headers: {
       'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      'Accept': 'application/json',
+      'Accept': 'application/json, text/html, */*',
+      'Accept-Language': 'en-US,en;q=0.9',
+      'Accept-Encoding': 'gzip, deflate, br',
+      'Cache-Control': 'no-cache',
+      'Pragma': 'no-cache',
+      'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+      'Sec-Ch-Ua-Mobile': '?0',
+      'Sec-Ch-Ua-Platform': '"macOS"',
+      'Sec-Fetch-Dest': 'document',
+      'Sec-Fetch-Mode': 'navigate',
+      'Sec-Fetch-Site': 'none',
+      'Sec-Fetch-User': '?1',
+      'Upgrade-Insecure-Requests': '1',
     },
   });
 
+  let data;
+  
   if (!response.ok) {
-    throw new Error(`Failed to fetch subreddit: ${response.status}`);
+    console.error(`[RedditScraper] Subreddit fetch failed with status ${response.status}. Trying alternative method...`);
+    
+    // Try alternative approach with old.reddit.com
+    const oldRedditUrl = jsonUrl.replace('reddit.com', 'old.reddit.com');
+    console.log(`[RedditScraper] Trying old Reddit: ${oldRedditUrl}`);
+    
+    const fallbackResponse = await fetch(oldRedditUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; PowerBrief/1.0; +https://powerbrief.ai)',
+        'Accept': 'application/json',
+      },
+    });
+    
+    if (!fallbackResponse.ok) {
+      throw new Error(`Failed to fetch subreddit from both reddit.com (${response.status}) and old.reddit.com (${fallbackResponse.status}). Reddit may be blocking requests.`);
+    }
+    
+    data = await fallbackResponse.json();
+    console.log(`[RedditScraper] Successfully fetched from old.reddit.com`);
+  } else {
+    data = await response.json();
   }
-
-  const data = await response.json();
   const posts = data.data?.children || [];
 
   console.log(`[RedditScraper] Found ${posts.length} posts in subreddit`);
@@ -124,12 +156,61 @@ async function scrapeRedditPost(postUrl: string, includeComments: boolean, resul
   const response = await fetch(jsonUrl, {
     headers: {
       'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      'Accept': 'application/json',
+      'Accept': 'application/json, text/html, */*',
+      'Accept-Language': 'en-US,en;q=0.9',
+      'Cache-Control': 'no-cache',
+      'Pragma': 'no-cache',
     },
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to fetch post: ${response.status}`);
+    // Try with old.reddit.com as fallback
+    const oldRedditUrl = jsonUrl.replace('reddit.com', 'old.reddit.com');
+    console.log(`[RedditScraper] Trying old Reddit for post: ${oldRedditUrl}`);
+    
+    const fallbackResponse = await fetch(oldRedditUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; PowerBrief/1.0; +https://powerbrief.ai)',
+        'Accept': 'application/json',
+      },
+    });
+    
+    if (!fallbackResponse.ok) {
+      throw new Error(`Failed to fetch post from both reddit.com (${response.status}) and old.reddit.com (${fallbackResponse.status})`);
+    }
+    
+    const data = await fallbackResponse.json();
+    const post = data[0]?.data?.children?.[0]?.data;
+    
+    if (!post) {
+      throw new Error('No post data found');
+    }
+
+    const postData: RedditScrapedData = {
+      url: postUrl,
+      title: post.title || 'Untitled Post',
+      content: post.selftext || post.url || '',
+      author: post.author || 'Unknown',
+      score: post.score || 0,
+      comments: [],
+      timestamp: new Date(post.created_utc * 1000).toISOString(),
+      subreddit: post.subreddit_name_prefixed || 'Unknown',
+      method: 'reddit-json-fallback'
+    };
+
+    // Get comments if requested
+    if (includeComments && post.num_comments > 0) {
+      try {
+        const commentsData = data[1]?.data?.children || [];
+        postData.comments = extractCommentsFromData(commentsData);
+      } catch (error) {
+        console.warn(`[RedditScraper] Failed to extract comments:`, error);
+      }
+    }
+
+    results.push(postData);
+    console.log(`[RedditScraper] Scraped post from fallback: ${postData.title} (${postData.comments.length} comments)`);
+    return;
   }
 
   const data = await response.json();
@@ -171,12 +252,30 @@ async function fetchPostComments(postUrl: string): Promise<string[]> {
   const response = await fetch(jsonUrl, {
     headers: {
       'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      'Accept': 'application/json',
+      'Accept': 'application/json, text/html, */*',
+      'Accept-Language': 'en-US,en;q=0.9',
+      'Cache-Control': 'no-cache',
+      'Pragma': 'no-cache',
     },
   });
 
   if (!response.ok) {
-    return [];
+    // Try fallback with old.reddit.com
+    const oldRedditUrl = jsonUrl.replace('reddit.com', 'old.reddit.com');
+    const fallbackResponse = await fetch(oldRedditUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; PowerBrief/1.0; +https://powerbrief.ai)',
+        'Accept': 'application/json',
+      },
+    });
+    
+    if (!fallbackResponse.ok) {
+      return [];
+    }
+    
+    const data = await fallbackResponse.json();
+    const commentsData = data[1]?.data?.children || [];
+    return extractCommentsFromData(commentsData);
   }
 
   const data = await response.json();

@@ -195,25 +195,25 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
     setIsImporting(true);
     setImportProgress(0);
     
-    // More realistic progress simulation tied to actual fetching process
+    // Faster progress simulation tied to actual fetching process
     const progressTimer = setInterval(() => {
       setImportProgress(prev => {
-        // Very slow initial progress for tier setup
-        if (prev < 5) return Math.min(prev + 0.5, 5); // Setup: 0-5%
-        // Slow progress for first tier ($20k+)
-        if (prev < 15) return Math.min(prev + 0.3, 15); // Tier 1: 5-15%
+        // Quick initial progress for tier setup
+        if (prev < 5) return Math.min(prev + 2, 5); // Setup: 0-5%
+        // Fast progress for first tier ($20k+)
+        if (prev < 15) return Math.min(prev + 1.5, 15); // Tier 1: 5-15%
         // Medium progress for second tier ($10k+)
-        if (prev < 35) return Math.min(prev + 0.4, 35); // Tier 2: 15-35%
+        if (prev < 35) return Math.min(prev + 2, 35); // Tier 2: 15-35%
         // Medium progress for third tier ($5k+)
-        if (prev < 55) return Math.min(prev + 0.4, 55); // Tier 3: 35-55%
-        // Slower progress for fourth tier ($1k+)
-        if (prev < 70) return Math.min(prev + 0.3, 70); // Tier 4: 55-70%
-        // Very slow progress for final tier and asset processing
-        if (prev < 90) return Math.min(prev + 0.1, 90); // Final tier + assets: 70-90%
+        if (prev < 55) return Math.min(prev + 2, 55); // Tier 3: 35-55%
+        // Fast progress for fourth tier ($1k+)
+        if (prev < 70) return Math.min(prev + 1.5, 70); // Tier 4: 55-70%
+        // Medium progress for final tier and asset processing
+        if (prev < 90) return Math.min(prev + 0.8, 90); // Final tier + assets: 70-90%
         // Stay at 90% until completion
         return prev;
       });
-    }, 1000); // Slower interval for more realistic timing
+    }, 500); // Faster interval for quicker progress
 
     try {
       const response = await fetch('/api/onesheet/ad-audit/import', {
