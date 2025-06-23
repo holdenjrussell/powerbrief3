@@ -136,7 +136,12 @@ async function fetchAllAds(
 }
 
 // Helper function to fetch actual video URL from Meta API - Step 4 from the guide
-async function fetchVideoUrl(videoId: string, accessToken: string): Promise<string | null> {
+async function fetchVideoUrl(
+  videoId: string, 
+  accessToken: string, 
+  brandId?: string, 
+  supabase?: any
+): Promise<string | null> {
   try {
     // Add delay to prevent rate limiting
     await new Promise(resolve => setTimeout(resolve, 200));
@@ -168,7 +173,7 @@ async function fetchVideoUrl(videoId: string, accessToken: string): Promise<stri
           
                       // ENHANCEMENT: Try using Facebook scraper as fallback to get real video URL
             console.log(`🔄 Attempting to extract video URL using Facebook scraper for video ${videoId}`);
-            return await tryExtractVideoWithScraper(videoId, accessToken);
+            return await tryExtractVideoWithScraper(videoId, accessToken, brandId, supabase);
         }
       } catch (e) {
         // Not JSON, ignore
@@ -432,7 +437,12 @@ async function downloadAndStoreAsset(
 }
 
 // Enhanced function to extract video URLs using scraper with multiple URL formats
-async function tryExtractVideoWithScraper(videoId: string, accessToken?: string): Promise<string | null> {
+async function tryExtractVideoWithScraper(
+  videoId: string, 
+  accessToken?: string, 
+  brandId?: string,
+  supabase?: any
+): Promise<string | null> {
   try {
     const { scrapeFacebook } = await import('@/lib/social-media-scrapers');
     
@@ -456,6 +466,52 @@ async function tryExtractVideoWithScraper(videoId: string, accessToken?: string)
       }
     }
     
+    // Get brand's Facebook pages as fallback options
+    let brandPageIds: string[] = [];
+    if (brandId && supabase) {
+      try {
+        console.log(`🔍 Fetching brand's Facebook pages for video ${videoId}`);
+        const { data: brand } = await supabase
+          .from('brands')
+          .select('meta_facebook_pages, meta_manual_page_labels, meta_default_facebook_page_id, meta_facebook_page_id')
+          .eq('id', brandId)
+          .single();
+          
+        if (brand) {
+          // Collect all page IDs from various sources
+          const pageIds = new Set<string>();
+          
+          // Add default/primary page IDs
+          if (brand.meta_default_facebook_page_id) {
+            pageIds.add(brand.meta_default_facebook_page_id);
+          }
+          if (brand.meta_facebook_page_id) {
+            pageIds.add(brand.meta_facebook_page_id);
+          }
+          
+          // Add pages from meta_facebook_pages array
+          if (brand.meta_facebook_pages && Array.isArray(brand.meta_facebook_pages)) {
+            for (const page of brand.meta_facebook_pages) {
+              if (page?.id) pageIds.add(page.id);
+              if (page?.name) pageIds.add(page.name); // For named pages
+            }
+          }
+          
+          // Add manual page labels
+          if (brand.meta_manual_page_labels && typeof brand.meta_manual_page_labels === 'object') {
+            Object.keys(brand.meta_manual_page_labels).forEach(pageId => {
+              pageIds.add(pageId);
+            });
+          }
+          
+          brandPageIds = Array.from(pageIds);
+          console.log(`✅ Found ${brandPageIds.length} brand page IDs:`, brandPageIds);
+        }
+      } catch (error) {
+        console.log(`❌ Could not fetch brand pages:`, error);
+      }
+    }
+    
     // Try different URL formats that Facebook uses for videos
     const urlFormats = [
       `https://www.facebook.com/video.php?v=${videoId}`,
@@ -464,12 +520,22 @@ async function tryExtractVideoWithScraper(videoId: string, accessToken?: string)
       `https://www.facebook.com/videos/${videoId}`,
     ];
     
-    // If we found a page ID, add page-specific URLs to try first
+    // If we found a page ID from API, add page-specific URLs to try first
     if (pageId) {
       urlFormats.unshift(
         `https://www.facebook.com/${pageId}/videos/${videoId}`,
         `https://www.facebook.com/${pageId}/posts/${videoId}`
       );
+    }
+    
+    // Add brand page IDs as additional fallback options
+    for (const brandPageId of brandPageIds) {
+      if (brandPageId !== pageId) { // Don't duplicate if already added
+        urlFormats.push(
+          `https://www.facebook.com/${brandPageId}/videos/${videoId}`,
+          `https://www.facebook.com/${brandPageId}/posts/${videoId}`
+        );
+      }
     }
     
     for (let i = 0; i < urlFormats.length; i++) {
@@ -773,7 +839,7 @@ async function extractAssetUrl(
       
       // Step 3: Get the downloadable URL based on asset type
       if (bestAsset.type === 'video') {
-        downloadUrl = await fetchVideoUrl(bestAsset.assetId, accessToken);
+        downloadUrl = await fetchVideoUrl(bestAsset.assetId, accessToken, brandId, supabase);
       } else if (bestAsset.type === 'image') {
         // Use the proper ad account method for images
         downloadUrl = await fetchImageUrlFromAdAccount(bestAsset.assetId, adAccountId, accessToken);
@@ -814,7 +880,7 @@ async function extractAssetUrl(
   if (adCreativeDetails) {
     // Direct video_id in creative
     if (adCreativeDetails.video_id) {
-      const videoUrl = await fetchVideoUrl(adCreativeDetails.video_id, accessToken);
+      const videoUrl = await fetchVideoUrl(adCreativeDetails.video_id, accessToken, brandId, supabase);
       if (videoUrl) {
         const localUrl = await downloadAndStoreAsset(
           videoUrl,
@@ -898,7 +964,7 @@ async function extractLegacyAssetUrl(
   
   // Check for video first
   if (creative.video_id) {
-    const videoUrl = await fetchVideoUrl(creative.video_id, accessToken);
+    const videoUrl = await fetchVideoUrl(creative.video_id, accessToken, brandId, supabase);
     
     if (videoUrl) {
       const localUrl = await downloadAndStoreAsset(
