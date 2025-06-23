@@ -168,7 +168,7 @@ async function fetchVideoUrl(videoId: string, accessToken: string): Promise<stri
           
                       // ENHANCEMENT: Try using Facebook scraper as fallback to get real video URL
             console.log(`🔄 Attempting to extract video URL using Facebook scraper for video ${videoId}`);
-            return await tryExtractVideoWithScraper(videoId);
+            return await tryExtractVideoWithScraper(videoId, accessToken);
         }
       } catch (e) {
         // Not JSON, ignore
@@ -432,9 +432,29 @@ async function downloadAndStoreAsset(
 }
 
 // Enhanced function to extract video URLs using scraper with multiple URL formats
-async function tryExtractVideoWithScraper(videoId: string): Promise<string | null> {
+async function tryExtractVideoWithScraper(videoId: string, accessToken?: string): Promise<string | null> {
   try {
     const { scrapeFacebook } = await import('@/lib/social-media-scrapers');
+    
+    // First, try to get page information from the video if we have access token
+    let pageId: string | null = null;
+    if (accessToken) {
+      try {
+        console.log(`🔍 Attempting to get page info for video ${videoId}`);
+        const videoInfoUrl = `https://graph.facebook.com/v22.0/${videoId}?fields=from{id,username,name}&access_token=${accessToken}`;
+        const videoInfoResponse = await fetch(videoInfoUrl);
+        
+        if (videoInfoResponse.ok) {
+          const videoInfo = await videoInfoResponse.json();
+          if (videoInfo.from) {
+            pageId = videoInfo.from.username || videoInfo.from.id;
+            console.log(`✅ Found page info: ${pageId} (${videoInfo.from.name})`);
+          }
+        }
+      } catch (error) {
+        console.log(`❌ Could not get page info for video ${videoId}:`, error);
+      }
+    }
     
     // Try different URL formats that Facebook uses for videos
     const urlFormats = [
@@ -443,6 +463,14 @@ async function tryExtractVideoWithScraper(videoId: string): Promise<string | nul
       `https://fb.watch/${videoId}`,
       `https://www.facebook.com/videos/${videoId}`,
     ];
+    
+    // If we found a page ID, add page-specific URLs to try first
+    if (pageId) {
+      urlFormats.unshift(
+        `https://www.facebook.com/${pageId}/videos/${videoId}`,
+        `https://www.facebook.com/${pageId}/posts/${videoId}`
+      );
+    }
     
     for (let i = 0; i < urlFormats.length; i++) {
       const url = urlFormats[i];
