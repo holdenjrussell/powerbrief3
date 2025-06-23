@@ -122,6 +122,57 @@ async function uploadAssetToGeminiFilesAPI(assetUrl: string, ai: GoogleGenAI): P
   }
 }
 
+// Helper function to safely parse Gemini JSON responses
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function parseGeminiJSON(jsonText: string, adId: string): any {
+  try {
+    // First try direct parsing
+    return JSON.parse(jsonText);
+  } catch {
+    console.warn(`[Analyze] Initial JSON parse failed for ad ${adId}, attempting cleanup...`);
+    
+    try {
+      // Clean up common issues
+      let cleanedText = jsonText
+        .trim()
+        .replace(/```json\s*/g, '') // Remove markdown code blocks
+        .replace(/```\s*/g, '')
+        .replace(/,\s*}/g, '}') // Remove trailing commas before closing braces
+        .replace(/,\s*]/g, ']') // Remove trailing commas before closing brackets
+        .replace(/\n\s*\n/g, '\n') // Remove double newlines
+        .replace(/\r\n/g, '\n'); // Normalize line endings
+      
+      // Try to find and extract valid JSON if it's embedded in other text
+      const jsonMatch = cleanedText.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        cleanedText = jsonMatch[0];
+      }
+      
+      const parsed = JSON.parse(cleanedText);
+      console.log(`[Analyze] Successfully parsed JSON after cleanup for ad ${adId}`);
+      return parsed;
+    } catch (cleanupError) {
+      console.error(`[Analyze] JSON cleanup also failed for ad ${adId}:`, cleanupError);
+      console.error(`[Analyze] Original text (first 500 chars):`, jsonText.substring(0, 500));
+      
+      // Return a default analysis object
+      return {
+        type: 'Unknown',
+        adDuration: 0,
+        productIntro: 0,
+        creatorsUsed: 0,
+        angle: 'Unknown',
+        format: 'Unknown',
+        emotion: 'Unknown',
+        framework: 'Unknown',
+        transcription: 'Error parsing response',
+        visualDescription: 'Error parsing response',
+        parsingError: true
+      };
+    }
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const { onesheet_id, ad_ids } = await request.json();
@@ -229,7 +280,7 @@ export async function POST(request: Request) {
               contents: [{ role: 'user', parts: [{ text: analysisPrompt }] }],
               config: { responseMimeType: 'application/json' }
             });
-            const analysis = JSON.parse(result.text);
+            const analysis = parseGeminiJSON(result.text, String(ad.id));
 
             // Calculate sit in problem percentage
             const sitInProblem = analysis.adDuration > 0 
@@ -280,7 +331,7 @@ export async function POST(request: Request) {
               contents: [{ role: 'user', parts: [{ text: analysisPrompt }] }],
               config: { responseMimeType: 'application/json' }
             });
-            const analysis = JSON.parse(result.text);
+            const analysis = parseGeminiJSON(result.text, String(ad.id));
 
             // Calculate sit in problem percentage
             const sitInProblem = analysis.adDuration > 0 
@@ -343,7 +394,7 @@ export async function POST(request: Request) {
             config: { responseMimeType: 'application/json' }
           });
 
-          const analysis = JSON.parse(result.text);
+          const analysis = parseGeminiJSON(result.text, String(ad.id));
 
           // Calculate sit in problem percentage
           const sitInProblem = analysis.adDuration > 0 
