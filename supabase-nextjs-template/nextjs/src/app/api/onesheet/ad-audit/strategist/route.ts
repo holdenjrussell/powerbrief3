@@ -135,7 +135,7 @@ export async function POST(request: NextRequest) {
 
     // Prepare data for Gemini
     console.log(`[Strategist] Preparing data for ${analyzedAds.length} ads`);
-    const adsData = analyzedAds.map((ad: AdData) => ({
+    const adsData = analyzedAds.map((ad: any) => ({
       id: ad.id,
       name: ad.name,
       spend: parseFloat(ad.spend),
@@ -155,6 +155,13 @@ export async function POST(request: NextRequest) {
       framework: ad.framework,
       awarenessLevel: ad.awarenessLevel,
       contentVariables: ad.contentVariables,
+      creatorsUsed: ad.creatorsUsed,
+      // Include asset URLs for preview functionality
+      thumbnailUrl: ad.thumbnailUrl,
+      imageUrl: ad.imageUrl,
+      videoId: ad.videoId,
+      assetUrl: ad.assetUrl,
+      assetType: ad.assetType,
       transcription: ad.transcription?.substring(0, 500), // Limit transcription length
       visualDescription: ad.visualDescription?.substring(0, 500) // Limit description length
     }));

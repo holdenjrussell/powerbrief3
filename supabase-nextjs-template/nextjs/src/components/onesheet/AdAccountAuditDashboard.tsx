@@ -2237,14 +2237,47 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
                       <CardContent className="space-y-4">
                         {strategistOpinion.topPerformers.map((ad, index) => (
                           <div key={index} className="bg-white p-4 rounded-lg border border-green-200">
-                            <h4 className="font-semibold text-sm mb-2 break-words" title={ad.adName}>{truncateAdName(ad.adName)}</h4>
-                            <div className="grid grid-cols-2 gap-2 text-sm mb-2">
-                              <div>
-                                <span className="text-gray-600">Spend:</span> <span className="font-medium">${ad.spend.toLocaleString()}</span>
-                              </div>
-                              <div>
-                                <span className="text-gray-600">ROAS:</span> <span className="font-medium text-green-600">{ad.roas.toFixed(2)}</span>
-                              </div>
+                            <div className="flex items-start justify-between mb-2">
+                              <h4 className="font-semibold text-sm break-words flex-1" title={ad.adName}>{truncateAdName(ad.adName)}</h4>
+                              {/* Ad Preview Button */}
+                              {(ad.videoId || ad.thumbnailUrl || ad.imageUrl) && (
+                                <button
+                                  onClick={() => {
+                                    if (ad.videoId && (ad.thumbnailUrl || ad.imageUrl)) {
+                                      setSelectedVideo({
+                                        videoId: ad.videoId,
+                                        thumbnailUrl: ad.assetUrl || ad.thumbnailUrl || ad.imageUrl || '',
+                                        adName: ad.adName
+                                      });
+                                    } else if (ad.thumbnailUrl || ad.imageUrl) {
+                                      setSelectedImage({
+                                        imageUrl: ad.assetUrl || ad.imageUrl || ad.thumbnailUrl || '',
+                                        adName: ad.adName
+                                      });
+                                    }
+                                  }}
+                                  className="ml-2 p-1 hover:bg-gray-100 rounded transition-colors"
+                                  title="View ad preview"
+                                >
+                                  {ad.videoId ? '🎬' : '🖼️'}
+                                </button>
+                              )}
+                            </div>
+                            <div className="grid grid-cols-2 gap-1 text-xs mb-2">
+                              <div><span className="text-gray-600">Spend:</span> <span className="font-medium">${ad.spend.toLocaleString()}</span></div>
+                              <div><span className="text-gray-600">ROAS:</span> <span className="font-medium text-green-600">{ad.roas.toFixed(2)}</span></div>
+                              {ad.hookRate && <div><span className="text-gray-600">Hook:</span> <span className="font-medium">{ad.hookRate}%</span></div>}
+                              {ad.holdRate && <div><span className="text-gray-600">Hold:</span> <span className="font-medium">{ad.holdRate}%</span></div>}
+                              {ad.type && <div className="col-span-2"><span className="text-gray-600">Type:</span> <span className="font-medium">{ad.type}</span></div>}
+                              {ad.angle && <div className="col-span-2"><span className="text-gray-600">Angle:</span> <span className="font-medium">{ad.angle}</span></div>}
+                              {ad.format && <div><span className="text-gray-600">Format:</span> <span className="font-medium">{ad.format}</span></div>}
+                              {ad.emotion && <div><span className="text-gray-600">Emotion:</span> <span className="font-medium">{ad.emotion}</span></div>}
+                              {ad.framework && <div><span className="text-gray-600">Framework:</span> <span className="font-medium">{ad.framework}</span></div>}
+                              {ad.adDuration && <div><span className="text-gray-600">Duration:</span> <span className="font-medium">{ad.adDuration}s</span></div>}
+                              {ad.productIntro && <div><span className="text-gray-600">Product Intro:</span> <span className="font-medium">{ad.productIntro}s</span></div>}
+                              {ad.sitInProblem && <div><span className="text-gray-600">Sit in Problem:</span> <span className="font-medium">{ad.sitInProblem}</span></div>}
+                              {ad.creatorsUsed && <div><span className="text-gray-600">Creators:</span> <span className="font-medium">{ad.creatorsUsed}</span></div>}
+                              {ad.contentVariables && <div className="col-span-2"><span className="text-gray-600">Variables:</span> <span className="font-medium text-xs">{ad.contentVariables}</span></div>}
                             </div>
                             <div className="space-y-1">
                               <p className="text-xs font-medium text-gray-700">Key Success Factors:</p>
@@ -2267,14 +2300,47 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
                       <CardContent className="space-y-4">
                         {strategistOpinion.worstPerformers.map((ad, index) => (
                           <div key={index} className="bg-white p-4 rounded-lg border border-red-200">
-                            <h4 className="font-semibold text-sm mb-2 break-words" title={ad.adName}>{truncateAdName(ad.adName)}</h4>
-                            <div className="grid grid-cols-2 gap-2 text-sm mb-2">
-                              <div>
-                                <span className="text-gray-600">Spend:</span> <span className="font-medium">${ad.spend.toLocaleString()}</span>
-                              </div>
-                              <div>
-                                <span className="text-gray-600">ROAS:</span> <span className="font-medium text-red-600">{ad.roas.toFixed(2)}</span>
-                              </div>
+                            <div className="flex items-start justify-between mb-2">
+                              <h4 className="font-semibold text-sm break-words flex-1" title={ad.adName}>{truncateAdName(ad.adName)}</h4>
+                              {/* Ad Preview Button */}
+                              {(ad.videoId || ad.thumbnailUrl || ad.imageUrl) && (
+                                <button
+                                  onClick={() => {
+                                    if (ad.videoId && (ad.thumbnailUrl || ad.imageUrl)) {
+                                      setSelectedVideo({
+                                        videoId: ad.videoId,
+                                        thumbnailUrl: ad.assetUrl || ad.thumbnailUrl || ad.imageUrl || '',
+                                        adName: ad.adName
+                                      });
+                                    } else if (ad.thumbnailUrl || ad.imageUrl) {
+                                      setSelectedImage({
+                                        imageUrl: ad.assetUrl || ad.imageUrl || ad.thumbnailUrl || '',
+                                        adName: ad.adName
+                                      });
+                                    }
+                                  }}
+                                  className="ml-2 p-1 hover:bg-gray-100 rounded transition-colors"
+                                  title="View ad preview"
+                                >
+                                  {ad.videoId ? '🎬' : '🖼️'}
+                                </button>
+                              )}
+                            </div>
+                            <div className="grid grid-cols-2 gap-1 text-xs mb-2">
+                              <div><span className="text-gray-600">Spend:</span> <span className="font-medium">${ad.spend.toLocaleString()}</span></div>
+                              <div><span className="text-gray-600">ROAS:</span> <span className="font-medium text-red-600">{ad.roas.toFixed(2)}</span></div>
+                              {ad.hookRate && <div><span className="text-gray-600">Hook:</span> <span className="font-medium">{ad.hookRate}%</span></div>}
+                              {ad.holdRate && <div><span className="text-gray-600">Hold:</span> <span className="font-medium">{ad.holdRate}%</span></div>}
+                              {ad.type && <div className="col-span-2"><span className="text-gray-600">Type:</span> <span className="font-medium">{ad.type}</span></div>}
+                              {ad.angle && <div className="col-span-2"><span className="text-gray-600">Angle:</span> <span className="font-medium">{ad.angle}</span></div>}
+                              {ad.format && <div><span className="text-gray-600">Format:</span> <span className="font-medium">{ad.format}</span></div>}
+                              {ad.emotion && <div><span className="text-gray-600">Emotion:</span> <span className="font-medium">{ad.emotion}</span></div>}
+                              {ad.framework && <div><span className="text-gray-600">Framework:</span> <span className="font-medium">{ad.framework}</span></div>}
+                              {ad.adDuration && <div><span className="text-gray-600">Duration:</span> <span className="font-medium">{ad.adDuration}s</span></div>}
+                              {ad.productIntro && <div><span className="text-gray-600">Product Intro:</span> <span className="font-medium">{ad.productIntro}s</span></div>}
+                              {ad.sitInProblem && <div><span className="text-gray-600">Sit in Problem:</span> <span className="font-medium">{ad.sitInProblem}</span></div>}
+                              {ad.creatorsUsed && <div><span className="text-gray-600">Creators:</span> <span className="font-medium">{ad.creatorsUsed}</span></div>}
+                              {ad.contentVariables && <div className="col-span-2"><span className="text-gray-600">Variables:</span> <span className="font-medium text-xs">{ad.contentVariables}</span></div>}
                             </div>
                             <div className="space-y-1">
                               <p className="text-xs font-medium text-gray-700">Failure Reasons:</p>
@@ -2301,14 +2367,47 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
                         <CardContent className="space-y-4">
                           {strategistOpinion.lowPerformers.map((ad, index) => (
                             <div key={index} className="bg-white p-4 rounded-lg border border-amber-200">
-                              <h4 className="font-semibold text-sm mb-2 break-words" title={ad.adName}>{truncateAdName(ad.adName)}</h4>
-                              <div className="grid grid-cols-2 gap-2 text-sm mb-2">
-                                <div>
-                                  <span className="text-gray-600">Spend:</span> <span className="font-medium">${ad.spend.toLocaleString()}</span>
-                                </div>
-                                <div>
-                                  <span className="text-gray-600">ROAS:</span> <span className="font-medium text-amber-600">{ad.roas.toFixed(2)}</span>
-                                </div>
+                              <div className="flex items-start justify-between mb-2">
+                                <h4 className="font-semibold text-sm break-words flex-1" title={ad.adName}>{truncateAdName(ad.adName)}</h4>
+                                {/* Ad Preview Button */}
+                                {(ad.videoId || ad.thumbnailUrl || ad.imageUrl) && (
+                                  <button
+                                    onClick={() => {
+                                      if (ad.videoId && (ad.thumbnailUrl || ad.imageUrl)) {
+                                        setSelectedVideo({
+                                          videoId: ad.videoId,
+                                          thumbnailUrl: ad.assetUrl || ad.thumbnailUrl || ad.imageUrl || '',
+                                          adName: ad.adName
+                                        });
+                                      } else if (ad.thumbnailUrl || ad.imageUrl) {
+                                        setSelectedImage({
+                                          imageUrl: ad.assetUrl || ad.imageUrl || ad.thumbnailUrl || '',
+                                          adName: ad.adName
+                                        });
+                                      }
+                                    }}
+                                    className="ml-2 p-1 hover:bg-gray-100 rounded transition-colors"
+                                    title="View ad preview"
+                                  >
+                                    {ad.videoId ? '🎬' : '🖼️'}
+                                  </button>
+                                )}
+                              </div>
+                              <div className="grid grid-cols-2 gap-1 text-xs mb-2">
+                                <div><span className="text-gray-600">Spend:</span> <span className="font-medium">${ad.spend.toLocaleString()}</span></div>
+                                <div><span className="text-gray-600">ROAS:</span> <span className="font-medium text-amber-600">{ad.roas.toFixed(2)}</span></div>
+                                {ad.hookRate && <div><span className="text-gray-600">Hook:</span> <span className="font-medium">{ad.hookRate}%</span></div>}
+                                {ad.holdRate && <div><span className="text-gray-600">Hold:</span> <span className="font-medium">{ad.holdRate}%</span></div>}
+                                {ad.type && <div className="col-span-2"><span className="text-gray-600">Type:</span> <span className="font-medium">{ad.type}</span></div>}
+                                {ad.angle && <div className="col-span-2"><span className="text-gray-600">Angle:</span> <span className="font-medium">{ad.angle}</span></div>}
+                                {ad.format && <div><span className="text-gray-600">Format:</span> <span className="font-medium">{ad.format}</span></div>}
+                                {ad.emotion && <div><span className="text-gray-600">Emotion:</span> <span className="font-medium">{ad.emotion}</span></div>}
+                                {ad.framework && <div><span className="text-gray-600">Framework:</span> <span className="font-medium">{ad.framework}</span></div>}
+                                {ad.adDuration && <div><span className="text-gray-600">Duration:</span> <span className="font-medium">{ad.adDuration}s</span></div>}
+                                {ad.productIntro && <div><span className="text-gray-600">Product Intro:</span> <span className="font-medium">{ad.productIntro}s</span></div>}
+                                {ad.sitInProblem && <div><span className="text-gray-600">Sit in Problem:</span> <span className="font-medium">{ad.sitInProblem}</span></div>}
+                                {ad.creatorsUsed && <div><span className="text-gray-600">Creators:</span> <span className="font-medium">{ad.creatorsUsed}</span></div>}
+                                {ad.contentVariables && <div className="col-span-2"><span className="text-gray-600">Variables:</span> <span className="font-medium text-xs">{ad.contentVariables}</span></div>}
                               </div>
                               <div className="space-y-1">
                                 <p className="text-xs font-medium text-gray-700">Issues:</p>
