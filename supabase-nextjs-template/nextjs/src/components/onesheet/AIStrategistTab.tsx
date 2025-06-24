@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/components/ui/use-toast';
-import { Brain, Play, RefreshCw, TrendingUp, TrendingDown, AlertCircle, ChevronRight, BarChart3 } from 'lucide-react';
+import { Brain, Play, RefreshCw, TrendingUp, TrendingDown, AlertCircle, ChevronRight, BarChart3, Video, Image, X } from 'lucide-react';
 import type { AIStrategistOpinion } from '@/lib/types/onesheet';
 
 interface AIStrategistTabProps {
@@ -36,6 +36,8 @@ export function AIStrategistTab({
     maxRoas: 1.0,
     enabled: true
   });
+  const [selectedVideo, setSelectedVideo] = React.useState<{ videoId: string; thumbnailUrl: string; adName: string } | null>(null);
+  const [selectedImage, setSelectedImage] = React.useState<{ imageUrl: string; adName: string } | null>(null);
 
   // Load settings from AI instructions
   React.useEffect(() => {
@@ -265,72 +267,113 @@ export function AIStrategistTab({
           </Card>
 
           {/* Strategic Insights */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Strategic Insights</CardTitle>
-              <CardDescription>
+          <Card className="border-2 border-purple-100">
+            <CardHeader className="bg-gradient-to-r from-purple-50 to-blue-50">
+              <CardTitle className="text-xl text-purple-900">Strategic Insights</CardTitle>
+              <CardDescription className="text-purple-700">
                 AI-generated recommendations based on your ad performance
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
+            <CardContent className="space-y-6 p-6">
               {/* Summary */}
-              <div>
-                <h4 className="font-medium mb-2 flex items-center gap-2">
+              <div className="bg-gray-50 rounded-lg p-4 border-l-4 border-purple-500">
+                <h4 className="font-semibold mb-3 flex items-center gap-2 text-purple-800">
                   <ChevronRight className="h-4 w-4" />
                   Strategic Summary
                 </h4>
-                <p className="text-gray-700 whitespace-pre-wrap pl-6">
+                <p className="text-gray-700 whitespace-pre-wrap leading-relaxed">
                   {strategistOpinion.summary}
                 </p>
               </div>
 
               {/* Recommendations */}
-              <div>
-                <h4 className="font-medium mb-2 flex items-center gap-2">
+              <div className="bg-blue-50 rounded-lg p-4 border-l-4 border-blue-500">
+                <h4 className="font-semibold mb-3 flex items-center gap-2 text-blue-800">
                   <ChevronRight className="h-4 w-4" />
                   Recommendations
                 </h4>
-                <ul className="space-y-2 pl-6">
+                <div className="space-y-3">
                   {strategistOpinion.recommendations.map((rec, index) => (
-                    <li key={index} className="text-gray-700">
-                      <span className={`inline-block px-2 py-1 text-xs rounded mr-2 ${
-                        rec.priority === 'high' ? 'bg-red-100 text-red-800' :
-                        rec.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' :
-                        'bg-gray-100 text-gray-800'
-                      }`}>
-                        {rec.priority.toUpperCase()}
-                      </span>
-                      {rec.recommendation}
-                    </li>
+                    <div key={index} className="bg-white rounded-md p-3 shadow-sm border">
+                      <div className="flex items-start gap-3">
+                        <span className={`inline-block px-3 py-1 text-xs font-medium rounded-full shrink-0 ${
+                          rec.priority === 'high' ? 'bg-red-100 text-red-800 border border-red-200' :
+                          rec.priority === 'medium' ? 'bg-yellow-100 text-yellow-800 border border-yellow-200' :
+                          'bg-gray-100 text-gray-800 border border-gray-200'
+                        }`}>
+                          {rec.priority.toUpperCase()}
+                        </span>
+                        <p className="text-gray-700 leading-relaxed">{rec.recommendation}</p>
+                      </div>
+                    </div>
                   ))}
-                </ul>
+                </div>
               </div>
 
               {/* Creative Patterns */}
               {strategistOpinion.creativePatterns && (
-                <div>
-                  <h4 className="font-medium mb-2 flex items-center gap-2">
+                <div className="bg-green-50 rounded-lg p-4 border-l-4 border-green-500">
+                  <h4 className="font-semibold mb-3 flex items-center gap-2 text-green-800">
                     <ChevronRight className="h-4 w-4" />
                     Creative Patterns
                   </h4>
-                  <div className="pl-6 space-y-3">
-                    {Object.entries(strategistOpinion.creativePatterns).map(([category, patterns]) => (
-                      <div key={category}>
-                        <p className="font-medium text-sm text-gray-600 capitalize mb-1">
-                          {category.replace(/([A-Z])/g, ' $1').trim()}:
-                        </p>
+                  <div className="space-y-4">
+                    {strategistOpinion.creativePatterns.winningElements && strategistOpinion.creativePatterns.winningElements.length > 0 && (
+                      <div className="bg-white rounded-md p-3 shadow-sm border">
+                        <p className="font-semibold text-sm text-green-800 mb-2">✅ Winning Elements</p>
                         <div className="flex flex-wrap gap-2">
-                          {(patterns as string[]).map((pattern, index) => (
+                          {strategistOpinion.creativePatterns.winningElements.map((element, index) => (
                             <span
                               key={index}
-                              className="px-2 py-1 bg-gray-100 text-gray-700 rounded-md text-sm"
+                              className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium border border-green-200"
                             >
-                              {pattern}
+                              {element}
                             </span>
                           ))}
                         </div>
                       </div>
-                    ))}
+                    )}
+                    
+                    {strategistOpinion.creativePatterns.losingElements && strategistOpinion.creativePatterns.losingElements.length > 0 && (
+                      <div className="bg-white rounded-md p-3 shadow-sm border">
+                        <p className="font-semibold text-sm text-red-800 mb-2">❌ Losing Elements</p>
+                        <div className="flex flex-wrap gap-2">
+                          {strategistOpinion.creativePatterns.losingElements.map((element, index) => (
+                            <span
+                              key={index}
+                              className="px-3 py-1 bg-red-100 text-red-800 rounded-full text-sm font-medium border border-red-200"
+                            >
+                              {element}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {strategistOpinion.creativePatterns.bestPerformingHooks && strategistOpinion.creativePatterns.bestPerformingHooks.length > 0 && (
+                      <div className="bg-white rounded-md p-3 shadow-sm border">
+                        <p className="font-semibold text-sm text-blue-800 mb-2">🎯 Best Performing Hooks</p>
+                        <div className="flex flex-wrap gap-2">
+                          {strategistOpinion.creativePatterns.bestPerformingHooks.map((hook, index) => (
+                            <span
+                              key={index}
+                              className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium border border-blue-200"
+                            >
+                              {hook}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {strategistOpinion.creativePatterns.optimalSitInProblemRange && (
+                      <div className="bg-white rounded-md p-3 shadow-sm border">
+                        <p className="font-semibold text-sm text-purple-800 mb-2">⏱️ Optimal Sit-in-Problem Range</p>
+                        <p className="text-sm text-purple-700 px-3 py-2 bg-purple-50 rounded-md font-medium">
+                          {strategistOpinion.creativePatterns.optimalSitInProblemRange}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -347,32 +390,107 @@ export function AIStrategistTab({
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3">
+                <div className="space-y-4">
                   {strategistOpinion.topPerformers.map((ad, index) => (
-                    <div key={ad.adId} className="p-3 bg-green-50 rounded-lg">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <p className="font-medium text-green-900">
-                            {index + 1}. {ad.adName}
-                          </p>
-                          <div className="flex gap-4 mt-1 text-sm text-green-700">
-                            <span>ROAS: {ad.roas}</span>
-                            <span>Hook: {ad.hookRate || 0}%</span>
-                            <span>Hold: {ad.holdRate || 0}%</span>
-                            <span>Spend: ${ad.spend}</span>
+                    <div key={ad.adId} className="p-4 bg-green-50 rounded-lg border border-green-200">
+                      <div className="flex items-start gap-4">
+                        {/* Ad Preview */}
+                        <div className="shrink-0">
+                          <div 
+                            className="relative w-20 h-16 bg-gray-100 rounded-md overflow-hidden flex items-center justify-center group cursor-pointer shadow-sm border"
+                            onClick={() => {
+                              if (ad.videoId && (ad.thumbnailUrl || ad.imageUrl)) {
+                                setSelectedVideo({
+                                  videoId: ad.videoId,
+                                  thumbnailUrl: ad.assetUrl || ad.thumbnailUrl || ad.imageUrl || '',
+                                  adName: ad.adName
+                                });
+                              } else if (ad.thumbnailUrl || ad.imageUrl) {
+                                setSelectedImage({
+                                  imageUrl: ad.assetUrl || ad.imageUrl || ad.thumbnailUrl || '',
+                                  adName: ad.adName
+                                });
+                              }
+                            }}
+                          >
+                            {ad.thumbnailUrl || ad.imageUrl ? (
+                              <>
+                                <img
+                                  src={ad.thumbnailUrl || ad.imageUrl || ''}
+                                  alt={`Preview of ${ad.adName}`}
+                                  className="w-full h-full object-cover transition-opacity group-hover:opacity-80"
+                                  onError={(e) => {
+                                    e.currentTarget.style.display = 'none';
+                                    const nextElement = e.currentTarget.nextElementSibling as HTMLElement;
+                                    if (nextElement) {
+                                      nextElement.style.display = 'flex';
+                                    }
+                                  }}
+                                />
+                                <div className="hidden w-full h-full items-center justify-center">
+                                  {ad.assetType === 'video' ? (
+                                    <Video className="h-6 w-6 text-blue-500" />
+                                  ) : (
+                                    <Image className="h-6 w-6 text-green-500" />
+                                  )}
+                                </div>
+                                {/* Play overlay for videos */}
+                                {ad.videoId && (
+                                  <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all duration-200 flex items-center justify-center">
+                                    <div className="bg-white bg-opacity-90 rounded-full p-1.5 opacity-70 group-hover:opacity-100 transition-opacity duration-200">
+                                      <Play className="h-3 w-3 text-blue-600 fill-current" />
+                                    </div>
+                                  </div>
+                                )}
+                                {/* Image overlay for images */}
+                                {!ad.videoId && (ad.thumbnailUrl || ad.imageUrl) && (
+                                  <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all duration-200 flex items-center justify-center">
+                                    <div className="bg-white bg-opacity-90 rounded-full p-1.5 opacity-70 group-hover:opacity-100 transition-opacity duration-200">
+                                      <Image className="h-3 w-3 text-green-600" />
+                                    </div>
+                                  </div>
+                                )}
+                              </>
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center">
+                                {ad.assetType === 'video' ? (
+                                  <Video className="h-6 w-6 text-blue-500" />
+                                ) : ad.assetType === 'image' ? (
+                                  <Image className="h-6 w-6 text-green-500" />
+                                ) : (
+                                  <div className="h-6 w-6 rounded bg-gray-300" />
+                                )}
+                              </div>
+                            )}
                           </div>
                         </div>
-                      </div>
-                      {ad.keySuccessFactors && ad.keySuccessFactors.length > 0 && (
-                        <div className="mt-2 text-sm text-gray-700">
-                          <strong>Success Factors:</strong>
-                          <ul className="mt-1 space-y-1">
-                            {ad.keySuccessFactors.map((factor, idx) => (
-                              <li key={idx}>• {factor}</li>
-                            ))}
-                          </ul>
+                        
+                        {/* Ad Details */}
+                        <div className="flex-1">
+                          <p className="font-semibold text-green-900 text-base">
+                            #{index + 1} {ad.adName}
+                          </p>
+                          <div className="flex flex-wrap gap-3 mt-2 text-sm text-green-700">
+                            <span className="bg-green-100 px-2 py-1 rounded-md">ROAS: {ad.roas}</span>
+                            <span className="bg-green-100 px-2 py-1 rounded-md">Hook: {ad.hookRate || 0}%</span>
+                            <span className="bg-green-100 px-2 py-1 rounded-md">Hold: {ad.holdRate || 0}%</span>
+                            <span className="bg-green-100 px-2 py-1 rounded-md">Spend: ${ad.spend}</span>
+                          </div>
+                          {ad.keySuccessFactors && ad.keySuccessFactors.length > 0 && (
+                            <div className="mt-3 text-sm text-gray-700">
+                              <strong className="text-green-800">Success Factors:</strong>
+                              <ul className="mt-1 space-y-1 ml-2">
+                                {ad.keySuccessFactors.map((factor, idx) => (
+                                  <li key={idx} className="flex items-start gap-2">
+                                    <span className="text-green-600 mt-0.5">•</span>
+                                    <span>{factor}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
                         </div>
-                      )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -390,32 +508,107 @@ export function AIStrategistTab({
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3">
+                <div className="space-y-4">
                   {strategistOpinion.lowPerformers.map((ad, index) => (
-                    <div key={ad.adId} className="p-3 bg-amber-50 rounded-lg">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <p className="font-medium text-amber-900">
-                            {index + 1}. {ad.adName}
-                          </p>
-                          <div className="flex gap-4 mt-1 text-sm text-amber-700">
-                            <span>ROAS: {ad.roas}</span>
-                            <span>Hook: {ad.hookRate || 0}%</span>
-                            <span>Hold: {ad.holdRate || 0}%</span>
-                            <span>Spend: ${ad.spend}</span>
+                    <div key={ad.adId} className="p-4 bg-amber-50 rounded-lg border border-amber-200">
+                      <div className="flex items-start gap-4">
+                        {/* Ad Preview */}
+                        <div className="shrink-0">
+                          <div 
+                            className="relative w-20 h-16 bg-gray-100 rounded-md overflow-hidden flex items-center justify-center group cursor-pointer shadow-sm border"
+                            onClick={() => {
+                              if (ad.videoId && (ad.thumbnailUrl || ad.imageUrl)) {
+                                setSelectedVideo({
+                                  videoId: ad.videoId,
+                                  thumbnailUrl: ad.assetUrl || ad.thumbnailUrl || ad.imageUrl || '',
+                                  adName: ad.adName
+                                });
+                              } else if (ad.thumbnailUrl || ad.imageUrl) {
+                                setSelectedImage({
+                                  imageUrl: ad.assetUrl || ad.imageUrl || ad.thumbnailUrl || '',
+                                  adName: ad.adName
+                                });
+                              }
+                            }}
+                          >
+                            {ad.thumbnailUrl || ad.imageUrl ? (
+                              <>
+                                <img
+                                  src={ad.thumbnailUrl || ad.imageUrl || ''}
+                                  alt={`Preview of ${ad.adName}`}
+                                  className="w-full h-full object-cover transition-opacity group-hover:opacity-80"
+                                  onError={(e) => {
+                                    e.currentTarget.style.display = 'none';
+                                    const nextElement = e.currentTarget.nextElementSibling as HTMLElement;
+                                    if (nextElement) {
+                                      nextElement.style.display = 'flex';
+                                    }
+                                  }}
+                                />
+                                <div className="hidden w-full h-full items-center justify-center">
+                                  {ad.assetType === 'video' ? (
+                                    <Video className="h-6 w-6 text-blue-500" />
+                                  ) : (
+                                    <Image className="h-6 w-6 text-green-500" />
+                                  )}
+                                </div>
+                                {/* Play overlay for videos */}
+                                {ad.videoId && (
+                                  <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all duration-200 flex items-center justify-center">
+                                    <div className="bg-white bg-opacity-90 rounded-full p-1.5 opacity-70 group-hover:opacity-100 transition-opacity duration-200">
+                                      <Play className="h-3 w-3 text-blue-600 fill-current" />
+                                    </div>
+                                  </div>
+                                )}
+                                {/* Image overlay for images */}
+                                {!ad.videoId && (ad.thumbnailUrl || ad.imageUrl) && (
+                                  <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all duration-200 flex items-center justify-center">
+                                    <div className="bg-white bg-opacity-90 rounded-full p-1.5 opacity-70 group-hover:opacity-100 transition-opacity duration-200">
+                                      <Image className="h-3 w-3 text-green-600" />
+                                    </div>
+                                  </div>
+                                )}
+                              </>
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center">
+                                {ad.assetType === 'video' ? (
+                                  <Video className="h-6 w-6 text-blue-500" />
+                                ) : ad.assetType === 'image' ? (
+                                  <Image className="h-6 w-6 text-green-500" />
+                                ) : (
+                                  <div className="h-6 w-6 rounded bg-gray-300" />
+                                )}
+                              </div>
+                            )}
                           </div>
                         </div>
-                      </div>
-                      {ad.issues && ad.issues.length > 0 && (
-                        <div className="mt-2 text-sm text-gray-700">
-                          <strong>Issues:</strong>
-                          <ul className="mt-1 space-y-1">
-                            {ad.issues.map((issue, idx) => (
-                              <li key={idx}>• {issue}</li>
-                            ))}
-                          </ul>
+                        
+                        {/* Ad Details */}
+                        <div className="flex-1">
+                          <p className="font-semibold text-amber-900 text-base">
+                            #{index + 1} {ad.adName}
+                          </p>
+                          <div className="flex flex-wrap gap-3 mt-2 text-sm text-amber-700">
+                            <span className="bg-amber-100 px-2 py-1 rounded-md">ROAS: {ad.roas}</span>
+                            <span className="bg-amber-100 px-2 py-1 rounded-md">Hook: {ad.hookRate || 0}%</span>
+                            <span className="bg-amber-100 px-2 py-1 rounded-md">Hold: {ad.holdRate || 0}%</span>
+                            <span className="bg-amber-100 px-2 py-1 rounded-md">Spend: ${ad.spend}</span>
+                          </div>
+                          {ad.issues && ad.issues.length > 0 && (
+                            <div className="mt-3 text-sm text-gray-700">
+                              <strong className="text-amber-800">Issues:</strong>
+                              <ul className="mt-1 space-y-1 ml-2">
+                                {ad.issues.map((issue, idx) => (
+                                  <li key={idx} className="flex items-start gap-2">
+                                    <span className="text-amber-600 mt-0.5">•</span>
+                                    <span>{issue}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
                         </div>
-                      )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -423,6 +616,93 @@ export function AIStrategistTab({
             </Card>
           )}
         </>
+      )}
+
+      {/* Video Modal */}
+      {selectedVideo && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50" onClick={() => setSelectedVideo(null)}>
+          <div className="bg-white rounded-lg p-4 max-w-4xl max-h-[90vh] w-full mx-4" onClick={(event) => event.stopPropagation()}>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold truncate">{selectedVideo.adName}</h3>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSelectedVideo(null)}
+                className="shrink-0"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="aspect-video bg-gray-100 rounded-md overflow-hidden">
+              {/* Check if we have a local video URL stored in Supabase */}
+              {selectedVideo.thumbnailUrl && (selectedVideo.thumbnailUrl.includes('supabase') || selectedVideo.thumbnailUrl.includes('.mp4')) ? (
+                // Local video stored in Supabase or direct video URL - use HTML5 video player
+                <video
+                  controls
+                  autoPlay
+                  muted
+                  playsInline
+                  className="w-full h-full object-contain"
+                  onError={() => {
+                    console.error('Video playback failed, falling back to Facebook iframe');
+                    // Could add fallback logic here
+                  }}
+                >
+                  <source src={selectedVideo.thumbnailUrl} type="video/mp4" />
+                  Your browser does not support the video tag.
+                </video>
+              ) : (
+                // External video - use Facebook iframe fallback
+                <iframe
+                  src={`https://www.facebook.com/plugins/video.php?height=480&href=https%3A%2F%2Fwww.facebook.com%2Fvideo.php%3Fv%3D${selectedVideo.videoId}&show_text=false&width=854&t=0`}
+                  width="100%"
+                  height="100%"
+                  style={{ border: 'none', overflow: 'hidden' }}
+                  scrolling="no"
+                  frameBorder="0"
+                  allowFullScreen={true}
+                  allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
+                />
+              )}
+            </div>
+            <p className="text-sm text-gray-600 mt-2">
+              Click outside the video or press the X button to close
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Image Modal */}
+      {selectedImage && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50" onClick={() => setSelectedImage(null)}>
+          <div className="bg-white rounded-lg p-4 max-w-4xl max-h-[90vh] w-full mx-4" onClick={(event) => event.stopPropagation()}>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold truncate">{selectedImage.adName}</h3>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSelectedImage(null)}
+                className="shrink-0"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="max-h-[75vh] bg-gray-100 rounded-md overflow-hidden flex items-center justify-center">
+              <img
+                src={selectedImage.imageUrl}
+                alt={`Full size preview of ${selectedImage.adName}`}
+                className="max-w-full max-h-full object-contain"
+                onError={(event) => {
+                  console.error('Image failed to load:', selectedImage.imageUrl);
+                  (event.target as HTMLImageElement).src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDIwMCAyMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iMjAwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik04NSA4NUwxMTUgMTE1TTE4NSA4NUwxMTUgMTE1TDE4NSAxMTVNODUgMTE1TDExNSA4NU04NSA4NUwxMTUgMTE1IiBzdHJva2U9IiM5Q0EzQUYiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+CjwvdGV4dD4KPC9zdmc+';
+                }}
+              />
+            </div>
+            <p className="text-sm text-gray-600 mt-2">
+              Click outside the image or press the X button to close
+            </p>
+          </div>
+        </div>
       )}
     </div>
   );
