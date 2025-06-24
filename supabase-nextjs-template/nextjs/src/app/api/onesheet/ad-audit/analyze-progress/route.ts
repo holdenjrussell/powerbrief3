@@ -12,8 +12,24 @@ export async function GET(request: NextRequest) {
   const progress = getAnalyzeProgress(requestId);
   
   if (!progress) {
-    return NextResponse.json({ error: 'Progress not found' }, { status: 404 });
+    // Return a valid progress object with 0% instead of 404
+    // This is more graceful for polling clients
+    return NextResponse.json({
+      progress: 0,
+      message: 'Waiting for analysis to start...',
+      currentAd: 0,
+      totalAds: 0
+    }, { 
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    });
   }
   
-  return NextResponse.json(progress);
+  return NextResponse.json(progress, {
+    headers: {
+      'Content-Type': 'application/json',
+    }
+  });
 } 

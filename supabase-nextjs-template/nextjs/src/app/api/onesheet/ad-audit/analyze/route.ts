@@ -169,12 +169,24 @@ async function uploadAssetToGeminiFilesAPI(assetUrl: string, ai: GoogleGenAI): P
 
 // Helper function to safely parse Gemini JSON responses
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function parseGeminiJSON(jsonText: string, adId: string): any {
+function parseGeminiJSON(jsonText: string | undefined, adId: string): any {
+  if (!jsonText) {
+    console.error(`[Analyze] No JSON text received for ad ${adId}`);
+    throw new Error('No response text from Gemini');
+  }
+
   try {
     // First try direct parsing
     return JSON.parse(jsonText);
   } catch {
     console.warn(`[Analyze] Initial JSON parse failed for ad ${adId}, attempting cleanup...`);
+    console.log(`[Analyze] Response type: ${typeof jsonText}, length: ${jsonText?.length || 0}`);
+    
+    // Safety check - jsonText should exist here but let's be extra careful
+    if (!jsonText || typeof jsonText !== 'string') {
+      console.error(`[Analyze] Unexpected jsonText type for ad ${adId}: ${typeof jsonText}`);
+      throw new Error(`Invalid response type from Gemini: ${typeof jsonText}`);
+    }
     
     try {
       // Clean up common issues
@@ -198,22 +210,13 @@ function parseGeminiJSON(jsonText: string, adId: string): any {
       return parsed;
     } catch (cleanupError) {
       console.error(`[Analyze] JSON cleanup also failed for ad ${adId}:`, cleanupError);
-      console.error(`[Analyze] Original text (first 500 chars):`, jsonText.substring(0, 500));
+      // Safe substring handling
+      if (jsonText && typeof jsonText === 'string') {
+        console.error(`[Analyze] Original text (first 500 chars):`, jsonText.substring(0, 500));
+      }
       
-      // Return a default analysis object
-      return {
-        type: 'Unknown',
-        adDuration: 0,
-        productIntro: 0,
-        creatorsUsed: 0,
-        angle: 'Unknown',
-        format: 'Unknown',
-        emotion: 'Unknown',
-        framework: 'Unknown',
-        transcription: 'Error parsing response',
-        visualDescription: 'Error parsing response',
-        parsingError: true
-      };
+      // Throw error instead of returning fallback
+      throw new Error(`Failed to parse Gemini response for ad ${adId}`);
     }
   }
 }
@@ -521,7 +524,7 @@ export async function POST(request: Request) {
 
           // Generate content with retry for rate limiting
           const result = await retryWithBackoff(async () => {
-            return await ai.models.generateContent({
+            const response = await ai.models.generateContent({
               model: aiInstructions.analyze_model || 'gemini-2.5-flash-lite-preview-06-17',
               contents: [{
                 role: 'user',
@@ -541,9 +544,22 @@ export async function POST(request: Request) {
                 systemInstruction
               }
             });
+            
+            if (!response) {
+              throw new Error('No response from Gemini API');
+            }
+            
+            return response;
           });
 
-          const analysis = parseGeminiJSON(result.text, String(ad.id));
+          // Extract response text
+          const responseText = result?.text;
+          if (!responseText) {
+            console.error(`[Analyze] No text in Gemini response for ad ${ad.id}`, result);
+            throw new Error('No response text from Gemini');
+          }
+
+          const analysis = parseGeminiJSON(responseText, String(ad.id));
 
           // Calculate sit in problem percentage based on sitInProblemSeconds
           const sitInProblemPercent = analysis.adDuration > 0 && analysis.sitInProblemSeconds !== undefined
@@ -599,13 +615,52 @@ export async function POST(request: Request) {
           console.log(`[Analyze] Successfully analyzed ad ${ad.id} with visual content`);
           successCount++;
 
-          return {
+          const analyzedAd = {
             ...ad,
             ...analysis,
             sitInProblem,
             sitInProblemPercent,
             analysisMethod: 'visual-and-text'
           };
+
+          // Save this ad's analysis immediately to the database
+          try {
+            // Get fresh onesheet data to avoid race conditions
+            const { data: currentOnesheet } = await supabase
+              .from('onesheet')
+              .select('ad_account_audit')
+              .eq('id', onesheet_id)
+              .single();
+            
+            if (currentOnesheet) {
+              const currentAudit = currentOnesheet.ad_account_audit || { ads: [] };
+              const currentAds = currentAudit.ads || [];
+              
+              // Update just this ad in the ads array
+              const updatedAds = currentAds.map((a: Record<string, unknown>) => 
+                a.id === ad.id ? analyzedAd : a
+              );
+              
+              // Save the updated data
+              await supabase
+                .from('onesheet')
+                .update({
+                  ad_account_audit: {
+                    ...currentAudit,
+                    ads: updatedAds,
+                    lastAnalyzed: new Date().toISOString()
+                  }
+                })
+                .eq('id', onesheet_id);
+              
+              console.log(`[Analyze] Saved analysis for ad ${ad.id} to database`);
+            }
+          } catch (saveError) {
+            console.error(`[Analyze] Error saving ad ${ad.id} analysis:`, saveError);
+            // Continue with other ads even if one save fails
+          }
+
+          return analyzedAd;
 
         } catch (error) {
           console.error(`[Analyze] Error analyzing ad ${ad.id}:`, error);
@@ -621,40 +676,20 @@ export async function POST(request: Request) {
     // Clear progress
     clearAnalyzeProgress(requestId);
 
-    // Update the onesheet with analyzed ads
-    const updatedAds = adAuditData.ads.map((ad: Record<string, unknown>) => {
-      const analyzed = analyzedAds.find((a: Record<string, unknown>) => a.id === ad.id);
-      return analyzed || ad;
-    });
-
-    const { error: updateError } = await supabase
-      .from('onesheet')
-      .update({
-        ad_account_audit: {
-          ...adAuditData,
-          ads: updatedAds,
-          lastAnalyzed: new Date().toISOString()
-        }
-      })
-      .eq('id', onesheet_id);
-
-    if (updateError) {
-      console.error('[Analyze] Error updating onesheet:', updateError);
-      return NextResponse.json({ error: 'Failed to save analysis' }, { status: 500 });
-    }
-
+    // After all analysis is done, just return the summary
+    // The data has already been saved incrementally
     return NextResponse.json({
       success: true,
       requestId,
       data: {
         adsAnalyzed: successCount,
         adsFailed: errorCount,
-        totalAds: updatedAds.length,
+        totalAds: adsToAnalyze.length,
         analysisBreakdown: {
-          visualAndText: analyzedAds.filter(ad => ad.analysisMethod === 'visual-and-text').length,
-          skippedFailedAsset: analyzedAds.filter(ad => ad.analysisMethod === 'skipped-failed-asset').length,
-          skippedNoAsset: analyzedAds.filter(ad => ad.analysisMethod === 'skipped-no-asset').length,
-          skippedExternalAsset: analyzedAds.filter(ad => ad.analysisMethod === 'skipped-external-asset').length
+          visualAndText: analyzedAds.filter((ad: Record<string, unknown>) => ad.analysisMethod === 'visual-and-text').length,
+          skippedFailedAsset: analyzedAds.filter((ad: Record<string, unknown>) => ad.analysisMethod === 'skipped-failed-asset').length,
+          skippedNoAsset: analyzedAds.filter((ad: Record<string, unknown>) => ad.analysisMethod === 'skipped-no-asset').length,
+          skippedExternalAsset: analyzedAds.filter((ad: Record<string, unknown>) => ad.analysisMethod === 'skipped-external-asset').length
         }
       }
     });
@@ -667,4 +702,4 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
-} 
+}

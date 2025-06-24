@@ -168,7 +168,7 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
           // Progress not yet initialized, show default message
           console.log('Progress not yet available');
         }
-      } catch (error) {
+    } catch (error) {
         // Ignore errors in progress polling
         console.log('Progress polling error:', error);
       }
@@ -510,7 +510,7 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
         .eq('id', onesheetId);
 
       if (updateError) throw updateError;
-
+      
       toast({
         title: "Success",
         description: "Asset uploaded successfully"
@@ -1144,8 +1144,8 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
                   </Button>
                 )}
               </div>
-            </div>
-            
+                </div>
+
             {Object.keys(auditData?.demographicBreakdown || {}).length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {/* Age Breakdown */}
@@ -1285,7 +1285,7 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
                 <CardContent>
                 <p className="text-muted-foreground">
                   AI Strategist analysis is not yet implemented. This will provide:
-                </p>
+                    </p>
                 <ul className="mt-2 space-y-1 text-sm text-muted-foreground">
                   <li>• Performance analysis across your ads</li>
                   <li>• Strategic recommendations</li>

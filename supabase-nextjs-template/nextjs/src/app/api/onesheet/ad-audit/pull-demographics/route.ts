@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createSSRClient } from '@/lib/supabase/server';
+import { createClient } from '@/utils/supabase/server';
 import { decryptToken } from '@/lib/utils/tokenEncryption';
 
 const API_VERSION = 'v22.0';
@@ -8,7 +8,7 @@ const API_VERSION = 'v22.0';
 async function fetchAccountDemographics(
   adAccountId: string,
   accessToken: string,
-  dateRange: any
+  dateRange: { start: string; end: string }
 ): Promise<{ age: Record<string, number>; gender: Record<string, number>; placement: Record<string, number> }> {
   try {
     console.log(`Fetching demographics for account ${adAccountId}`);
@@ -58,13 +58,13 @@ async function fetchAccountDemographics(
     
     if (ageGenderData.data && ageGenderData.data.length > 0) {
       // First, calculate total impressions
-      ageGenderData.data.forEach((row: any) => {
+      ageGenderData.data.forEach((row: { age?: string; gender?: string; impressions?: string }) => {
         const impressions = parseInt(row.impressions || '0');
         totalImpressions += impressions;
       });
       
       // Then calculate percentages
-      ageGenderData.data.forEach((row: any) => {
+      ageGenderData.data.forEach((row: { age?: string; gender?: string; impressions?: string }) => {
         const age = row.age || 'unknown';
         const gender = row.gender || 'unknown';
         const impressions = parseInt(row.impressions || '0');
@@ -105,13 +105,13 @@ async function fetchAccountDemographics(
       
       if (placementData.data && placementData.data.length > 0) {
         // Calculate total
-        placementData.data.forEach((row: any) => {
+        placementData.data.forEach((row: { publisher_platform?: string; impressions?: string }) => {
           const impressions = parseInt(row.impressions || '0');
           totalPlacementImpressions += impressions;
         });
         
         // Calculate percentages
-        placementData.data.forEach((row: any) => {
+        placementData.data.forEach((row: { publisher_platform?: string; impressions?: string }) => {
           const platform = row.publisher_platform || 'unknown';
           const impressions = parseInt(row.impressions || '0');
           placementBreakdown[platform] = totalPlacementImpressions > 0 
@@ -151,7 +151,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'OneSheet ID is required' }, { status: 400 });
     }
 
-    const supabase = await createSSRClient();
+    const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
@@ -215,7 +215,7 @@ export async function POST(request: NextRequest) {
     const demographics = await fetchAccountDemographics(adAccountId, accessToken, dateRangeObj);
 
     // Get existing ad account audit data
-    const existingAudit = (onesheet.ad_account_audit as any) || {};
+    const existingAudit = (onesheet.ad_account_audit as Record<string, unknown>) || {};
 
     // Update only the demographic breakdown
     const updatedAudit = {
