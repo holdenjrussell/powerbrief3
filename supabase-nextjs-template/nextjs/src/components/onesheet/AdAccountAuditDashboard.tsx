@@ -104,7 +104,7 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
   const [uploadingAd, setUploadingAd] = useState<string | null>(null);
   const [showUploadDialog, setShowUploadDialog] = useState<{ adId: string; adName: string } | null>(null);
   const [activeTab, setActiveTab] = useState('data');
-  const [isRunningStrategist] = useState(false);
+  const [isRunningStrategist, setIsRunningStrategist] = useState(false);
   const [isRescraping, setIsRescraping] = useState(false);
   const [strategistOpinion, setStrategistOpinion] = useState<AIStrategistOpinion | null>(null);
   const [isPullingDemographics, setIsPullingDemographics] = useState(false);
@@ -627,12 +627,39 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
   };
 
   const handleRunStrategist = async () => {
-    // This function would typically be implemented with the strategist logic
-    // For now, it's a placeholder
-    toast({
-      title: "Coming Soon",
-      description: "AI Strategist analysis will be available soon",
-    });
+    setIsRunningStrategist(true);
+    try {
+      const response = await fetch(`/api/onesheet/ad-audit/strategist`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          onesheet_id: onesheetId,
+          brand_id: brandId
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to run strategist analysis');
+      }
+
+      const result = await response.json();
+      setStrategistOpinion(result.data);
+      
+      toast({
+        title: "Success",
+        description: "AI Strategist analysis completed successfully"
+      });
+    } catch (error) {
+      console.error('Error running strategist:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to run strategist analysis",
+        variant: "destructive"
+      });
+    } finally {
+      setIsRunningStrategist(false);
+    }
   };
 
   if (isImporting || isAnalyzing || isClearing) {

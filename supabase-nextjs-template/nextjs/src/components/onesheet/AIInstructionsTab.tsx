@@ -86,12 +86,7 @@ export function AIInstructionsTab({ onesheetId, brandId }: AIInstructionsTabProp
   const [benchmarkHoldRate, setBenchmarkHoldRate] = React.useState(0);
   const [benchmarkSpend, setBenchmarkSpend] = React.useState(0);
   const [iterationCount, setIterationCount] = React.useState(5);
-  const [iterationTypes, setIterationTypes] = React.useState<Array<{name: string; description: string}>>([
-    { name: 'early', description: 'Usually the first thing we like testing are new hooks: audio hooks and visual hooks. Especially if the ad had a low Attention Rate. Another interesting variable that sometimes has an impact on performance are new voiceovers.' },
-    { name: 'script', description: 'Focus on script variations, messaging, and copy improvements' },
-    { name: 'fine_tuning', description: 'Small adjustments to existing high performers' },
-    { name: 'late', description: 'Major format changes and new creative directions' }
-  ]);
+  const [iterationTypes, setIterationTypes] = React.useState<Array<{name: string; description: string}>>([]);
   const [lowPerformerCriteria, setLowPerformerCriteria] = React.useState({
     minSpend: 50,
     maxSpend: 500,
@@ -202,12 +197,14 @@ export function AIInstructionsTab({ onesheetId, brandId }: AIInstructionsTabProp
     setBenchmarkHoldRate((data.benchmark_hold_rate as number) || 0);
     setBenchmarkSpend((data.benchmark_spend as number) || 0);
     
+    // Load iteration types directly from the database field
+    if (data.iteration_types && Array.isArray(data.iteration_types)) {
+      setIterationTypes(data.iteration_types as Array<{name: string; description: string}>);
+    }
+    
     if (data.iteration_settings) {
       const iterationData = data.iteration_settings as Record<string, unknown>;
       setIterationCount((iterationData.default_count as number) || 5);
-      if (Array.isArray(iterationData.types)) {
-        setIterationTypes(iterationData.types as Array<{name: string; description: string}>);
-      }
     }
     
     if (data.low_performer_criteria) {
@@ -294,9 +291,9 @@ export function AIInstructionsTab({ onesheetId, brandId }: AIInstructionsTabProp
         benchmark_hook_rate: benchmarkHookRate,
         benchmark_hold_rate: benchmarkHoldRate,
         benchmark_spend: benchmarkSpend,
+        iteration_types: iterationTypes,
         iteration_settings: { 
-          default_count: iterationCount,
-          types: iterationTypes
+          default_count: iterationCount
         },
         low_performer_criteria: lowPerformerCriteria,
         response_schema: responseSchema,

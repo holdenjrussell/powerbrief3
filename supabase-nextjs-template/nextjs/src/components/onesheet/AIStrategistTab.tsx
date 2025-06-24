@@ -121,7 +121,7 @@ export function AIStrategistTab({
         </CardHeader>
         <CardContent className="space-y-6">
           <div>
-            <Label htmlFor="iteration-count">Analysis Iterations</Label>
+            <Label htmlFor="iteration-count">Top Ads for Iterations</Label>
             <Input
               id="iteration-count"
               type="number"
@@ -132,7 +132,7 @@ export function AIStrategistTab({
               className="w-32 mt-1"
             />
             <p className="text-sm text-muted-foreground mt-1">
-              Number of iteration rounds for deeper analysis
+              Number of top performing ads to generate iteration suggestions for
             </p>
           </div>
 
@@ -256,24 +256,9 @@ export function AIStrategistTab({
 
               {/* Key Metrics */}
               <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-                <h4 className="font-medium mb-3">Performance Benchmarks</h4>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                  <div>
-                    <p className="text-gray-600">Avg ROAS</p>
-                    <p className="font-semibold">{strategistOpinion.averageMetrics.roas.toFixed(2)}</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-600">Avg Hook Rate</p>
-                    <p className="font-semibold">{strategistOpinion.averageMetrics.hookRate.toFixed(1)}%</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-600">Avg Hold Rate</p>
-                    <p className="font-semibold">{strategistOpinion.averageMetrics.holdRate.toFixed(1)}%</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-600">Avg Spend</p>
-                    <p className="font-semibold">${strategistOpinion.averageMetrics.spend.toFixed(0)}</p>
-                  </div>
+                <h4 className="font-medium mb-3">Analysis Summary</h4>
+                <div className="text-sm text-gray-700">
+                  <p>{strategistOpinion.executiveSummary}</p>
                 </div>
               </div>
             </CardContent>
@@ -288,30 +273,15 @@ export function AIStrategistTab({
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* Overall Strategy */}
+              {/* Summary */}
               <div>
                 <h4 className="font-medium mb-2 flex items-center gap-2">
                   <ChevronRight className="h-4 w-4" />
-                  Overall Strategy
+                  Strategic Summary
                 </h4>
                 <p className="text-gray-700 whitespace-pre-wrap pl-6">
-                  {strategistOpinion.overallStrategy}
+                  {strategistOpinion.summary}
                 </p>
-              </div>
-
-              {/* Key Insights */}
-              <div>
-                <h4 className="font-medium mb-2 flex items-center gap-2">
-                  <ChevronRight className="h-4 w-4" />
-                  Key Insights
-                </h4>
-                <ul className="space-y-2 pl-6">
-                  {strategistOpinion.keyInsights.map((insight, index) => (
-                    <li key={index} className="text-gray-700">
-                      • {insight}
-                    </li>
-                  ))}
-                </ul>
               </div>
 
               {/* Recommendations */}
@@ -321,9 +291,16 @@ export function AIStrategistTab({
                   Recommendations
                 </h4>
                 <ul className="space-y-2 pl-6">
-                  {strategistOpinion.recommendations.map((recommendation, index) => (
+                  {strategistOpinion.recommendations.map((rec, index) => (
                     <li key={index} className="text-gray-700">
-                      • {recommendation}
+                      <span className={`inline-block px-2 py-1 text-xs rounded mr-2 ${
+                        rec.priority === 'high' ? 'bg-red-100 text-red-800' :
+                        rec.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {rec.priority.toUpperCase()}
+                      </span>
+                      {rec.recommendation}
                     </li>
                   ))}
                 </ul>
@@ -372,24 +349,29 @@ export function AIStrategistTab({
               <CardContent>
                 <div className="space-y-3">
                   {strategistOpinion.topPerformers.map((ad, index) => (
-                    <div key={ad.id} className="p-3 bg-green-50 rounded-lg">
+                    <div key={ad.adId} className="p-3 bg-green-50 rounded-lg">
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <p className="font-medium text-green-900">
-                            {index + 1}. {ad.name}
+                            {index + 1}. {ad.adName}
                           </p>
                           <div className="flex gap-4 mt-1 text-sm text-green-700">
                             <span>ROAS: {ad.roas}</span>
-                            <span>Hook: {ad.hookRate}%</span>
-                            <span>Hold: {ad.holdRate}%</span>
+                            <span>Hook: {ad.hookRate || 0}%</span>
+                            <span>Hold: {ad.holdRate || 0}%</span>
                             <span>Spend: ${ad.spend}</span>
                           </div>
                         </div>
                       </div>
-                      {ad.analysis && (
-                        <p className="mt-2 text-sm text-gray-700">
-                          {ad.analysis}
-                        </p>
+                      {ad.keySuccessFactors && ad.keySuccessFactors.length > 0 && (
+                        <div className="mt-2 text-sm text-gray-700">
+                          <strong>Success Factors:</strong>
+                          <ul className="mt-1 space-y-1">
+                            {ad.keySuccessFactors.map((factor, idx) => (
+                              <li key={idx}>• {factor}</li>
+                            ))}
+                          </ul>
+                        </div>
                       )}
                     </div>
                   ))}
@@ -410,24 +392,29 @@ export function AIStrategistTab({
               <CardContent>
                 <div className="space-y-3">
                   {strategistOpinion.lowPerformers.map((ad, index) => (
-                    <div key={ad.id} className="p-3 bg-amber-50 rounded-lg">
+                    <div key={ad.adId} className="p-3 bg-amber-50 rounded-lg">
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <p className="font-medium text-amber-900">
-                            {index + 1}. {ad.name}
+                            {index + 1}. {ad.adName}
                           </p>
                           <div className="flex gap-4 mt-1 text-sm text-amber-700">
                             <span>ROAS: {ad.roas}</span>
-                            <span>Hook: {ad.hookRate}%</span>
-                            <span>Hold: {ad.holdRate}%</span>
+                            <span>Hook: {ad.hookRate || 0}%</span>
+                            <span>Hold: {ad.holdRate || 0}%</span>
                             <span>Spend: ${ad.spend}</span>
                           </div>
                         </div>
                       </div>
-                      {ad.analysis && (
-                        <p className="mt-2 text-sm text-gray-700">
-                          {ad.analysis}
-                        </p>
+                      {ad.issues && ad.issues.length > 0 && (
+                        <div className="mt-2 text-sm text-gray-700">
+                          <strong>Issues:</strong>
+                          <ul className="mt-1 space-y-1">
+                            {ad.issues.map((issue, idx) => (
+                              <li key={idx}>• {issue}</li>
+                            ))}
+                          </ul>
+                        </div>
                       )}
                     </div>
                   ))}

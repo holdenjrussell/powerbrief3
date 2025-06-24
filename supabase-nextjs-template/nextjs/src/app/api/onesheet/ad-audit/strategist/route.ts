@@ -172,6 +172,14 @@ export async function POST(request: NextRequest) {
       visualDescription: ad.visualDescription?.substring(0, 500) // Limit description length
     }));
 
+    // Build iteration types description from database configuration
+    const iterationTypes = instructions.iteration_types || [];
+    const iterationTypesDescription = Array.isArray(iterationTypes) 
+      ? iterationTypes.map((type: { name: string; description: string }) => 
+          `- ${type.name}: ${type.description}`
+        ).join('\n')
+      : '- No iteration types configured. Please configure iteration types in AI Instructions.';
+
     // Build the prompt from template
     const promptVariables = {
       totalAds: adsData.length.toString(),
@@ -183,6 +191,7 @@ export async function POST(request: NextRequest) {
       lowPerformerMaxSpend: (lowPerformerCriteria.max_spend || 500).toString(),
       lowPerformerMaxRoas: (lowPerformerCriteria.max_roas || 1.0).toString(),
       iterationCount: requestedIterations.toString(),
+      iterationTypesDescription: iterationTypesDescription,
       adsData: JSON.stringify(adsData, null, 2)
     };
 

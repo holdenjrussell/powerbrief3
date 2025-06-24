@@ -1909,6 +1909,7 @@ export type Database = {
           framework_prompt: string | null
           id: string
           iteration_settings: Json | null
+          iteration_types: Json | null
           low_performer_criteria: Json | null
           main_analysis_prompt: string | null
           master_prompt_template: string | null
@@ -1955,6 +1956,7 @@ export type Database = {
           framework_prompt?: string | null
           id?: string
           iteration_settings?: Json | null
+          iteration_types?: Json | null
           low_performer_criteria?: Json | null
           main_analysis_prompt?: string | null
           master_prompt_template?: string | null
@@ -2001,6 +2003,7 @@ export type Database = {
           framework_prompt?: string | null
           id?: string
           iteration_settings?: Json | null
+          iteration_types?: Json | null
           low_performer_criteria?: Json | null
           main_analysis_prompt?: string | null
           master_prompt_template?: string | null
