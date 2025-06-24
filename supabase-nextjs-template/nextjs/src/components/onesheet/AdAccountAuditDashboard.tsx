@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { createClient } from '@/utils/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
+import { v4 as uuidv4 } from 'uuid';
 import type { AIStrategistOpinion } from '@/lib/types/onesheet';
 
 // Chart colors
@@ -84,12 +85,6 @@ interface AdAccountAuditDashboardProps {
   };
 }
 
-// Helper function to truncate long ad names
-function truncateAdName(name: string, maxLength: number = 60): string {
-  if (name.length <= maxLength) return name;
-  return name.substring(0, maxLength) + '...';
-}
-
 export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: AdAccountAuditDashboardProps) {
   const [isImporting, setIsImporting] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -107,123 +102,11 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
   const [uploadingAd, setUploadingAd] = useState<string | null>(null);
   const [showUploadDialog, setShowUploadDialog] = useState<{ adId: string; adName: string } | null>(null);
   const [activeTab, setActiveTab] = useState('data');
-  const [aiInstructions, setAiInstructions] = useState<{
-    contentVariables: { name: string; description: string }[];
-    awarenessLevels: { name: string; description: string }[];
-    discoveredContentVariables: string[];
-    discoveredAwarenessLevels: string[];
-    returnMultiple: boolean;
-    selectionGuidance: string;
-    allowNewContentVariables: boolean;
-    allowNewAwarenessLevels: boolean;
-    mainAnalysisPrompt?: string;
-    contentVariablesPrompt?: string;
-    awarenessLevelsPrompt?: string;
-    typePrompt?: string;
-    adDurationPrompt?: string;
-    productIntroPrompt?: string;
-    creatorsUsedPrompt?: string;
-    sitInProblemSecondsPrompt?: string;
-    sitInProblemPrompt?: string;
-    anglePrompt?: string;
-    formatPrompt?: string;
-    emotionPrompt?: string;
-    frameworkPrompt?: string;
-    transcriptionPrompt?: string;
-    visualDescriptionPrompt?: string;
-    analysisFields: {
-      type: { name: string; description?: string }[];
-      angle: { name: string; description?: string }[];
-      format: { name: string; description?: string }[];
-      emotion: { name: string; description?: string }[];
-      framework: { name: string; description?: string }[];
-    };
-    allowNewAnalysisValues: {
-      type: boolean;
-      angle: boolean;
-      format: boolean;
-      emotion: boolean;
-      framework: boolean;
-    };
-    systemInstructions: string;
-    masterPromptTemplate: string;
-    responseSchema: Record<string, unknown>;
-         benchmarkRoas: number;
-     benchmarkHookRate: number;
-     benchmarkHoldRate: number;
-     benchmarkSpend: number;
-    strategistSystemInstructions: string;
-    strategistPromptTemplate: string;
-    strategistResponseSchema: Record<string, unknown>;
-    analyzeModel: string;
-    strategistModel: string;
-  }>({
-    contentVariables: [],
-    awarenessLevels: [],
-    discoveredContentVariables: [],
-    discoveredAwarenessLevels: [],
-    returnMultiple: false,
-    selectionGuidance: '',
-    allowNewContentVariables: true,
-    allowNewAwarenessLevels: true,
-    mainAnalysisPrompt: undefined,
-    contentVariablesPrompt: undefined,
-    awarenessLevelsPrompt: undefined,
-    typePrompt: undefined,
-    adDurationPrompt: undefined,
-    productIntroPrompt: undefined,
-    creatorsUsedPrompt: undefined,
-    sitInProblemSecondsPrompt: undefined,
-    sitInProblemPrompt: undefined,
-    anglePrompt: undefined,
-    formatPrompt: undefined,
-    emotionPrompt: undefined,
-    frameworkPrompt: undefined,
-    transcriptionPrompt: undefined,
-    visualDescriptionPrompt: undefined,
-    analysisFields: {
-      type: [],
-      angle: [],
-      format: [],
-      emotion: [],
-      framework: []
-    },
-    allowNewAnalysisValues: {
-      type: true,
-      angle: true,
-      format: true,
-      emotion: true,
-      framework: true
-    },
-    systemInstructions: '',
-    masterPromptTemplate: '',
-    responseSchema: {},
-    benchmarkRoas: 0,
-    benchmarkHookRate: 0,
-    benchmarkHoldRate: 0,
-    benchmarkSpend: 0,
-    strategistSystemInstructions: '',
-    strategistPromptTemplate: '',
-    strategistResponseSchema: {},
-    analyzeModel: '',
-    strategistModel: ''
-  });
-  const [isLoadingInstructions, setIsLoadingInstructions] = useState(false);
-  const [isRunningStrategist, setIsRunningStrategist] = useState(false);
+  const [isRunningStrategist] = useState(false);
   const [isRescraping, setIsRescraping] = useState(false);
   const [strategistOpinion, setStrategistOpinion] = useState<AIStrategistOpinion | null>(null);
-  const [iterationCount, setIterationCount] = useState<number>(5);
-  const [lowPerformerCriteria, setLowPerformerCriteria] = useState<{
-    minSpend: number;
-    maxSpend: number;
-    maxRoas: number;
-    enabled: boolean;
-  }>({
-    minSpend: 50,
-    maxSpend: 500,
-    maxRoas: 1.0,
-    enabled: true
-  });
+  const [isPullingDemographics, setIsPullingDemographics] = useState(false);
+  const [isClearingDemographics, setIsClearingDemographics] = useState(false);
   const supabase = createClient();
   const { toast } = useToast();
 
@@ -236,7 +119,6 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
     if (!initialData) {
       loadAuditData();
     }
-    loadAiInstructions();
   }, [onesheetId]);
 
   const loadAuditData = async () => {
@@ -263,92 +145,6 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
         description: "Failed to load audit data",
         variant: "destructive"
       });
-    }
-  };
-
-  const loadAiInstructions = async () => {
-    setIsLoadingInstructions(true);
-    try {
-      const response = await fetch(`/api/onesheet/ai-instructions?onesheet_id=${onesheetId}`);
-      if (!response.ok) throw new Error('Failed to load AI instructions');
-      
-      const result = await response.json();
-      const instructions = result.data;
-      
-      setAiInstructions({
-        contentVariables: instructions.content_variables || [],
-        awarenessLevels: instructions.awareness_levels || [],
-        discoveredContentVariables: instructions.discovered_content_variables || [],
-        discoveredAwarenessLevels: instructions.discovered_awareness_levels || [],
-        returnMultiple: instructions.content_variables_return_multiple,
-        selectionGuidance: instructions.content_variables_selection_guidance || '',
-        allowNewContentVariables: instructions.content_variables_allow_new !== false,
-        allowNewAwarenessLevels: instructions.awareness_levels_allow_new !== false,
-        mainAnalysisPrompt: instructions.main_analysis_prompt,
-        contentVariablesPrompt: instructions.content_variables_prompt,
-        awarenessLevelsPrompt: instructions.awareness_levels_prompt,
-        typePrompt: instructions.type_prompt,
-        adDurationPrompt: instructions.ad_duration_prompt,
-        productIntroPrompt: instructions.product_intro_prompt,
-        creatorsUsedPrompt: instructions.creators_used_prompt,
-        sitInProblemSecondsPrompt: instructions.sit_in_problem_seconds_prompt,
-        sitInProblemPrompt: instructions.sit_in_problem_prompt,
-        anglePrompt: instructions.angle_prompt,
-        formatPrompt: instructions.format_prompt,
-        emotionPrompt: instructions.emotion_prompt,
-        frameworkPrompt: instructions.framework_prompt,
-        transcriptionPrompt: instructions.transcription_prompt,
-        visualDescriptionPrompt: instructions.visual_description_prompt,
-        analysisFields: instructions.analysis_fields || {
-          type: [],
-          angle: [],
-          format: [],
-          emotion: [],
-          framework: []
-        },
-        allowNewAnalysisValues: instructions.allow_new_analysis_values || {
-          type: true,
-          angle: true,
-          format: true,
-          emotion: true,
-          framework: true
-        },
-        systemInstructions: instructions.system_instructions || '',
-        masterPromptTemplate: instructions.master_prompt_template || '',
-        responseSchema: instructions.response_schema || {},
-        benchmarkRoas: instructions.benchmark_roas || 0,
-        benchmarkHookRate: instructions.benchmark_hook_rate || 0,
-        benchmarkHoldRate: instructions.benchmark_hold_rate || 0,
-        benchmarkSpend: instructions.benchmark_spend || 0,
-        strategistSystemInstructions: instructions.strategist_system_instructions || '',
-        strategistPromptTemplate: instructions.strategist_prompt_template || '',
-        strategistResponseSchema: instructions.strategist_response_schema || {},
-        analyzeModel: instructions.analyze_model || '',
-        strategistModel: instructions.strategist_model || ''
-      });
-      
-      // Load low performer criteria and iteration settings
-      if (instructions.low_performer_criteria) {
-        setLowPerformerCriteria({
-          minSpend: instructions.low_performer_criteria.min_spend || 50,
-          maxSpend: instructions.low_performer_criteria.max_spend || 500,
-          maxRoas: instructions.low_performer_criteria.max_roas || 1.0,
-          enabled: instructions.low_performer_criteria.enabled !== false
-        });
-      }
-      
-      if (instructions.iteration_settings) {
-        setIterationCount(instructions.iteration_settings.default_count || 5);
-      }
-    } catch (error) {
-      console.error('Error loading AI instructions:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load AI instructions",
-        variant: "destructive"
-      });
-    } finally {
-      setIsLoadingInstructions(false);
     }
   };
 
@@ -386,7 +182,8 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
           onesheet_id: onesheetId,
           date_range: dateRange,
           max_ads: maxAds,
-          request_id: requestId
+          request_id: requestId,
+          import_demographics: true // Always include demographics with ads import
         }),
       });
 
@@ -408,7 +205,7 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
       
       toast({
         title: "Success",
-        description: `Successfully imported ${result.data.adsImported} ads`
+        description: `Successfully imported ${result.data.adsImported} ads with demographics`
       });
       
       // Refresh the data
@@ -424,6 +221,80 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
       });
     } finally {
       setIsImporting(false);
+    }
+  };
+
+  const handlePullDemographics = async () => {
+    setIsPullingDemographics(true);
+    try {
+      const response = await fetch('/api/onesheet/ad-audit/pull-demographics', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          onesheet_id: onesheetId,
+          date_range: dateRange
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to pull demographics');
+      }
+
+      await response.json();
+      
+      toast({
+        title: "Success",
+        description: "Successfully pulled demographic data"
+      });
+      
+      // Refresh the data
+      await loadAuditData();
+    } catch (error) {
+      console.error('Error pulling demographics:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : 'Failed to pull demographics',
+        variant: "destructive"
+      });
+    } finally {
+      setIsPullingDemographics(false);
+    }
+  };
+
+  const handleClearDemographics = async () => {
+    if (!confirm('Are you sure you want to clear demographic data? Ad data will be preserved.')) {
+      return;
+    }
+
+    setIsClearingDemographics(true);
+    try {
+      const response = await fetch('/api/onesheet/ad-audit/clear-demographics', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ onesheet_id: onesheetId }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to clear demographics');
+      }
+
+      toast({
+        title: "Success",
+        description: "Demographic data cleared successfully"
+      });
+      
+      // Reload the audit data
+      await loadAuditData();
+    } catch (error) {
+      console.error('Error clearing demographics:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : 'Failed to clear demographics',
+        variant: "destructive"
+      });
+    } finally {
+      setIsClearingDemographics(false);
     }
   };
 
@@ -587,91 +458,122 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
   };
 
   const handleUploadAsset = async (file: File, adId: string) => {
-    if (!file || !adId) return;
+    if (file.size > 50 * 1024 * 1024) {
+      toast({
+        title: "File too large",
+        description: "Please upload a file smaller than 50MB",
+        variant: "destructive"
+      });
+      return;
+    }
 
     setUploadingAd(adId);
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('onesheetId', onesheetId);
-      formData.append('adId', adId);
-      formData.append('brandId', brandId);
-
-      const response = await fetch('/api/onesheet/ad-audit/upload-asset', {
-        method: 'POST',
-        body: formData
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Upload failed');
-      }
-
-      const result = await response.json();
+      const fileName = `ads/${onesheetId}/${adId}/${uuidv4()}-${file.name}`;
       
+      // Upload to Supabase storage
+      const { error: uploadError } = await supabase.storage
+        .from('powerbrief-assets')
+        .upload(fileName, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
+
+      if (uploadError) throw uploadError;
+
+      // Get the public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('powerbrief-assets')
+        .getPublicUrl(fileName);
+
+      // Update the ad in the onesheet data
+      const updatedAds = ads.map(ad => 
+        ad.id === adId ? {
+          ...ad,
+          assetUrl: publicUrl,
+          thumbnailUrl: file.type.startsWith('video/') ? ad.thumbnailUrl : publicUrl,
+          imageUrl: file.type.startsWith('image/') ? publicUrl : ad.imageUrl,
+          assetLoadFailed: false,
+          manuallyUploaded: true
+        } : ad
+      );
+
+      // Update the onesheet with the new ad data
+      const { error: updateError } = await supabase
+        .from('onesheet')
+        .update({
+          ad_account_audit: {
+            ...auditData,
+            ads: updatedAds
+          }
+        })
+        .eq('id', onesheetId);
+
+      if (updateError) throw updateError;
+
       toast({
-        title: "Asset uploaded successfully",
-        description: `New ${result.data.assetType} uploaded and ready for AI analysis`,
+        title: "Success",
+        description: "Asset uploaded successfully"
       });
 
-      // Refresh the data
+      // Reload the data
       await loadAuditData();
-
+      setShowUploadDialog(null);
     } catch (error) {
-      console.error('Upload error:', error);
+      console.error('Error uploading asset:', error);
       toast({
-        title: "Upload failed",
-        description: error instanceof Error ? error.message : "Failed to upload asset",
-        variant: "destructive",
+        title: "Error",
+        description: error instanceof Error ? error.message : 'Failed to upload asset',
+        variant: "destructive"
       });
     } finally {
       setUploadingAd(null);
-      setShowUploadDialog(null);
     }
   };
 
   const handleExport = () => {
-    if (!ads.length) return;
+    if (!hasAds) return;
 
+    // Prepare CSV headers
     const headers = [
-      'Ad Name',
-      'Landing Page',
-      'Spend',
-      'CPA',
-      'ROAS',
-      'Website Purchase Revenue',
-      'Hook Rate',
-      'Hold Rate',
-      'Type',
-      'Ad Duration',
-      'Product Intro',
-      'Sit in Problem (s)',
-      'Sit in Problem %',
-      'Creators Used',
-      'Angle',
-      'Format',
-      'Emotion',
-      'Framework',
-      'Transcription',
-      'Visual Description'
+      'ID', 'Name', 'Status', 'Landing Page', 'Spend', 'CPA', 'ROAS', 'Revenue',
+      'Hook Rate', 'Hold Rate', 'Impressions', 'Purchases', '3s Views', '25% Views', 
+      '50% Views', '75% Views', '100% Views', 'Campaign', 'Ad Set',
+      'Type', 'Duration', 'Product Intro', 'Sit in Problem (s)', 'Sit in Problem %', 
+      'Creators Used', 'Angle', 'Awareness Level', 'Content Variables',
+      'Format', 'Emotion', 'Framework', 'Transcription', 'Visual Description'
     ];
 
+    // Convert ads data to CSV rows
     const rows = ads.map(ad => [
+      ad.id,
       ad.name,
+      ad.status,
       ad.landingPage,
-      `$${ad.spend}`,
-      `$${ad.cpa}`,
+      ad.spend,
+      ad.cpa,
       ad.roas,
-      `$${ad.purchaseRevenue || '0.00'}`,
-      `${ad.hookRate}%`,
-      `${ad.holdRate}%`,
+      ad.purchaseRevenue || '0.00',
+      ad.hookRate,
+      ad.holdRate,
+      ad.impressions,
+      ad.purchases,
+      ad.video3s,
+      ad.video25,
+      ad.video50,
+      ad.video75,
+      ad.video100,
+      ad.campaignName,
+      ad.adsetName,
       ad.type || '',
-      ad.adDuration ? `${ad.adDuration}s` : '',
-      ad.productIntro ? `${ad.productIntro}s` : '',
-      ad.sitInProblemSeconds !== undefined && ad.sitInProblemSeconds !== null ? `${ad.sitInProblemSeconds}s` : '',
+      ad.adDuration || '',
+      ad.productIntro || '',
+      ad.sitInProblemSeconds || '',
       ad.sitInProblem || '',
       ad.creatorsUsed || '',
       ad.angle || '',
+      ad.awarenessLevel || '',
+      ad.contentVariables || '',
       ad.format || '',
       ad.emotion || '',
       ad.framework || '',
@@ -679,12 +581,21 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
       ad.visualDescription || ''
     ]);
 
-    const csv = [
+    // Create CSV content
+    const csvContent = [
       headers.join(','),
-      ...rows.map(row => row.map(cell => `&quot;${cell}&quot;`).join(','))
+      ...rows.map(row => row.map(cell => {
+        // Escape cells containing commas or quotes
+        const cellStr = String(cell);
+        if (cellStr.includes(',') || cellStr.includes('"') || cellStr.includes('\n')) {
+          return `"${cellStr.replace(/"/g, '""')}"`;
+        }
+        return cellStr;
+      }).join(','))
     ].join('\n');
 
-    const blob = new Blob([csv], { type: 'text/csv' });
+    // Create and download file
+    const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -714,52 +625,12 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
   };
 
   const handleRunStrategist = async () => {
-    if (!ads.length || !analyzedCount) {
-      toast({
-        title: "No analyzed ads",
-        description: "Please analyze your ads first before running the AI strategist",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setIsRunningStrategist(true);
-    try {
-      const response = await fetch('/api/onesheet/ad-audit/strategist', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          onesheet_id: onesheetId,
-          iteration_count: iterationCount
-        }),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to run strategist analysis');
-      }
-
-      const result = await response.json();
-      
-      setStrategistOpinion(result.data);
-      
-      toast({
-        title: "Strategist Analysis Complete",
-        description: `Analyzed ${result.data.totalAdsAnalyzed} ads and identified ${result.data.topPerformers.length} top performers`
-      });
-      
-      // Refresh the data to get the saved strategist opinion
-      await loadAuditData();
-    } catch (error) {
-      console.error('Error running strategist:', error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : 'Failed to run strategist analysis',
-        variant: "destructive"
-      });
-    } finally {
-      setIsRunningStrategist(false);
-    }
+    // This function would typically be implemented with the strategist logic
+    // For now, it's a placeholder
+    toast({
+      title: "Coming Soon",
+      description: "AI Strategist analysis will be available soon",
+    });
   };
 
   if (isImporting || isAnalyzing || isClearing) {
@@ -776,11 +647,11 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
                 <span className="truncate max-w-[200px]">
                   {importMessage || 'Starting import...'}
                 </span>
-                <span className="ml-2">{Math.round(importProgress)}%</span>
+                <span className="font-medium">{importProgress}%</span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2">
                 <div 
-                  className="bg-primary h-2 rounded-full transition-all duration-300 ease-out"
+                  className="bg-blue-600 h-2 rounded-full transition-all duration-300"
                   style={{ width: `${importProgress}%` }}
                 />
               </div>
@@ -792,11 +663,11 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
                 <span className="truncate max-w-[200px]">
                   {analyzeMessage || 'Starting analysis...'}
                 </span>
-                <span className="ml-2">{Math.round(analyzeProgress)}%</span>
+                <span className="font-medium">{analyzeProgress}%</span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2">
                 <div 
-                  className="bg-primary h-2 rounded-full transition-all duration-300 ease-out"
+                  className="bg-green-600 h-2 rounded-full transition-all duration-300"
                   style={{ width: `${analyzeProgress}%` }}
                 />
               </div>
@@ -1246,6 +1117,35 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
           </TabsContent>
 
           <TabsContent value="visualizations" className="space-y-4">
+            {/* Demographics Controls */}
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-medium">Demographics Data</h3>
+              <div className="flex gap-2">
+                <Button
+                  onClick={handlePullDemographics}
+                  disabled={isPullingDemographics}
+                  variant="outline"
+                  size="sm"
+                  className="border-blue-200 text-blue-700 hover:bg-blue-50"
+                >
+                  <RefreshCw className={`mr-2 h-4 w-4 ${isPullingDemographics ? 'animate-spin' : ''}`} />
+                  {isPullingDemographics ? 'Pulling...' : 'Pull Demographics'}
+                </Button>
+                {Object.keys(auditData?.demographicBreakdown || {}).length > 0 && (
+                  <Button
+                    onClick={handleClearDemographics}
+                    disabled={isClearingDemographics}
+                    variant="outline"
+                    size="sm"
+                    className="border-red-200 text-red-700 hover:bg-red-50"
+                  >
+                    <Trash2 className={`mr-2 h-4 w-4 ${isClearingDemographics ? 'animate-spin' : ''}`} />
+                    {isClearingDemographics ? 'Clearing...' : 'Clear Demographics'}
+                  </Button>
+                )}
+              </div>
+            </div>
+            
             {Object.keys(auditData?.demographicBreakdown || {}).length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {/* Age Breakdown */}
@@ -1342,7 +1242,12 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
               <div className="text-center py-8">
                 <PieChart className="mx-auto h-24 w-24 text-gray-400 mb-4" />
                 <h3 className="text-lg font-medium text-gray-900 mb-2">No demographic data available</h3>
-                <p className="text-gray-600">Import ads with demographic breakdowns to see visualizations here</p>
+                <p className="text-gray-600 mb-4">
+                  Click &quot;Pull Demographics&quot; to fetch demographic breakdowns from your ad account
+                </p>
+                <p className="text-sm text-gray-500">
+                  Demographics are pulled at the account level for the selected date range
+                </p>
               </div>
             )}
           </TabsContent>
