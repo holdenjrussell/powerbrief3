@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
     // Get OneSheet to verify ownership
     const { data: onesheet, error: onesheetError } = await supabase
       .from('onesheet')
-      .select('id, brand_id')
+      .select('id, brand_id, ad_account_audit')
       .eq('id', onesheet_id)
       .single();
 
@@ -40,7 +40,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Brand not found or access denied' }, { status: 403 });
     }
 
-    // Clear the ad audit data
+    // Extract Supabase asset URLs from existing ads to preserve them
+    const existingAds = onesheet.ad_account_audit?.ads || [];
+    const assetCache: Record<string, { assetUrl: string; assetType: string }> = {};
+    
+    existingAds.forEach((ad: { id: string; assetId?: string; name: string; assetUrl?: string; assetType?: string; assetLoadFailed?: boolean }) => {
+      // Only preserve assets that are stored in Supabase
+      if (ad.assetUrl && ad.assetUrl.includes('supabase') && !ad.assetLoadFailed) {
+        // Use a unique identifier (could be ad ID, asset ID, or a combination)
+        const cacheKey = `${ad.id}_${ad.assetId || ad.name}`;
+        assetCache[cacheKey] = {
+          assetUrl: ad.assetUrl,
+          assetType: ad.assetType || 'unknown'
+        };
+      }
+    });
+
+    // Clear the ad audit data but preserve the asset cache
     const { error: updateError } = await supabase
       .from('onesheet')
       .update({ 
@@ -54,7 +70,9 @@ export async function POST(request: NextRequest) {
           performanceByAngle: {},
           performanceByFormat: {},
           performanceByEmotion: {},
-          performanceByFramework: {}
+          performanceByFramework: {},
+          // Preserve asset cache for future imports
+          assetCache: assetCache
         },
         stages_completed: {
           ...onesheet.stages_completed,
@@ -70,7 +88,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: 'Ad audit data cleared successfully'
+      message: 'Ad audit data cleared successfully',
+      preservedAssets: Object.keys(assetCache).length
     });
 
   } catch (error) {

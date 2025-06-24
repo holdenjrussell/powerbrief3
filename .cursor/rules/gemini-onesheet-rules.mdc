@@ -1,0 +1,261 @@
+---
+description: 
+globs: **/onesheet/*
+alwaysApply: false
+---
+
+Rules for Cursor AI: Structured JSON Output with Gemini
+
+This document outlines the rules for configuring Cursor AI to generate reliable, structured JSON output by leveraging the Gemini model's capabilities. It covers the distinct roles of system instructions and prompts, and the enforcement of JSON structure.
+
+Rule 1: Configure systemInstruction to Guide Core AI Behavior
+
+The systemInstruction is the highest-priority directive. It sets the foundational rules and persona for the AI on every request.
+
+1.1. Rule: You MUST Define a Persona. Establish the AI's role and area of expertise to frame its responses.
+
+Example: "You are an expert advertising strategist and copywriter..."
+
+1.2. Rule: You MUST Set a Core Task. Give the AI its primary objective.
+
+Example: "Given the brand context...generate ad creative components..."
+
+1.3. Rule: You MUST Impose Strict Constraints. Define non-negotiable boundaries for brand safety and consistency.
+
+Example: "DO NOT EVER use another brand than specified..."
+
+1.4. Rule: You MUST Command a JSON Output Format. Explicitly instruct the model that its response must be valid JSON and nothing else.
+
+Example: "IMPORTANT: Your response MUST be valid JSON and nothing else."
+
+1.5. Rule: You MUST Provide a Perfect "Few-Shot" Example. Include a complete, well-structured example of the desired JSON output within the prompt. This is the most effective way to guide the model's content generation.
+
+Rule 2: Enforce Structure with responseSchema
+
+While systemInstruction tells the AI what to do, responseSchema forces its output into a specific, validated structure. This is mandatory for reliable, programmatic outputs.
+
+2.1. Rule: You MUST Set the responseMimeType. Activate structured output mode by setting the MIME type to 'application/json'.
+
+2.2. Rule: You MUST Define the Top-Level Type. The root of the schema must be defined, typically as Type.OBJECT.
+
+2.3. Rule: You MUST List All required Properties. Specify every key that must be present in the final JSON.
+
+2.4. Rule: You MUST Detail Every Property. For each key, you must define its type (e.g., Type.ARRAY), description (to help the AI understand context), and any nested structures.
+
+Rule 3: Segregate Information: System Instructions vs. Prompt
+
+Knowing where to place information is critical for efficient and predictable AI behavior. Use the following rules to decide what goes in the permanent systemInstruction versus the dynamic prompt (contents).
+
+3.1 Rule: Use systemInstruction for Permanent, High-Level Directives.
+
+Think of the system instruction as the AI's "Job Description". It defines its role, personality, and the core rules it must always follow. This information is static and applies to all tasks.
+
+Put this in systemInstruction:
+
+Persona: Who the AI is. (e.g., "You are an expert Python developer.")
+
+Core Objective: The AI's primary goal. (e.g., "Your purpose is to refactor code for clarity and performance.")
+
+Global Constraints: Rules that always apply. (e.g., "Never use deprecated libraries.")
+
+Voice and Tone: The desired communication style. (e.g., "All explanations must be concise and formal.")
+
+Universal Output Format: The high-level structure to always use. (e.g., "Your response MUST be valid JSON.")
+
+3.2 Rule: Use the Prompt (contents) for Dynamic, Task-Specific Information.
+
+Think of the prompt as the "Task Ticket". It contains the specific details and data needed for the AI to complete the immediate request. This information changes with every call.
+
+Put this in the prompt (contents):
+
+The Immediate Command: The specific thing you want the AI to do right now. (e.g., "Refactor the following function.")
+
+Contextual Data: The data needed for this specific task. (e.g., the code snippet to be refactored.)
+
+Dynamic Inputs: Information that changes with every request. (e.g., Brand Name: "QuantumLeap Fitness".)
+
+One-Time Modifiers: Instructions that override a system rule for a single request. (e.g., "For this response only, provide the output as a numbered list.")
+
+Quick Reference Table
+Information Type	Use System Instruction (The "Job Description")	Use Prompt / contents (The "Task Ticket")
+Persona & Role	✅	
+Core Goal & Purpose	✅	
+Global Rules & Constraints	✅	
+Consistent Voice & Tone	✅	
+The Specific Question		✅
+Code Snippets, Data		✅
+Dynamic Values (Brand, User ID)		✅
+One-Off Instructions		✅
+Implementation Example: Ad Creative Generator
+
+This NodeJS code is just an example that demonstrates the application of all rules, including the proper segregation of information.
+ALWAYS REFER TO THE DOCS Titled: JSON Schema Instructions for Gemini Structured Output for reference
+
+Generated javascript
+// Dependencies: @google/genai, mime
+import { GoogleGenAI, Type } from '@google/genai';
+
+async function main() {
+  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+  
+  const config = {
+    // RULE 2.1 APPLIED: Activating structured output mode.
+    responseMimeType: 'application/json',
+    
+    // RULE 2.2, 2.3, 2.4 APPLIED: Defining the exact JSON structure,
+    // including types, required fields, and descriptions.
+    responseSchema: {
+      type: Type.OBJECT,
+      description: "Schema for a video script with hooks, scenes, and a call to action.",
+      required: ["text_hook_options", "spoken_hook_options", "body_content_structured_scenes", "cta_script", "cta_text_overlay"],
+      properties: {
+        text_hook_options: { type: Type.ARRAY, description: "A list of potential text hooks...", items: { type: Type.STRING } },
+        spoken_hook_options: { type: Type.ARRAY, description: "A list of potential spoken hooks...", items: { type: Type.STRING } },
+        body_content_structured_scenes: {
+          type: Type.ARRAY,
+          description: "An array of structured scenes...",
+          items: {
+            type: Type.OBJECT,
+            description: "A single scene in the video script.",
+            required: ["script", "visuals"],
+            properties: {
+              scene_title: { type: Type.STRING, description: "An optional title..." },
+              script: { type: Type.STRING, description: "The script content..." },
+              visuals: { type: Type.STRING, description: "A description of the visuals..." },
+            },
+          },
+        },
+        cta_script: { type: Type.STRING, description: "The script for the final call to action." },
+        cta_text_overlay: { type: Type.STRING, description: "The text overlay for the call to action screen." },
+      },
+    },
+
+    // RULE 1.1, 1.2, 1.3, 1.4, 1.5 APPLIED: Setting the AI's persona,
+    // objective, constraints, and providing a perfect JSON example.
+    systemInstruction: [
+        {
+          text: `You are an expert advertising strategist...
+IMPORTANT: Your response MUST be valid JSON and nothing else. Format:
+{
+  "text_hook_options": ["Hook 1 with emojis 🎯", ...],
+  "spoken_hook_options": ["Verbal hook 1 to be spoken", ...],
+  "body_content_structured_scenes": [...],
+  "cta_script": "Call to action script",
+  "cta_text_overlay": "Text overlay for the CTA"
+}
+...`,
+        }
+    ],
+  };
+  const model = 'gemini-2.5-flash-lite-preview-06-17';
+  
+  // RULE 3 APPLIED: Providing the dynamic, per-request input.
+  const contents = [
+    {
+      role: 'user',
+      parts: [
+        { text: `Brand Name: "QuantumLeap Fitness". Target Audience: "Busy professionals aged 25-40". Video Concept: "A 30-second workout that can be done at your desk."` },
+      ],
+    },
+  ];
+
+  const response = await ai.models.generateContent({ model, config, contents });
+
+  // The output is a clean, parsable JSON string adhering to all rules.
+  console.log(response.response.text);
+}
+
+main();
+
+
+
+
+Aways include an example of a perfect output for the system instrucitons
+Here is an example: 
+{
+  "type": "object",
+  "properties": {
+    "type": {
+      "type": "string",
+      "description": "The category of the video production.",
+      "example": "High Production Video"
+    },
+    "adDuration": {
+      "type": "number",
+      "format": "float",
+      "description": "The total duration of the ad in seconds.",
+      "example": 32.5
+    },
+    "productIntro": {
+      "type": "number",
+      "format": "float",
+      "description": "The timestamp in seconds when the product is introduced.",
+      "example": 3.1
+    },
+    "sitInProblem": {
+      "type": "string",
+      "description": "The percentage of the ad duration that focuses on the problem.",
+      "example": "9.5%"
+    },
+    "creatorsUsed": {
+      "type": "integer",
+      "description": "The number of creators featured in the ad.",
+      "example": 1
+    },
+    "angle": {
+      "type": "string",
+      "description": "The primary marketing angle or theme of the ad.",
+      "example": "Weight Management"
+    },
+    "format": {
+      "type": "string",
+      "description": "The format of the ad.",
+      "example": "Testimonial"
+    },
+    "emotion": {
+      "type": "string",
+      "description": "The dominant emotion conveyed in the ad.",
+      "example": "Hopefulness"
+    },
+    "framework": {
+      "type": "string",
+      "description": "The marketing or storytelling framework used.",
+      "example": "PAS"
+    },
+    "awarenessLevel": {
+      "type": "string",
+      "description": "The target audience's level of awareness.",
+      "example": "Problem Aware"
+    },
+    "contentVariables": {
+      "type": "string",
+      "description": "Specific elements or variables included in the content.",
+      "example": "Product Demo"
+    },
+    "transcription": {
+      "type": "string",
+      "description": "The full transcription of the ad's audio.",
+      "example": "[00:01] Have you ever felt..."
+    },
+    "visualDescription": {
+      "type": "string",
+      "description": "A description of the visual elements in the ad.",
+      "example": "A woman is sitting at her desk, looking tired. The color palette is muted with blue and grey tones. Primary hex code: #B0C4DE."
+    }
+  },
+  "required": [
+    "type",
+    "adDuration",
+    "productIntro",
+    "sitInProblem",
+    "creatorsUsed",
+    "angle",
+    "format",
+    "emotion",
+    "framework",
+    "awarenessLevel",
+    "contentVariables",
+    "transcription",
+    "visualDescription"
+  ]
+}

@@ -1696,6 +1696,7 @@ export type Database = {
           ai_competitor_data: Json | null
           ai_prompt_templates: Json | null
           ai_research_data: Json | null
+          ai_strategist_opinion: Json | null
           angles: Json | null
           audience_insights: Json | null
           audience_research: Json | null
@@ -1741,6 +1742,7 @@ export type Database = {
           ai_competitor_data?: Json | null
           ai_prompt_templates?: Json | null
           ai_research_data?: Json | null
+          ai_strategist_opinion?: Json | null
           angles?: Json | null
           audience_insights?: Json | null
           audience_research?: Json | null
@@ -1786,6 +1788,7 @@ export type Database = {
           ai_competitor_data?: Json | null
           ai_prompt_templates?: Json | null
           ai_research_data?: Json | null
+          ai_strategist_opinion?: Json | null
           angles?: Json | null
           audience_insights?: Json | null
           audience_research?: Json | null
@@ -1877,6 +1880,143 @@ export type Database = {
           },
         ]
       }
+      onesheet_ai_instructions: {
+        Row: {
+          ad_duration_prompt: string | null
+          allow_new_analysis_values: Json | null
+          analysis_fields: Json | null
+          angle_prompt: string | null
+          awareness_levels: Json | null
+          awareness_levels_allow_new: boolean | null
+          awareness_levels_prompt: string | null
+          benchmark_hold_rate: number | null
+          benchmark_hook_rate: number | null
+          benchmark_roas: number | null
+          benchmark_spend: number | null
+          brand_id: string
+          content_variables: Json | null
+          content_variables_allow_new: boolean | null
+          content_variables_prompt: string | null
+          content_variables_return_multiple: boolean | null
+          content_variables_selection_guidance: string | null
+          created_at: string | null
+          creators_used_prompt: string | null
+          discovered_awareness_levels: Json | null
+          discovered_content_variables: Json | null
+          emotion_prompt: string | null
+          format_prompt: string | null
+          framework_prompt: string | null
+          id: string
+          main_analysis_prompt: string | null
+          master_prompt_template: string | null
+          onesheet_id: string
+          product_intro_prompt: string | null
+          response_schema: Json | null
+          sit_in_problem_prompt: string | null
+          sit_in_problem_seconds_prompt: string | null
+          strategist_prompt_template: string | null
+          strategist_response_schema: Json | null
+          strategist_system_instructions: string | null
+          system_instructions: string | null
+          transcription_prompt: string | null
+          type_prompt: string | null
+          updated_at: string | null
+          visual_description_prompt: string | null
+        }
+        Insert: {
+          ad_duration_prompt?: string | null
+          allow_new_analysis_values?: Json | null
+          analysis_fields?: Json | null
+          angle_prompt?: string | null
+          awareness_levels?: Json | null
+          awareness_levels_allow_new?: boolean | null
+          awareness_levels_prompt?: string | null
+          benchmark_hold_rate?: number | null
+          benchmark_hook_rate?: number | null
+          benchmark_roas?: number | null
+          benchmark_spend?: number | null
+          brand_id: string
+          content_variables?: Json | null
+          content_variables_allow_new?: boolean | null
+          content_variables_prompt?: string | null
+          content_variables_return_multiple?: boolean | null
+          content_variables_selection_guidance?: string | null
+          created_at?: string | null
+          creators_used_prompt?: string | null
+          discovered_awareness_levels?: Json | null
+          discovered_content_variables?: Json | null
+          emotion_prompt?: string | null
+          format_prompt?: string | null
+          framework_prompt?: string | null
+          id?: string
+          main_analysis_prompt?: string | null
+          master_prompt_template?: string | null
+          onesheet_id: string
+          product_intro_prompt?: string | null
+          response_schema?: Json | null
+          sit_in_problem_prompt?: string | null
+          sit_in_problem_seconds_prompt?: string | null
+          strategist_prompt_template?: string | null
+          strategist_response_schema?: Json | null
+          strategist_system_instructions?: string | null
+          system_instructions?: string | null
+          transcription_prompt?: string | null
+          type_prompt?: string | null
+          updated_at?: string | null
+          visual_description_prompt?: string | null
+        }
+        Update: {
+          ad_duration_prompt?: string | null
+          allow_new_analysis_values?: Json | null
+          analysis_fields?: Json | null
+          angle_prompt?: string | null
+          awareness_levels?: Json | null
+          awareness_levels_allow_new?: boolean | null
+          awareness_levels_prompt?: string | null
+          benchmark_hold_rate?: number | null
+          benchmark_hook_rate?: number | null
+          benchmark_roas?: number | null
+          benchmark_spend?: number | null
+          brand_id?: string
+          content_variables?: Json | null
+          content_variables_allow_new?: boolean | null
+          content_variables_prompt?: string | null
+          content_variables_return_multiple?: boolean | null
+          content_variables_selection_guidance?: string | null
+          created_at?: string | null
+          creators_used_prompt?: string | null
+          discovered_awareness_levels?: Json | null
+          discovered_content_variables?: Json | null
+          emotion_prompt?: string | null
+          format_prompt?: string | null
+          framework_prompt?: string | null
+          id?: string
+          main_analysis_prompt?: string | null
+          master_prompt_template?: string | null
+          onesheet_id?: string
+          product_intro_prompt?: string | null
+          response_schema?: Json | null
+          sit_in_problem_prompt?: string | null
+          sit_in_problem_seconds_prompt?: string | null
+          strategist_prompt_template?: string | null
+          strategist_response_schema?: Json | null
+          strategist_system_instructions?: string | null
+          system_instructions?: string | null
+          transcription_prompt?: string | null
+          type_prompt?: string | null
+          updated_at?: string | null
+          visual_description_prompt?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "onesheet_ai_instructions_onesheet_id_fkey"
+            columns: ["onesheet_id"]
+            isOneToOne: true
+            referencedRelation: "onesheet"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       onesheet_context_data: {
         Row: {
           brand_type: string | null
@@ -1887,6 +2027,8 @@ export type Database = {
           is_active: boolean | null
           metadata: Json | null
           onesheet_id: string | null
+          platform: string | null
+          post_type: string | null
           source_name: string | null
           source_type: string
           source_url: string | null
@@ -1901,6 +2043,8 @@ export type Database = {
           is_active?: boolean | null
           metadata?: Json | null
           onesheet_id?: string | null
+          platform?: string | null
+          post_type?: string | null
           source_name?: string | null
           source_type: string
           source_url?: string | null
@@ -1915,6 +2059,8 @@ export type Database = {
           is_active?: boolean | null
           metadata?: Json | null
           onesheet_id?: string | null
+          platform?: string | null
+          post_type?: string | null
           source_name?: string | null
           source_type?: string
           source_url?: string | null

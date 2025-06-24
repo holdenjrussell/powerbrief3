@@ -759,3 +759,88 @@ export interface StagesCompleted {
 }
 
 export type CurrentStage = 'context_loading' | 'audience_research' | 'competitor_research' | 'ad_audit' | 'creative_brainstorm' | 'completed'; 
+
+// AI Strategist Opinion Types
+export interface AIStrategistOpinion {
+  summary: string;
+  topPerformers: Array<{
+    adId: string;
+    adName: string;
+    spend: number;
+    roas: number;
+    keySuccessFactors: string[];
+  }>;
+  worstPerformers: Array<{
+    adId: string;
+    adName: string;
+    spend: number;
+    roas: number;
+    failureReasons: string[];
+  }>;
+  creativePatterns: {
+    winningElements: string[];
+    losingElements: string[];
+    optimalSitInProblemRange: string;
+    bestPerformingHooks: string[];
+  };
+  recommendations: Array<{
+    priority: 'high' | 'medium' | 'low';
+    recommendation: string;
+    expectedImpact: string;
+  }>;
+  analyzedAt: string;
+  totalAdsAnalyzed: number;
+}
+
+// Extended OneSheetAIInstructions interface
+export interface OneSheetAIInstructions {
+  id: string;
+  onesheet_id: string;
+  brand_id: string;
+  
+  // System and response settings
+  system_instructions?: string;
+  master_prompt_template?: string;
+  response_schema?: Record<string, unknown>;
+  
+  // Individual prompt fields
+  main_analysis_prompt?: string;
+  transcription_prompt?: string;
+  type_prompt?: string;
+  ad_duration_prompt?: string;
+  product_intro_prompt?: string;
+  sit_in_problem_prompt?: string;
+  sit_in_problem_seconds_prompt?: string;
+  creators_used_prompt?: string;
+  angle_prompt?: string;
+  format_prompt?: string;
+  emotion_prompt?: string;
+  framework_prompt?: string;
+  visual_description_prompt?: string;
+  content_variables_prompt?: string;
+  awareness_levels_prompt?: string;
+  
+  // Analysis fields and settings
+  analysis_fields?: Record<string, unknown>;
+  allow_new_analysis_values?: Record<string, boolean>;
+  content_variables?: Record<string, unknown>;
+  content_variables_allow_new?: boolean;
+  content_variables_return_multiple?: boolean;
+  content_variables_selection_guidance?: string;
+  awareness_levels?: Record<string, unknown>;
+  awareness_levels_allow_new?: boolean;
+  discovered_content_variables?: Record<string, unknown>;
+  discovered_awareness_levels?: Record<string, unknown>;
+  
+  // Strategist AI fields
+  benchmark_roas?: number;
+  benchmark_hook_rate?: number;
+  benchmark_hold_rate?: number;
+  benchmark_spend?: number;
+  strategist_system_instructions?: string;
+  strategist_prompt_template?: string;
+  strategist_response_schema?: Record<string, unknown>;
+  
+  created_at?: string;
+  updated_at?: string;
+} 

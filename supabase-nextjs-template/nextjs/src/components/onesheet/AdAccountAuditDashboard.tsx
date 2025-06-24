@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Download, RefreshCw, Trash2, ExternalLink, Image, Video, Sparkles, Play, X, AlertTriangle, Upload, BarChart3, PieChart as PieChartIcon, Users, MapPin, Settings, Plus, Edit, Trash, MessageSquare } from 'lucide-react';
+import { Download, RefreshCw, Trash2, ExternalLink, Image, Video, Sparkles, Play, X, AlertTriangle, Upload, BarChart3, PieChart as PieChartIcon, Users, MapPin, Settings, Plus, Edit, Trash, MessageSquare, Shield, Bot, Info, Code, Brain } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -47,6 +47,7 @@ interface AdData {
   type?: string | null;
   adDuration?: number | string | null;
   productIntro?: number | string | null;
+  sitInProblemSeconds?: number | null;
   sitInProblem?: string | null;
   sitInProblemPercent?: number | null;
   creatorsUsed?: number | null;
@@ -105,6 +106,52 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
     mainAnalysisPrompt?: string;
     contentVariablesPrompt?: string;
     awarenessLevelsPrompt?: string;
+    typePrompt?: string;
+    adDurationPrompt?: string;
+    productIntroPrompt?: string;
+    creatorsUsedPrompt?: string;
+    sitInProblemSecondsPrompt?: string;
+    sitInProblemPrompt?: string;
+    anglePrompt?: string;
+    formatPrompt?: string;
+    emotionPrompt?: string;
+    frameworkPrompt?: string;
+    transcriptionPrompt?: string;
+    visualDescriptionPrompt?: string;
+    analysisFields: {
+      type: Array<{ name: string; description: string }>;
+      angle: Array<{ name: string; description: string }>;
+      format: Array<{ name: string; description: string }>;
+      emotion: Array<{ name: string; description: string }>;
+      framework: Array<{ name: string; description: string }>;
+    };
+    allowNewAnalysisValues: {
+      type: boolean;
+      angle: boolean;
+      format: boolean;
+      emotion: boolean;
+      framework: boolean;
+    };
+    systemInstructions?: string;
+    masterPromptTemplate?: string;
+    responseSchema?: {
+      type: string;
+      properties: Record<string, {
+        type: string;
+        format?: string;
+        description: string;
+        example: string | number;
+      }>;
+      required: string[];
+    };
+    // Strategist fields
+    benchmarkRoas?: number;
+    benchmarkHookRate?: number;
+    benchmarkHoldRate?: number;
+    benchmarkSpend?: number;
+    strategistSystemInstructions?: string;
+    strategistPromptTemplate?: string;
+    strategistResponseSchema?: Record<string, unknown>;
   }>({
     contentVariables: [],
     awarenessLevels: [],
@@ -116,9 +163,127 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
     allowNewAwarenessLevels: true,
     mainAnalysisPrompt: undefined,
     contentVariablesPrompt: undefined,
-    awarenessLevelsPrompt: undefined
+    awarenessLevelsPrompt: undefined,
+    typePrompt: undefined,
+    adDurationPrompt: "For videos, provide the exact duration in seconds. For images, return 'N/A'.",
+    productIntroPrompt: "For videos, identify when the product is first shown or mentioned in seconds. For images, return 'N/A'.",
+    creatorsUsedPrompt: "Count the number of distinct people visible in the ad. Include speakers, presenters, and featured individuals. Do not count background people or crowds.",
+    sitInProblemSecondsPrompt: "For videos, identify the total duration in seconds that the ad spends agitating or discussing the problem before introducing the solution. For images, return 0.",
+    sitInProblemPrompt: "Calculate as (sitInProblemSeconds / adDuration * 100) and format as a percentage string with % symbol",
+    anglePrompt: undefined,
+    formatPrompt: undefined,
+    emotionPrompt: undefined,
+    frameworkPrompt: undefined,
+    transcriptionPrompt: "For videos: provide a timecoded transcript with timestamps in [MM:SS] format. For images: any visible text/captions only.",
+    visualDescriptionPrompt: "For videos: detailed description of visual elements. For images: comprehensive description including hex color codes.",
+    analysisFields: {
+      type: [
+        { name: "High Production Video", description: "Professional, high-quality video production with studio lighting, multiple camera angles, or polished editing" },
+        { name: "Low Production Video (UGC)", description: "User-generated content style with casual, authentic, smartphone-quality production" },
+        { name: "Static Image", description: "Single image creative without motion or animation" },
+        { name: "Carousel", description: "Multiple images or cards that users can swipe through" },
+        { name: "GIF", description: "Animated image with looping motion" }
+      ],
+      angle: [
+        { name: "Weight Management", description: "Focus on weight loss, fat burning, or body composition changes" },
+        { name: "Time/Convenience", description: "Emphasis on saving time, easy preparation, or convenience" },
+        { name: "Energy/Focus", description: "Highlighting increased energy levels, mental clarity, or focus" },
+        { name: "Digestive Health", description: "Focus on gut health, bloating reduction, or digestive comfort" },
+        { name: "Immunity Support", description: "Emphasizing immune system support and overall health" }
+      ],
+      format: [
+        { name: "Testimonial", description: "Customer sharing their personal experience or results" },
+        { name: "Podcast Clip", description: "Excerpt from a podcast or interview-style content" },
+        { name: "Authority Figure", description: "Expert, doctor, or authority figure explaining benefits" },
+        { name: "3 Reasons Why", description: "Structured list format explaining multiple benefits" },
+        { name: "Unboxing", description: "Product reveal or unboxing experience" }
+      ],
+      emotion: [
+        { name: "Hopefulness", description: "Inspiring optimism and positive expectations for the future" },
+        { name: "Excitement", description: "Creating enthusiasm and anticipation" },
+        { name: "Curiosity", description: "Sparking interest and desire to learn more" },
+        { name: "Urgency", description: "Creating time pressure or fear of missing out" },
+        { name: "Fear", description: "Highlighting problems or negative consequences" },
+        { name: "Trust", description: "Building credibility and reliability" }
+      ],
+      framework: [
+        { name: "PAS", description: "Problem-Agitate-Solution structure" },
+        { name: "AIDA", description: "Attention-Interest-Desire-Action framework" },
+        { name: "FAB", description: "Features-Advantages-Benefits approach" },
+        { name: "Star Story Solution", description: "Hero's journey narrative structure" },
+        { name: "Before After Bridge", description: "Current state to desired state transformation" }
+      ]
+    },
+    allowNewAnalysisValues: {
+      type: true,
+      angle: true,
+      format: true,
+      emotion: true,
+      framework: true
+    },
+    systemInstructions: 'You are a top creative strategist at a multi-million dollar per year ecommerce brand. You spend all day analyzing video and image advertisements, categorizing them, labeling them, and identifying trends to help brands produce more concepts and more winners. You have an exceptional eye for detail and can quickly identify what makes an ad successful. Your analysis is data-driven, precise, and actionable.',
+    responseSchema: {
+      type: 'object',
+      properties: {
+        type: { type: 'string', description: 'The category of the video production.', example: 'High Production Video' },
+        adDuration: { type: 'number', format: 'float', description: 'The total duration of the ad in seconds.', example: 32.5 },
+        productIntro: { type: 'number', format: 'float', description: 'The timestamp in seconds when the product is introduced.', example: 3.1 },
+        sitInProblemSeconds: { type: 'number', format: 'float', description: 'The total duration in seconds that the ad spends on problem agitation.', example: 8.5 },
+        sitInProblem: { type: 'string', description: 'The percentage of the ad duration that focuses on the problem.', example: '25.0%' },
+        creatorsUsed: { type: 'integer', description: 'The number of creators featured in the ad.', example: 1 },
+        angle: { type: 'string', description: 'The primary marketing angle or theme of the ad.', example: 'Weight Management' },
+        format: { type: 'string', description: 'The format of the ad.', example: 'Testimonial' },
+        emotion: { type: 'string', description: 'The dominant emotion conveyed in the ad.', example: 'Hopefulness' },
+        framework: { type: 'string', description: 'The marketing or storytelling framework used.', example: 'PAS' },
+        awarenessLevel: { type: 'string', description: 'The target audience\'s level of awareness.', example: 'Problem Aware' },
+        contentVariables: { type: 'string', description: 'Specific elements or variables included in the content.', example: 'Product Demo' },
+        transcription: { type: 'string', description: 'The full transcription of the ad\'s audio.', example: '[00:01] Have you ever felt...' },
+        visualDescription: { type: 'string', description: 'A description of the visual elements in the ad.', example: 'A woman is sitting at her desk, looking tired. The color palette is muted with blue and grey tones. Primary hex code: #B0C4DE.' }
+      },
+      required: ['type', 'adDuration', 'productIntro', 'sitInProblemSeconds', 'sitInProblem', 'creatorsUsed', 
+                'angle', 'format', 'emotion', 'framework', 'awarenessLevel', 
+                'contentVariables', 'transcription', 'visualDescription']
+    },
+    benchmarkRoas: 2.0,
+    benchmarkHookRate: 3.0,
+    benchmarkHoldRate: 50.0,
+    benchmarkSpend: 100.0,
+    strategistSystemInstructions: undefined,
+    strategistPromptTemplate: undefined,
+    strategistResponseSchema: undefined
   });
   const [isLoadingInstructions, setIsLoadingInstructions] = useState(false);
+  const [isRunningStrategist, setIsRunningStrategist] = useState(false);
+  const [strategistOpinion, setStrategistOpinion] = useState<{
+    summary: string;
+    topPerformers: Array<{
+      adId: string;
+      adName: string;
+      spend: number;
+      roas: number;
+      keySuccessFactors: string[];
+    }>;
+    worstPerformers: Array<{
+      adId: string;
+      adName: string;
+      spend: number;
+      roas: number;
+      failureReasons: string[];
+    }>;
+    creativePatterns: {
+      winningElements: string[];
+      losingElements: string[];
+      optimalSitInProblemRange: string;
+      bestPerformingHooks: string[];
+    };
+    recommendations: Array<{
+      priority: 'high' | 'medium' | 'low';
+      recommendation: string;
+      expectedImpact: string;
+    }>;
+    analyzedAt: string;
+    totalAdsAnalyzed: number;
+  } | null>(null);
   const supabase = createClient();
   const { toast } = useToast();
 
@@ -138,7 +303,7 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
     try {
       const { data, error } = await supabase
         .from('onesheet')
-        .select('ad_account_audit')
+        .select('ad_account_audit, ai_strategist_opinion')
         .eq('id', onesheetId)
         .single();
       
@@ -146,6 +311,10 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
       
       if (data?.ad_account_audit) {
         setAuditData(data.ad_account_audit);
+      }
+      
+      if (data?.ai_strategist_opinion) {
+        setStrategistOpinion(data.ai_strategist_opinion);
       }
     } catch (error) {
       console.error('Error loading audit data:', error);
@@ -166,7 +335,8 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
       const result = await response.json();
       const instructions = result.data;
       
-      setAiInstructions({
+      setAiInstructions(prev => ({
+        ...prev,
         contentVariables: instructions.content_variables || [],
         awarenessLevels: instructions.awareness_levels || [],
         discoveredContentVariables: instructions.discovered_content_variables || [],
@@ -177,8 +347,66 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
         allowNewAwarenessLevels: instructions.awareness_levels_allow_new !== false,
         mainAnalysisPrompt: instructions.main_analysis_prompt || undefined,
         contentVariablesPrompt: instructions.content_variables_prompt || undefined,
-        awarenessLevelsPrompt: instructions.awareness_levels_prompt || undefined
-      });
+        awarenessLevelsPrompt: instructions.awareness_levels_prompt || undefined,
+        typePrompt: instructions.type_prompt || undefined,
+        adDurationPrompt: instructions.ad_duration_prompt || "For videos, provide the exact duration in seconds. For images, return 'N/A'.",
+        productIntroPrompt: instructions.product_intro_prompt || "For videos, identify when the product is first shown or mentioned in seconds. For images, return 'N/A'.",
+        creatorsUsedPrompt: instructions.creators_used_prompt || "Count the number of distinct people visible in the ad. Include speakers, presenters, and featured individuals. Do not count background people or crowds.",
+        sitInProblemSecondsPrompt: instructions.sit_in_problem_seconds_prompt || "For videos, identify the total duration in seconds that the ad spends agitating or discussing the problem before introducing the solution. For images, return 0.",
+        sitInProblemPrompt: instructions.sit_in_problem_prompt || "Calculate as (sitInProblemSeconds / adDuration * 100) and format as a percentage string with % symbol",
+        anglePrompt: instructions.angle_prompt || undefined,
+        formatPrompt: instructions.format_prompt || undefined,
+        emotionPrompt: instructions.emotion_prompt || undefined,
+        frameworkPrompt: instructions.framework_prompt || undefined,
+        transcriptionPrompt: instructions.transcription_prompt || "For videos: provide a timecoded transcript with timestamps in [MM:SS] format. For images: any visible text/captions only.",
+        visualDescriptionPrompt: instructions.visual_description_prompt || "For videos: detailed description of visual elements. For images: comprehensive description including hex color codes.",
+        analysisFields: {
+          type: instructions.analysis_fields?.type || prev.analysisFields.type,
+          angle: instructions.analysis_fields?.angle || prev.analysisFields.angle,
+          format: instructions.analysis_fields?.format || prev.analysisFields.format,
+          emotion: instructions.analysis_fields?.emotion || prev.analysisFields.emotion,
+          framework: instructions.analysis_fields?.framework || prev.analysisFields.framework
+        },
+        allowNewAnalysisValues: {
+          type: instructions.allow_new_analysis_values?.type !== false,
+          angle: instructions.allow_new_analysis_values?.angle !== false,
+          format: instructions.allow_new_analysis_values?.format !== false,
+          emotion: instructions.allow_new_analysis_values?.emotion !== false,
+          framework: instructions.allow_new_analysis_values?.framework !== false
+        },
+        systemInstructions: instructions.system_instructions || 'You are a top creative strategist at a multi-million dollar per year ecommerce brand. You spend all day analyzing video and image advertisements, categorizing them, labeling them, and identifying trends to help brands produce more concepts and more winners. You have an exceptional eye for detail and can quickly identify what makes an ad successful. Your analysis is data-driven, precise, and actionable.',
+        masterPromptTemplate: instructions.master_prompt_template || 'Loading master prompt template...',
+        responseSchema: instructions.response_schema || {
+          type: 'object',
+          properties: {
+            type: { type: 'string', description: 'The category of the video production.', example: 'High Production Video' },
+            adDuration: { type: 'number', format: 'float', description: 'The total duration of the ad in seconds.', example: 32.5 },
+            productIntro: { type: 'number', format: 'float', description: 'The timestamp in seconds when the product is introduced.', example: 3.1 },
+            sitInProblemSeconds: { type: 'number', format: 'float', description: 'The total duration in seconds that the ad spends on problem agitation.', example: 8.5 },
+            sitInProblem: { type: 'string', description: 'The percentage of the ad duration that focuses on the problem.', example: '25.0%' },
+            creatorsUsed: { type: 'integer', description: 'The number of creators featured in the ad.', example: 1 },
+            angle: { type: 'string', description: 'The primary marketing angle or theme of the ad.', example: 'Weight Management' },
+            format: { type: 'string', description: 'The format of the ad.', example: 'Testimonial' },
+            emotion: { type: 'string', description: 'The dominant emotion conveyed in the ad.', example: 'Hopefulness' },
+            framework: { type: 'string', description: 'The marketing or storytelling framework used.', example: 'PAS' },
+            awarenessLevel: { type: 'string', description: 'The target audience\'s level of awareness.', example: 'Problem Aware' },
+            contentVariables: { type: 'string', description: 'Specific elements or variables included in the content.', example: 'Product Demo' },
+            transcription: { type: 'string', description: 'The full transcription of the ad\'s audio.', example: '[00:01] Have you ever felt...' },
+            visualDescription: { type: 'string', description: 'A description of the visual elements in the ad.', example: 'A woman is sitting at her desk, looking tired. The color palette is muted with blue and grey tones. Primary hex code: #B0C4DE.' }
+          },
+          required: ['type', 'adDuration', 'productIntro', 'sitInProblemSeconds', 'sitInProblem', 'creatorsUsed', 
+                    'angle', 'format', 'emotion', 'framework', 'awarenessLevel', 
+                    'contentVariables', 'transcription', 'visualDescription']
+        },
+        // Load strategist fields
+        benchmarkRoas: instructions.benchmark_roas || 2.0,
+        benchmarkHookRate: instructions.benchmark_hook_rate || 3.0,
+        benchmarkHoldRate: instructions.benchmark_hold_rate || 50.0,
+        benchmarkSpend: instructions.benchmark_spend || 100.0,
+        strategistSystemInstructions: instructions.strategist_system_instructions || undefined,
+        strategistPromptTemplate: instructions.strategist_prompt_template || undefined,
+        strategistResponseSchema: instructions.strategist_response_schema || undefined
+      }));
     } catch (error) {
       console.error('Error loading AI instructions:', error);
       toast({
@@ -398,6 +626,7 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
       'Type',
       'Ad Duration',
       'Product Intro',
+      'Sit in Problem (s)',
       'Sit in Problem %',
       'Creators Used',
       'Angle',
@@ -420,6 +649,7 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
       ad.type || '',
       ad.adDuration ? `${ad.adDuration}s` : '',
       ad.productIntro ? `${ad.productIntro}s` : '',
+      ad.sitInProblemSeconds !== undefined && ad.sitInProblemSeconds !== null ? `${ad.sitInProblemSeconds}s` : '',
       ad.sitInProblem || '',
       ad.creatorsUsed || '',
       ad.angle || '',
@@ -461,6 +691,54 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
       setSelectedAds(new Set());
     } else {
       setSelectedAds(new Set(ads.map(ad => ad.id)));
+    }
+  };
+
+  const handleRunStrategist = async () => {
+    if (!ads.length || !analyzedCount) {
+      toast({
+        title: "No analyzed ads",
+        description: "Please analyze your ads first before running the AI strategist",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsRunningStrategist(true);
+    try {
+      const response = await fetch('/api/onesheet/ad-audit/strategist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          onesheet_id: onesheetId
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to run strategist analysis');
+      }
+
+      const result = await response.json();
+      
+      setStrategistOpinion(result.data);
+      
+      toast({
+        title: "Strategist Analysis Complete",
+        description: `Analyzed ${result.data.totalAdsAnalyzed} ads and identified ${result.data.topPerformers.length} top performers`
+      });
+      
+      // Refresh the data to get the saved strategist opinion
+      await loadAuditData();
+    } catch (error) {
+      console.error('Error running strategist:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : 'Failed to run strategist analysis',
+        variant: "destructive"
+      });
+    } finally {
+      setIsRunningStrategist(false);
     }
   };
 
@@ -572,6 +850,18 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
                     {isAnalyzing ? 'Analyzing...' : needsAnalysis ? 'Analyze with AI' : 'Re-analyze'}
                     {selectedAds.size > 0 && ` (${selectedAds.size})`}
                   </Button>
+                  {analyzedCount > 0 && (
+                    <Button 
+                      onClick={handleRunStrategist} 
+                      disabled={isRunningStrategist} 
+                      variant="outline"
+                      className="border-purple-200 text-purple-700 hover:bg-purple-50 hover:text-purple-800 bg-white"
+                    >
+                      <Brain className={`mr-2 h-4 w-4 ${isRunningStrategist ? 'animate-spin' : ''}`} />
+                      {isRunningStrategist ? 'Analyzing...' : 'AI Strategist'}
+                      {strategistOpinion && ' ✓'}
+                    </Button>
+                  )}
                   <Button onClick={handleExport} variant="outline" className="border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 bg-white">
                     <Download className="mr-2 h-4 w-4" />
                     Export CSV
@@ -637,7 +927,7 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
       {/* Main Content with Tabs */}
       {hasAds && (
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-3 mb-6">
+          <TabsList className="grid w-full grid-cols-4 mb-6">
             <TabsTrigger value="data" className="flex items-center gap-2">
               <BarChart3 className="h-4 w-4" />
               Data Table
@@ -649,6 +939,11 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
             <TabsTrigger value="ai-instructions" className="flex items-center gap-2">
               <Settings className="h-4 w-4" />
               AI Instructions
+            </TabsTrigger>
+            <TabsTrigger value="strategist" className="flex items-center gap-2">
+              <Brain className="h-4 w-4" />
+              AI Strategist
+              {strategistOpinion && <span className="ml-1 text-xs">✓</span>}
             </TabsTrigger>
           </TabsList>
 
@@ -681,7 +976,7 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
                     <th className="p-2 text-left bg-blue-50">Type</th>
                     <th className="p-2 text-right bg-blue-50">Duration</th>
                     <th className="p-2 text-right bg-blue-50">Product Intro</th>
-                    <th className="p-2 text-right bg-blue-50">Sit in Problem</th>
+                    <th className="p-2 text-right bg-blue-50">Sit in Problem (s)</th>
                     <th className="p-2 text-right bg-blue-50">Sit in Problem %</th>
                     <th className="p-2 text-right bg-blue-50">Creators</th>
                     <th className="p-2 text-left bg-green-50">Angle</th>
@@ -836,11 +1131,11 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
                       <td className={`p-2 text-right ${!ad.productIntro || ad.productIntro === 'N/A' ? 'text-gray-400 bg-blue-50' : 'bg-blue-50'}`}>
                         {ad.productIntro === 'N/A' ? 'N/A' : ad.productIntro ? `${ad.productIntro}s` : '-'}
                       </td>
-                      <td className={`p-2 text-right ${!ad.sitInProblem || ad.sitInProblem === 'N/A' ? 'text-gray-400 bg-blue-50' : 'bg-blue-50'}`}>
-                        {ad.sitInProblem === 'N/A' ? 'N/A' : ad.sitInProblem || '-'}
+                      <td className={`p-2 text-right ${!ad.sitInProblemSeconds ? 'text-gray-400 bg-blue-50' : 'bg-blue-50'}`}>
+                        {ad.sitInProblemSeconds !== undefined && ad.sitInProblemSeconds !== null ? `${ad.sitInProblemSeconds}s` : '-'}
                       </td>
-                      <td className={`p-2 text-right ${!ad.sitInProblemPercent ? 'text-gray-400 bg-blue-50' : 'bg-blue-50'}`}>
-                        {ad.sitInProblemPercent ? `${ad.sitInProblemPercent}%` : '-'}
+                      <td className={`p-2 text-right ${!ad.sitInProblem ? 'text-gray-400 bg-blue-50' : 'bg-blue-50'}`}>
+                        {ad.sitInProblem || '-'}
                       </td>
                       <td className={`p-2 text-right ${!ad.creatorsUsed ? 'text-gray-400 bg-blue-50' : 'bg-blue-50'}`}>
                         {ad.creatorsUsed || '-'}
@@ -1059,10 +1354,73 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
 
           <TabsContent value="ai-instructions">
             <div className="space-y-6">
-              {/* Header */}
-              <div className="text-center">
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">AI Analysis Instructions</h2>
-                <p className="text-gray-600">Customize how AI analyzes your ad content</p>
+              {/* Header with Save Button */}
+              <div className="flex items-center justify-between">
+                <div className="text-left">
+                  <h2 className="text-2xl font-bold text-gray-900 mb-2">AI Analysis Instructions</h2>
+                  <p className="text-gray-600">Customize how AI analyzes your ad content</p>
+                </div>
+                <Button 
+                  onClick={async () => {
+                    setIsLoadingInstructions(true);
+                    try {
+                      const response = await fetch('/api/onesheet/ai-instructions', {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          onesheet_id: onesheetId,
+                          content_variables: aiInstructions.contentVariables,
+                          awareness_levels: aiInstructions.awarenessLevels,
+                          content_variables_return_multiple: aiInstructions.returnMultiple,
+                          content_variables_selection_guidance: aiInstructions.selectionGuidance,
+                          content_variables_allow_new: aiInstructions.allowNewContentVariables,
+                          awareness_levels_allow_new: aiInstructions.allowNewAwarenessLevels,
+                          main_analysis_prompt: aiInstructions.mainAnalysisPrompt,
+                          content_variables_prompt: aiInstructions.contentVariablesPrompt,
+                          awareness_levels_prompt: aiInstructions.awarenessLevelsPrompt,
+                          type_prompt: aiInstructions.typePrompt,
+                          ad_duration_prompt: aiInstructions.adDurationPrompt,
+                          product_intro_prompt: aiInstructions.productIntroPrompt,
+                          creators_used_prompt: aiInstructions.creatorsUsedPrompt,
+                          sit_in_problem_seconds_prompt: aiInstructions.sitInProblemSecondsPrompt,
+                          sit_in_problem_prompt: aiInstructions.sitInProblemPrompt,
+                          angle_prompt: aiInstructions.anglePrompt,
+                          format_prompt: aiInstructions.formatPrompt,
+                          emotion_prompt: aiInstructions.emotionPrompt,
+                          framework_prompt: aiInstructions.frameworkPrompt,
+                          transcription_prompt: aiInstructions.transcriptionPrompt,
+                          visual_description_prompt: aiInstructions.visualDescriptionPrompt,
+                          analysis_fields: aiInstructions.analysisFields,
+                          allow_new_analysis_values: aiInstructions.allowNewAnalysisValues,
+                          system_instructions: aiInstructions.systemInstructions,
+                          response_schema: aiInstructions.responseSchema
+                        })
+                      });
+
+                      if (!response.ok) throw new Error('Failed to save instructions');
+
+                      toast({
+                        title: "Instructions Saved",
+                        description: "AI analysis instructions have been updated and will be used for future analyses."
+                      });
+                    } catch (error) {
+                      console.error('Error saving AI instructions:', error);
+                      toast({
+                        title: "Error",
+                        description: "Failed to save AI instructions",
+                        variant: "destructive"
+                      });
+                    } finally {
+                      setIsLoadingInstructions(false);
+                    }
+                  }} 
+                  disabled={isLoadingInstructions}
+                  className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+                  size="lg"
+                >
+                  <Settings className="h-4 w-4" />
+                  {isLoadingInstructions ? 'Saving...' : 'Save Instructions'}
+                </Button>
               </div>
 
               {/* Content Variables Section */}
@@ -1287,83 +1645,339 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
                 </CardContent>
               </Card>
 
-              {/* AI Prompts Section */}
+              {/* Analysis Field Definitions */}
+              {['type', 'angle', 'format', 'emotion', 'framework'].map(fieldName => (
+                <Card key={fieldName}>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <MessageSquare className="h-5 w-5" />
+                      {fieldName.charAt(0).toUpperCase() + fieldName.slice(1)} Definitions
+                      <span className="ml-2 px-2 py-1 bg-amber-100 text-amber-800 text-xs rounded-full font-medium">
+                        Protected - JSON structure preserved
+                      </span>
+                    </CardTitle>
+                    <CardDescription>
+                      Define the {fieldName} categories that AI should identify in ads. The AI can identify values from your list or create new ones based on your settings.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {/* Allow New Values Toggle */}
+                    <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg">
+                      <div>
+                        <Label className="text-sm font-medium">Allow New {fieldName.charAt(0).toUpperCase() + fieldName.slice(1)} Values</Label>
+                        <p className="text-xs text-gray-600">Let AI create new {fieldName} values not in your predefined list</p>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          id={`allowNew${fieldName}`}
+                          checked={aiInstructions.allowNewAnalysisValues[fieldName as keyof typeof aiInstructions.allowNewAnalysisValues]}
+                          onChange={(e) => setAiInstructions(prev => ({ 
+                            ...prev, 
+                            allowNewAnalysisValues: {
+                              ...prev.allowNewAnalysisValues,
+                              [fieldName]: e.target.checked
+                            }
+                          }))}
+                          className="rounded"
+                          aria-label={`Allow AI to create new ${fieldName} values`}
+                        />
+                        <Label htmlFor={`allowNew${fieldName}`} className="text-sm">Enabled</Label>
+                      </div>
+                    </div>
+
+                    {/* Field Definitions List */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-sm font-medium">{fieldName.charAt(0).toUpperCase() + fieldName.slice(1)} Definitions</Label>
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            setAiInstructions(prev => ({
+                              ...prev,
+                              analysisFields: {
+                                ...prev.analysisFields,
+                                [fieldName]: [...prev.analysisFields[fieldName as keyof typeof prev.analysisFields], { name: "", description: "" }]
+                              }
+                            }));
+                          }}
+                          className="flex items-center gap-1"
+                        >
+                          <Plus className="h-4 w-4" />
+                          Add {fieldName.charAt(0).toUpperCase() + fieldName.slice(1)}
+                        </Button>
+                      </div>
+                      
+                      <div className="space-y-2 max-h-64 overflow-y-auto">
+                        {aiInstructions.analysisFields[fieldName as keyof typeof aiInstructions.analysisFields].map((item, index) => (
+                          <div key={index} className="flex gap-2 p-3 border border-gray-200 rounded-md">
+                            <div className="flex-1 space-y-2">
+                              <Input
+                                placeholder={`${fieldName.charAt(0).toUpperCase() + fieldName.slice(1)} name (e.g., ${fieldName === 'type' ? 'High Production Video' : fieldName === 'angle' ? 'Weight Management' : fieldName === 'format' ? 'Testimonial' : fieldName === 'emotion' ? 'Hopefulness' : 'PAS'})`}
+                                value={item.name}
+                                onChange={(e) => {
+                                  const newItems = [...aiInstructions.analysisFields[fieldName as keyof typeof aiInstructions.analysisFields]];
+                                  newItems[index].name = e.target.value;
+                                  setAiInstructions(prev => ({ 
+                                    ...prev, 
+                                    analysisFields: {
+                                      ...prev.analysisFields,
+                                      [fieldName]: newItems
+                                    }
+                                  }));
+                                }}
+                                className="text-sm"
+                              />
+                              <Input
+                                placeholder="Description (e.g., Professional, high-quality video production...)"
+                                value={item.description}
+                                onChange={(e) => {
+                                  const newItems = [...aiInstructions.analysisFields[fieldName as keyof typeof aiInstructions.analysisFields]];
+                                  newItems[index].description = e.target.value;
+                                  setAiInstructions(prev => ({ 
+                                    ...prev, 
+                                    analysisFields: {
+                                      ...prev.analysisFields,
+                                      [fieldName]: newItems
+                                    }
+                                  }));
+                                }}
+                                className="text-sm"
+                              />
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                const newItems = aiInstructions.analysisFields[fieldName as keyof typeof aiInstructions.analysisFields].filter((_, i) => i !== index);
+                                setAiInstructions(prev => ({ 
+                                  ...prev, 
+                                  analysisFields: {
+                                    ...prev.analysisFields,
+                                    [fieldName]: newItems
+                                  }
+                                }));
+                              }}
+                              className="shrink-0"
+                            >
+                              <Trash className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+
+              {/* Measurement Instructions - Protected */}
+              <Card className="border-amber-200 bg-amber-50">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-amber-800">
+                    <Shield className="h-5 w-5" />
+                    Measurement Instructions
+                    <span className="ml-2 px-2 py-1 bg-amber-100 text-amber-800 text-xs rounded-full font-medium">
+                      Protected - Default values applied
+                    </span>
+                  </CardTitle>
+                  <CardDescription className="text-amber-700">
+                    These measurement instructions are currently protected with optimized defaults. Custom editing may be enabled in future updates.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Protected Measurement Instructions */}
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium text-amber-800">Ad Duration Instructions</Label>
+                        <div className="bg-white p-3 rounded-md border border-amber-200 text-sm font-mono text-gray-700 min-h-[96px] flex items-center">
+                          {aiInstructions.adDurationPrompt}
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium text-amber-800">Product Introduction Timing</Label>
+                        <div className="bg-white p-3 rounded-md border border-amber-200 text-sm font-mono text-gray-700 min-h-[96px] flex items-center">
+                          {aiInstructions.productIntroPrompt}
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium text-amber-800">Creators/People Count</Label>
+                        <div className="bg-white p-3 rounded-md border border-amber-200 text-sm font-mono text-gray-700 min-h-[96px] flex items-center">
+                          {aiInstructions.creatorsUsedPrompt}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium text-amber-800">Sit in Problem Duration</Label>
+                        <div className="bg-white p-3 rounded-md border border-amber-200 text-sm font-mono text-gray-700 min-h-[96px] flex items-center">
+                          {aiInstructions.sitInProblemSecondsPrompt}
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium text-amber-800">Sit in Problem Percentage</Label>
+                        <div className="bg-white p-3 rounded-md border border-amber-200 text-sm font-mono text-gray-700 min-h-[96px] flex items-center">
+                          {aiInstructions.sitInProblemPrompt}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-xs text-amber-700">
+                    These instructions ensure consistent and accurate measurement across all ad analyses.
+                  </p>
+                </CardContent>
+              </Card>
+
+              {/* Content Analysis Instructions */}
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <MessageSquare className="h-5 w-5" />
-                    AI Analysis Prompts
+                    Content Analysis Instructions
                   </CardTitle>
                   <CardDescription>
-                    Customize the prompts used by AI to analyze your ads. These prompts determine how the AI interprets and categorizes your ad content.
+                    Customize how AI analyzes transcription and visual elements of your ads.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {/* Main Analysis Prompt */}
-                  <div className="space-y-2">
-                    <Label htmlFor="mainPrompt" className="text-sm font-medium">Main Analysis Prompt</Label>
-                    <textarea
-                      id="mainPrompt"
-                      value={aiInstructions.mainAnalysisPrompt || `Analyze this Facebook ad creative and provide the following information:
-
-Ad Name: {{ad.name}}
-Creative Title: {{ad.creativeTitle}}
-Creative Body: {{ad.creativeBody}}
-Asset Type: {{ad.assetType}}
-
-Please analyze and return in JSON format:
-{
-  "type": "High Production Video|Low Production Video (UGC)|Static Image|Carousel|GIF",
-  "adDuration": number (in seconds, estimate if image),
-  "productIntro": number (seconds when product first shown/mentioned),
-  "creatorsUsed": number (visible people in the ad),
-  "angle": "Weight Management|Time/Convenience|Energy/Focus|Digestive Health|Immunity Support|etc",
-  "format": "Testimonial|Podcast Clip|Authority Figure|3 Reasons Why|Unboxing|etc",
-  "emotion": "Hopefulness|Excitement|Curiosity|Urgency|Fear|Trust|etc",
-  "framework": "PAS|AIDA|FAB|Star Story Solution|Before After Bridge|etc",
-  "awarenessLevel": "{{awarenessLevelsPrompt}}",
-  "contentVariables": "{{contentVariablesPrompt}}",
-  "transcription": "Full transcription if video, or main text if image",
-  "visualDescription": "Detailed description of visual elements, including colors (provide hex codes for dominant colors in images)"
-}
-
-Base your analysis on the creative text and ad name patterns.`}
-                      onChange={(e) => setAiInstructions(prev => ({ ...prev, mainAnalysisPrompt: e.target.value }))}
-                      className="w-full p-3 border border-gray-300 rounded-md text-sm font-mono"
-                      rows={20}
-                      placeholder="Enter the main prompt for AI analysis..."
-                    />
-                                                              <p className="text-xs text-gray-500">
-                        Use {"{"}{"{"}{"}"}ad.name{"}"}{"}"}{"}"}, {"{"}{"{"}{"}"}ad.creativeTitle{"}"}{"}"}{"}"}, etc. for dynamic values. 
-                        {"{"}{"{"}{"}"}awarenessLevelsPrompt{"}"}{"}"}{"}"} and {"{"}{"{"}{"}"}contentVariablesPrompt{"}"}{"}"}{"}"} will be replaced with your custom instructions.
-                     </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="transcriptionPrompt" className="text-sm font-medium">
+                        Transcription Instructions
+                        <span className="ml-2 px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">Auto-fallback enabled</span>
+                      </Label>
+                      <textarea
+                        id="transcriptionPrompt"
+                        placeholder="Default: Provide a complete word-for-word transcription of any spoken content in the video, including background voices and key phrases. If no audio content is present, return 'No audio content'."
+                        value={aiInstructions.transcriptionPrompt || ''}
+                        onChange={(e) => setAiInstructions(prev => ({ ...prev, transcriptionPrompt: e.target.value }))}
+                        className="w-full h-24 px-3 py-2 border border-gray-300 rounded-md text-sm"
+                      />
+                      <p className="text-xs text-gray-600">
+                        If left empty, will use default transcription instructions automatically.
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="visualDescriptionPrompt" className="text-sm font-medium">
+                        Visual Description Instructions
+                        <span className="ml-2 px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">Auto-fallback enabled</span>
+                      </Label>
+                      <textarea
+                        id="visualDescriptionPrompt"
+                        placeholder="Default: Describe visual elements including colors (provide hex codes for dominant colors), people, settings, text overlays, and key visual components. Be specific about layout, composition, and visual hierarchy."
+                        value={aiInstructions.visualDescriptionPrompt || ''}
+                        onChange={(e) => setAiInstructions(prev => ({ ...prev, visualDescriptionPrompt: e.target.value }))}
+                        className="w-full h-24 px-3 py-2 border border-gray-300 rounded-md text-sm"
+                      />
+                      <p className="text-xs text-gray-600">
+                        If left empty, will use default visual analysis instructions automatically.
+                      </p>
+                    </div>
                   </div>
+                </CardContent>
+              </Card>
 
-                  {/* Content Variables Prompt */}
-                  <div className="space-y-2">
-                    <Label htmlFor="contentVariablesPrompt" className="text-sm font-medium">Content Variables Analysis Instructions</Label>
-                    <textarea
-                      id="contentVariablesPrompt"
-                      value={aiInstructions.contentVariablesPrompt || `Identify the content variables from this list: {{contentVariablesList}}. ${aiInstructions.allowNewContentVariables ? 'If none match exactly, you may create a new appropriate variable.' : 'Choose the best match from the list only.'} ${aiInstructions.returnMultiple ? 'You may return multiple variables separated by commas.' : 'Return only one variable. ' + (aiInstructions.selectionGuidance || 'Choose the most prominent variable.')}`}
-                      onChange={(e) => setAiInstructions(prev => ({ ...prev, contentVariablesPrompt: e.target.value }))}
-                      className="w-full p-3 border border-gray-300 rounded-md text-sm"
-                      rows={4}
-                      placeholder="Instructions for content variable analysis..."
-                    />
+              {/* System Instructions Section */}
+              <Card className="border-blue-200 bg-blue-50">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-blue-800">
+                    <Bot className="h-5 w-5" />
+                    System Instructions (Protected)
+                  </CardTitle>
+                  <CardDescription className="text-blue-700">
+                    This defines the AI&apos;s role and expertise level for analyzing ads
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="bg-white p-4 rounded-lg border border-blue-200">
+                    <p className="text-gray-700 whitespace-pre-wrap">
+                      {aiInstructions.systemInstructions || 
+                       'You are a top creative strategist at a multi-million dollar per year ecommerce brand. You spend all day analyzing video and image advertisements, categorizing them, labeling them, and identifying trends to help brands produce more concepts and more winners. You have an exceptional eye for detail and can quickly identify what makes an ad successful. Your analysis is data-driven, precise, and actionable.'}
+                    </p>
                   </div>
+                  <p className="text-sm text-blue-600 mt-2">
+                    <Info className="h-4 w-4 inline mr-1" />
+                    This system instruction is protected and cannot be edited directly. It ensures consistent, high-quality analysis.
+                  </p>
+                </CardContent>
+              </Card>
 
-                  {/* Awareness Levels Prompt */}
-                  <div className="space-y-2">
-                    <Label htmlFor="awarenessPrompt" className="text-sm font-medium">Awareness Level Analysis Instructions</Label>
-                    <textarea
-                      id="awarenessPrompt"
-                      value={aiInstructions.awarenessLevelsPrompt || `Determine the customer awareness level this ad targets from: {{awarenessLevelsList}}. ${aiInstructions.allowNewAwarenessLevels ? 'If none fit exactly, you may create a new appropriate awareness level.' : 'Choose the best match from the list only.'} Base this on the ad's messaging, targeting approach, and how it introduces the problem/solution.`}
-                      onChange={(e) => setAiInstructions(prev => ({ ...prev, awarenessLevelsPrompt: e.target.value }))}
-                      className="w-full p-3 border border-gray-300 rounded-md text-sm"
-                      rows={4}
-                      placeholder="Instructions for awareness level analysis..."
-                    />
+
+
+              {/* Actual Prompt Preview */}
+              <Card className="border-purple-200 bg-purple-50">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-purple-800">
+                    <Sparkles className="h-5 w-5" />
+                    Master Prompt Template Preview
+                  </CardTitle>
+                  <CardDescription className="text-purple-700">
+                    This is the exact prompt template that will be sent to Gemini for ad analysis (with variables substituted during analysis)
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="bg-white p-4 rounded-md border border-purple-200 font-mono text-xs overflow-x-auto">
+                    <div className="whitespace-pre-wrap text-gray-800">
+                      {aiInstructions.masterPromptTemplate || 'Loading master prompt template...'}
+                    </div>
                   </div>
+                  <div className="mt-4 flex items-center gap-2 text-xs text-purple-700">
+                    <Settings className="h-4 w-4" />
+                    <span>Model: gemini-2.5-flash-lite-preview-06-17</span>
+                    <span className="text-purple-500">•</span>
+                    <span>Structured Output: Enabled</span>
+                    <span className="text-purple-500">•</span>
+                    <span>Template Variables: Dynamically Substituted</span>
+                  </div>
+                  <div className="mt-2 p-3 bg-purple-100 rounded-md">
+                    <p className="text-xs text-purple-800">
+                      <Info className="h-4 w-4 inline mr-1" />
+                      Variables like <code>{`{{ad.name}}`}</code>, <code>{`{{typeOptions}}`}</code>, and <code>{`{{contentVariablesInstruction}}`}</code> are automatically replaced with actual values during analysis based on your current settings.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Response Schema Preview */}
+              <Card className="border-indigo-200 bg-indigo-50">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-indigo-800">
+                    <Code className="h-5 w-5" />
+                    Response Schema (Structured Output)
+                  </CardTitle>
+                  <CardDescription className="text-indigo-700">
+                    This JSON schema enforces the exact structure of Gemini&apos;s response
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="bg-white p-4 rounded-md border border-indigo-200 font-mono text-xs overflow-x-auto">
+                    <pre>{JSON.stringify(aiInstructions.responseSchema || {
+                      type: "object",
+                      properties: {
+                        type: { type: "string", description: "Ad category", example: "High Production Video" },
+                        adDuration: { type: "number", format: "float", description: "Duration in seconds", example: 32.5 },
+                        productIntro: { type: "number", format: "float", description: "Product intro timestamp", example: 3.1 },
+                        sitInProblemSeconds: { type: "number", format: "float", description: "Problem agitation duration", example: 8.5 },
+                        sitInProblem: { type: "string", description: "Problem focus percentage", example: "25.0%" },
+                        creatorsUsed: { type: "integer", description: "Number of people", example: 1 },
+                        angle: { type: "string", description: "Marketing angle", example: "Weight Management" },
+                        format: { type: "string", description: "Creative format", example: "Testimonial" },
+                        emotion: { type: "string", description: "Primary emotion", example: "Hopefulness" },
+                        framework: { type: "string", description: "Marketing framework", example: "PAS" },
+                        awarenessLevel: { type: "string", description: "Awareness level", example: "Problem Aware" },
+                        contentVariables: { type: "string", description: "Content elements", example: "Product Demo" },
+                        transcription: { type: "string", description: "Audio/text content", example: "[00:01] Have..." },
+                        visualDescription: { type: "string", description: "Visual elements", example: "Woman at desk..." }
+                      },
+                      required: ["type", "adDuration", "productIntro", "sitInProblemSeconds", "sitInProblem", "creatorsUsed", 
+                                "angle", "format", "emotion", "framework", "awarenessLevel", 
+                                "contentVariables", "transcription", "visualDescription"]
+                    }, null, 2)}</pre>
+                  </div>
+                  <p className="text-xs text-indigo-700 mt-2">
+                    <Info className="h-4 w-4 inline mr-1" />
+                    This schema guarantees consistent JSON output by defining exact field types and requirements.
+                  </p>
                 </CardContent>
               </Card>
 
@@ -1386,7 +2000,23 @@ Base your analysis on the creative text and ad name patterns.`}
                           awareness_levels_allow_new: aiInstructions.allowNewAwarenessLevels,
                           main_analysis_prompt: aiInstructions.mainAnalysisPrompt,
                           content_variables_prompt: aiInstructions.contentVariablesPrompt,
-                          awareness_levels_prompt: aiInstructions.awarenessLevelsPrompt
+                          awareness_levels_prompt: aiInstructions.awarenessLevelsPrompt,
+                          type_prompt: aiInstructions.typePrompt,
+                          ad_duration_prompt: aiInstructions.adDurationPrompt,
+                          product_intro_prompt: aiInstructions.productIntroPrompt,
+                          creators_used_prompt: aiInstructions.creatorsUsedPrompt,
+                          sit_in_problem_seconds_prompt: aiInstructions.sitInProblemSecondsPrompt,
+                          sit_in_problem_prompt: aiInstructions.sitInProblemPrompt,
+                          angle_prompt: aiInstructions.anglePrompt,
+                          format_prompt: aiInstructions.formatPrompt,
+                          emotion_prompt: aiInstructions.emotionPrompt,
+                          framework_prompt: aiInstructions.frameworkPrompt,
+                          transcription_prompt: aiInstructions.transcriptionPrompt,
+                          visual_description_prompt: aiInstructions.visualDescriptionPrompt,
+                          analysis_fields: aiInstructions.analysisFields,
+                          allow_new_analysis_values: aiInstructions.allowNewAnalysisValues,
+                          system_instructions: aiInstructions.systemInstructions,
+                          response_schema: aiInstructions.responseSchema
                         })
                       });
 
@@ -1414,6 +2044,331 @@ Base your analysis on the creative text and ad name patterns.`}
                   {isLoadingInstructions ? 'Saving...' : 'Save Instructions'}
                 </Button>
               </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="strategist">
+            <div className="space-y-6">
+              {/* Strategist Settings */}
+              <Card className="border-purple-200 bg-purple-50">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-purple-800">
+                    <Brain className="h-5 w-5" />
+                    AI Strategist Settings
+                  </CardTitle>
+                  <CardDescription className="text-purple-700">
+                    Configure benchmarks and analysis parameters for the AI strategist
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="benchmarkRoas" className="text-sm font-medium">
+                        Target ROAS
+                      </Label>
+                      <Input
+                        id="benchmarkRoas"
+                        type="number"
+                        step="0.1"
+                        value={aiInstructions.benchmarkRoas}
+                        onChange={(e) => setAiInstructions(prev => ({ ...prev, benchmarkRoas: parseFloat(e.target.value) || 2.0 }))}
+                        className="w-full"
+                      />
+                      <p className="text-xs text-gray-600">Good performance threshold</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="benchmarkHookRate" className="text-sm font-medium">
+                        Target Hook Rate (%)
+                      </Label>
+                      <Input
+                        id="benchmarkHookRate"
+                        type="number"
+                        step="0.1"
+                        value={aiInstructions.benchmarkHookRate}
+                        onChange={(e) => setAiInstructions(prev => ({ ...prev, benchmarkHookRate: parseFloat(e.target.value) || 3.0 }))}
+                        className="w-full"
+                      />
+                      <p className="text-xs text-gray-600">Good hook performance</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="benchmarkHoldRate" className="text-sm font-medium">
+                        Target Hold Rate (%)
+                      </Label>
+                      <Input
+                        id="benchmarkHoldRate"
+                        type="number"
+                        step="1"
+                        value={aiInstructions.benchmarkHoldRate}
+                        onChange={(e) => setAiInstructions(prev => ({ ...prev, benchmarkHoldRate: parseFloat(e.target.value) || 50.0 }))}
+                        className="w-full"
+                      />
+                      <p className="text-xs text-gray-600">Good retention rate</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="benchmarkSpend" className="text-sm font-medium">
+                        Min Spend ($)
+                      </Label>
+                      <Input
+                        id="benchmarkSpend"
+                        type="number"
+                        step="10"
+                        value={aiInstructions.benchmarkSpend}
+                        onChange={(e) => setAiInstructions(prev => ({ ...prev, benchmarkSpend: parseFloat(e.target.value) || 100.0 }))}
+                        className="w-full"
+                      />
+                      <p className="text-xs text-gray-600">Minimum spend for significance</p>
+                    </div>
+                  </div>
+
+                  {/* Save Benchmarks Button */}
+                  <div className="flex justify-end">
+                    <Button 
+                      onClick={async () => {
+                        try {
+                          const response = await fetch('/api/onesheet/ai-instructions', {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              onesheet_id: onesheetId,
+                              benchmark_roas: aiInstructions.benchmarkRoas,
+                              benchmark_hook_rate: aiInstructions.benchmarkHookRate,
+                              benchmark_hold_rate: aiInstructions.benchmarkHoldRate,
+                              benchmark_spend: aiInstructions.benchmarkSpend
+                            })
+                          });
+
+                          if (!response.ok) throw new Error('Failed to save benchmarks');
+
+                          toast({
+                            title: "Benchmarks Saved",
+                            description: "AI strategist benchmarks have been updated."
+                          });
+                        } catch (error) {
+                          console.error('Error saving benchmarks:', error);
+                          toast({
+                            title: "Error",
+                            description: "Failed to save benchmarks",
+                            variant: "destructive"
+                          });
+                        }
+                      }}
+                      variant="outline"
+                      className="border-purple-200 text-purple-700 hover:bg-purple-100"
+                    >
+                      Save Benchmarks
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Strategist Analysis Results */}
+              {strategistOpinion ? (
+                <div className="space-y-6">
+                  {/* Summary Card */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Brain className="h-5 w-5" />
+                        Strategic Analysis Summary
+                      </CardTitle>
+                      <CardDescription>
+                        Analyzed {strategistOpinion.totalAdsAnalyzed} ads on {new Date(strategistOpinion.analyzedAt).toLocaleDateString()}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-gray-700 leading-relaxed">{strategistOpinion.summary}</p>
+                    </CardContent>
+                  </Card>
+
+                  {/* Top and Worst Performers */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* Top Performers */}
+                    <Card className="border-green-200 bg-green-50">
+                      <CardHeader>
+                        <CardTitle className="text-green-800">Top Performers</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        {strategistOpinion.topPerformers.map((ad, index) => (
+                          <div key={index} className="bg-white p-4 rounded-lg border border-green-200">
+                            <h4 className="font-semibold text-sm mb-2">{ad.adName}</h4>
+                            <div className="grid grid-cols-2 gap-2 text-sm mb-2">
+                              <div>
+                                <span className="text-gray-600">Spend:</span> <span className="font-medium">${ad.spend.toLocaleString()}</span>
+                              </div>
+                              <div>
+                                <span className="text-gray-600">ROAS:</span> <span className="font-medium text-green-600">{ad.roas.toFixed(2)}</span>
+                              </div>
+                            </div>
+                            <div className="space-y-1">
+                              <p className="text-xs font-medium text-gray-700">Key Success Factors:</p>
+                              <ul className="list-disc list-inside text-xs text-gray-600 space-y-0.5">
+                                {ad.keySuccessFactors.map((factor, i) => (
+                                  <li key={i}>{factor}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          </div>
+                        ))}
+                      </CardContent>
+                    </Card>
+
+                    {/* Worst Performers */}
+                    <Card className="border-red-200 bg-red-50">
+                      <CardHeader>
+                        <CardTitle className="text-red-800">Underperformers</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        {strategistOpinion.worstPerformers.map((ad, index) => (
+                          <div key={index} className="bg-white p-4 rounded-lg border border-red-200">
+                            <h4 className="font-semibold text-sm mb-2">{ad.adName}</h4>
+                            <div className="grid grid-cols-2 gap-2 text-sm mb-2">
+                              <div>
+                                <span className="text-gray-600">Spend:</span> <span className="font-medium">${ad.spend.toLocaleString()}</span>
+                              </div>
+                              <div>
+                                <span className="text-gray-600">ROAS:</span> <span className="font-medium text-red-600">{ad.roas.toFixed(2)}</span>
+                              </div>
+                            </div>
+                            <div className="space-y-1">
+                              <p className="text-xs font-medium text-gray-700">Failure Reasons:</p>
+                              <ul className="list-disc list-inside text-xs text-gray-600 space-y-0.5">
+                                {ad.failureReasons.map((reason, i) => (
+                                  <li key={i}>{reason}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          </div>
+                        ))}
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Creative Patterns */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Creative Patterns Analysis</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                          <h4 className="font-semibold text-green-700 mb-2">Winning Elements</h4>
+                          <ul className="space-y-1">
+                            {strategistOpinion.creativePatterns.winningElements.map((element, index) => (
+                              <li key={index} className="flex items-start gap-2">
+                                <span className="text-green-500 mt-0.5">✓</span>
+                                <span className="text-sm">{element}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                        <div>
+                          <h4 className="font-semibold text-red-700 mb-2">Elements to Avoid</h4>
+                          <ul className="space-y-1">
+                            {strategistOpinion.creativePatterns.losingElements.map((element, index) => (
+                              <li key={index} className="flex items-start gap-2">
+                                <span className="text-red-500 mt-0.5">✗</span>
+                                <span className="text-sm">{element}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+                      <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+                        <p className="text-sm">
+                          <strong className="text-blue-800">Optimal Sit-in-Problem Range:</strong> {strategistOpinion.creativePatterns.optimalSitInProblemRange}
+                        </p>
+                        <p className="text-sm mt-2">
+                          <strong className="text-blue-800">Best Performing Hooks:</strong> {strategistOpinion.creativePatterns.bestPerformingHooks.join(', ')}
+                        </p>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Recommendations */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Strategic Recommendations</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {strategistOpinion.recommendations.map((rec, index) => (
+                        <div key={index} className={`p-4 rounded-lg border ${
+                          rec.priority === 'high' ? 'border-red-200 bg-red-50' :
+                          rec.priority === 'medium' ? 'border-amber-200 bg-amber-50' :
+                          'border-gray-200 bg-gray-50'
+                        }`}>
+                          <div className="flex items-start justify-between mb-2">
+                            <h4 className="font-semibold text-sm">{rec.recommendation}</h4>
+                            <span className={`px-2 py-1 text-xs rounded-full ${
+                              rec.priority === 'high' ? 'bg-red-200 text-red-800' :
+                              rec.priority === 'medium' ? 'bg-amber-200 text-amber-800' :
+                              'bg-gray-200 text-gray-800'
+                            }`}>
+                              {rec.priority.toUpperCase()}
+                            </span>
+                          </div>
+                          <p className="text-sm text-gray-600">
+                            <strong>Expected Impact:</strong> {rec.expectedImpact}
+                          </p>
+                        </div>
+                      ))}
+                    </CardContent>
+                  </Card>
+                </div>
+              ) : (
+                /* Empty State */
+                <Card>
+                  <CardContent className="py-12 text-center">
+                    <Brain className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold mb-2">No Strategic Analysis Yet</h3>
+                    <p className="text-gray-600 mb-6">
+                      {analyzedCount === 0 
+                        ? "Please analyze your ads first before running the AI strategist"
+                        : "Click the 'AI Strategist' button in the header to generate strategic insights"}
+                    </p>
+                    {analyzedCount > 0 && (
+                      <Button onClick={handleRunStrategist} disabled={isRunningStrategist}>
+                        <Brain className={`mr-2 h-4 w-4 ${isRunningStrategist ? 'animate-spin' : ''}`} />
+                        {isRunningStrategist ? 'Analyzing...' : 'Run AI Strategist'}
+                      </Button>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Strategist System Instructions (Protected) */}
+              <Card className="border-indigo-200 bg-indigo-50">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-indigo-800">
+                    <Bot className="h-5 w-5" />
+                    Strategist System Instructions (Protected)
+                  </CardTitle>
+                  <CardDescription className="text-indigo-700">
+                    Advanced AI instructions for strategic analysis (Model: gemini-2.5-pro)
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="bg-white p-4 rounded-lg border border-indigo-200">
+                    <p className="text-gray-700 whitespace-pre-wrap text-sm">
+                      {aiInstructions.strategistSystemInstructions || 
+                       `You are a world-class performance marketing strategist with deep expertise in Facebook/Meta advertising. You analyze ad performance data to identify patterns, insights, and actionable recommendations that can dramatically improve campaign performance.
+
+Your analysis should:
+1. Identify clear patterns between high and low performing ads
+2. Consider both creative elements AND performance metrics
+3. Weight spend as the most important factor (high spend = Meta's algorithm found success)
+4. Balance spend with ROAS to identify truly scalable winners
+5. Provide specific, actionable recommendations
+6. Focus on insights that can be applied to future ad creation
+
+Use the provided benchmarks to categorize performance, but also consider relative performance within the dataset.`}
+                    </p>
+                  </div>
+                  <p className="text-sm text-indigo-600 mt-2">
+                    <Info className="h-4 w-4 inline mr-1" />
+                    Uses structured output with gemini-2.5-pro for comprehensive analysis
+                  </p>
+                </CardContent>
+              </Card>
             </div>
           </TabsContent>
         </Tabs>

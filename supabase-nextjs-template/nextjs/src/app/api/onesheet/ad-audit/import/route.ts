@@ -1165,7 +1165,8 @@ async function processAdsBatched(
   supabase: any,
   brandId: string,
   onesheetId: string,
-  adAccountId: string
+  adAccountId: string,
+  assetCache?: Record<string, { assetUrl: string; assetType: string }>
 ): Promise<any[]> {
   const processedAds: any[] = [];
   const totalAds = ads.length;
@@ -1200,23 +1201,37 @@ async function processAdsBatched(
       // Extract landing page URL
       const landingPage = extractLandingPageUrl(creative);
       
-      // Extract asset URL and type with downloading (this will handle its own rate limiting)
+      // Check asset cache first
+      const cacheKey = `${ad.id}_${creative.video_id || creative.image_hash || creative.id || ad.name}`;
       let assetInfo;
-      try {
-        if (skipAssetDownloads) {
-          // Just get basic asset info without downloading
-          assetInfo = {
-            url: creative.image_url || creative.thumbnail_url || '',
-            type: creative.video_id ? 'video' : 'image',
-            placement: 'skipped'
-          };
-        } else {
-          assetInfo = await extractAssetUrl(creative, ad.id, accessToken, supabase, brandId, onesheetId, adAccountId);
+      
+      if (assetCache && assetCache[cacheKey]) {
+        // Asset found in cache, use it
+        console.log(`✅ Using cached asset for ad ${ad.id}: ${cacheKey}`);
+        assetInfo = {
+          url: assetCache[cacheKey].assetUrl,
+          type: assetCache[cacheKey].assetType,
+          localUrl: assetCache[cacheKey].assetUrl, // Cache stores Supabase URLs
+          placement: 'cached'
+        };
+      } else {
+        // Extract asset URL and type with downloading (this will handle its own rate limiting)
+        try {
+          if (skipAssetDownloads) {
+            // Just get basic asset info without downloading
+            assetInfo = {
+              url: creative.image_url || creative.thumbnail_url || '',
+              type: creative.video_id ? 'video' : 'image',
+              placement: 'skipped'
+            };
+          } else {
+            assetInfo = await extractAssetUrl(creative, ad.id, accessToken, supabase, brandId, onesheetId, adAccountId);
+          }
+        } catch (error) {
+          console.warn(`Failed to extract asset for ad ${ad.id}:`, error);
+          assetInfo = { url: '', type: 'unknown', placement: 'error' };
+          errorCount++;
         }
-      } catch (error) {
-        console.warn(`Failed to extract asset for ad ${ad.id}:`, error);
-        assetInfo = { url: '', type: 'unknown', placement: 'error' };
-        errorCount++;
       }
       
       // ENHANCED: Extract video ID from multiple sources for debug visibility
@@ -1481,6 +1496,13 @@ export async function POST(request: NextRequest) {
 
     console.log(`Total ads fetched with tiered approach: ${allAds.length}`);
 
+    // Extract asset cache from existing onesheet data
+    const assetCache = onesheet.ad_account_audit?.assetCache || {};
+    const cacheSize = Object.keys(assetCache).length;
+    if (cacheSize > 0) {
+      console.log(`[Ad Audit Import ${requestId}] Found ${cacheSize} cached assets from previous imports`);
+    }
+
     // Process ads into spreadsheet format using batch processing
     console.log(`[Ad Audit Import ${requestId}] Processing ${allAds.length} ads with batch processing`);
     const processedAds = await processAdsBatched(
@@ -1489,7 +1511,8 @@ export async function POST(request: NextRequest) {
       supabase,
       onesheet.brand_id,
       onesheet_id,
-      adAccountId
+      adAccountId,
+      assetCache
     );
 
     // Update OneSheet with the processed data
@@ -1502,7 +1525,9 @@ export async function POST(request: NextRequest) {
           lastImported: new Date().toISOString(),
           dateRange: date_range,
           totalAdsImported: processedAds.length,
-          importMethod: 'tiered_spending'
+          importMethod: 'tiered_spending',
+          // Note: asset cache is preserved from the clear function
+          assetCache: assetCache
         },
         stages_completed: {
           ...(onesheet.stages_completed as Record<string, any> || {}),

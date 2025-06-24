@@ -4,6 +4,7 @@ import { GoogleGenAI } from '@google/genai';
 import { promises as fs } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import type { OneSheetAIInstructions } from '@/lib/types/supabase';
 
 // Helper to get proper MIME type from URL
 const getProperMimeType = (fileUrl: string): string => {
@@ -173,6 +174,135 @@ function parseGeminiJSON(jsonText: string, adId: string): any {
   }
 }
 
+// Helper function to build master prompt from AI instructions
+function buildMasterPrompt(aiInstructions: OneSheetAIInstructions, ad: Record<string, unknown>) {
+  // Extract all field definitions and prompts
+  const {
+    type_prompt,
+    ad_duration_prompt,
+    product_intro_prompt,
+    sit_in_problem_seconds_prompt,
+    sit_in_problem_prompt,
+    creators_used_prompt,
+    angle_prompt,
+    format_prompt,
+    emotion_prompt,
+    framework_prompt,
+    awareness_levels_prompt,
+    content_variables_prompt,
+    transcription_prompt,
+    visual_description_prompt,
+    analysis_fields,
+    allow_new_analysis_values,
+    content_variables,
+    awareness_levels,
+    content_variables_return_multiple,
+    awareness_levels_allow_new,
+    content_variables_allow_new,
+    master_prompt_template
+  } = aiInstructions;
+
+  // Build options for each field type with proper "allow new" handling
+  const buildFieldOptions = (fieldArray: Array<{ name: string; description?: string }>, allowNew: boolean, fieldName: string) => {
+    const options = fieldArray.map((item: { name: string }) => item.name).join(', ');
+    if (allowNew) {
+      return `${options}. If none of these fit well, create a new ${fieldName} that better describes what you observe`;
+    }
+    return options;
+  };
+
+  // Build all the variables for template substitution
+  const templateVariables: Record<string, string> = {
+    // Ad context
+    'ad.name': String(ad.name || ''),
+    'ad.creativeTitle': String(ad.creativeTitle || 'N/A'),
+    'ad.creativeBody': String(ad.creativeBody || 'N/A'),
+    'ad.assetType': String(ad.assetType || ''),
+    
+    // Media analysis instruction
+    'mediaAnalysisInstruction': ad.assetType === 'video' 
+      ? 'Watch the entire video carefully from start to finish' 
+      : 'Examine all visual elements in the image thoroughly',
+    
+    // Prompts from database
+    'type_prompt': type_prompt || '',
+    'ad_duration_prompt': ad_duration_prompt || '',
+    'product_intro_prompt': product_intro_prompt || '',
+    'sit_in_problem_seconds_prompt': sit_in_problem_seconds_prompt || '',
+    'sit_in_problem_prompt': sit_in_problem_prompt || '',
+    'creators_used_prompt': creators_used_prompt || '',
+    'angle_prompt': angle_prompt || '',
+    'format_prompt': format_prompt || '',
+    'emotion_prompt': emotion_prompt || '',
+    'framework_prompt': framework_prompt || '',
+    'awareness_levels_prompt': awareness_levels_prompt || '',
+    'content_variables_prompt': content_variables_prompt || '',
+    'transcription_prompt': transcription_prompt || '',
+    'visual_description_prompt': visual_description_prompt || '',
+    
+    // Options with "allow new" handling
+    'typeOptions': buildFieldOptions(
+      analysis_fields?.type || [], 
+      allow_new_analysis_values?.type !== false, 
+      'type'
+    ),
+    'angleOptions': buildFieldOptions(
+      analysis_fields?.angle || [],
+      allow_new_analysis_values?.angle !== false,
+      'angle'
+    ),
+    'formatOptions': buildFieldOptions(
+      analysis_fields?.format || [],
+      allow_new_analysis_values?.format !== false,
+      'format'
+    ),
+    'emotionOptions': buildFieldOptions(
+      analysis_fields?.emotion || [],
+      allow_new_analysis_values?.emotion !== false,
+      'emotion'
+    ),
+    'frameworkOptions': buildFieldOptions(
+      analysis_fields?.framework || [],
+      allow_new_analysis_values?.framework !== false,
+      'framework'
+    ),
+    'awarenessOptions': buildFieldOptions(
+      awareness_levels || [],
+      awareness_levels_allow_new !== false,
+      'awareness level'
+    ),
+    'contentVariablesOptions': buildFieldOptions(
+      content_variables || [],
+      content_variables_allow_new !== false,
+      'content variable'
+    ),
+    
+    // Content variables instructions
+    'contentVariablesInstruction': content_variables_return_multiple 
+      ? 'Select ALL content variables that apply, separated by commas'
+      : 'Select the single most prominent content variable',
+    
+    'contentVariablesOutputFormat': content_variables_return_multiple 
+      ? 'comma-separated string of all applicable variables' 
+      : 'single most prominent variable'
+  };
+
+  // If no master prompt template is provided, return empty string (forcing use of database value)
+  if (!master_prompt_template) {
+    console.error('[Analyze] No master prompt template found in AI instructions');
+    return '';
+  }
+
+  // Replace all placeholders in the template
+  let masterPrompt = master_prompt_template;
+  Object.entries(templateVariables).forEach(([key, value]) => {
+    const placeholder = new RegExp(`{{${key}}}`, 'g');
+    masterPrompt = masterPrompt.replace(placeholder, value);
+  });
+
+  return masterPrompt;
+}
+
 export async function POST(request: Request) {
   try {
     const { onesheet_id, ad_ids } = await request.json();
@@ -186,6 +316,18 @@ export async function POST(request: Request) {
 
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Get AI instructions for the onesheet
+    const { data: aiInstructions, error: aiInstructionsError } = await supabase
+      .from('onesheet_ai_instructions')
+      .select('*')
+      .eq('onesheet_id', onesheet_id)
+      .single();
+
+    if (aiInstructionsError) {
+      console.error('[Analyze] Error fetching AI instructions:', aiInstructionsError);
+      return NextResponse.json({ error: 'Failed to fetch AI instructions' }, { status: 500 });
     }
 
     // Get onesheet with ad audit data
@@ -287,62 +429,93 @@ export async function POST(request: Request) {
             };
           }
 
-          // Analyze with both visual content and text
-          const analysisPrompt = `
-          Analyze this Facebook ad creative comprehensively using both the visual content and text information:
+          // Build master prompt
+          const masterPrompt = buildMasterPrompt(aiInstructions, ad);
 
-          Ad Name: ${ad.name}
-          Creative Title: ${ad.creativeTitle}
-          Creative Body: ${ad.creativeBody}
-          Asset Type: ${ad.assetType}
+          // Use response schema from database for structured output
+          const generationConfig = aiInstructions.response_schema ? {
+            responseMimeType: 'application/json',
+            responseSchema: aiInstructions.response_schema
+          } : {
+            responseMimeType: 'application/json'
+          };
 
-          Please analyze the visual content (image/video) along with the text and return in JSON format:
-          {
-            "type": "High Production Video|Low Production Video (UGC)|Static Image|Carousel|GIF",
-            "adDuration": number (in seconds for videos, estimate based on content density for images),
-            "productIntro": number (seconds when product first shown/mentioned in video, or estimated for images),
-            "creatorsUsed": number (count actual people visible in the visual content),
-            "angle": "Weight Management|Time/Convenience|Energy/Focus|Digestive Health|Immunity Support|General Wellness|Value/Price|Quality|Social Proof|etc",
-            "format": "Testimonial|Podcast Clip|Authority Figure|3 Reasons Why|Unboxing|Problem/Solution|Demonstration|Comparison|Story|Educational|etc",
-            "emotion": "Hopefulness|Excitement|Curiosity|Urgency|Fear|Trust|Confidence|Empowerment|etc",
-            "framework": "PAS|AIDA|FAB|Star Story Solution|Before After Bridge|QUEST|etc",
-            "transcription": "For videos: provide a timecoded transcript with timestamps in [MM:SS] format (e.g., [00:05] Hello there! [00:12] Check out this amazing product). Include exact spoken words/dialogue only. For images: any visible text/captions only (no descriptions)",
-            "visualDescription": "For videos: detailed description of visual elements, scenes, people, products, setting. For images: comprehensive visual description including composition, people, products, setting, mood, AND primary/secondary/tertiary hex color codes (e.g. Primary: #FF5733, Secondary: #33FF57, Tertiary: #3357FF)"
-          }
-
-          Base your analysis on BOTH the visual content you can see AND the provided text information. Pay special attention to:
-          - Visual elements, people, products shown
-          - Text overlays or captions in the visual
-          - Overall production quality and style
-          - Emotional tone conveyed through visuals
-          - How the visual and text work together
-          - For videos: Provide accurate timestamps for when the product first appears or is mentioned to help calculate "sit in problem" percentage (productIntro / adDuration * 100)
-          - For videos: Include timecoded transcript to enable precise analysis of when problems are discussed vs when solutions/products are introduced
-          `;
+          // Use system instructions from database - no hardcoded fallback
+          const systemInstruction = aiInstructions.system_instructions;
 
           const result = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: 'gemini-2.5-flash-lite-preview-06-17',
             contents: [{
               role: 'user',
               parts: [
-                { text: analysisPrompt },
+                // Put media first for single-media prompts (multimodal best practice)
                 {
                   fileData: {
                     mimeType: uploadedAsset.mimeType,
                     fileUri: uploadedAsset.fileUri
                   }
-                }
+                },
+                { text: masterPrompt }
               ]
             }],
-            config: { responseMimeType: 'application/json' }
+            config: {
+              ...generationConfig,
+              systemInstruction
+            }
           });
 
           const analysis = parseGeminiJSON(result.text, String(ad.id));
 
-          // Calculate sit in problem percentage
-          const sitInProblem = analysis.adDuration > 0 
-            ? ((analysis.productIntro / analysis.adDuration) * 100).toFixed(1)
-            : '0';
+          // Calculate sit in problem percentage based on sitInProblemSeconds
+          const sitInProblemPercent = analysis.adDuration > 0 && analysis.sitInProblemSeconds !== undefined
+            ? parseFloat(((analysis.sitInProblemSeconds / analysis.adDuration) * 100).toFixed(1))
+            : 0;
+          const sitInProblem = analysis.sitInProblem || `${sitInProblemPercent}%`;
+
+          // Store discovered values if they are new
+          if (aiInstructions.content_variables_allow_new !== false && analysis.contentVariables) {
+            const contentVars = Array.isArray(analysis.contentVariables) 
+              ? analysis.contentVariables 
+              : [analysis.contentVariables];
+            
+            for (const varName of contentVars) {
+              const exists = aiInstructions.content_variables.some((v: { name: string }) => v.name === varName) ||
+                           (aiInstructions.discovered_content_variables || []).some((v: { name: string }) => v.name === varName);
+              
+              if (!exists && varName && varName !== 'Unknown') {
+                // Store discovered variable directly in the database
+                const currentDiscovered = aiInstructions.discovered_content_variables || [];
+                const updatedDiscovered = [...currentDiscovered, {
+                  name: varName,
+                  description: `Auto-discovered from ad: ${ad.name}`
+                }];
+                
+                await supabase
+                  .from('onesheet_ai_instructions')
+                  .update({ discovered_content_variables: updatedDiscovered })
+                  .eq('onesheet_id', onesheet_id);
+              }
+            }
+          }
+
+          if (aiInstructions.awareness_levels_allow_new !== false && analysis.awarenessLevel) {
+            const exists = aiInstructions.awareness_levels.some((l: { name: string }) => l.name === analysis.awarenessLevel) ||
+                          (aiInstructions.discovered_awareness_levels || []).some((l: { name: string }) => l.name === analysis.awarenessLevel);
+            
+            if (!exists && analysis.awarenessLevel && analysis.awarenessLevel !== 'Unknown') {
+              // Store discovered awareness level directly in the database
+              const currentDiscovered = aiInstructions.discovered_awareness_levels || [];
+              const updatedDiscovered = [...currentDiscovered, {
+                name: analysis.awarenessLevel,
+                description: `Auto-discovered from ad: ${ad.name}`
+              }];
+              
+              await supabase
+                .from('onesheet_ai_instructions')
+                .update({ discovered_awareness_levels: updatedDiscovered })
+                .eq('onesheet_id', onesheet_id);
+            }
+          }
 
           console.log(`[Analyze] Successfully analyzed ad ${ad.id} with visual content`);
 
@@ -350,6 +523,7 @@ export async function POST(request: Request) {
             ...ad,
             ...analysis,
             sitInProblem,
+            sitInProblemPercent,
             analysisMethod: 'visual-and-text'
           };
 

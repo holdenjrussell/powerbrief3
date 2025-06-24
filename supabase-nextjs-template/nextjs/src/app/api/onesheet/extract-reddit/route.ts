@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
+// Vercel configuration for better Reddit API compatibility
+export const runtime = 'nodejs';
+export const maxDuration = 60; // 60 seconds timeout for Reddit scraping
+
 interface RedditExtractRequest {
   url: string;
   crawlPosts?: boolean;
@@ -68,8 +72,11 @@ async function scrapeSubredditPosts(subredditUrl: string, maxPosts: number, incl
   
   console.log(`[RedditScraper] Cleaned URL: ${cleanUrl}`);
   console.log(`[RedditScraper] Fetching subreddit JSON: ${jsonUrl}`);
+  console.log(`[RedditScraper] Environment: ${process.env.VERCEL ? 'Vercel' : 'Local'}`);
   
-  const response = await fetch(jsonUrl, {
+  // Try multiple approaches for better Vercel compatibility
+  let response;
+  const fetchOptions = {
     headers: {
       'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       'Accept': 'application/json, text/html, */*',
@@ -86,7 +93,46 @@ async function scrapeSubredditPosts(subredditUrl: string, maxPosts: number, incl
       'Sec-Fetch-User': '?1',
       'Upgrade-Insecure-Requests': '1',
     },
-  });
+  };
+
+  // On Vercel, try old.reddit.com first as it's more reliable
+  if (process.env.VERCEL) {
+    const oldRedditUrl = jsonUrl.replace('reddit.com', 'old.reddit.com');
+    console.log(`[RedditScraper] Vercel environment detected, trying old.reddit.com first: ${oldRedditUrl}`);
+    
+    try {
+      // Add timeout for Vercel serverless environment
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      
+      response = await fetch(oldRedditUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; PowerBrief/1.0; +https://powerbrief.ai)',
+          'Accept': 'application/json',
+          'Connection': 'keep-alive',
+        },
+        signal: controller.signal,
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (response.ok) {
+        console.log(`[RedditScraper] Successfully fetched from old.reddit.com on Vercel (status: ${response.status})`);
+      } else {
+        console.warn(`[RedditScraper] old.reddit.com returned status ${response.status} on Vercel`);
+      }
+    } catch (error) {
+      console.warn(`[RedditScraper] old.reddit.com failed on Vercel:`, error);
+      if (error.name === 'AbortError') {
+        console.warn(`[RedditScraper] Request timed out after 10 seconds`);
+      }
+    }
+  }
+  
+  // If not on Vercel or old.reddit.com failed, try regular reddit.com
+  if (!response || !response.ok) {
+    response = await fetch(jsonUrl, fetchOptions);
+  }
 
   let data;
   
@@ -105,11 +151,30 @@ async function scrapeSubredditPosts(subredditUrl: string, maxPosts: number, incl
     });
     
     if (!fallbackResponse.ok) {
-      throw new Error(`Failed to fetch subreddit from both reddit.com (${response.status}) and old.reddit.com (${fallbackResponse.status}). Reddit may be blocking requests.`);
+      // If on Vercel and both failed, try one more approach with different headers
+      if (process.env.VERCEL) {
+        console.log(`[RedditScraper] Both reddit.com and old.reddit.com failed on Vercel. Trying with minimal headers...`);
+        
+        const minimalResponse = await fetch(jsonUrl.replace('reddit.com', 'old.reddit.com'), {
+          headers: {
+            'User-Agent': 'curl/7.68.0',
+            'Accept': '*/*',
+          },
+        });
+        
+        if (minimalResponse.ok) {
+          data = await minimalResponse.json();
+          console.log(`[RedditScraper] Success with minimal headers on Vercel`);
+        } else {
+          throw new Error(`Failed to fetch subreddit on Vercel. All methods failed: reddit.com (${response.status}), old.reddit.com (${fallbackResponse.status}), minimal headers (${minimalResponse.status}). This may be due to Vercel IP blocking.`);
+        }
+      } else {
+        throw new Error(`Failed to fetch subreddit from both reddit.com (${response.status}) and old.reddit.com (${fallbackResponse.status}). Reddit may be blocking requests.`);
+      }
+    } else {
+      data = await fallbackResponse.json();
+      console.log(`[RedditScraper] Successfully fetched from old.reddit.com`);
     }
-    
-    data = await fallbackResponse.json();
-    console.log(`[RedditScraper] Successfully fetched from old.reddit.com`);
   } else {
     data = await response.json();
   }
@@ -324,6 +389,8 @@ function extractCommentsFromData(commentsData: RedditComment[]): string[] {
 
 export async function POST(request: NextRequest) {
   try {
+    console.log(`[RedditExtract] Starting request on ${process.env.VERCEL ? 'Vercel' : 'Local'} environment`);
+    
     const { url, crawlPosts = false, maxPosts = 5, includeComments = true }: RedditExtractRequest = await request.json();
 
     if (!url) {
@@ -340,6 +407,8 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    console.log(`[RedditExtract] Processing Reddit URL: ${url} (crawlPosts: ${crawlPosts}, maxPosts: ${maxPosts})`);
 
     // Get Gemini API key
     const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
@@ -360,105 +429,100 @@ export async function POST(request: NextRequest) {
 
     console.log(`[RedditExtract] Scraped ${scrapedData.length} Reddit posts`);
 
-    // Convert scraped content to markdown using Gemini
-    const markdownResults = [];
-    
-    for (const scraped of scrapedData) {
-      try {
-        const commentsSection = scraped.comments.length > 0 
-          ? `\n\n## Top Comments\n${scraped.comments.map(c => `- ${c}`).join('\n')}`
-          : '';
+    // Bundle all content together for single Gemini request
+    const bundledContent = scrapedData.map((scraped, index) => {
+      const commentsSection = scraped.comments.length > 0 
+        ? `\n\n**Top Comments:**\n${scraped.comments.map(c => `- ${c}`).join('\n')}`
+        : '';
 
-        const prompt = `Convert the following Reddit content to clean, well-structured markdown. 
-        Focus on extracting valuable customer insights, opinions, and language patterns.
-        
-        IMPORTANT INSTRUCTIONS:
-        - Structure the content with clear headings
-        - Preserve the authentic voice and language used
-        - Highlight key insights, pain points, and customer language
-        - Include post metadata (author, score, subreddit)
-        - Format comments as a bulleted list under "Top Comments" section
-        - Remove any promotional or spam content
-        - Focus on genuine customer feedback and discussions
-        
-        Reddit Post Details:
-        Title: ${scraped.title}
-        Author: u/${scraped.author}
-        Subreddit: ${scraped.subreddit}
-        Score: ${scraped.score} points
-        URL: ${scraped.url}
-        
-        Post Content:
-        ${scraped.content}
-        ${commentsSection}
-        
-        Return only clean markdown content with no explanations:`;
+      return `--- POST ${index + 1} ---
+Title: ${scraped.title}
+Author: u/${scraped.author}
+Subreddit: ${scraped.subreddit}
+Score: ${scraped.score} points
+URL: ${scraped.url}
+Timestamp: ${scraped.timestamp}
 
-        // Add retry logic for Gemini API
-        let markdownContent = '';
-        let retryCount = 0;
-        const maxRetries = 2;
-        
-        while (retryCount <= maxRetries) {
-          try {
-            const result = await model.generateContent(prompt);
-            markdownContent = result.response.text();
-            break; // Success, exit retry loop
-          } catch (apiError) {
-            retryCount++;
-            console.warn(`[RedditExtract] Gemini API attempt ${retryCount} failed for post ${scraped.title}:`, apiError);
-            
-            if (retryCount > maxRetries) {
-              throw apiError; // Re-throw after max retries
-            }
-            
-            // Wait before retry (exponential backoff)
-            await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
-          }
-        }
-        
-        markdownResults.push({
-          url: scraped.url,
-          title: scraped.title,
-          originalContent: scraped.content,
-          markdown: markdownContent,
-          links: [],
-          timestamp: scraped.timestamp,
-          method: scraped.method,
-          metadata: {
-            author: scraped.author,
-            score: scraped.score,
-            subreddit: scraped.subreddit,
-            commentsCount: scraped.comments.length
-          }
-        });
-        
-        console.log(`[RedditExtract] Converted Reddit post to markdown: ${scraped.title}`);
-      } catch (error) {
-        console.error(`[RedditExtract] Error converting post to markdown:`, error);
-        
-        // Fallback to basic markdown
+Content:
+${scraped.content}
+${commentsSection}
+
+---`;
+    }).join('\n\n');
+
+    console.log(`[RedditExtract] Bundling ${scrapedData.length} posts for single Gemini request`);
+
+    // Single Gemini API call for all posts
+    let allMarkdownContent = '';
+    try {
+      const bundledPrompt = `Convert the following Reddit content to clean, well-structured markdown. 
+      Focus on extracting valuable customer insights, opinions, and language patterns.
+      
+      IMPORTANT INSTRUCTIONS:
+      - Structure each post with clear headings (use ## for post titles)
+      - Preserve the authentic voice and language used
+      - Highlight key insights, pain points, and customer language
+      - Include post metadata (author, score, subreddit) for each post
+      - Format comments as bulleted lists under "Top Comments" sections
+      - Remove any promotional or spam content
+      - Focus on genuine customer feedback and discussions
+      - Separate each post clearly with horizontal rules (---)
+      - Maintain the order of posts as provided
+      
+      ${bundledContent}
+      
+      Return only clean markdown content with no explanations. Keep each post separate and clearly labeled.`;
+
+      const result = await model.generateContent(bundledPrompt);
+      allMarkdownContent = result.response.text();
+      console.log(`[RedditExtract] Successfully processed all ${scrapedData.length} posts in single Gemini request`);
+    } catch (error) {
+      console.error(`[RedditExtract] Bundled Gemini request failed:`, error);
+      
+             // Fallback to basic markdown for all posts
+       allMarkdownContent = scrapedData.map((scraped) => {
         const commentsSection = scraped.comments.length > 0 
-          ? `\n\n## Top Comments\n${scraped.comments.map(c => `- ${c}`).join('\n')}`
+          ? `\n\n### Top Comments\n${scraped.comments.map(c => `- ${c}`).join('\n')}`
           : '';
           
-        markdownResults.push({
-          url: scraped.url,
-          title: scraped.title,
-          originalContent: scraped.content,
-          markdown: `# ${scraped.title}\n\n**Author:** u/${scraped.author} | **Score:** ${scraped.score} points | **Subreddit:** ${scraped.subreddit}\n\n${scraped.content}${commentsSection}`,
-          links: [],
-          timestamp: scraped.timestamp,
-          method: scraped.method,
-          metadata: {
-            author: scraped.author,
-            score: scraped.score,
-            subreddit: scraped.subreddit,
-            commentsCount: scraped.comments.length
-          }
-        });
-      }
+        return `## ${scraped.title}
+
+**Author:** u/${scraped.author} | **Score:** ${scraped.score} points | **Subreddit:** ${scraped.subreddit}  
+**URL:** ${scraped.url}
+
+${scraped.content}
+${commentsSection}
+
+---`;
+      }).join('\n\n');
     }
+
+    // Split the bundled markdown back into individual results
+    const markdownResults = [];
+    const markdownSections = allMarkdownContent.split('---').filter(section => section.trim());
+    
+    scrapedData.forEach((scraped, index) => {
+      const markdownContent = markdownSections[index]?.trim() || 
+        `## ${scraped.title}\n\n**Author:** u/${scraped.author} | **Score:** ${scraped.score} points | **Subreddit:** ${scraped.subreddit}\n\n${scraped.content}`;
+      
+      markdownResults.push({
+        url: scraped.url,
+        title: scraped.title,
+        originalContent: scraped.content,
+        markdown: markdownContent,
+        links: [],
+        timestamp: scraped.timestamp,
+        method: scraped.method,
+        metadata: {
+          author: scraped.author,
+          score: scraped.score,
+          subreddit: scraped.subreddit,
+          commentsCount: scraped.comments.length
+        }
+      });
+    });
+
+    console.log(`[RedditExtract] Created ${markdownResults.length} markdown results from bundled processing`);
 
     return NextResponse.json({
       success: true,

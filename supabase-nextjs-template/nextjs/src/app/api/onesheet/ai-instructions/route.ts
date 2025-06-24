@@ -67,7 +67,138 @@ export async function GET(request: NextRequest) {
         content_variables_return_multiple: false,
         content_variables_allow_new: true,
         awareness_levels_allow_new: true,
-        content_variables_selection_guidance: "When multiple variables are present, prioritize the most prominent or impactful element in the ad."
+        content_variables_selection_guidance: "When multiple variables are present, prioritize the most prominent or impactful element in the ad.",
+        ad_duration_prompt: "For videos, provide the exact duration in seconds. For images, return 'N/A'.",
+        product_intro_prompt: "For videos, identify when the product is first shown or mentioned in seconds. For images, return 'N/A'.",
+        creators_used_prompt: "Count the number of distinct people visible in the ad. Include speakers, presenters, and featured individuals. Do not count background people or crowds.",
+        sit_in_problem_prompt: "This is calculated as (productIntro / adDuration * 100)",
+        type_prompt: "Identify the ad type from: High Production Video, Low Production Video (UGC), Static Image, Carousel, GIF",
+        angle_prompt: "Define the primary message or strategic focus of the ad",
+        format_prompt: "Describe the creative execution style",
+        emotion_prompt: "Identify the primary emotion the ad aims to evoke",
+        framework_prompt: "Identify the underlying marketing framework used",
+        transcription_prompt: "For videos: provide a timecoded transcript with timestamps in [MM:SS] format. For images: any visible text/captions only.",
+        visual_description_prompt: "For videos: detailed description of visual elements. For images: comprehensive description including hex color codes.",
+        system_instructions: "You are a top creative strategist at a multi-million dollar per year ecommerce brand. You spend all day analyzing video and image advertisements, categorizing them, labeling them, and identifying trends to help brands produce more concepts and more winners. You have an exceptional eye for detail and can quickly identify what makes an ad successful. Your analysis is data-driven, precise, and actionable.",
+        response_schema: {
+          type: 'object',
+          properties: {
+            type: {
+              type: 'string',
+              description: 'The category of the video production.',
+              example: 'High Production Video'
+            },
+            adDuration: {
+              type: 'number',
+              format: 'float',
+              description: 'The total duration of the ad in seconds.',
+              example: 32.5
+            },
+            productIntro: {
+              type: 'number',
+              format: 'float',
+              description: 'The timestamp in seconds when the product is introduced.',
+              example: 3.1
+            },
+            sitInProblem: {
+              type: 'string',
+              description: 'The percentage of the ad duration that focuses on the problem.',
+              example: '9.5%'
+            },
+            creatorsUsed: {
+              type: 'integer',
+              description: 'The number of creators featured in the ad.',
+              example: 1
+            },
+            angle: {
+              type: 'string',
+              description: 'The primary marketing angle or theme of the ad.',
+              example: 'Weight Management'
+            },
+            format: {
+              type: 'string',
+              description: 'The format of the ad.',
+              example: 'Testimonial'
+            },
+            emotion: {
+              type: 'string',
+              description: 'The dominant emotion conveyed in the ad.',
+              example: 'Hopefulness'
+            },
+            framework: {
+              type: 'string',
+              description: 'The marketing or storytelling framework used.',
+              example: 'PAS'
+            },
+            awarenessLevel: {
+              type: 'string',
+              description: 'The target audience\'s level of awareness.',
+              example: 'Problem Aware'
+            },
+            contentVariables: {
+              type: 'string',
+              description: 'Specific elements or variables included in the content.',
+              example: 'Product Demo'
+            },
+            transcription: {
+              type: 'string',
+              description: 'The full transcription of the ad\'s audio.',
+              example: '[00:01] Have you ever felt...'
+            },
+            visualDescription: {
+              type: 'string',
+              description: 'A description of the visual elements in the ad.',
+              example: 'A woman is sitting at her desk, looking tired. The color palette is muted with blue and grey tones. Primary hex code: #B0C4DE.'
+            }
+          },
+          required: ['type', 'adDuration', 'productIntro', 'sitInProblem', 'creatorsUsed', 
+                    'angle', 'format', 'emotion', 'framework', 'awarenessLevel', 
+                    'contentVariables', 'transcription', 'visualDescription']
+        },
+        analysis_fields: {
+          type: [
+            { name: "High Production Video", description: "Professional, high-quality video production" },
+            { name: "Low Production Video (UGC)", description: "User-generated content style" },
+            { name: "Static Image", description: "Single image creative" },
+            { name: "Carousel", description: "Multiple images or cards" },
+            { name: "GIF", description: "Animated image" }
+          ],
+          angle: [
+            { name: "Weight Management", description: "Focus on weight loss or body composition" },
+            { name: "Time/Convenience", description: "Emphasis on saving time" },
+            { name: "Energy/Focus", description: "Highlighting increased energy" },
+            { name: "Digestive Health", description: "Focus on gut health" },
+            { name: "Immunity Support", description: "Emphasizing immune support" }
+          ],
+          format: [
+            { name: "Testimonial", description: "Customer sharing experience" },
+            { name: "Podcast Clip", description: "Excerpt from podcast" },
+            { name: "Authority Figure", description: "Expert explaining benefits" },
+            { name: "3 Reasons Why", description: "Structured list format" },
+            { name: "Unboxing", description: "Product reveal" }
+          ],
+          emotion: [
+            { name: "Hopefulness", description: "Inspiring optimism" },
+            { name: "Excitement", description: "Creating enthusiasm" },
+            { name: "Curiosity", description: "Sparking interest" },
+            { name: "Urgency", description: "Time pressure" },
+            { name: "Trust", description: "Building credibility" }
+          ],
+          framework: [
+            { name: "PAS", description: "Problem-Agitate-Solution" },
+            { name: "AIDA", description: "Attention-Interest-Desire-Action" },
+            { name: "FAB", description: "Features-Advantages-Benefits" },
+            { name: "Star Story Solution", description: "Hero's journey" },
+            { name: "Before After Bridge", description: "Transformation narrative" }
+          ]
+        },
+        allow_new_analysis_values: {
+          type: true,
+          angle: true,
+          format: true,
+          emotion: true,
+          framework: true
+        }
       };
 
       const { data: newInstructions, error: createError } = await supabase
@@ -163,12 +294,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    let updates: any = {};
+    const updates: {
+      discovered_content_variables?: Array<{ name: string; description: string }>;
+      discovered_awareness_levels?: Array<{ name: string; description: string }>;
+    } = {};
 
     // Add discovered content variable
     if (discovered_variable) {
       const currentVariables = instructions.discovered_content_variables || [];
-      const exists = currentVariables.some((v: any) => v.name === discovered_variable.name);
+      const exists = currentVariables.some((v: { name: string }) => v.name === discovered_variable.name);
       
       if (!exists) {
         updates.discovered_content_variables = [...currentVariables, discovered_variable];
@@ -178,7 +312,7 @@ export async function POST(request: NextRequest) {
     // Add discovered awareness level
     if (discovered_level) {
       const currentLevels = instructions.discovered_awareness_levels || [];
-      const exists = currentLevels.some((l: any) => l.name === discovered_level.name);
+      const exists = currentLevels.some((l: { name: string }) => l.name === discovered_level.name);
       
       if (!exists) {
         updates.discovered_awareness_levels = [...currentLevels, discovered_level];
