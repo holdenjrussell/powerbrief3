@@ -96,10 +96,10 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
   const [showUploadDialog, setShowUploadDialog] = useState<{ adId: string; adName: string } | null>(null);
   const [activeTab, setActiveTab] = useState('data');
   const [aiInstructions, setAiInstructions] = useState<{
-    contentVariables: Array<{ name: string; description: string }>;
-    awarenessLevels: Array<{ name: string; description: string }>;
-    discoveredContentVariables: Array<{ name: string; description: string }>;
-    discoveredAwarenessLevels: Array<{ name: string; description: string }>;
+    contentVariables: { name: string; description: string }[];
+    awarenessLevels: { name: string; description: string }[];
+    discoveredContentVariables: string[];
+    discoveredAwarenessLevels: string[];
     returnMultiple: boolean;
     selectionGuidance: string;
     allowNewContentVariables: boolean;
@@ -120,11 +120,11 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
     transcriptionPrompt?: string;
     visualDescriptionPrompt?: string;
     analysisFields: {
-      type: Array<{ name: string; description: string }>;
-      angle: Array<{ name: string; description: string }>;
-      format: Array<{ name: string; description: string }>;
-      emotion: Array<{ name: string; description: string }>;
-      framework: Array<{ name: string; description: string }>;
+      type: { name: string; description?: string }[];
+      angle: { name: string; description?: string }[];
+      format: { name: string; description?: string }[];
+      emotion: { name: string; description?: string }[];
+      framework: { name: string; description?: string }[];
     };
     allowNewAnalysisValues: {
       type: boolean;
@@ -133,87 +133,48 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
       emotion: boolean;
       framework: boolean;
     };
-    systemInstructions?: string;
-    masterPromptTemplate?: string;
-    responseSchema?: {
-      type: string;
-      properties: Record<string, {
-        type: string;
-        format?: string;
-        description: string;
-        example: string | number;
-      }>;
-      required: string[];
-    };
-    // Strategist fields
-    benchmarkRoas?: number;
-    benchmarkHookRate?: number;
-    benchmarkHoldRate?: number;
-    benchmarkSpend?: number;
-    strategistSystemInstructions?: string;
-    strategistPromptTemplate?: string;
-    strategistResponseSchema?: Record<string, unknown>;
+    systemInstructions: string;
+    masterPromptTemplate: string;
+    responseSchema: Record<string, unknown>;
+         benchmarkRoas: number;
+     benchmarkHookRate: number;
+     benchmarkHoldRate: number;
+     benchmarkSpend: number;
+    strategistSystemInstructions: string;
+    strategistPromptTemplate: string;
+    strategistResponseSchema: Record<string, unknown>;
+    analyzeModel: string;
+    strategistModel: string;
   }>({
     contentVariables: [],
     awarenessLevels: [],
     discoveredContentVariables: [],
     discoveredAwarenessLevels: [],
     returnMultiple: false,
-    selectionGuidance: "When multiple variables are present, prioritize the most prominent or impactful element in the ad.",
+    selectionGuidance: '',
     allowNewContentVariables: true,
     allowNewAwarenessLevels: true,
     mainAnalysisPrompt: undefined,
     contentVariablesPrompt: undefined,
     awarenessLevelsPrompt: undefined,
     typePrompt: undefined,
-    adDurationPrompt: "For videos, provide the exact duration in seconds. For images, return 'N/A'.",
-    productIntroPrompt: "For videos, identify when the product is first shown or mentioned in seconds. For images, return 'N/A'.",
-    creatorsUsedPrompt: "Count the number of distinct people visible in the ad. Include speakers, presenters, and featured individuals. Do not count background people or crowds.",
-    sitInProblemSecondsPrompt: "For videos, identify the total duration in seconds that the ad spends agitating or discussing the problem before introducing the solution. For images, return 0.",
-    sitInProblemPrompt: "Calculate as (sitInProblemSeconds / adDuration * 100) and format as a percentage string with % symbol",
+    adDurationPrompt: undefined,
+    productIntroPrompt: undefined,
+    creatorsUsedPrompt: undefined,
+    sitInProblemSecondsPrompt: undefined,
+    sitInProblemPrompt: undefined,
     anglePrompt: undefined,
     formatPrompt: undefined,
     emotionPrompt: undefined,
     frameworkPrompt: undefined,
-    transcriptionPrompt: "For videos: provide a timecoded transcript with timestamps in [MM:SS] format. For images: any visible text/captions only.",
-    visualDescriptionPrompt: "For videos: detailed description of visual elements. For images: comprehensive description including hex color codes.",
+    transcriptionPrompt: undefined,
+    visualDescriptionPrompt: undefined,
     analysisFields: {
-      type: [
-        { name: "High Production Video", description: "Professional, high-quality video production with studio lighting, multiple camera angles, or polished editing" },
-        { name: "Low Production Video (UGC)", description: "User-generated content style with casual, authentic, smartphone-quality production" },
-        { name: "Static Image", description: "Single image creative without motion or animation" },
-        { name: "Carousel", description: "Multiple images or cards that users can swipe through" },
-        { name: "GIF", description: "Animated image with looping motion" }
-      ],
-      angle: [
-        { name: "Weight Management", description: "Focus on weight loss, fat burning, or body composition changes" },
-        { name: "Time/Convenience", description: "Emphasis on saving time, easy preparation, or convenience" },
-        { name: "Energy/Focus", description: "Highlighting increased energy levels, mental clarity, or focus" },
-        { name: "Digestive Health", description: "Focus on gut health, bloating reduction, or digestive comfort" },
-        { name: "Immunity Support", description: "Emphasizing immune system support and overall health" }
-      ],
-      format: [
-        { name: "Testimonial", description: "Customer sharing their personal experience or results" },
-        { name: "Podcast Clip", description: "Excerpt from a podcast or interview-style content" },
-        { name: "Authority Figure", description: "Expert, doctor, or authority figure explaining benefits" },
-        { name: "3 Reasons Why", description: "Structured list format explaining multiple benefits" },
-        { name: "Unboxing", description: "Product reveal or unboxing experience" }
-      ],
-      emotion: [
-        { name: "Hopefulness", description: "Inspiring optimism and positive expectations for the future" },
-        { name: "Excitement", description: "Creating enthusiasm and anticipation" },
-        { name: "Curiosity", description: "Sparking interest and desire to learn more" },
-        { name: "Urgency", description: "Creating time pressure or fear of missing out" },
-        { name: "Fear", description: "Highlighting problems or negative consequences" },
-        { name: "Trust", description: "Building credibility and reliability" }
-      ],
-      framework: [
-        { name: "PAS", description: "Problem-Agitate-Solution structure" },
-        { name: "AIDA", description: "Attention-Interest-Desire-Action framework" },
-        { name: "FAB", description: "Features-Advantages-Benefits approach" },
-        { name: "Star Story Solution", description: "Hero's journey narrative structure" },
-        { name: "Before After Bridge", description: "Current state to desired state transformation" }
-      ]
+      type: [],
+      angle: [],
+      format: [],
+      emotion: [],
+      framework: []
     },
     allowNewAnalysisValues: {
       type: true,
@@ -222,43 +183,31 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
       emotion: true,
       framework: true
     },
-    systemInstructions: 'You are a top creative strategist at a multi-million dollar per year ecommerce brand. You spend all day analyzing video and image advertisements, categorizing them, labeling them, and identifying trends to help brands produce more concepts and more winners. You have an exceptional eye for detail and can quickly identify what makes an ad successful. Your analysis is data-driven, precise, and actionable.',
-    responseSchema: {
-      type: 'object',
-      properties: {
-        type: { type: 'string', description: 'The category of the video production.', example: 'High Production Video' },
-        adDuration: { type: 'number', format: 'float', description: 'The total duration of the ad in seconds.', example: 32.5 },
-        productIntro: { type: 'number', format: 'float', description: 'The timestamp in seconds when the product is introduced.', example: 3.1 },
-        sitInProblemSeconds: { type: 'number', format: 'float', description: 'The total duration in seconds that the ad spends on problem agitation.', example: 8.5 },
-        sitInProblem: { type: 'string', description: 'The percentage of the ad duration that focuses on the problem.', example: '25.0%' },
-        creatorsUsed: { type: 'integer', description: 'The number of creators featured in the ad.', example: 1 },
-        angle: { type: 'string', description: 'The primary marketing angle or theme of the ad.', example: 'Weight Management' },
-        format: { type: 'string', description: 'The format of the ad.', example: 'Testimonial' },
-        emotion: { type: 'string', description: 'The dominant emotion conveyed in the ad.', example: 'Hopefulness' },
-        framework: { type: 'string', description: 'The marketing or storytelling framework used.', example: 'PAS' },
-        awarenessLevel: { type: 'string', description: 'The target audience\'s level of awareness.', example: 'Problem Aware' },
-        contentVariables: { type: 'string', description: 'Specific elements or variables included in the content.', example: 'Product Demo' },
-        transcription: { type: 'string', description: 'The full transcription of the ad\'s audio.', example: '[00:01] Have you ever felt...' },
-        visualDescription: { type: 'string', description: 'A description of the visual elements in the ad.', example: 'A woman is sitting at her desk, looking tired. The color palette is muted with blue and grey tones. Primary hex code: #B0C4DE.' }
-      },
-      required: ['type', 'adDuration', 'productIntro', 'sitInProblemSeconds', 'sitInProblem', 'creatorsUsed', 
-                'angle', 'format', 'emotion', 'framework', 'awarenessLevel', 
-                'contentVariables', 'transcription', 'visualDescription']
-    },
-    benchmarkRoas: 2.0,
-    benchmarkHookRate: 3.0,
-    benchmarkHoldRate: 50.0,
-    benchmarkSpend: 100.0,
-    strategistSystemInstructions: undefined,
-    strategistPromptTemplate: undefined,
-    strategistResponseSchema: undefined
+    systemInstructions: '',
+    masterPromptTemplate: '',
+    responseSchema: {},
+    benchmarkRoas: 0,
+    benchmarkHookRate: 0,
+    benchmarkHoldRate: 0,
+    benchmarkSpend: 0,
+    strategistSystemInstructions: '',
+    strategistPromptTemplate: '',
+    strategistResponseSchema: {},
+    analyzeModel: '',
+    strategistModel: ''
   });
   const [isLoadingInstructions, setIsLoadingInstructions] = useState(false);
   const [isRunningStrategist, setIsRunningStrategist] = useState(false);
   const [strategistOpinion, setStrategistOpinion] = useState<AIStrategistOpinion | null>(null);
-  const [iterationCount, setIterationCount] = useState(5);
-  const [lowPerformerCriteria, setLowPerformerCriteria] = useState({
+  const [iterationCount, setIterationCount] = useState<number>(5);
+  const [lowPerformerCriteria, setLowPerformerCriteria] = useState<{
+    minSpend: number;
+    maxSpend: number;
+    maxRoas: number;
+    enabled: boolean;
+  }>({
     minSpend: 50,
+    maxSpend: 500,
     maxRoas: 1.0,
     enabled: true
   });
@@ -313,83 +262,63 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
       const result = await response.json();
       const instructions = result.data;
       
-      setAiInstructions(prev => ({
-        ...prev,
+      setAiInstructions({
         contentVariables: instructions.content_variables || [],
         awarenessLevels: instructions.awareness_levels || [],
         discoveredContentVariables: instructions.discovered_content_variables || [],
         discoveredAwarenessLevels: instructions.discovered_awareness_levels || [],
-        returnMultiple: instructions.content_variables_return_multiple || false,
-        selectionGuidance: instructions.content_variables_selection_guidance || "When multiple variables are present, prioritize the most prominent or impactful element in the ad.",
+        returnMultiple: instructions.content_variables_return_multiple,
+        selectionGuidance: instructions.content_variables_selection_guidance || '',
         allowNewContentVariables: instructions.content_variables_allow_new !== false,
         allowNewAwarenessLevels: instructions.awareness_levels_allow_new !== false,
-        mainAnalysisPrompt: instructions.main_analysis_prompt || undefined,
-        contentVariablesPrompt: instructions.content_variables_prompt || undefined,
-        awarenessLevelsPrompt: instructions.awareness_levels_prompt || undefined,
-        typePrompt: instructions.type_prompt || undefined,
-        adDurationPrompt: instructions.ad_duration_prompt || "For videos, provide the exact duration in seconds. For images, return 'N/A'.",
-        productIntroPrompt: instructions.product_intro_prompt || "For videos, identify when the product is first shown or mentioned in seconds. For images, return 'N/A'.",
-        creatorsUsedPrompt: instructions.creators_used_prompt || "Count the number of distinct people visible in the ad. Include speakers, presenters, and featured individuals. Do not count background people or crowds.",
-        sitInProblemSecondsPrompt: instructions.sit_in_problem_seconds_prompt || "For videos, identify the total duration in seconds that the ad spends agitating or discussing the problem before introducing the solution. For images, return 0.",
-        sitInProblemPrompt: instructions.sit_in_problem_prompt || "Calculate as (sitInProblemSeconds / adDuration * 100) and format as a percentage string with % symbol",
-        anglePrompt: instructions.angle_prompt || undefined,
-        formatPrompt: instructions.format_prompt || undefined,
-        emotionPrompt: instructions.emotion_prompt || undefined,
-        frameworkPrompt: instructions.framework_prompt || undefined,
-        transcriptionPrompt: instructions.transcription_prompt || "For videos: provide a timecoded transcript with timestamps in [MM:SS] format. For images: any visible text/captions only.",
-        visualDescriptionPrompt: instructions.visual_description_prompt || "For videos: detailed description of visual elements. For images: comprehensive description including hex color codes.",
-        analysisFields: {
-          type: instructions.analysis_fields?.type || prev.analysisFields.type,
-          angle: instructions.analysis_fields?.angle || prev.analysisFields.angle,
-          format: instructions.analysis_fields?.format || prev.analysisFields.format,
-          emotion: instructions.analysis_fields?.emotion || prev.analysisFields.emotion,
-          framework: instructions.analysis_fields?.framework || prev.analysisFields.framework
+        mainAnalysisPrompt: instructions.main_analysis_prompt,
+        contentVariablesPrompt: instructions.content_variables_prompt,
+        awarenessLevelsPrompt: instructions.awareness_levels_prompt,
+        typePrompt: instructions.type_prompt,
+        adDurationPrompt: instructions.ad_duration_prompt,
+        productIntroPrompt: instructions.product_intro_prompt,
+        creatorsUsedPrompt: instructions.creators_used_prompt,
+        sitInProblemSecondsPrompt: instructions.sit_in_problem_seconds_prompt,
+        sitInProblemPrompt: instructions.sit_in_problem_prompt,
+        anglePrompt: instructions.angle_prompt,
+        formatPrompt: instructions.format_prompt,
+        emotionPrompt: instructions.emotion_prompt,
+        frameworkPrompt: instructions.framework_prompt,
+        transcriptionPrompt: instructions.transcription_prompt,
+        visualDescriptionPrompt: instructions.visual_description_prompt,
+        analysisFields: instructions.analysis_fields || {
+          type: [],
+          angle: [],
+          format: [],
+          emotion: [],
+          framework: []
         },
-        allowNewAnalysisValues: {
-          type: instructions.allow_new_analysis_values?.type !== false,
-          angle: instructions.allow_new_analysis_values?.angle !== false,
-          format: instructions.allow_new_analysis_values?.format !== false,
-          emotion: instructions.allow_new_analysis_values?.emotion !== false,
-          framework: instructions.allow_new_analysis_values?.framework !== false
+        allowNewAnalysisValues: instructions.allow_new_analysis_values || {
+          type: true,
+          angle: true,
+          format: true,
+          emotion: true,
+          framework: true
         },
-        systemInstructions: instructions.system_instructions || 'You are a top creative strategist at a multi-million dollar per year ecommerce brand. You spend all day analyzing video and image advertisements, categorizing them, labeling them, and identifying trends to help brands produce more concepts and more winners. You have an exceptional eye for detail and can quickly identify what makes an ad successful. Your analysis is data-driven, precise, and actionable.',
-        masterPromptTemplate: instructions.master_prompt_template || 'Loading master prompt template...',
-        responseSchema: instructions.response_schema || {
-          type: 'object',
-          properties: {
-            type: { type: 'string', description: 'The category of the video production.', example: 'High Production Video' },
-            adDuration: { type: 'number', format: 'float', description: 'The total duration of the ad in seconds.', example: 32.5 },
-            productIntro: { type: 'number', format: 'float', description: 'The timestamp in seconds when the product is introduced.', example: 3.1 },
-            sitInProblemSeconds: { type: 'number', format: 'float', description: 'The total duration in seconds that the ad spends on problem agitation.', example: 8.5 },
-            sitInProblem: { type: 'string', description: 'The percentage of the ad duration that focuses on the problem.', example: '25.0%' },
-            creatorsUsed: { type: 'integer', description: 'The number of creators featured in the ad.', example: 1 },
-            angle: { type: 'string', description: 'The primary marketing angle or theme of the ad.', example: 'Weight Management' },
-            format: { type: 'string', description: 'The format of the ad.', example: 'Testimonial' },
-            emotion: { type: 'string', description: 'The dominant emotion conveyed in the ad.', example: 'Hopefulness' },
-            framework: { type: 'string', description: 'The marketing or storytelling framework used.', example: 'PAS' },
-            awarenessLevel: { type: 'string', description: 'The target audience\'s level of awareness.', example: 'Problem Aware' },
-            contentVariables: { type: 'string', description: 'Specific elements or variables included in the content.', example: 'Product Demo' },
-            transcription: { type: 'string', description: 'The full transcription of the ad\'s audio.', example: '[00:01] Have you ever felt...' },
-            visualDescription: { type: 'string', description: 'A description of the visual elements in the ad.', example: 'A woman is sitting at her desk, looking tired. The color palette is muted with blue and grey tones. Primary hex code: #B0C4DE.' }
-          },
-          required: ['type', 'adDuration', 'productIntro', 'sitInProblemSeconds', 'sitInProblem', 'creatorsUsed', 
-                    'angle', 'format', 'emotion', 'framework', 'awarenessLevel', 
-                    'contentVariables', 'transcription', 'visualDescription']
-        },
-        // Load strategist fields
-        benchmarkRoas: instructions.benchmark_roas || 2.0,
-        benchmarkHookRate: instructions.benchmark_hook_rate || 3.0,
-        benchmarkHoldRate: instructions.benchmark_hold_rate || 50.0,
-        benchmarkSpend: instructions.benchmark_spend || 100.0,
-        strategistSystemInstructions: instructions.strategist_system_instructions || undefined,
-        strategistPromptTemplate: instructions.strategist_prompt_template || undefined,
-        strategistResponseSchema: instructions.strategist_response_schema || undefined
-      }));
+        systemInstructions: instructions.system_instructions || '',
+        masterPromptTemplate: instructions.master_prompt_template || '',
+        responseSchema: instructions.response_schema || {},
+        benchmarkRoas: instructions.benchmark_roas || 0,
+        benchmarkHookRate: instructions.benchmark_hook_rate || 0,
+        benchmarkHoldRate: instructions.benchmark_hold_rate || 0,
+        benchmarkSpend: instructions.benchmark_spend || 0,
+        strategistSystemInstructions: instructions.strategist_system_instructions || '',
+        strategistPromptTemplate: instructions.strategist_prompt_template || '',
+        strategistResponseSchema: instructions.strategist_response_schema || {},
+        analyzeModel: instructions.analyze_model || '',
+        strategistModel: instructions.strategist_model || ''
+      });
       
       // Load low performer criteria and iteration settings
       if (instructions.low_performer_criteria) {
         setLowPerformerCriteria({
           minSpend: instructions.low_performer_criteria.min_spend || 50,
+          maxSpend: instructions.low_performer_criteria.max_spend || 500,
           maxRoas: instructions.low_performer_criteria.max_roas || 1.0,
           enabled: instructions.low_performer_criteria.enabled !== false
         });
@@ -1883,8 +1812,7 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
                 <CardContent>
                   <div className="bg-white p-4 rounded-lg border border-blue-200">
                     <p className="text-gray-700 whitespace-pre-wrap">
-                      {aiInstructions.systemInstructions || 
-                       'You are a top creative strategist at a multi-million dollar per year ecommerce brand. You spend all day analyzing video and image advertisements, categorizing them, labeling them, and identifying trends to help brands produce more concepts and more winners. You have an exceptional eye for detail and can quickly identify what makes an ad successful. Your analysis is data-driven, precise, and actionable.'}
+                      {aiInstructions.systemInstructions || 'Loading system instructions...'}
                     </p>
                   </div>
                   <p className="text-sm text-blue-600 mt-2">
@@ -1915,7 +1843,7 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
                   </div>
                   <div className="mt-4 flex items-center gap-2 text-xs text-purple-700">
                     <Settings className="h-4 w-4" />
-                    <span>Model: gemini-2.5-flash-lite-preview-06-17</span>
+                    <span>Model: {aiInstructions.analyzeModel || 'Loading...'}</span>
                     <span className="text-purple-500">•</span>
                     <span>Structured Output: Enabled</span>
                     <span className="text-purple-500">•</span>
@@ -1943,28 +1871,7 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
                 </CardHeader>
                 <CardContent>
                   <div className="bg-white p-4 rounded-md border border-indigo-200 font-mono text-xs overflow-x-auto">
-                    <pre>{JSON.stringify(aiInstructions.responseSchema || {
-                      type: "object",
-                      properties: {
-                        type: { type: "string", description: "Ad category", example: "High Production Video" },
-                        adDuration: { type: "number", format: "float", description: "Duration in seconds", example: 32.5 },
-                        productIntro: { type: "number", format: "float", description: "Product intro timestamp", example: 3.1 },
-                        sitInProblemSeconds: { type: "number", format: "float", description: "Problem agitation duration", example: 8.5 },
-                        sitInProblem: { type: "string", description: "Problem focus percentage", example: "25.0%" },
-                        creatorsUsed: { type: "integer", description: "Number of people", example: 1 },
-                        angle: { type: "string", description: "Marketing angle", example: "Weight Management" },
-                        format: { type: "string", description: "Creative format", example: "Testimonial" },
-                        emotion: { type: "string", description: "Primary emotion", example: "Hopefulness" },
-                        framework: { type: "string", description: "Marketing framework", example: "PAS" },
-                        awarenessLevel: { type: "string", description: "Awareness level", example: "Problem Aware" },
-                        contentVariables: { type: "string", description: "Content elements", example: "Product Demo" },
-                        transcription: { type: "string", description: "Audio/text content", example: "[00:01] Have..." },
-                        visualDescription: { type: "string", description: "Visual elements", example: "Woman at desk..." }
-                      },
-                      required: ["type", "adDuration", "productIntro", "sitInProblemSeconds", "sitInProblem", "creatorsUsed", 
-                                "angle", "format", "emotion", "framework", "awarenessLevel", 
-                                "contentVariables", "transcription", "visualDescription"]
-                    }, null, 2)}</pre>
+                    <pre>{JSON.stringify(aiInstructions.responseSchema || { message: "Loading response schema..." }, null, 2)}</pre>
                   </div>
                   <p className="text-xs text-indigo-700 mt-2">
                     <Info className="h-4 w-4 inline mr-1" />
@@ -2066,103 +1973,228 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
                           type="number"
                           step="0.1"
                           value={aiInstructions.benchmarkRoas}
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="benchmarkRoas" className="text-sm font-medium">
-                        Target ROAS
-                      </Label>
-                      <Input
-                        id="benchmarkRoas"
-                        type="number"
-                        step="0.1"
-                        value={aiInstructions.benchmarkRoas}
-                        onChange={(e) => setAiInstructions(prev => ({ ...prev, benchmarkRoas: parseFloat(e.target.value) || 2.0 }))}
-                        className="w-full"
-                      />
-                      <p className="text-xs text-gray-600">Good performance threshold</p>
+                          onChange={(e) => setAiInstructions(prev => ({ ...prev, benchmarkRoas: parseFloat(e.target.value) || 0 }))}
+                          className="w-full"
+                        />
+                        <p className="text-xs text-gray-600">Good performance threshold</p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="benchmarkHookRate" className="text-sm font-medium">
+                          Target Hook Rate (%)
+                        </Label>
+                        <Input
+                          id="benchmarkHookRate"
+                          type="number"
+                          step="0.1"
+                          value={aiInstructions.benchmarkHookRate}
+                          onChange={(e) => setAiInstructions(prev => ({ ...prev, benchmarkHookRate: parseFloat(e.target.value) || 0 }))}
+                          className="w-full"
+                        />
+                        <p className="text-xs text-gray-600">Good hook performance</p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="benchmarkHoldRate" className="text-sm font-medium">
+                          Target Hold Rate (%)
+                        </Label>
+                        <Input
+                          id="benchmarkHoldRate"
+                          type="number"
+                          step="1"
+                          value={aiInstructions.benchmarkHoldRate}
+                          onChange={(e) => setAiInstructions(prev => ({ ...prev, benchmarkHoldRate: parseFloat(e.target.value) || 0 }))}
+                          className="w-full"
+                        />
+                        <p className="text-xs text-gray-600">Good retention rate</p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="benchmarkSpend" className="text-sm font-medium">
+                          Min Spend ($)
+                        </Label>
+                        <Input
+                          id="benchmarkSpend"
+                          type="number"
+                          step="10"
+                          value={aiInstructions.benchmarkSpend}
+                          onChange={(e) => setAiInstructions(prev => ({ ...prev, benchmarkSpend: parseFloat(e.target.value) || 0 }))}
+                          className="w-full"
+                        />
+                        <p className="text-xs text-gray-600">Minimum spend for significance</p>
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="benchmarkHookRate" className="text-sm font-medium">
-                        Target Hook Rate (%)
-                      </Label>
-                      <Input
-                        id="benchmarkHookRate"
-                        type="number"
-                        step="0.1"
-                        value={aiInstructions.benchmarkHookRate}
-                        onChange={(e) => setAiInstructions(prev => ({ ...prev, benchmarkHookRate: parseFloat(e.target.value) || 3.0 }))}
-                        className="w-full"
-                      />
-                      <p className="text-xs text-gray-600">Good hook performance</p>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="benchmarkHoldRate" className="text-sm font-medium">
-                        Target Hold Rate (%)
-                      </Label>
-                      <Input
-                        id="benchmarkHoldRate"
-                        type="number"
-                        step="1"
-                        value={aiInstructions.benchmarkHoldRate}
-                        onChange={(e) => setAiInstructions(prev => ({ ...prev, benchmarkHoldRate: parseFloat(e.target.value) || 50.0 }))}
-                        className="w-full"
-                      />
-                      <p className="text-xs text-gray-600">Good retention rate</p>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="benchmarkSpend" className="text-sm font-medium">
-                        Min Spend ($)
-                      </Label>
-                      <Input
-                        id="benchmarkSpend"
-                        type="number"
-                        step="10"
-                        value={aiInstructions.benchmarkSpend}
-                        onChange={(e) => setAiInstructions(prev => ({ ...prev, benchmarkSpend: parseFloat(e.target.value) || 100.0 }))}
-                        className="w-full"
-                      />
-                      <p className="text-xs text-gray-600">Minimum spend for significance</p>
+
+                    {/* Save Benchmarks Button */}
+                    <div className="flex justify-end">
+                      <Button 
+                        onClick={async () => {
+                          try {
+                            const response = await fetch('/api/onesheet/ai-instructions', {
+                              method: 'PUT',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                onesheet_id: onesheetId,
+                                benchmark_roas: aiInstructions.benchmarkRoas,
+                                benchmark_hook_rate: aiInstructions.benchmarkHookRate,
+                                benchmark_hold_rate: aiInstructions.benchmarkHoldRate,
+                                benchmark_spend: aiInstructions.benchmarkSpend
+                              })
+                            });
+
+                            if (!response.ok) throw new Error('Failed to save benchmarks');
+
+                            toast({
+                              title: "Benchmarks Saved",
+                              description: "AI strategist benchmarks have been updated."
+                            });
+                          } catch (error) {
+                            console.error('Error saving benchmarks:', error);
+                            toast({
+                              title: "Error",
+                              description: "Failed to save benchmarks",
+                              variant: "destructive"
+                            });
+                          }
+                        }}
+                        variant="outline"
+                        className="border-purple-200 text-purple-700 hover:bg-purple-100"
+                      >
+                        Save Benchmarks
+                      </Button>
                     </div>
                   </div>
 
-                  {/* Save Benchmarks Button */}
-                  <div className="flex justify-end">
-                    <Button 
-                      onClick={async () => {
-                        try {
-                          const response = await fetch('/api/onesheet/ai-instructions', {
-                            method: 'PUT',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                              onesheet_id: onesheetId,
-                              benchmark_roas: aiInstructions.benchmarkRoas,
-                              benchmark_hook_rate: aiInstructions.benchmarkHookRate,
-                              benchmark_hold_rate: aiInstructions.benchmarkHoldRate,
-                              benchmark_spend: aiInstructions.benchmarkSpend
-                            })
-                          });
+                  {/* Low Performer Criteria */}
+                  <div className="border-t pt-6">
+                    <h4 className="font-medium text-sm mb-3">Low Performer Criteria</h4>
+                    <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-md">
+                      <p className="text-sm text-amber-800">
+                        <strong>Identify ads that fall flat and don&apos;t scale:</strong> These criteria help identify ads that spend little and perform poorly, 
+                        rather than ads that scaled well but later declined. The max spend cap ensures we focus on true failures to launch.
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="lowPerfMinSpend" className="text-sm font-medium">
+                          Minimum Spend ($)
+                        </Label>
+                        <Input
+                          id="lowPerfMinSpend"
+                          type="number"
+                          step="10"
+                          value={lowPerformerCriteria.minSpend}
+                          onChange={(e) => setLowPerformerCriteria(prev => ({ ...prev, minSpend: parseFloat(e.target.value) || 0 }))}
+                          className="w-full"
+                        />
+                        <p className="text-xs text-gray-600">Ads must have spent at least this much</p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="lowPerfMaxSpend" className="text-sm font-medium">
+                          Maximum Spend ($)
+                        </Label>
+                        <Input
+                          id="lowPerfMaxSpend"
+                          type="number"
+                          step="10"
+                          value={lowPerformerCriteria.maxSpend}
+                          onChange={(e) => setLowPerformerCriteria(prev => ({ ...prev, maxSpend: parseFloat(e.target.value) || 0 }))}
+                          className="w-full"
+                        />
+                        <p className="text-xs text-gray-600">Caps spend for ads that fall flat</p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="lowPerfMaxRoas" className="text-sm font-medium">
+                          Maximum ROAS
+                        </Label>
+                        <Input
+                          id="lowPerfMaxRoas"
+                          type="number"
+                          step="0.1"
+                          value={lowPerformerCriteria.maxRoas}
+                          onChange={(e) => setLowPerformerCriteria(prev => ({ ...prev, maxRoas: parseFloat(e.target.value) || 0 }))}
+                          className="w-full"
+                        />
+                        <p className="text-xs text-gray-600">Ads below this ROAS are low performers</p>
+                      </div>
+                      <div className="flex items-center justify-center">
+                        <div className="flex items-center space-x-2 mt-6">
+                          <input
+                            type="checkbox"
+                            id="lowPerfEnabled"
+                            checked={lowPerformerCriteria.enabled}
+                            onChange={(e) => setLowPerformerCriteria(prev => ({ ...prev, enabled: e.target.checked }))}
+                            className="rounded"
+                            aria-label="Enable low performer analysis"
+                          />
+                          <Label htmlFor="lowPerfEnabled" className="text-sm font-medium">
+                            Enable low performer analysis
+                          </Label>
+                        </div>
+                      </div>
+                    </div>
 
-                          if (!response.ok) throw new Error('Failed to save benchmarks');
+                    {/* Save Low Performer Criteria Button */}
+                    <div className="flex justify-end">
+                      <Button 
+                        onClick={async () => {
+                          try {
+                            const response = await fetch('/api/onesheet/ai-instructions', {
+                              method: 'PUT',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                onesheet_id: onesheetId,
+                                low_performer_criteria: {
+                                  min_spend: lowPerformerCriteria.minSpend,
+                                  max_spend: lowPerformerCriteria.maxSpend,
+                                  max_roas: lowPerformerCriteria.maxRoas,
+                                  enabled: lowPerformerCriteria.enabled
+                                }
+                              })
+                            });
 
-                          toast({
-                            title: "Benchmarks Saved",
-                            description: "AI strategist benchmarks have been updated."
-                          });
-                        } catch (error) {
-                          console.error('Error saving benchmarks:', error);
-                          toast({
-                            title: "Error",
-                            description: "Failed to save benchmarks",
-                            variant: "destructive"
-                          });
-                        }
-                      }}
-                      variant="outline"
-                      className="border-purple-200 text-purple-700 hover:bg-purple-100"
-                    >
-                      Save Benchmarks
-                    </Button>
+                            if (!response.ok) throw new Error('Failed to save criteria');
+
+                            toast({
+                              title: "Criteria Saved",
+                              description: "Low performer criteria have been updated."
+                            });
+                          } catch (error) {
+                            console.error('Error saving criteria:', error);
+                            toast({
+                              title: "Error",
+                              description: "Failed to save criteria",
+                              variant: "destructive"
+                            });
+                          }
+                        }}
+                        variant="outline"
+                        className="border-purple-200 text-purple-700 hover:bg-purple-100"
+                      >
+                        Save Criteria
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Iteration Count */}
+                  <div className="border-t pt-6">
+                    <h4 className="font-medium text-sm mb-3">Iteration Suggestions</h4>
+                    <div className="space-y-2">
+                      <Label htmlFor="iterationCount" className="text-sm font-medium">
+                        Number of iterations to suggest per ad
+                      </Label>
+                      <div className="flex items-center gap-4">
+                        <Input
+                          id="iterationCount"
+                          type="number"
+                          min="1"
+                          max="20"
+                          value={iterationCount}
+                          onChange={(e) => setIterationCount(parseInt(e.target.value) || 5)}
+                          className="w-24"
+                        />
+                        <p className="text-sm text-gray-600">
+                          AI will suggest {iterationCount} specific iterations for each ad
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -2186,8 +2218,8 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
                     </CardContent>
                   </Card>
 
-                  {/* Top and Worst Performers */}
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Top, Worst, and Low Performers */}
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     {/* Top Performers */}
                     <Card className="border-green-200 bg-green-50">
                       <CardHeader>
@@ -2247,6 +2279,41 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
                         ))}
                       </CardContent>
                     </Card>
+
+                    {/* Low Performers (that fall flat and don't scale) */}
+                    {strategistOpinion.lowPerformers && strategistOpinion.lowPerformers.length > 0 && (
+                      <Card className="border-amber-200 bg-amber-50">
+                        <CardHeader>
+                          <CardTitle className="text-amber-800">Low Performers (Fall Flat)</CardTitle>
+                          <CardDescription className="text-amber-700">
+                            Ads that never gained traction or scaled
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          {strategistOpinion.lowPerformers.map((ad, index) => (
+                            <div key={index} className="bg-white p-4 rounded-lg border border-amber-200">
+                              <h4 className="font-semibold text-sm mb-2">{ad.adName}</h4>
+                              <div className="grid grid-cols-2 gap-2 text-sm mb-2">
+                                <div>
+                                  <span className="text-gray-600">Spend:</span> <span className="font-medium">${ad.spend.toLocaleString()}</span>
+                                </div>
+                                <div>
+                                  <span className="text-gray-600">ROAS:</span> <span className="font-medium text-amber-600">{ad.roas.toFixed(2)}</span>
+                                </div>
+                              </div>
+                              <div className="space-y-1">
+                                <p className="text-xs font-medium text-gray-700">Issues:</p>
+                                <ul className="list-disc list-inside text-xs text-gray-600 space-y-0.5">
+                                  {ad.issues.map((issue, i) => (
+                                    <li key={i}>{issue}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            </div>
+                          ))}
+                        </CardContent>
+                      </Card>
+                    )}
                   </div>
 
                   {/* Creative Patterns */}
@@ -2349,29 +2416,72 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
                     Strategist System Instructions (Protected)
                   </CardTitle>
                   <CardDescription className="text-indigo-700">
-                    Advanced AI instructions for strategic analysis (Model: gemini-2.5-pro)
+                    Advanced AI instructions for strategic analysis (Model: {aiInstructions.strategistModel || 'Loading...'})
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="bg-white p-4 rounded-lg border border-indigo-200">
                     <p className="text-gray-700 whitespace-pre-wrap text-sm">
-                      {aiInstructions.strategistSystemInstructions || 
-                       `You are a world-class performance marketing strategist with deep expertise in Facebook/Meta advertising. You analyze ad performance data to identify patterns, insights, and actionable recommendations that can dramatically improve campaign performance.
-
-Your analysis should:
-1. Identify clear patterns between high and low performing ads
-2. Consider both creative elements AND performance metrics
-3. Weight spend as the most important factor (high spend = Meta's algorithm found success)
-4. Balance spend with ROAS to identify truly scalable winners
-5. Provide specific, actionable recommendations
-6. Focus on insights that can be applied to future ad creation
-
-Use the provided benchmarks to categorize performance, but also consider relative performance within the dataset.`}
+                      {aiInstructions.strategistSystemInstructions || 'Loading strategist system instructions...'}
                     </p>
                   </div>
                   <p className="text-sm text-indigo-600 mt-2">
                     <Info className="h-4 w-4 inline mr-1" />
-                    Uses structured output with gemini-2.5-pro for comprehensive analysis
+                    Uses structured output with {aiInstructions.strategistModel || 'gemini-2.5-pro'} for comprehensive analysis
+                  </p>
+                </CardContent>
+              </Card>
+
+              {/* Strategist Prompt Template */}
+              <Card className="border-purple-200 bg-purple-50">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-purple-800">
+                    <Sparkles className="h-5 w-5" />
+                    Strategist Prompt Template
+                  </CardTitle>
+                  <CardDescription className="text-purple-700">
+                    This template is used to generate strategic analysis prompts
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="bg-white p-4 rounded-md border border-purple-200 font-mono text-xs overflow-x-auto">
+                    <div className="whitespace-pre-wrap text-gray-800">
+                      {aiInstructions.strategistPromptTemplate || 'Loading strategist prompt template...'}
+                    </div>
+                  </div>
+                  <div className="mt-4 flex items-center gap-2 text-xs text-purple-700">
+                    <Settings className="h-4 w-4" />
+                    <span>Model: {aiInstructions.strategistModel || 'Loading...'}</span>
+                    <span className="text-purple-500">•</span>
+                    <span>Response Format: Structured JSON</span>
+                  </div>
+                  <div className="mt-2 p-3 bg-purple-100 rounded-md">
+                    <p className="text-xs text-purple-800">
+                      <Info className="h-4 w-4 inline mr-1" />
+                      Variables like <code>{`{{totalAds}}`}</code>, <code>{`{{benchmarkRoas}}`}</code>, and <code>{`{{iterationCount}}`}</code> are replaced with actual values during analysis.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Strategist Response Schema Preview */}
+              <Card className="border-indigo-200 bg-indigo-50">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-indigo-800">
+                    <Code className="h-5 w-5" />
+                    Strategist Response Schema
+                  </CardTitle>
+                  <CardDescription className="text-indigo-700">
+                    This JSON schema enforces the structure of strategic analysis responses
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="bg-white p-4 rounded-md border border-indigo-200 font-mono text-xs overflow-x-auto">
+                    <pre>{JSON.stringify(aiInstructions.strategistResponseSchema || { message: "Loading strategist response schema..." }, null, 2)}</pre>
+                  </div>
+                  <p className="text-xs text-indigo-700 mt-2">
+                    <Info className="h-4 w-4 inline mr-1" />
+                    Ensures consistent, comprehensive strategic analysis output with all required sections.
                   </p>
                 </CardContent>
               </Card>

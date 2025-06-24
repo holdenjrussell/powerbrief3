@@ -853,66 +853,67 @@ export interface AIStrategistOpinion {
 export interface OneSheetAIInstructions {
   id: string;
   onesheet_id: string;
-  brand_id: string;
-  
-  // System and response settings
-  system_instructions?: string;
-  master_prompt_template?: string;
-  response_schema?: Record<string, unknown>;
-  
-  // Individual prompt fields
+  brand_id?: string;
+  system_instructions: string;
+  content_variables: Array<{ name: string; description: string }>;
+  awareness_levels: Array<{ name: string; description: string }>;
+  content_variables_return_multiple: boolean;
+  content_variables_selection_guidance?: string;
+  content_variables_allow_new: boolean;
+  awareness_levels_allow_new: boolean;
+  discovered_content_variables?: Array<{ name: string; description: string }>;
+  discovered_awareness_levels?: Array<{ name: string; description: string }>;
   main_analysis_prompt?: string;
-  transcription_prompt?: string;
+  content_variables_prompt?: string;
+  awareness_levels_prompt?: string;
   type_prompt?: string;
   ad_duration_prompt?: string;
   product_intro_prompt?: string;
-  sit_in_problem_prompt?: string;
-  sit_in_problem_seconds_prompt?: string;
   creators_used_prompt?: string;
+  sit_in_problem_seconds_prompt?: string;
+  sit_in_problem_prompt?: string;
   angle_prompt?: string;
   format_prompt?: string;
   emotion_prompt?: string;
   framework_prompt?: string;
+  transcription_prompt?: string;
   visual_description_prompt?: string;
-  content_variables_prompt?: string;
-  awareness_levels_prompt?: string;
-  
-  // Analysis fields and settings
-  analysis_fields?: Record<string, unknown>;
-  allow_new_analysis_values?: Record<string, boolean>;
-  content_variables?: Record<string, unknown>;
-  content_variables_allow_new?: boolean;
-  content_variables_return_multiple?: boolean;
-  content_variables_selection_guidance?: string;
-  awareness_levels?: Record<string, unknown>;
-  awareness_levels_allow_new?: boolean;
-  discovered_content_variables?: Record<string, unknown>;
-  discovered_awareness_levels?: Record<string, unknown>;
-  
-  // Strategist AI fields
+  analysis_fields?: {
+    type?: Array<{ name: string; description?: string }>;
+    angle?: Array<{ name: string; description?: string }>;
+    format?: Array<{ name: string; description?: string }>;
+    emotion?: Array<{ name: string; description?: string }>;
+    framework?: Array<{ name: string; description?: string }>;
+  };
+  allow_new_analysis_values?: {
+    type?: boolean;
+    angle?: boolean;
+    format?: boolean;
+    emotion?: boolean;
+    framework?: boolean;
+  };
+  response_schema?: Record<string, unknown>;
+  master_prompt_template?: string;
   benchmark_roas?: number;
   benchmark_hook_rate?: number;
   benchmark_hold_rate?: number;
   benchmark_spend?: number;
   strategist_system_instructions?: string;
-  strategist_prompt_template?: string;
-  strategist_response_schema?: Record<string, unknown>;
   low_performer_criteria?: {
     min_spend: number;
+    max_spend: number;
     max_roas: number;
     enabled: boolean;
   };
   iteration_settings?: {
     default_count: number;
     types: string[];
-    enabled_types: {
-      early: boolean;
-      script: boolean;
-      fine_tuning: boolean;
-      late: boolean;
-    };
+    enabled_types: Record<string, boolean>;
   };
-  
-  created_at?: string;
-  updated_at?: string;
+  strategist_prompt_template?: string;
+  strategist_response_schema?: Record<string, unknown>;
+  analyze_model?: string;
+  strategist_model?: string;
+  created_at: string;
+  updated_at: string;
 } 

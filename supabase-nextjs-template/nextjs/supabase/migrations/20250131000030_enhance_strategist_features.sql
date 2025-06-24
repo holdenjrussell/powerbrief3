@@ -181,12 +181,12 @@ CREATE INDEX IF NOT EXISTS idx_strategist_analyses_created ON onesheet_strategis
 -- Enable RLS
 ALTER TABLE onesheet_strategist_analyses ENABLE ROW LEVEL SECURITY;
 
--- RLS policies
+-- RLS policies (with proper type casting - brand_id is TEXT, brands.id is UUID)
 CREATE POLICY "Users can view strategist analyses for their brands" ON onesheet_strategist_analyses
   FOR SELECT USING (
     EXISTS (
       SELECT 1 FROM brands 
-      WHERE brands.id = brand_id 
+      WHERE brands.id::text = brand_id 
       AND (brands.user_id = auth.uid() OR EXISTS (
         SELECT 1 FROM brand_shares 
         WHERE brand_shares.brand_id = brands.id 
@@ -200,7 +200,7 @@ CREATE POLICY "Users can create strategist analyses for their brands" ON oneshee
   FOR INSERT WITH CHECK (
     EXISTS (
       SELECT 1 FROM brands 
-      WHERE brands.id = brand_id 
+      WHERE brands.id::text = brand_id 
       AND (brands.user_id = auth.uid() OR EXISTS (
         SELECT 1 FROM brand_shares 
         WHERE brand_shares.brand_id = brands.id 
@@ -214,7 +214,7 @@ CREATE POLICY "Users can update strategist analyses for their brands" ON oneshee
   FOR UPDATE USING (
     EXISTS (
       SELECT 1 FROM brands 
-      WHERE brands.id = brand_id 
+      WHERE brands.id::text = brand_id 
       AND (brands.user_id = auth.uid() OR EXISTS (
         SELECT 1 FROM brand_shares 
         WHERE brand_shares.brand_id = brands.id 
@@ -228,7 +228,7 @@ CREATE POLICY "Users can delete strategist analyses for their brands" ON oneshee
   FOR DELETE USING (
     EXISTS (
       SELECT 1 FROM brands 
-      WHERE brands.id = brand_id 
+      WHERE brands.id::text = brand_id 
       AND brands.user_id = auth.uid()
     )
   );

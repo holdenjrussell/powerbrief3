@@ -4,7 +4,7 @@ import { GoogleGenAI } from '@google/genai';
 import { promises as fs } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import type { OneSheetAIInstructions } from '@/lib/types/supabase';
+import type { OneSheetAIInstructions } from '@/lib/types/onesheet';
 
 // Helper to get proper MIME type from URL
 const getProperMimeType = (fileUrl: string): string => {
@@ -444,7 +444,7 @@ export async function POST(request: Request) {
           const systemInstruction = aiInstructions.system_instructions;
 
           const result = await ai.models.generateContent({
-            model: 'gemini-2.5-flash-lite-preview-06-17',
+            model: aiInstructions.analyze_model || 'gemini-2.5-flash-lite-preview-06-17',
             contents: [{
               role: 'user',
               parts: [
