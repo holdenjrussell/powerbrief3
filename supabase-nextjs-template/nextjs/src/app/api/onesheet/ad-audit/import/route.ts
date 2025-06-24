@@ -4,6 +4,7 @@ import { decryptToken } from '@/lib/utils/tokenEncryption';
 import { v4 as uuidv4 } from 'uuid';
 import { setImportProgress, clearImportProgress } from '@/lib/utils/importProgress';
 
+const API_VERSION = 'v22.0'; // Facebook Graph API version
 const REQUEST_DELAY = 1000; // 1 second delay between requests
 const ASSET_DOWNLOAD_DELAY = 2000; // 2 second delay for asset downloads
 const BATCH_SIZE = 5; // Process assets in very small batches
@@ -548,7 +549,7 @@ async function tryExtractVideoWithScraper(
       `https://www.facebook.com/video.php?v=${videoId}`,
       `https://www.facebook.com/watch/?v=${videoId}`,
       `https://fb.watch/${videoId}`,
-      `https://www.facebook.com/videos/${videoId}`,
+      `https://www.facebook.com/videos/${videoId}`
     ];
     
     // If we found a page ID from API, add page-specific URLs to try first
@@ -1194,17 +1195,8 @@ async function processAdsBatchedWithProgress(
   assetCache: Record<string, { assetUrl: string; assetType: string }> | undefined,
   requestId: string
 ): Promise<any[]> {
-  const totalBatches = Math.ceil(ads.length / BATCH_SIZE);
-  const result = await processAdsBatched(ads, accessToken, supabase, brandId, onesheetId, adAccountId, assetCache);
-  
-  // Update progress as batches complete
-  for (let i = 0; i < ads.length; i += BATCH_SIZE) {
-    const batchNumber = Math.floor(i / BATCH_SIZE) + 1;
-    const batchProgress = 92 + (6 * (batchNumber / totalBatches)); // Progress from 92 to 98
-    setImportProgress(requestId, batchProgress, `Processing batch ${batchNumber}/${totalBatches}...`);
-  }
-  
-  return result;
+  // Pass requestId to the actual processing function
+  return await processAdsBatched(ads, accessToken, supabase, brandId, onesheetId, adAccountId, assetCache, requestId);
 }
 
 // Process ads in batches to prevent overwhelming the Meta API and storage system
@@ -1215,20 +1207,24 @@ async function processAdsBatched(
   brandId: string,
   onesheetId: string,
   adAccountId: string,
-  assetCache?: Record<string, { assetUrl: string; assetType: string }>
+  assetCache?: Record<string, { assetUrl: string; assetType: string }>,
+  requestId?: string
 ): Promise<any[]> {
   const processedAds: any[] = [];
   const totalAds = ads.length;
   let errorCount = 0;
   const maxErrors = 20; // Stop asset downloads after too many errors
   let skipAssetDownloads = false;
+  let processedCount = 0; // Track how many ads have been processed
   
   console.log(`Processing ${totalAds} ads in batches of ${BATCH_SIZE}`);
   
   // Process ads in smaller batches to avoid overwhelming the system
   for (let i = 0; i < ads.length; i += BATCH_SIZE) {
     const batch = ads.slice(i, i + BATCH_SIZE);
-    console.log(`Processing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(ads.length / BATCH_SIZE)}`);
+    const batchNumber = Math.floor(i / BATCH_SIZE) + 1;
+    const totalBatches = Math.ceil(ads.length / BATCH_SIZE);
+    console.log(`Processing batch ${batchNumber}/${totalBatches}`);
     
     // Check if we should skip asset downloads due to too many errors
     if (errorCount > maxErrors && !skipAssetDownloads) {
@@ -1281,6 +1277,13 @@ async function processAdsBatched(
           assetInfo = { url: '', type: 'unknown', placement: 'error' };
           errorCount++;
         }
+      }
+      
+      // Update progress after processing each ad's asset
+      processedCount++;
+      if (requestId) {
+        const progressPercentage = 92 + (6 * (processedCount / totalAds)); // Progress from 92 to 98
+        setImportProgress(requestId, progressPercentage, `Extracting assets: ${processedCount}/${totalAds} ads processed...`);
       }
       
       // ENHANCED: Extract video ID from multiple sources for debug visibility
@@ -1448,6 +1451,123 @@ async function processAdsBatched(
   return processedAds;
 }
 
+// Fetch demographics data at the account level
+async function fetchAccountDemographics(
+  adAccountId: string,
+  accessToken: string,
+  dateRange: any
+): Promise<{ age: Record<string, number>; gender: Record<string, number>; placement: Record<string, number> }> {
+  try {
+    console.log(`Fetching demographics for account ${adAccountId}`);
+    
+    // Set date range parameters
+    const endDate = dateRange?.end || new Date().toISOString().split('T')[0];
+    const startDate = dateRange?.start || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    
+    // Use date_preset for better performance when possible
+    let timeParam: string;
+    const daysDiff = Math.floor((new Date(endDate).getTime() - new Date(startDate).getTime()) / (1000 * 60 * 60 * 24));
+    
+    if (daysDiff === 7) {
+      timeParam = 'date_preset=last_7d';
+    } else if (daysDiff === 30) {
+      timeParam = 'date_preset=last_30d';
+    } else if (daysDiff === 90) {
+      timeParam = 'date_preset=last_90d';
+    } else {
+      timeParam = `time_range=${JSON.stringify({ since: startDate, until: endDate })}`;
+    }
+    
+    // Fetch account-level insights with demographic breakdowns
+    const baseUrl = `https://graph.facebook.com/${API_VERSION}/act_${adAccountId}/insights`;
+    
+    // Fetch age and gender breakdown
+    const ageGenderUrl = `${baseUrl}?fields=spend,impressions&breakdowns=age,gender&${timeParam}&access_token=${accessToken}`;
+    const ageGenderResponse = await fetch(ageGenderUrl);
+    
+    if (!ageGenderResponse.ok) {
+      console.error('Failed to fetch age/gender demographics:', await ageGenderResponse.text());
+      throw new Error('Failed to fetch age/gender demographics');
+    }
+    
+    const ageGenderData = await ageGenderResponse.json();
+    
+    // Fetch placement breakdown
+    const placementUrl = `${baseUrl}?fields=spend,impressions&breakdowns=publisher_platform&${timeParam}&access_token=${accessToken}`;
+    const placementResponse = await fetch(placementUrl);
+    
+    if (!placementResponse.ok) {
+      console.error('Failed to fetch placement demographics:', await placementResponse.text());
+      throw new Error('Failed to fetch placement demographics');
+    }
+    
+    const placementData = await placementResponse.json();
+    
+    // Process age and gender data
+    const ageBreakdown: Record<string, number> = {};
+    const genderBreakdown: Record<string, number> = {};
+    const totalImpressions = ageGenderData.data?.reduce((sum: number, item: any) => 
+      sum + parseInt(item.impressions || '0'), 0) || 1;
+    
+    ageGenderData.data?.forEach((item: any) => {
+      const impressions = parseInt(item.impressions || '0');
+      const percentage = (impressions / totalImpressions) * 100;
+      
+      // Age breakdown
+      if (item.age) {
+        ageBreakdown[item.age] = (ageBreakdown[item.age] || 0) + percentage;
+      }
+      
+      // Gender breakdown
+      if (item.gender) {
+        genderBreakdown[item.gender] = (genderBreakdown[item.gender] || 0) + percentage;
+      }
+    });
+    
+    // Process placement data
+    const placementBreakdown: Record<string, number> = {};
+    const totalPlacementImpressions = placementData.data?.reduce((sum: number, item: any) => 
+      sum + parseInt(item.impressions || '0'), 0) || 1;
+    
+    placementData.data?.forEach((item: any) => {
+      const impressions = parseInt(item.impressions || '0');
+      const percentage = (impressions / totalPlacementImpressions) * 100;
+      
+      if (item.publisher_platform) {
+        placementBreakdown[item.publisher_platform] = percentage;
+      }
+    });
+    
+    // Round percentages to 1 decimal place
+    Object.keys(ageBreakdown).forEach(key => {
+      ageBreakdown[key] = Math.round(ageBreakdown[key] * 10) / 10;
+    });
+    Object.keys(genderBreakdown).forEach(key => {
+      genderBreakdown[key] = Math.round(genderBreakdown[key] * 10) / 10;
+    });
+    Object.keys(placementBreakdown).forEach(key => {
+      placementBreakdown[key] = Math.round(placementBreakdown[key] * 10) / 10;
+    });
+    
+    console.log('Demographics fetched:', {
+      age: ageBreakdown,
+      gender: genderBreakdown,
+      placement: placementBreakdown
+    });
+    
+    return {
+      age: ageBreakdown,
+      gender: genderBreakdown,
+      placement: placementBreakdown
+    };
+    
+  } catch (error) {
+    console.error('Error fetching demographics:', error);
+    // Return empty objects on error
+    return { age: {}, gender: {}, placement: {} };
+  }
+}
+
 export async function POST(request: NextRequest) {
   const supabase = await createSSRClient();
   
@@ -1551,7 +1671,7 @@ export async function POST(request: NextRequest) {
     console.log(`Total ads fetched with tiered approach: ${allAds.length}`);
 
     // Extract asset cache from existing onesheet data
-    const assetCache = onesheet.ad_account_audit?.assetCache || {};
+    const assetCache = (onesheet.ad_account_audit as any)?.assetCache || {};
     const cacheSize = Object.keys(assetCache).length;
     if (cacheSize > 0) {
       console.log(`[Ad Audit Import ${requestId}] Found ${cacheSize} cached assets from previous imports`);
@@ -1573,6 +1693,10 @@ export async function POST(request: NextRequest) {
       requestId
     );
 
+    // Fetch demographics data
+    setImportProgress(requestId, 97, 'Fetching demographic data...');
+    const demographics = await fetchAccountDemographics(adAccountId, accessToken, date_range);
+
     // Update OneSheet with the processed data
     setImportProgress(requestId, 98, 'Saving to database...');
     const { error: updateError } = await supabase
@@ -1580,7 +1704,7 @@ export async function POST(request: NextRequest) {
       .update({
         ad_account_audit: {
           ads: processedAds,
-          demographicBreakdown: { age: {}, gender: {} },
+          demographicBreakdown: demographics,
           lastImported: new Date().toISOString(),
           dateRange: date_range,
           totalAdsImported: processedAds.length,

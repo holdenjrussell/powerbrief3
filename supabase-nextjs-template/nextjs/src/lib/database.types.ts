@@ -370,6 +370,97 @@ export type Database = {
           },
         ]
       }
+      brand_automation_settings: {
+        Row: {
+          automation_enabled: boolean | null
+          brand_id: string
+          business_days: number[] | null
+          business_hours_end: string | null
+          business_hours_start: string | null
+          created_at: string
+          default_timezone: string | null
+          id: string
+          notification_emails: string[] | null
+          settings: Json | null
+          updated_at: string
+          webhook_secret: string | null
+        }
+        Insert: {
+          automation_enabled?: boolean | null
+          brand_id: string
+          business_days?: number[] | null
+          business_hours_end?: string | null
+          business_hours_start?: string | null
+          created_at?: string
+          default_timezone?: string | null
+          id?: string
+          notification_emails?: string[] | null
+          settings?: Json | null
+          updated_at?: string
+          webhook_secret?: string | null
+        }
+        Update: {
+          automation_enabled?: boolean | null
+          brand_id?: string
+          business_days?: number[] | null
+          business_hours_end?: string | null
+          business_hours_start?: string | null
+          created_at?: string
+          default_timezone?: string | null
+          id?: string
+          notification_emails?: string[] | null
+          settings?: Json | null
+          updated_at?: string
+          webhook_secret?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "brand_automation_settings_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: true
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      brand_n8n_workflows: {
+        Row: {
+          brand_id: string
+          configuration: Json | null
+          created_at: string
+          id: string
+          is_active: boolean | null
+          updated_at: string
+          workflow_name: string
+        }
+        Insert: {
+          brand_id: string
+          configuration?: Json | null
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          updated_at?: string
+          workflow_name: string
+        }
+        Update: {
+          brand_id?: string
+          configuration?: Json | null
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          updated_at?: string
+          workflow_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "brand_n8n_workflows_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       brand_shares: {
         Row: {
           accepted_at: string | null
@@ -607,6 +698,7 @@ export type Database = {
       }
       brief_batches: {
         Row: {
+          allow_new_concepts: boolean
           brand_id: string
           content_type: string | null
           created_at: string
@@ -618,6 +710,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          allow_new_concepts?: boolean
           brand_id: string
           content_type?: string | null
           created_at?: string
@@ -629,6 +722,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          allow_new_concepts?: boolean
           brand_id?: string
           content_type?: string | null
           created_at?: string
@@ -1493,6 +1587,613 @@ export type Database = {
             columns: ["brand_id"]
             isOneToOne: false
             referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      n8n_automation_templates: {
+        Row: {
+          category: string
+          created_at: string
+          description: string | null
+          id: string
+          is_system: boolean | null
+          name: string
+          optional_variables: Json | null
+          required_variables: Json | null
+          updated_at: string
+          workflow_definition: Json
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_system?: boolean | null
+          name: string
+          optional_variables?: Json | null
+          required_variables?: Json | null
+          updated_at?: string
+          workflow_definition: Json
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_system?: boolean | null
+          name?: string
+          optional_variables?: Json | null
+          required_variables?: Json | null
+          updated_at?: string
+          workflow_definition?: Json
+        }
+        Relationships: []
+      }
+      n8n_execution_logs: {
+        Row: {
+          brand_id: string
+          created_at: string
+          creator_id: string | null
+          data: Json | null
+          duration_ms: number | null
+          error_message: string | null
+          execution_id: string
+          id: string
+          status: string
+          step_name: string
+          workflow_id: string
+        }
+        Insert: {
+          brand_id: string
+          created_at?: string
+          creator_id?: string | null
+          data?: Json | null
+          duration_ms?: number | null
+          error_message?: string | null
+          execution_id: string
+          id?: string
+          status: string
+          step_name: string
+          workflow_id: string
+        }
+        Update: {
+          brand_id?: string
+          created_at?: string
+          creator_id?: string | null
+          data?: Json | null
+          duration_ms?: number | null
+          error_message?: string | null
+          execution_id?: string
+          id?: string
+          status?: string
+          step_name?: string
+          workflow_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "n8n_execution_logs_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "n8n_execution_logs_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "ugc_creators"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      onesheet: {
+        Row: {
+          ad_account_audit: Json | null
+          ad_account_data: Json | null
+          ad_performance_data: Json | null
+          ai_analysis_results: Json | null
+          ai_competitor_data: Json | null
+          ai_prompt_templates: Json | null
+          ai_research_data: Json | null
+          ai_strategist_opinion: Json | null
+          angles: Json | null
+          audience_insights: Json | null
+          audience_research: Json | null
+          brainstorm_notes: string | null
+          brand_id: string
+          competitive_notes: string | null
+          competitor_analysis: Json | null
+          competitor_research: Json | null
+          concepts: Json | null
+          context_loaded: Json | null
+          created_at: string
+          creative_brainstorm: Json | null
+          creative_outputs: Json | null
+          current_stage: string | null
+          custom_sections: Json | null
+          customer_reviews_url: string | null
+          hooks: Json | null
+          id: string
+          key_learnings: Json | null
+          landing_page_url: string | null
+          last_context_update: string | null
+          last_synthesis_update: string | null
+          manual_entries: Json | null
+          name: string | null
+          organic_research_data: Json | null
+          personas: Json | null
+          product: string | null
+          prompt_cheatsheet_url: string | null
+          research_checklist: Json | null
+          social_listening_data: Json | null
+          stages_completed: Json | null
+          synthesis_data: Json | null
+          updated_at: string
+          user_id: string
+          visuals: Json | null
+          workflow_stage: string | null
+        }
+        Insert: {
+          ad_account_audit?: Json | null
+          ad_account_data?: Json | null
+          ad_performance_data?: Json | null
+          ai_analysis_results?: Json | null
+          ai_competitor_data?: Json | null
+          ai_prompt_templates?: Json | null
+          ai_research_data?: Json | null
+          ai_strategist_opinion?: Json | null
+          angles?: Json | null
+          audience_insights?: Json | null
+          audience_research?: Json | null
+          brainstorm_notes?: string | null
+          brand_id: string
+          competitive_notes?: string | null
+          competitor_analysis?: Json | null
+          competitor_research?: Json | null
+          concepts?: Json | null
+          context_loaded?: Json | null
+          created_at?: string
+          creative_brainstorm?: Json | null
+          creative_outputs?: Json | null
+          current_stage?: string | null
+          custom_sections?: Json | null
+          customer_reviews_url?: string | null
+          hooks?: Json | null
+          id?: string
+          key_learnings?: Json | null
+          landing_page_url?: string | null
+          last_context_update?: string | null
+          last_synthesis_update?: string | null
+          manual_entries?: Json | null
+          name?: string | null
+          organic_research_data?: Json | null
+          personas?: Json | null
+          product?: string | null
+          prompt_cheatsheet_url?: string | null
+          research_checklist?: Json | null
+          social_listening_data?: Json | null
+          stages_completed?: Json | null
+          synthesis_data?: Json | null
+          updated_at?: string
+          user_id: string
+          visuals?: Json | null
+          workflow_stage?: string | null
+        }
+        Update: {
+          ad_account_audit?: Json | null
+          ad_account_data?: Json | null
+          ad_performance_data?: Json | null
+          ai_analysis_results?: Json | null
+          ai_competitor_data?: Json | null
+          ai_prompt_templates?: Json | null
+          ai_research_data?: Json | null
+          ai_strategist_opinion?: Json | null
+          angles?: Json | null
+          audience_insights?: Json | null
+          audience_research?: Json | null
+          brainstorm_notes?: string | null
+          brand_id?: string
+          competitive_notes?: string | null
+          competitor_analysis?: Json | null
+          competitor_research?: Json | null
+          concepts?: Json | null
+          context_loaded?: Json | null
+          created_at?: string
+          creative_brainstorm?: Json | null
+          creative_outputs?: Json | null
+          current_stage?: string | null
+          custom_sections?: Json | null
+          customer_reviews_url?: string | null
+          hooks?: Json | null
+          id?: string
+          key_learnings?: Json | null
+          landing_page_url?: string | null
+          last_context_update?: string | null
+          last_synthesis_update?: string | null
+          manual_entries?: Json | null
+          name?: string | null
+          organic_research_data?: Json | null
+          personas?: Json | null
+          product?: string | null
+          prompt_cheatsheet_url?: string | null
+          research_checklist?: Json | null
+          social_listening_data?: Json | null
+          stages_completed?: Json | null
+          synthesis_data?: Json | null
+          updated_at?: string
+          user_id?: string
+          visuals?: Json | null
+          workflow_stage?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "onesheet_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      onesheet_ad_assets: {
+        Row: {
+          ad_id: string
+          asset_type: string
+          asset_url: string
+          created_at: string | null
+          file_path: string | null
+          id: string
+          metadata: Json | null
+          onesheet_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          ad_id: string
+          asset_type: string
+          asset_url: string
+          created_at?: string | null
+          file_path?: string | null
+          id?: string
+          metadata?: Json | null
+          onesheet_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          ad_id?: string
+          asset_type?: string
+          asset_url?: string
+          created_at?: string | null
+          file_path?: string | null
+          id?: string
+          metadata?: Json | null
+          onesheet_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "onesheet_ad_assets_onesheet_id_fkey"
+            columns: ["onesheet_id"]
+            isOneToOne: false
+            referencedRelation: "onesheet"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      onesheet_ai_instructions: {
+        Row: {
+          ad_duration_prompt: string | null
+          allow_new_analysis_values: Json | null
+          analysis_fields: Json | null
+          analyze_model: string | null
+          angle_prompt: string | null
+          awareness_levels: Json | null
+          awareness_levels_allow_new: boolean | null
+          awareness_levels_prompt: string | null
+          benchmark_hold_rate: number | null
+          benchmark_hook_rate: number | null
+          benchmark_roas: number | null
+          benchmark_spend: number | null
+          brand_id: string
+          content_variables: Json | null
+          content_variables_allow_new: boolean | null
+          content_variables_prompt: string | null
+          content_variables_return_multiple: boolean | null
+          content_variables_selection_guidance: string | null
+          created_at: string | null
+          creators_used_prompt: string | null
+          discovered_awareness_levels: Json | null
+          discovered_content_variables: Json | null
+          emotion_prompt: string | null
+          format_prompt: string | null
+          framework_prompt: string | null
+          id: string
+          iteration_settings: Json | null
+          low_performer_criteria: Json | null
+          main_analysis_prompt: string | null
+          master_prompt_template: string | null
+          onesheet_id: string
+          product_intro_prompt: string | null
+          response_schema: Json | null
+          sit_in_problem_prompt: string | null
+          sit_in_problem_seconds_prompt: string | null
+          strategist_model: string | null
+          strategist_prompt_template: string | null
+          strategist_response_schema: Json | null
+          strategist_system_instructions: string | null
+          system_instructions: string | null
+          transcription_prompt: string | null
+          type_prompt: string | null
+          updated_at: string | null
+          visual_description_prompt: string | null
+        }
+        Insert: {
+          ad_duration_prompt?: string | null
+          allow_new_analysis_values?: Json | null
+          analysis_fields?: Json | null
+          analyze_model?: string | null
+          angle_prompt?: string | null
+          awareness_levels?: Json | null
+          awareness_levels_allow_new?: boolean | null
+          awareness_levels_prompt?: string | null
+          benchmark_hold_rate?: number | null
+          benchmark_hook_rate?: number | null
+          benchmark_roas?: number | null
+          benchmark_spend?: number | null
+          brand_id: string
+          content_variables?: Json | null
+          content_variables_allow_new?: boolean | null
+          content_variables_prompt?: string | null
+          content_variables_return_multiple?: boolean | null
+          content_variables_selection_guidance?: string | null
+          created_at?: string | null
+          creators_used_prompt?: string | null
+          discovered_awareness_levels?: Json | null
+          discovered_content_variables?: Json | null
+          emotion_prompt?: string | null
+          format_prompt?: string | null
+          framework_prompt?: string | null
+          id?: string
+          iteration_settings?: Json | null
+          low_performer_criteria?: Json | null
+          main_analysis_prompt?: string | null
+          master_prompt_template?: string | null
+          onesheet_id: string
+          product_intro_prompt?: string | null
+          response_schema?: Json | null
+          sit_in_problem_prompt?: string | null
+          sit_in_problem_seconds_prompt?: string | null
+          strategist_model?: string | null
+          strategist_prompt_template?: string | null
+          strategist_response_schema?: Json | null
+          strategist_system_instructions?: string | null
+          system_instructions?: string | null
+          transcription_prompt?: string | null
+          type_prompt?: string | null
+          updated_at?: string | null
+          visual_description_prompt?: string | null
+        }
+        Update: {
+          ad_duration_prompt?: string | null
+          allow_new_analysis_values?: Json | null
+          analysis_fields?: Json | null
+          analyze_model?: string | null
+          angle_prompt?: string | null
+          awareness_levels?: Json | null
+          awareness_levels_allow_new?: boolean | null
+          awareness_levels_prompt?: string | null
+          benchmark_hold_rate?: number | null
+          benchmark_hook_rate?: number | null
+          benchmark_roas?: number | null
+          benchmark_spend?: number | null
+          brand_id?: string
+          content_variables?: Json | null
+          content_variables_allow_new?: boolean | null
+          content_variables_prompt?: string | null
+          content_variables_return_multiple?: boolean | null
+          content_variables_selection_guidance?: string | null
+          created_at?: string | null
+          creators_used_prompt?: string | null
+          discovered_awareness_levels?: Json | null
+          discovered_content_variables?: Json | null
+          emotion_prompt?: string | null
+          format_prompt?: string | null
+          framework_prompt?: string | null
+          id?: string
+          iteration_settings?: Json | null
+          low_performer_criteria?: Json | null
+          main_analysis_prompt?: string | null
+          master_prompt_template?: string | null
+          onesheet_id?: string
+          product_intro_prompt?: string | null
+          response_schema?: Json | null
+          sit_in_problem_prompt?: string | null
+          sit_in_problem_seconds_prompt?: string | null
+          strategist_model?: string | null
+          strategist_prompt_template?: string | null
+          strategist_response_schema?: Json | null
+          strategist_system_instructions?: string | null
+          system_instructions?: string | null
+          transcription_prompt?: string | null
+          type_prompt?: string | null
+          updated_at?: string | null
+          visual_description_prompt?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "onesheet_ai_instructions_onesheet_id_fkey"
+            columns: ["onesheet_id"]
+            isOneToOne: true
+            referencedRelation: "onesheet"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      onesheet_context_data: {
+        Row: {
+          brand_type: string | null
+          content_text: string | null
+          created_at: string | null
+          extracted_data: Json | null
+          id: string
+          is_active: boolean | null
+          metadata: Json | null
+          onesheet_id: string | null
+          platform: string | null
+          post_type: string | null
+          source_name: string | null
+          source_type: string
+          source_url: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          brand_type?: string | null
+          content_text?: string | null
+          created_at?: string | null
+          extracted_data?: Json | null
+          id?: string
+          is_active?: boolean | null
+          metadata?: Json | null
+          onesheet_id?: string | null
+          platform?: string | null
+          post_type?: string | null
+          source_name?: string | null
+          source_type: string
+          source_url?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          brand_type?: string | null
+          content_text?: string | null
+          created_at?: string | null
+          extracted_data?: Json | null
+          id?: string
+          is_active?: boolean | null
+          metadata?: Json | null
+          onesheet_id?: string | null
+          platform?: string | null
+          post_type?: string | null
+          source_name?: string | null
+          source_type?: string
+          source_url?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "onesheet_context_data_onesheet_id_fkey"
+            columns: ["onesheet_id"]
+            isOneToOne: false
+            referencedRelation: "onesheet"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      onesheet_strategist_analyses: {
+        Row: {
+          analysis_config: Json | null
+          analysis_data: Json
+          brand_id: string
+          created_at: string | null
+          created_by: string | null
+          id: string
+          is_archived: boolean | null
+          notes: string | null
+          onesheet_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          analysis_config?: Json | null
+          analysis_data: Json
+          brand_id: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_archived?: boolean | null
+          notes?: string | null
+          onesheet_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          analysis_config?: Json | null
+          analysis_data?: Json
+          brand_id?: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_archived?: boolean | null
+          notes?: string | null
+          onesheet_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "onesheet_strategist_analyses_onesheet_id_fkey"
+            columns: ["onesheet_id"]
+            isOneToOne: false
+            referencedRelation: "onesheet"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      onesheet_sync_jobs: {
+        Row: {
+          brand_id: string
+          completed_at: string | null
+          created_at: string
+          created_by: string
+          date_range_end: string
+          date_range_start: string
+          error_message: string | null
+          id: string
+          onesheet_id: string
+          processed_ads: number | null
+          started_at: string | null
+          status: string
+          total_ads: number | null
+        }
+        Insert: {
+          brand_id: string
+          completed_at?: string | null
+          created_at?: string
+          created_by: string
+          date_range_end: string
+          date_range_start: string
+          error_message?: string | null
+          id?: string
+          onesheet_id: string
+          processed_ads?: number | null
+          started_at?: string | null
+          status?: string
+          total_ads?: number | null
+        }
+        Update: {
+          brand_id?: string
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string
+          date_range_end?: string
+          date_range_start?: string
+          error_message?: string | null
+          id?: string
+          onesheet_id?: string
+          processed_ads?: number | null
+          started_at?: string | null
+          status?: string
+          total_ads?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "onesheet_sync_jobs_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "onesheet_sync_jobs_onesheet_id_fkey"
+            columns: ["onesheet_id"]
+            isOneToOne: false
+            referencedRelation: "onesheet"
             referencedColumns: ["id"]
           },
         ]

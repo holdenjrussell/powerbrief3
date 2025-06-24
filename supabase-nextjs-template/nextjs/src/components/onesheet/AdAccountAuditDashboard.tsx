@@ -1,17 +1,27 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Download, RefreshCw, Trash2, ExternalLink, Image, Video, Sparkles, Play, X, AlertTriangle, Upload, BarChart3, PieChart as PieChartIcon, Users, MapPin, Settings, Plus, Edit, Trash, MessageSquare, Shield, Bot, Info, Code, Brain } from 'lucide-react';
+import { Download, RefreshCw, Trash2, ExternalLink, Image, Video, Sparkles, Play, X, AlertTriangle, Upload, BarChart3, PieChart as PieChartIcon, Settings, MessageSquare, Shield, Bot, Info, Code, Brain } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { createClient } from '@/utils/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 import type { AIStrategistOpinion } from '@/lib/types/onesheet';
+import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import OneSheetAdDataTable from './OneSheetAdDataTable';
+import OneSheetAiInstructions from './OneSheetAiInstructions';
+import OneSheetAiStrategist from './OneSheetAiStrategist';
+import { ImporterProgress } from './ImporterProgress';
+import { v4 as uuidv4 } from 'uuid';
+
+// Chart colors
+const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D', '#FFC658', '#FF6B6B'];
 
 interface AdData {
   id: string;
@@ -205,6 +215,7 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
   });
   const [isLoadingInstructions, setIsLoadingInstructions] = useState(false);
   const [isRunningStrategist, setIsRunningStrategist] = useState(false);
+  const [isRescraping, setIsRescraping] = useState(false);
   const [strategistOpinion, setStrategistOpinion] = useState<AIStrategistOpinion | null>(null);
   const [iterationCount, setIterationCount] = useState<number>(5);
   const [lowPerformerCriteria, setLowPerformerCriteria] = useState<{
@@ -362,9 +373,13 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
           setImportProgress(progressData.progress);
           setImportMessage(progressData.message);
           console.log(`Import progress: ${progressData.progress}% - ${progressData.message}`);
+        } else if (progressResponse.status === 404) {
+          // Progress not yet initialized, show default message
+          console.log('Progress not yet available');
         }
       } catch (error) {
         // Ignore errors in progress polling
+        console.log('Progress polling error:', error);
       }
     }, 500); // Poll every 500ms
 
@@ -418,6 +433,8 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
   };
 
   const handleAnalyze = async () => {
+    if (selectedAds.size === 0) return;
+
     setIsAnalyzing(true);
     try {
       const response = await fetch('/api/onesheet/ad-audit/analyze', {
@@ -425,8 +442,8 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           onesheet_id: onesheetId,
-          ad_ids: selectedAds.size > 0 ? Array.from(selectedAds) : undefined
-        }),
+          ad_ids: Array.from(selectedAds)
+        })
       });
 
       if (!response.ok) {
@@ -454,6 +471,56 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
       });
     } finally {
       setIsAnalyzing(false);
+    }
+  };
+
+  const handleRescrapeVideos = async () => {
+    if (selectedAds.size === 0) return;
+
+    setIsRescraping(true);
+    try {
+      // Filter ads to only rescrape selected ones with videos
+      const adsToRescrape = ads.filter(ad => selectedAds.has(ad.id) && ad.videoId);
+      
+      if (adsToRescrape.length === 0) {
+        toast({
+          title: "No Videos Selected",
+          description: "Please select ads with videos to rescrape",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      const response = await fetch('/api/onesheet/ad-audit/rescrape-videos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          ads: adsToRescrape,
+          onesheetId,
+          brandId
+        })
+      });
+
+      if (!response.ok) throw new Error('Failed to rescrape videos');
+      
+      const data = await response.json();
+      
+      toast({
+        title: "Rescraping Complete",
+        description: `Successfully rescraped ${data.rescrapedCount || 0} video ads. ${data.failedCount || 0} failed.`
+      });
+      
+      // Force refresh the full data from server after rescraping
+      await loadAuditData();
+    } catch (error) {
+      console.error('Error rescraping videos:', error);
+      toast({
+        title: "Error",
+        description: "Failed to rescrape videos",
+        variant: "destructive"
+      });
+    } finally {
+      setIsRescraping(false);
     }
   };
 
@@ -672,13 +739,6 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
     }
   };
 
-  // Calculate demographic data with null safety
-  const demographicData = {
-    age: auditData?.demographicBreakdown?.age || {},
-    gender: auditData?.demographicBreakdown?.gender || {},
-    placement: auditData?.demographicBreakdown?.placement || {}
-  };
-
   if (isImporting || isAnalyzing || isClearing) {
     return (
       <div className="flex items-center justify-center p-12">
@@ -774,6 +834,18 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
                     {isAnalyzing ? 'Analyzing...' : needsAnalysis ? 'Analyze with AI' : 'Re-analyze'}
                     {selectedAds.size > 0 && ` (${selectedAds.size})`}
                   </Button>
+                  {selectedAds.size > 0 && ads.filter(ad => selectedAds.has(ad.id) && ad.videoId).length > 0 && (
+                    <Button 
+                      onClick={handleRescrapeVideos} 
+                      disabled={isRescraping} 
+                      variant="outline"
+                      className="border-blue-200 text-blue-700 hover:bg-blue-50 hover:text-blue-800 bg-white"
+                    >
+                      <RefreshCw className={`mr-2 h-4 w-4 ${isRescraping ? 'animate-spin' : ''}`} />
+                      {isRescraping ? 'Rescraping...' : 'Rescrape Videos'}
+                      {` (${ads.filter(ad => selectedAds.has(ad.id) && ad.videoId).length})`}
+                    </Button>
+                  )}
                   {analyzedCount > 0 && (
                     <Button 
                       onClick={handleRunStrategist} 
@@ -1134,1460 +1206,134 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
         </Card>
           </TabsContent>
 
-          <TabsContent value="visualizations">
-            {(demographicData?.age && Object.keys(demographicData.age).length > 0) || 
-             (demographicData?.gender && Object.keys(demographicData.gender).length > 0) || 
-             (demographicData?.placement && Object.keys(demographicData.placement).length > 0) ? (
-              <div className="space-y-8">
-                {/* Header */}
-                <div className="text-center">
-                  <h2 className="text-2xl font-bold text-gray-900 mb-2">Demographics Data</h2>
-                  <p className="text-gray-600">Audience insights from your ad performance</p>
-                </div>
+          <TabsContent value="visualizations" className="space-y-4">
+            {Object.keys(auditData?.demographicBreakdown || {}).length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Age Breakdown */}
+                {auditData?.demographicBreakdown?.age && Object.keys(auditData.demographicBreakdown.age).length > 0 && (
+                  <Card className="p-4">
+                    <h3 className="text-lg font-semibold mb-4">Age Distribution</h3>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <PieChart>
+                        <Pie
+                          data={Object.entries(auditData.demographicBreakdown.age).map(([age, percentage]) => ({
+                            name: age,
+                            value: percentage
+                          }))}
+                          cx="50%"
+                          cy="50%"
+                          labelLine={false}
+                          label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                          outerRadius={80}
+                          fill="#8884d8"
+                          dataKey="value"
+                        >
+                          {Object.keys(auditData.demographicBreakdown.age).map((_, index) => (
+                            <Cell key={`age-cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip formatter={(value: number) => `${value.toFixed(1)}%`} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </Card>
+                )}
 
-                {/* Demographics Charts Grid */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                  {/* Age Distribution */}
-                  {demographicData?.age && Object.keys(demographicData.age).length > 0 && (
-                    <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200">
-                      <CardHeader className="text-center">
-                        <CardTitle className="flex items-center justify-center gap-2 text-blue-800">
-                          <Users className="h-5 w-5" />
-                          Demographics Data: AGE
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <ResponsiveContainer width="100%" height={300}>
-                          <PieChart>
-                            <Pie
-                              data={Object.entries(demographicData.age).map(([age, value]) => ({
-                                name: age,
-                                value: value as number
-                              }))}
-                              cx="50%"
-                              cy="50%"
-                              labelLine={false}
-                              label={({ name, percent }) => `${name}\n${(percent * 100).toFixed(1)}%`}
-                              outerRadius={80}
-                              fill="#3b82f6"
-                              dataKey="value"
-                            >
-                              {Object.entries(demographicData.age).map((_, index) => (
-                                <Cell key={`age-${index}`} fill={[
-                                  '#3b82f6', '#6366f1', '#8b5cf6', '#a855f7', '#c084fc', '#d8b4fe'
-                                ][index % 6]} />
-                              ))}
-                            </Pie>
-                            <Tooltip formatter={(value) => [`${value}%`, 'Percentage']} />
-                            <Legend />
-                          </PieChart>
-                        </ResponsiveContainer>
-                      </CardContent>
-                    </Card>
-                  )}
+                {/* Gender Breakdown */}
+                {auditData?.demographicBreakdown?.gender && Object.keys(auditData.demographicBreakdown.gender).length > 0 && (
+                  <Card className="p-4">
+                    <h3 className="text-lg font-semibold mb-4">Gender Distribution</h3>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <PieChart>
+                        <Pie
+                          data={Object.entries(auditData.demographicBreakdown.gender).map(([gender, percentage]) => ({
+                            name: gender === 'male' ? 'Male' : gender === 'female' ? 'Female' : 'Unknown',
+                            value: percentage
+                          }))}
+                          cx="50%"
+                          cy="50%"
+                          labelLine={false}
+                          label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                          outerRadius={80}
+                          fill="#82ca9d"
+                          dataKey="value"
+                        >
+                          {Object.keys(auditData.demographicBreakdown.gender).map((_, index) => (
+                            <Cell key={`gender-cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip formatter={(value: number) => `${value.toFixed(1)}%`} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </Card>
+                )}
 
-                  {/* Gender Distribution */}
-                  {demographicData?.gender && Object.keys(demographicData.gender).length > 0 && (
-                    <Card className="bg-gradient-to-br from-pink-50 to-rose-50 border-pink-200">
-                      <CardHeader className="text-center">
-                        <CardTitle className="flex items-center justify-center gap-2 text-pink-800">
-                          <Users className="h-5 w-5" />
-                          Demographics Data: GENDER
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <ResponsiveContainer width="100%" height={300}>
-                          <PieChart>
-                            <Pie
-                              data={Object.entries(demographicData.gender).map(([gender, value]) => ({
-                                name: gender,
-                                value: value as number
-                              }))}
-                              cx="50%"
-                              cy="50%"
-                              labelLine={false}
-                              label={({ name, percent }) => `${name}\n${(percent * 100).toFixed(1)}%`}
-                              outerRadius={80}
-                              fill="#ec4899"
-                              dataKey="value"
-                            >
-                              {Object.entries(demographicData.gender).map((_, index) => (
-                                <Cell key={`gender-${index}`} fill={[
-                                  '#ec4899', '#f472b6', '#f9a8d4', '#fbcfe8'
-                                ][index % 4]} />
-                              ))}
-                            </Pie>
-                            <Tooltip formatter={(value) => [`${value}%`, 'Percentage']} />
-                            <Legend />
-                          </PieChart>
-                        </ResponsiveContainer>
-                      </CardContent>
-                    </Card>
-                  )}
-
-                  {/* Placement Distribution */}
-                  {demographicData?.placement && Object.keys(demographicData.placement).length > 0 && (
-                    <Card className="bg-gradient-to-br from-green-50 to-emerald-50 border-green-200">
-                      <CardHeader className="text-center">
-                        <CardTitle className="flex items-center justify-center gap-2 text-green-800">
-                          <MapPin className="h-5 w-5" />
-                          Demographics Data: PLACEMENT
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <ResponsiveContainer width="100%" height={300}>
-                          <PieChart>
-                            <Pie
-                              data={Object.entries(demographicData.placement).map(([placement, value]) => ({
-                                name: placement.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()),
-                                value: value as number
-                              }))}
-                              cx="50%"
-                              cy="50%"
-                              labelLine={false}
-                              label={({ name, percent }) => `${name}\n${(percent * 100).toFixed(1)}%`}
-                              outerRadius={80}
-                              fill="#10b981"
-                              dataKey="value"
-                            >
-                              {Object.entries(demographicData.placement).map((_, index) => (
-                                <Cell key={`placement-${index}`} fill={[
-                                  '#10b981', '#34d399', '#6ee7b7', '#9deccd', '#c6f6d5'
-                                ][index % 5]} />
-                              ))}
-                            </Pie>
-                            <Tooltip formatter={(value) => [`${value}%`, 'Percentage']} />
-                            <Legend />
-                          </PieChart>
-                        </ResponsiveContainer>
-                      </CardContent>
-                    </Card>
-                  )}
-                </div>
+                {/* Placement Breakdown */}
+                {auditData?.demographicBreakdown?.placement && Object.keys(auditData.demographicBreakdown.placement).length > 0 && (
+                  <Card className="p-4">
+                    <h3 className="text-lg font-semibold mb-4">Placement Distribution</h3>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <PieChart>
+                        <Pie
+                          data={Object.entries(auditData.demographicBreakdown.placement).map(([placement, percentage]) => ({
+                            name: placement === 'facebook' ? 'Facebook' : 
+                                  placement === 'instagram' ? 'Instagram' : 
+                                  placement === 'audience_network' ? 'Audience Network' : 
+                                  placement === 'messenger' ? 'Messenger' : placement,
+                            value: percentage
+                          }))}
+                          cx="50%"
+                          cy="50%"
+                          labelLine={false}
+                          label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                          outerRadius={80}
+                          fill="#ffc658"
+                          dataKey="value"
+                        >
+                          {Object.keys(auditData.demographicBreakdown.placement).map((_, index) => (
+                            <Cell key={`placement-cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip formatter={(value: number) => `${value.toFixed(1)}%`} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </Card>
+                )}
               </div>
             ) : (
-              <Card>
-                <CardContent className="py-12 text-center">
-                  <PieChartIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-muted-foreground mb-2">No demographic data available</p>
-                  <p className="text-sm text-gray-500">Import ads with demographic breakdowns to see visualizations here</p>
-                </CardContent>
-              </Card>
+              <div className="text-center py-8">
+                <PieChart className="mx-auto h-24 w-24 text-gray-400 mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No demographic data available</h3>
+                <p className="text-gray-600">Import ads with demographic breakdowns to see visualizations here</p>
+              </div>
             )}
           </TabsContent>
 
           <TabsContent value="ai-instructions">
-            <div className="space-y-6">
-              {/* Header with Save Button */}
-              <div className="flex items-center justify-between">
-                <div className="text-left">
-                  <h2 className="text-2xl font-bold text-gray-900 mb-2">AI Analysis Instructions</h2>
-                  <p className="text-gray-600">Customize how AI analyzes your ad content</p>
-                </div>
-                <Button 
-                  onClick={async () => {
-                    setIsLoadingInstructions(true);
-                    try {
-                      const response = await fetch('/api/onesheet/ai-instructions', {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                          onesheet_id: onesheetId,
-                          content_variables: aiInstructions.contentVariables,
-                          awareness_levels: aiInstructions.awarenessLevels,
-                          content_variables_return_multiple: aiInstructions.returnMultiple,
-                          content_variables_selection_guidance: aiInstructions.selectionGuidance,
-                          content_variables_allow_new: aiInstructions.allowNewContentVariables,
-                          awareness_levels_allow_new: aiInstructions.allowNewAwarenessLevels,
-                          main_analysis_prompt: aiInstructions.mainAnalysisPrompt,
-                          content_variables_prompt: aiInstructions.contentVariablesPrompt,
-                          awareness_levels_prompt: aiInstructions.awarenessLevelsPrompt,
-                          type_prompt: aiInstructions.typePrompt,
-                          ad_duration_prompt: aiInstructions.adDurationPrompt,
-                          product_intro_prompt: aiInstructions.productIntroPrompt,
-                          creators_used_prompt: aiInstructions.creatorsUsedPrompt,
-                          sit_in_problem_seconds_prompt: aiInstructions.sitInProblemSecondsPrompt,
-                          sit_in_problem_prompt: aiInstructions.sitInProblemPrompt,
-                          angle_prompt: aiInstructions.anglePrompt,
-                          format_prompt: aiInstructions.formatPrompt,
-                          emotion_prompt: aiInstructions.emotionPrompt,
-                          framework_prompt: aiInstructions.frameworkPrompt,
-                          transcription_prompt: aiInstructions.transcriptionPrompt,
-                          visual_description_prompt: aiInstructions.visualDescriptionPrompt,
-                          analysis_fields: aiInstructions.analysisFields,
-                          allow_new_analysis_values: aiInstructions.allowNewAnalysisValues,
-                          system_instructions: aiInstructions.systemInstructions,
-                          response_schema: aiInstructions.responseSchema
-                        })
-                      });
-
-                      if (!response.ok) throw new Error('Failed to save instructions');
-
-                      toast({
-                        title: "Instructions Saved",
-                        description: "AI analysis instructions have been updated and will be used for future analyses."
-                      });
-                    } catch (error) {
-                      console.error('Error saving AI instructions:', error);
-                      toast({
-                        title: "Error",
-                        description: "Failed to save AI instructions",
-                        variant: "destructive"
-                      });
-                    } finally {
-                      setIsLoadingInstructions(false);
-                    }
-                  }} 
-                  disabled={isLoadingInstructions}
-                  className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
-                  size="lg"
-                >
-                  <Settings className="h-4 w-4" />
-                  {isLoadingInstructions ? 'Saving...' : 'Save Instructions'}
-                </Button>
-              </div>
-
-              {/* Content Variables Section */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Edit className="h-5 w-5" />
-                    Content Variables
-                  </CardTitle>
-                  <CardDescription>
-                    Define the types of content variables the AI should look for in ads. The AI can identify multiple variables or be restricted to one based on your settings.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                                    {/* Settings Grid */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* Return Multiple Toggle */}
-                    <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                      <div>
-                        <Label className="text-sm font-medium">Return Multiple Values</Label>
-                        <p className="text-xs text-gray-600">Allow AI to return multiple content variables per ad</p>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <input
-                          type="checkbox"
-                          id="returnMultiple"
-                          checked={aiInstructions.returnMultiple}
-                          onChange={(e) => setAiInstructions(prev => ({ ...prev, returnMultiple: e.target.checked }))}
-                          className="rounded"
-                          aria-label="Enable returning multiple content variables"
-                        />
-                        <Label htmlFor="returnMultiple" className="text-sm">Enabled</Label>
-                      </div>
-                    </div>
-
-                    {/* Allow New Variables Toggle */}
-                    <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg">
-                      <div>
-                        <Label className="text-sm font-medium">Allow New Variables</Label>
-                        <p className="text-xs text-gray-600">Let AI create new variables not in your predefined list</p>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <input
-                          type="checkbox"
-                          id="allowNewVariables"
-                          checked={aiInstructions.allowNewContentVariables}
-                          onChange={(e) => setAiInstructions(prev => ({ ...prev, allowNewContentVariables: e.target.checked }))}
-                          className="rounded"
-                          aria-label="Allow AI to create new content variables"
-                        />
-                        <Label htmlFor="allowNewVariables" className="text-sm">Enabled</Label>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Selection Guidance */}
-                  {!aiInstructions.returnMultiple && (
-                    <div className="space-y-2">
-                      <Label htmlFor="selectionGuidance" className="text-sm font-medium">Selection Guidance</Label>
-                      <textarea
-                        id="selectionGuidance"
-                        value={aiInstructions.selectionGuidance}
-                        onChange={(e) => setAiInstructions(prev => ({ ...prev, selectionGuidance: e.target.value }))}
-                        className="w-full p-3 border border-gray-300 rounded-md text-sm"
-                        rows={3}
-                        placeholder="Provide guidance on how AI should select a single content variable when multiple are present..."
-                      />
-                    </div>
-                  )}
-
-                  {/* Content Variables List */}
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-sm font-medium">Content Variable Definitions</Label>
-                      <Button
-                        size="sm"
-                        onClick={() => {
-                          setAiInstructions(prev => ({
-                            ...prev,
-                            contentVariables: [...prev.contentVariables, { name: "", description: "" }]
-                          }));
-                        }}
-                        className="flex items-center gap-1"
-                      >
-                        <Plus className="h-4 w-4" />
-                        Add Variable
-                      </Button>
-                    </div>
-                    
-                    <div className="space-y-2 max-h-64 overflow-y-auto">
-                      {aiInstructions.contentVariables.map((variable, index) => (
-                        <div key={index} className="flex gap-2 p-3 border border-gray-200 rounded-md">
-                          <div className="flex-1 space-y-2">
-                            <Input
-                              placeholder="Variable name (e.g., Podcast)"
-                              value={variable.name}
-                              onChange={(e) => {
-                                const newVariables = [...aiInstructions.contentVariables];
-                                newVariables[index].name = e.target.value;
-                                setAiInstructions(prev => ({ ...prev, contentVariables: newVariables }));
-                              }}
-                              className="text-sm"
-                            />
-                            <Input
-                              placeholder="Description (e.g., Usually in a podcast studio...)"
-                              value={variable.description}
-                              onChange={(e) => {
-                                const newVariables = [...aiInstructions.contentVariables];
-                                newVariables[index].description = e.target.value;
-                                setAiInstructions(prev => ({ ...prev, contentVariables: newVariables }));
-                              }}
-                              className="text-sm"
-                            />
-                          </div>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              const newVariables = aiInstructions.contentVariables.filter((_, i) => i !== index);
-                              setAiInstructions(prev => ({ ...prev, contentVariables: newVariables }));
-                            }}
-                            className="shrink-0"
-                          >
-                            <Trash className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Awareness Levels Section */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Users className="h-5 w-5" />
-                    Awareness Levels
-                  </CardTitle>
-                  <CardDescription>
-                    Define the customer awareness levels the AI should identify based on ad targeting and messaging.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {/* Allow New Awareness Levels Toggle */}
-                  <div className="flex items-center justify-between p-4 bg-purple-50 rounded-lg">
-                    <div>
-                      <Label className="text-sm font-medium">Allow New Awareness Levels</Label>
-                      <p className="text-xs text-gray-600">Let AI identify awareness levels beyond your predefined list</p>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        id="allowNewAwareness"
-                        checked={aiInstructions.allowNewAwarenessLevels}
-                        onChange={(e) => setAiInstructions(prev => ({ ...prev, allowNewAwarenessLevels: e.target.checked }))}
-                        className="rounded"
-                        aria-label="Allow AI to create new awareness levels"
-                      />
-                      <Label htmlFor="allowNewAwareness" className="text-sm">Enabled</Label>
-                    </div>
-                  </div>
-
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-sm font-medium">Awareness Level Definitions</Label>
-                      <Button
-                        size="sm"
-                        onClick={() => {
-                          setAiInstructions(prev => ({
-                            ...prev,
-                            awarenessLevels: [...prev.awarenessLevels, { name: "", description: "" }]
-                          }));
-                        }}
-                        className="flex items-center gap-1"
-                      >
-                        <Plus className="h-4 w-4" />
-                        Add Level
-                      </Button>
-                    </div>
-                    
-                    <div className="space-y-2 max-h-64 overflow-y-auto">
-                      {aiInstructions.awarenessLevels.map((level, index) => (
-                        <div key={index} className="flex gap-2 p-3 border border-gray-200 rounded-md">
-                          <div className="flex-1 space-y-2">
-                            <Input
-                              placeholder="Awareness level (e.g., Problem Aware)"
-                              value={level.name}
-                              onChange={(e) => {
-                                const newLevels = [...aiInstructions.awarenessLevels];
-                                newLevels[index].name = e.target.value;
-                                setAiInstructions(prev => ({ ...prev, awarenessLevels: newLevels }));
-                              }}
-                              className="text-sm"
-                            />
-                            <Input
-                              placeholder="Description (e.g., Knows they have a problem...)"
-                              value={level.description}
-                              onChange={(e) => {
-                                const newLevels = [...aiInstructions.awarenessLevels];
-                                newLevels[index].description = e.target.value;
-                                setAiInstructions(prev => ({ ...prev, awarenessLevels: newLevels }));
-                              }}
-                              className="text-sm"
-                            />
-                          </div>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              const newLevels = aiInstructions.awarenessLevels.filter((_, i) => i !== index);
-                              setAiInstructions(prev => ({ ...prev, awarenessLevels: newLevels }));
-                            }}
-                            className="shrink-0"
-                          >
-                            <Trash className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Analysis Field Definitions */}
-              {['type', 'angle', 'format', 'emotion', 'framework'].map(fieldName => (
-                <Card key={fieldName}>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <MessageSquare className="h-5 w-5" />
-                      {fieldName.charAt(0).toUpperCase() + fieldName.slice(1)} Definitions
-                      <span className="ml-2 px-2 py-1 bg-amber-100 text-amber-800 text-xs rounded-full font-medium">
-                        Protected - JSON structure preserved
-                      </span>
-                    </CardTitle>
-                    <CardDescription>
-                      Define the {fieldName} categories that AI should identify in ads. The AI can identify values from your list or create new ones based on your settings.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {/* Allow New Values Toggle */}
-                    <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg">
-                      <div>
-                        <Label className="text-sm font-medium">Allow New {fieldName.charAt(0).toUpperCase() + fieldName.slice(1)} Values</Label>
-                        <p className="text-xs text-gray-600">Let AI create new {fieldName} values not in your predefined list</p>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <input
-                          type="checkbox"
-                          id={`allowNew${fieldName}`}
-                          checked={aiInstructions.allowNewAnalysisValues[fieldName as keyof typeof aiInstructions.allowNewAnalysisValues]}
-                          onChange={(e) => setAiInstructions(prev => ({ 
-                            ...prev, 
-                            allowNewAnalysisValues: {
-                              ...prev.allowNewAnalysisValues,
-                              [fieldName]: e.target.checked
-                            }
-                          }))}
-                          className="rounded"
-                          aria-label={`Allow AI to create new ${fieldName} values`}
-                        />
-                        <Label htmlFor={`allowNew${fieldName}`} className="text-sm">Enabled</Label>
-                      </div>
-                    </div>
-
-                    {/* Field Definitions List */}
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <Label className="text-sm font-medium">{fieldName.charAt(0).toUpperCase() + fieldName.slice(1)} Definitions</Label>
-                        <Button
-                          size="sm"
-                          onClick={() => {
-                            setAiInstructions(prev => ({
-                              ...prev,
-                              analysisFields: {
-                                ...prev.analysisFields,
-                                [fieldName]: [...prev.analysisFields[fieldName as keyof typeof prev.analysisFields], { name: "", description: "" }]
-                              }
-                            }));
-                          }}
-                          className="flex items-center gap-1"
-                        >
-                          <Plus className="h-4 w-4" />
-                          Add {fieldName.charAt(0).toUpperCase() + fieldName.slice(1)}
-                        </Button>
-                      </div>
-                      
-                      <div className="space-y-2 max-h-64 overflow-y-auto">
-                        {aiInstructions.analysisFields[fieldName as keyof typeof aiInstructions.analysisFields].map((item, index) => (
-                          <div key={index} className="flex gap-2 p-3 border border-gray-200 rounded-md">
-                            <div className="flex-1 space-y-2">
-                              <Input
-                                placeholder={`${fieldName.charAt(0).toUpperCase() + fieldName.slice(1)} name (e.g., ${fieldName === 'type' ? 'High Production Video' : fieldName === 'angle' ? 'Weight Management' : fieldName === 'format' ? 'Testimonial' : fieldName === 'emotion' ? 'Hopefulness' : 'PAS'})`}
-                                value={item.name}
-                                onChange={(e) => {
-                                  const newItems = [...aiInstructions.analysisFields[fieldName as keyof typeof aiInstructions.analysisFields]];
-                                  newItems[index].name = e.target.value;
-                                  setAiInstructions(prev => ({ 
-                                    ...prev, 
-                                    analysisFields: {
-                                      ...prev.analysisFields,
-                                      [fieldName]: newItems
-                                    }
-                                  }));
-                                }}
-                                className="text-sm"
-                              />
-                              <Input
-                                placeholder="Description (e.g., Professional, high-quality video production...)"
-                                value={item.description}
-                                onChange={(e) => {
-                                  const newItems = [...aiInstructions.analysisFields[fieldName as keyof typeof aiInstructions.analysisFields]];
-                                  newItems[index].description = e.target.value;
-                                  setAiInstructions(prev => ({ 
-                                    ...prev, 
-                                    analysisFields: {
-                                      ...prev.analysisFields,
-                                      [fieldName]: newItems
-                                    }
-                                  }));
-                                }}
-                                className="text-sm"
-                              />
-                            </div>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                const newItems = aiInstructions.analysisFields[fieldName as keyof typeof aiInstructions.analysisFields].filter((_, i) => i !== index);
-                                setAiInstructions(prev => ({ 
-                                  ...prev, 
-                                  analysisFields: {
-                                    ...prev.analysisFields,
-                                    [fieldName]: newItems
-                                  }
-                                }));
-                              }}
-                              className="shrink-0"
-                            >
-                              <Trash className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-
-              {/* Measurement Instructions - Protected */}
-              <Card className="border-amber-200 bg-amber-50">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-amber-800">
-                    <Shield className="h-5 w-5" />
-                    Measurement Instructions
-                    <span className="ml-2 px-2 py-1 bg-amber-100 text-amber-800 text-xs rounded-full font-medium">
-                      Protected - Default values applied
-                    </span>
-                  </CardTitle>
-                  <CardDescription className="text-amber-700">
-                    These measurement instructions are currently protected with optimized defaults. Custom editing may be enabled in future updates.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {/* Protected Measurement Instructions */}
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="space-y-2">
-                        <Label className="text-sm font-medium text-amber-800">Ad Duration Instructions</Label>
-                        <div className="bg-white p-3 rounded-md border border-amber-200 text-sm font-mono text-gray-700 min-h-[96px] flex items-center">
-                          {aiInstructions.adDurationPrompt}
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-sm font-medium text-amber-800">Product Introduction Timing</Label>
-                        <div className="bg-white p-3 rounded-md border border-amber-200 text-sm font-mono text-gray-700 min-h-[96px] flex items-center">
-                          {aiInstructions.productIntroPrompt}
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-sm font-medium text-amber-800">Creators/People Count</Label>
-                        <div className="bg-white p-3 rounded-md border border-amber-200 text-sm font-mono text-gray-700 min-h-[96px] flex items-center">
-                          {aiInstructions.creatorsUsedPrompt}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label className="text-sm font-medium text-amber-800">Sit in Problem Duration</Label>
-                        <div className="bg-white p-3 rounded-md border border-amber-200 text-sm font-mono text-gray-700 min-h-[96px] flex items-center">
-                          {aiInstructions.sitInProblemSecondsPrompt}
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-sm font-medium text-amber-800">Sit in Problem Percentage</Label>
-                        <div className="bg-white p-3 rounded-md border border-amber-200 text-sm font-mono text-gray-700 min-h-[96px] flex items-center">
-                          {aiInstructions.sitInProblemPrompt}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <p className="text-xs text-amber-700">
-                    These instructions ensure consistent and accurate measurement across all ad analyses.
-                  </p>
-                </CardContent>
-              </Card>
-
-              {/* Content Analysis Instructions */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <MessageSquare className="h-5 w-5" />
-                    Content Analysis Instructions
-                  </CardTitle>
-                  <CardDescription>
-                    Customize how AI analyzes transcription and visual elements of your ads.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="transcriptionPrompt" className="text-sm font-medium">
-                        Transcription Instructions
-                        <span className="ml-2 px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">Auto-fallback enabled</span>
-                      </Label>
-                      <textarea
-                        id="transcriptionPrompt"
-                        placeholder="Default: Provide a complete word-for-word transcription of any spoken content in the video, including background voices and key phrases. If no audio content is present, return 'No audio content'."
-                        value={aiInstructions.transcriptionPrompt || ''}
-                        onChange={(e) => setAiInstructions(prev => ({ ...prev, transcriptionPrompt: e.target.value }))}
-                        className="w-full h-24 px-3 py-2 border border-gray-300 rounded-md text-sm"
-                      />
-                      <p className="text-xs text-gray-600">
-                        If left empty, will use default transcription instructions automatically.
-                      </p>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="visualDescriptionPrompt" className="text-sm font-medium">
-                        Visual Description Instructions
-                        <span className="ml-2 px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">Auto-fallback enabled</span>
-                      </Label>
-                      <textarea
-                        id="visualDescriptionPrompt"
-                        placeholder="Default: Describe visual elements including colors (provide hex codes for dominant colors), people, settings, text overlays, and key visual components. Be specific about layout, composition, and visual hierarchy."
-                        value={aiInstructions.visualDescriptionPrompt || ''}
-                        onChange={(e) => setAiInstructions(prev => ({ ...prev, visualDescriptionPrompt: e.target.value }))}
-                        className="w-full h-24 px-3 py-2 border border-gray-300 rounded-md text-sm"
-                      />
-                      <p className="text-xs text-gray-600">
-                        If left empty, will use default visual analysis instructions automatically.
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* System Instructions Section */}
-              <Card className="border-blue-200 bg-blue-50">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-blue-800">
-                    <Bot className="h-5 w-5" />
-                    System Instructions (Protected)
-                  </CardTitle>
-                  <CardDescription className="text-blue-700">
-                    This defines the AI&apos;s role and expertise level for analyzing ads
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="bg-white p-4 rounded-lg border border-blue-200">
-                    <p className="text-gray-700 whitespace-pre-wrap">
-                      {aiInstructions.systemInstructions || 'Loading system instructions...'}
-                    </p>
-                  </div>
-                  <p className="text-sm text-blue-600 mt-2">
-                    <Info className="h-4 w-4 inline mr-1" />
-                    This system instruction is protected and cannot be edited directly. It ensures consistent, high-quality analysis.
-                  </p>
-                </CardContent>
-              </Card>
-
-
-
-              {/* Actual Prompt Preview */}
-              <Card className="border-purple-200 bg-purple-50">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-purple-800">
-                    <Sparkles className="h-5 w-5" />
-                    Master Prompt Template Preview
-                  </CardTitle>
-                  <CardDescription className="text-purple-700">
-                    This is the exact prompt template that will be sent to Gemini for ad analysis (with variables substituted during analysis)
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="bg-white p-4 rounded-md border border-purple-200 font-mono text-xs overflow-x-auto">
-                    <div className="whitespace-pre-wrap text-gray-800">
-                      {aiInstructions.masterPromptTemplate || 'Loading master prompt template...'}
-                    </div>
-                  </div>
-                  <div className="mt-4 flex items-center gap-2 text-xs text-purple-700">
-                    <Settings className="h-4 w-4" />
-                    <span>Model: {aiInstructions.analyzeModel || 'Loading...'}</span>
-                    <span className="text-purple-500">•</span>
-                    <span>Structured Output: Enabled</span>
-                    <span className="text-purple-500">•</span>
-                    <span>Template Variables: Dynamically Substituted</span>
-                  </div>
-                  <div className="mt-2 p-3 bg-purple-100 rounded-md">
-                    <p className="text-xs text-purple-800">
-                      <Info className="h-4 w-4 inline mr-1" />
-                      Variables like <code>{`{{ad.name}}`}</code>, <code>{`{{typeOptions}}`}</code>, and <code>{`{{contentVariablesInstruction}}`}</code> are automatically replaced with actual values during analysis based on your current settings.
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Response Schema Preview */}
-              <Card className="border-indigo-200 bg-indigo-50">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-indigo-800">
-                    <Code className="h-5 w-5" />
-                    Response Schema (Structured Output)
-                  </CardTitle>
-                  <CardDescription className="text-indigo-700">
-                    This JSON schema enforces the exact structure of Gemini&apos;s response
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="bg-white p-4 rounded-md border border-indigo-200 font-mono text-xs overflow-x-auto">
-                    <pre>{JSON.stringify(aiInstructions.responseSchema || { message: "Loading response schema..." }, null, 2)}</pre>
-                  </div>
-                  <p className="text-xs text-indigo-700 mt-2">
-                    <Info className="h-4 w-4 inline mr-1" />
-                    This schema guarantees consistent JSON output by defining exact field types and requirements.
-                  </p>
-                </CardContent>
-              </Card>
-
-              {/* Save Instructions */}
-              <div className="flex justify-end">
-                <Button 
-                  onClick={async () => {
-                    setIsLoadingInstructions(true);
-                    try {
-                      const response = await fetch('/api/onesheet/ai-instructions', {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                          onesheet_id: onesheetId,
-                          content_variables: aiInstructions.contentVariables,
-                          awareness_levels: aiInstructions.awarenessLevels,
-                          content_variables_return_multiple: aiInstructions.returnMultiple,
-                          content_variables_selection_guidance: aiInstructions.selectionGuidance,
-                          content_variables_allow_new: aiInstructions.allowNewContentVariables,
-                          awareness_levels_allow_new: aiInstructions.allowNewAwarenessLevels,
-                          main_analysis_prompt: aiInstructions.mainAnalysisPrompt,
-                          content_variables_prompt: aiInstructions.contentVariablesPrompt,
-                          awareness_levels_prompt: aiInstructions.awarenessLevelsPrompt,
-                          type_prompt: aiInstructions.typePrompt,
-                          ad_duration_prompt: aiInstructions.adDurationPrompt,
-                          product_intro_prompt: aiInstructions.productIntroPrompt,
-                          creators_used_prompt: aiInstructions.creatorsUsedPrompt,
-                          sit_in_problem_seconds_prompt: aiInstructions.sitInProblemSecondsPrompt,
-                          sit_in_problem_prompt: aiInstructions.sitInProblemPrompt,
-                          angle_prompt: aiInstructions.anglePrompt,
-                          format_prompt: aiInstructions.formatPrompt,
-                          emotion_prompt: aiInstructions.emotionPrompt,
-                          framework_prompt: aiInstructions.frameworkPrompt,
-                          transcription_prompt: aiInstructions.transcriptionPrompt,
-                          visual_description_prompt: aiInstructions.visualDescriptionPrompt,
-                          analysis_fields: aiInstructions.analysisFields,
-                          allow_new_analysis_values: aiInstructions.allowNewAnalysisValues,
-                          system_instructions: aiInstructions.systemInstructions,
-                          response_schema: aiInstructions.responseSchema
-                        })
-                      });
-
-                      if (!response.ok) throw new Error('Failed to save instructions');
-
-                      toast({
-                        title: "Instructions Saved",
-                        description: "AI analysis instructions have been updated and will be used for future analyses."
-                      });
-                    } catch (error) {
-                      console.error('Error saving AI instructions:', error);
-                      toast({
-                        title: "Error",
-                        description: "Failed to save AI instructions",
-                        variant: "destructive"
-                      });
-                    } finally {
-                      setIsLoadingInstructions(false);
-                    }
-                  }} 
-                  disabled={isLoadingInstructions}
-                  className="flex items-center gap-2"
-                >
-                  <Settings className="h-4 w-4" />
-                  {isLoadingInstructions ? 'Saving...' : 'Save Instructions'}
-                </Button>
-              </div>
-            </div>
+            <OneSheetAiInstructions
+              onesheetId={onesheetId}
+              aiInstructions={aiInstructions}
+              setAiInstructions={setAiInstructions}
+              isLoadingInstructions={isLoadingInstructions}
+              setIsLoadingInstructions={setIsLoadingInstructions}
+            />
           </TabsContent>
 
           <TabsContent value="strategist">
-            <div className="space-y-6">
-              {/* Strategist Settings */}
-              <Card className="border-purple-200 bg-purple-50">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-purple-800">
-                    <Brain className="h-5 w-5" />
-                    AI Strategist Settings
-                  </CardTitle>
-                  <CardDescription className="text-purple-700">
-                    Configure benchmarks and analysis parameters for the AI strategist
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  {/* Benchmarks */}
-                  <div>
-                    <h4 className="font-medium text-sm mb-3">Performance Benchmarks</h4>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="benchmarkRoas" className="text-sm font-medium">
-                          Target ROAS
-                        </Label>
-                        <Input
-                          id="benchmarkRoas"
-                          type="number"
-                          step="0.1"
-                          value={aiInstructions.benchmarkRoas}
-                          onChange={(e) => setAiInstructions(prev => ({ ...prev, benchmarkRoas: parseFloat(e.target.value) || 0 }))}
-                          className="w-full"
-                        />
-                        <p className="text-xs text-gray-600">Good performance threshold</p>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="benchmarkHookRate" className="text-sm font-medium">
-                          Target Hook Rate (%)
-                        </Label>
-                        <Input
-                          id="benchmarkHookRate"
-                          type="number"
-                          step="0.1"
-                          value={aiInstructions.benchmarkHookRate}
-                          onChange={(e) => setAiInstructions(prev => ({ ...prev, benchmarkHookRate: parseFloat(e.target.value) || 0 }))}
-                          className="w-full"
-                        />
-                        <p className="text-xs text-gray-600">Good hook performance</p>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="benchmarkHoldRate" className="text-sm font-medium">
-                          Target Hold Rate (%)
-                        </Label>
-                        <Input
-                          id="benchmarkHoldRate"
-                          type="number"
-                          step="1"
-                          value={aiInstructions.benchmarkHoldRate}
-                          onChange={(e) => setAiInstructions(prev => ({ ...prev, benchmarkHoldRate: parseFloat(e.target.value) || 0 }))}
-                          className="w-full"
-                        />
-                        <p className="text-xs text-gray-600">Good retention rate</p>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="benchmarkSpend" className="text-sm font-medium">
-                          Min Spend ($)
-                        </Label>
-                        <Input
-                          id="benchmarkSpend"
-                          type="number"
-                          step="10"
-                          value={aiInstructions.benchmarkSpend}
-                          onChange={(e) => setAiInstructions(prev => ({ ...prev, benchmarkSpend: parseFloat(e.target.value) || 0 }))}
-                          className="w-full"
-                        />
-                        <p className="text-xs text-gray-600">Minimum spend for significance</p>
-                      </div>
-                    </div>
-
-                    {/* Save Benchmarks Button */}
-                    <div className="flex justify-end">
-                      <Button 
-                        onClick={async () => {
-                          try {
-                            const response = await fetch('/api/onesheet/ai-instructions', {
-                              method: 'PUT',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({
-                                onesheet_id: onesheetId,
-                                benchmark_roas: aiInstructions.benchmarkRoas,
-                                benchmark_hook_rate: aiInstructions.benchmarkHookRate,
-                                benchmark_hold_rate: aiInstructions.benchmarkHoldRate,
-                                benchmark_spend: aiInstructions.benchmarkSpend
-                              })
-                            });
-
-                            if (!response.ok) throw new Error('Failed to save benchmarks');
-
-                            toast({
-                              title: "Benchmarks Saved",
-                              description: "AI strategist benchmarks have been updated."
-                            });
-                          } catch (error) {
-                            console.error('Error saving benchmarks:', error);
-                            toast({
-                              title: "Error",
-                              description: "Failed to save benchmarks",
-                              variant: "destructive"
-                            });
-                          }
-                        }}
-                        variant="outline"
-                        className="border-purple-200 text-purple-700 hover:bg-purple-100"
-                      >
-                        Save Benchmarks
-                      </Button>
-                    </div>
-                  </div>
-
-                  {/* Low Performer Criteria */}
-                  <div className="border-t pt-6">
-                    <h4 className="font-medium text-sm mb-3">Low Performer Criteria</h4>
-                    <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-md">
-                      <p className="text-sm text-amber-800">
-                        <strong>Identify ads that fall flat and don&apos;t scale:</strong> These criteria help identify ads that spend little and perform poorly, 
-                        rather than ads that scaled well but later declined. The max spend cap ensures we focus on true failures to launch.
-                      </p>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="lowPerfMinSpend" className="text-sm font-medium">
-                          Minimum Spend ($)
-                        </Label>
-                        <Input
-                          id="lowPerfMinSpend"
-                          type="number"
-                          step="10"
-                          value={lowPerformerCriteria.minSpend}
-                          onChange={(e) => setLowPerformerCriteria(prev => ({ ...prev, minSpend: parseFloat(e.target.value) || 0 }))}
-                          className="w-full"
-                        />
-                        <p className="text-xs text-gray-600">Ads must have spent at least this much</p>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="lowPerfMaxSpend" className="text-sm font-medium">
-                          Maximum Spend ($)
-                        </Label>
-                        <Input
-                          id="lowPerfMaxSpend"
-                          type="number"
-                          step="10"
-                          value={lowPerformerCriteria.maxSpend}
-                          onChange={(e) => setLowPerformerCriteria(prev => ({ ...prev, maxSpend: parseFloat(e.target.value) || 0 }))}
-                          className="w-full"
-                        />
-                        <p className="text-xs text-gray-600">Caps spend for ads that fall flat</p>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="lowPerfMaxRoas" className="text-sm font-medium">
-                          Maximum ROAS
-                        </Label>
-                        <Input
-                          id="lowPerfMaxRoas"
-                          type="number"
-                          step="0.1"
-                          value={lowPerformerCriteria.maxRoas}
-                          onChange={(e) => setLowPerformerCriteria(prev => ({ ...prev, maxRoas: parseFloat(e.target.value) || 0 }))}
-                          className="w-full"
-                        />
-                        <p className="text-xs text-gray-600">Ads below this ROAS are low performers</p>
-                      </div>
-                      <div className="flex items-center justify-center">
-                        <div className="flex items-center space-x-2 mt-6">
-                          <input
-                            type="checkbox"
-                            id="lowPerfEnabled"
-                            checked={lowPerformerCriteria.enabled}
-                            onChange={(e) => setLowPerformerCriteria(prev => ({ ...prev, enabled: e.target.checked }))}
-                            className="rounded"
-                            aria-label="Enable low performer analysis"
-                          />
-                          <Label htmlFor="lowPerfEnabled" className="text-sm font-medium">
-                            Enable low performer analysis
-                          </Label>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Save Low Performer Criteria Button */}
-                    <div className="flex justify-end">
-                      <Button 
-                        onClick={async () => {
-                          try {
-                            const response = await fetch('/api/onesheet/ai-instructions', {
-                              method: 'PUT',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({
-                                onesheet_id: onesheetId,
-                                low_performer_criteria: {
-                                  min_spend: lowPerformerCriteria.minSpend,
-                                  max_spend: lowPerformerCriteria.maxSpend,
-                                  max_roas: lowPerformerCriteria.maxRoas,
-                                  enabled: lowPerformerCriteria.enabled
-                                }
-                              })
-                            });
-
-                            if (!response.ok) throw new Error('Failed to save criteria');
-
-                            toast({
-                              title: "Criteria Saved",
-                              description: "Low performer criteria have been updated."
-                            });
-                          } catch (error) {
-                            console.error('Error saving criteria:', error);
-                            toast({
-                              title: "Error",
-                              description: "Failed to save criteria",
-                              variant: "destructive"
-                            });
-                          }
-                        }}
-                        variant="outline"
-                        className="border-purple-200 text-purple-700 hover:bg-purple-100"
-                      >
-                        Save Criteria
-                      </Button>
-                    </div>
-                  </div>
-
-                  {/* Iteration Count */}
-                  <div className="border-t pt-6">
-                    <h4 className="font-medium text-sm mb-3">Iteration Suggestions</h4>
-                    <div className="space-y-2">
-                      <Label htmlFor="iterationCount" className="text-sm font-medium">
-                        Number of iterations to suggest per ad
-                      </Label>
-                      <div className="flex items-center gap-4">
-                        <Input
-                          id="iterationCount"
-                          type="number"
-                          min="1"
-                          max="20"
-                          value={iterationCount}
-                          onChange={(e) => setIterationCount(parseInt(e.target.value) || 5)}
-                          className="w-24"
-                        />
-                        <p className="text-sm text-gray-600">
-                          AI will suggest {iterationCount} specific iterations for each ad
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Strategist Analysis Results */}
-              {strategistOpinion ? (
-                <div className="space-y-6">
-                  {/* Summary Card */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Brain className="h-5 w-5" />
-                        Strategic Analysis Summary
-                      </CardTitle>
-                      <CardDescription>
-                        Analyzed {strategistOpinion.totalAdsAnalyzed} ads on {new Date(strategistOpinion.analyzedAt).toLocaleDateString()}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-gray-700 leading-relaxed">{strategistOpinion.summary}</p>
-                    </CardContent>
-                  </Card>
-
-                  {/* Top, Worst, and Low Performers */}
-                  <div className={`grid grid-cols-1 gap-6 ${strategistOpinion.lowPerformers && strategistOpinion.lowPerformers.length > 0 ? 'lg:grid-cols-3' : 'lg:grid-cols-2'}`}>
-                    {/* Top Performers */}
-                    <Card className="border-green-200 bg-green-50">
-                      <CardHeader>
-                        <CardTitle className="text-green-800">Top Performers</CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        {strategistOpinion.topPerformers.map((ad, index) => (
-                          <div key={index} className="bg-white p-4 rounded-lg border border-green-200">
-                            <div className="flex items-start justify-between mb-2">
-                              <h4 className="font-semibold text-sm break-words flex-1" title={ad.adName}>{truncateAdName(ad.adName)}</h4>
-                              {/* Ad Preview Button */}
-                              {(ad.videoId || ad.thumbnailUrl || ad.imageUrl) && (
-                                <button
-                                  onClick={() => {
-                                    if (ad.videoId && (ad.thumbnailUrl || ad.imageUrl)) {
-                                      setSelectedVideo({
-                                        videoId: ad.videoId,
-                                        thumbnailUrl: ad.assetUrl || ad.thumbnailUrl || ad.imageUrl || '',
-                                        adName: ad.adName
-                                      });
-                                    } else if (ad.thumbnailUrl || ad.imageUrl) {
-                                      setSelectedImage({
-                                        imageUrl: ad.assetUrl || ad.imageUrl || ad.thumbnailUrl || '',
-                                        adName: ad.adName
-                                      });
-                                    }
-                                  }}
-                                  className="ml-2 p-1 hover:bg-gray-100 rounded transition-colors"
-                                  title="View ad preview"
-                                >
-                                  {ad.videoId ? '🎬' : '🖼️'}
-                                </button>
-                              )}
-                            </div>
-                            <div className="grid grid-cols-2 gap-1 text-xs mb-2">
-                              <div><span className="text-gray-600">Spend:</span> <span className="font-medium">${ad.spend.toLocaleString()}</span></div>
-                              <div><span className="text-gray-600">ROAS:</span> <span className="font-medium text-green-600">{ad.roas.toFixed(2)}</span></div>
-                              {ad.hookRate && <div><span className="text-gray-600">Hook:</span> <span className="font-medium">{ad.hookRate}%</span></div>}
-                              {ad.holdRate && <div><span className="text-gray-600">Hold:</span> <span className="font-medium">{ad.holdRate}%</span></div>}
-                              {ad.type && <div className="col-span-2"><span className="text-gray-600">Type:</span> <span className="font-medium">{ad.type}</span></div>}
-                              {ad.angle && <div className="col-span-2"><span className="text-gray-600">Angle:</span> <span className="font-medium">{ad.angle}</span></div>}
-                              {ad.format && <div><span className="text-gray-600">Format:</span> <span className="font-medium">{ad.format}</span></div>}
-                              {ad.emotion && <div><span className="text-gray-600">Emotion:</span> <span className="font-medium">{ad.emotion}</span></div>}
-                              {ad.framework && <div><span className="text-gray-600">Framework:</span> <span className="font-medium">{ad.framework}</span></div>}
-                              {ad.adDuration && <div><span className="text-gray-600">Duration:</span> <span className="font-medium">{ad.adDuration}s</span></div>}
-                              {ad.productIntro && <div><span className="text-gray-600">Product Intro:</span> <span className="font-medium">{ad.productIntro}s</span></div>}
-                              {ad.sitInProblem && <div><span className="text-gray-600">Sit in Problem:</span> <span className="font-medium">{ad.sitInProblem}</span></div>}
-                              {ad.creatorsUsed && <div><span className="text-gray-600">Creators:</span> <span className="font-medium">{ad.creatorsUsed}</span></div>}
-                              {ad.contentVariables && <div className="col-span-2"><span className="text-gray-600">Variables:</span> <span className="font-medium text-xs">{ad.contentVariables}</span></div>}
-                            </div>
-                            <div className="space-y-1">
-                              <p className="text-xs font-medium text-gray-700">Key Success Factors:</p>
-                              <ul className="list-disc list-inside text-xs text-gray-600 space-y-0.5">
-                                {ad.keySuccessFactors.map((factor, i) => (
-                                  <li key={i}>{factor}</li>
-                                ))}
-                              </ul>
-                            </div>
-                          </div>
-                        ))}
-                      </CardContent>
-                    </Card>
-
-                    {/* Worst Performers */}
-                    <Card className="border-red-200 bg-red-50">
-                      <CardHeader>
-                        <CardTitle className="text-red-800">Underperformers</CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        {strategistOpinion.worstPerformers.map((ad, index) => (
-                          <div key={index} className="bg-white p-4 rounded-lg border border-red-200">
-                            <div className="flex items-start justify-between mb-2">
-                              <h4 className="font-semibold text-sm break-words flex-1" title={ad.adName}>{truncateAdName(ad.adName)}</h4>
-                              {/* Ad Preview Button */}
-                              {(ad.videoId || ad.thumbnailUrl || ad.imageUrl) && (
-                                <button
-                                  onClick={() => {
-                                    if (ad.videoId && (ad.thumbnailUrl || ad.imageUrl)) {
-                                      setSelectedVideo({
-                                        videoId: ad.videoId,
-                                        thumbnailUrl: ad.assetUrl || ad.thumbnailUrl || ad.imageUrl || '',
-                                        adName: ad.adName
-                                      });
-                                    } else if (ad.thumbnailUrl || ad.imageUrl) {
-                                      setSelectedImage({
-                                        imageUrl: ad.assetUrl || ad.imageUrl || ad.thumbnailUrl || '',
-                                        adName: ad.adName
-                                      });
-                                    }
-                                  }}
-                                  className="ml-2 p-1 hover:bg-gray-100 rounded transition-colors"
-                                  title="View ad preview"
-                                >
-                                  {ad.videoId ? '🎬' : '🖼️'}
-                                </button>
-                              )}
-                            </div>
-                            <div className="grid grid-cols-2 gap-1 text-xs mb-2">
-                              <div><span className="text-gray-600">Spend:</span> <span className="font-medium">${ad.spend.toLocaleString()}</span></div>
-                              <div><span className="text-gray-600">ROAS:</span> <span className="font-medium text-red-600">{ad.roas.toFixed(2)}</span></div>
-                              {ad.hookRate && <div><span className="text-gray-600">Hook:</span> <span className="font-medium">{ad.hookRate}%</span></div>}
-                              {ad.holdRate && <div><span className="text-gray-600">Hold:</span> <span className="font-medium">{ad.holdRate}%</span></div>}
-                              {ad.type && <div className="col-span-2"><span className="text-gray-600">Type:</span> <span className="font-medium">{ad.type}</span></div>}
-                              {ad.angle && <div className="col-span-2"><span className="text-gray-600">Angle:</span> <span className="font-medium">{ad.angle}</span></div>}
-                              {ad.format && <div><span className="text-gray-600">Format:</span> <span className="font-medium">{ad.format}</span></div>}
-                              {ad.emotion && <div><span className="text-gray-600">Emotion:</span> <span className="font-medium">{ad.emotion}</span></div>}
-                              {ad.framework && <div><span className="text-gray-600">Framework:</span> <span className="font-medium">{ad.framework}</span></div>}
-                              {ad.adDuration && <div><span className="text-gray-600">Duration:</span> <span className="font-medium">{ad.adDuration}s</span></div>}
-                              {ad.productIntro && <div><span className="text-gray-600">Product Intro:</span> <span className="font-medium">{ad.productIntro}s</span></div>}
-                              {ad.sitInProblem && <div><span className="text-gray-600">Sit in Problem:</span> <span className="font-medium">{ad.sitInProblem}</span></div>}
-                              {ad.creatorsUsed && <div><span className="text-gray-600">Creators:</span> <span className="font-medium">{ad.creatorsUsed}</span></div>}
-                              {ad.contentVariables && <div className="col-span-2"><span className="text-gray-600">Variables:</span> <span className="font-medium text-xs">{ad.contentVariables}</span></div>}
-                            </div>
-                            <div className="space-y-1">
-                              <p className="text-xs font-medium text-gray-700">Failure Reasons:</p>
-                              <ul className="list-disc list-inside text-xs text-gray-600 space-y-0.5">
-                                {ad.failureReasons.map((reason, i) => (
-                                  <li key={i}>{reason}</li>
-                                ))}
-                              </ul>
-                            </div>
-                          </div>
-                        ))}
-                      </CardContent>
-                    </Card>
-
-                    {/* Low Performers (that fall flat and don't scale) */}
-                    {strategistOpinion.lowPerformers && strategistOpinion.lowPerformers.length > 0 && (
-                      <Card className="border-amber-200 bg-amber-50">
-                        <CardHeader>
-                          <CardTitle className="text-amber-800">Low Performers (Fall Flat)</CardTitle>
-                          <CardDescription className="text-amber-700">
-                            Ads that never gained traction or scaled
-                          </CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                          {strategistOpinion.lowPerformers.map((ad, index) => (
-                            <div key={index} className="bg-white p-4 rounded-lg border border-amber-200">
-                              <div className="flex items-start justify-between mb-2">
-                                <h4 className="font-semibold text-sm break-words flex-1" title={ad.adName}>{truncateAdName(ad.adName)}</h4>
-                                {/* Ad Preview Button */}
-                                {(ad.videoId || ad.thumbnailUrl || ad.imageUrl) && (
-                                  <button
-                                    onClick={() => {
-                                      if (ad.videoId && (ad.thumbnailUrl || ad.imageUrl)) {
-                                        setSelectedVideo({
-                                          videoId: ad.videoId,
-                                          thumbnailUrl: ad.assetUrl || ad.thumbnailUrl || ad.imageUrl || '',
-                                          adName: ad.adName
-                                        });
-                                      } else if (ad.thumbnailUrl || ad.imageUrl) {
-                                        setSelectedImage({
-                                          imageUrl: ad.assetUrl || ad.imageUrl || ad.thumbnailUrl || '',
-                                          adName: ad.adName
-                                        });
-                                      }
-                                    }}
-                                    className="ml-2 p-1 hover:bg-gray-100 rounded transition-colors"
-                                    title="View ad preview"
-                                  >
-                                    {ad.videoId ? '🎬' : '🖼️'}
-                                  </button>
-                                )}
-                              </div>
-                              <div className="grid grid-cols-2 gap-1 text-xs mb-2">
-                                <div><span className="text-gray-600">Spend:</span> <span className="font-medium">${ad.spend.toLocaleString()}</span></div>
-                                <div><span className="text-gray-600">ROAS:</span> <span className="font-medium text-amber-600">{ad.roas.toFixed(2)}</span></div>
-                                {ad.hookRate && <div><span className="text-gray-600">Hook:</span> <span className="font-medium">{ad.hookRate}%</span></div>}
-                                {ad.holdRate && <div><span className="text-gray-600">Hold:</span> <span className="font-medium">{ad.holdRate}%</span></div>}
-                                {ad.type && <div className="col-span-2"><span className="text-gray-600">Type:</span> <span className="font-medium">{ad.type}</span></div>}
-                                {ad.angle && <div className="col-span-2"><span className="text-gray-600">Angle:</span> <span className="font-medium">{ad.angle}</span></div>}
-                                {ad.format && <div><span className="text-gray-600">Format:</span> <span className="font-medium">{ad.format}</span></div>}
-                                {ad.emotion && <div><span className="text-gray-600">Emotion:</span> <span className="font-medium">{ad.emotion}</span></div>}
-                                {ad.framework && <div><span className="text-gray-600">Framework:</span> <span className="font-medium">{ad.framework}</span></div>}
-                                {ad.adDuration && <div><span className="text-gray-600">Duration:</span> <span className="font-medium">{ad.adDuration}s</span></div>}
-                                {ad.productIntro && <div><span className="text-gray-600">Product Intro:</span> <span className="font-medium">{ad.productIntro}s</span></div>}
-                                {ad.sitInProblem && <div><span className="text-gray-600">Sit in Problem:</span> <span className="font-medium">{ad.sitInProblem}</span></div>}
-                                {ad.creatorsUsed && <div><span className="text-gray-600">Creators:</span> <span className="font-medium">{ad.creatorsUsed}</span></div>}
-                                {ad.contentVariables && <div className="col-span-2"><span className="text-gray-600">Variables:</span> <span className="font-medium text-xs">{ad.contentVariables}</span></div>}
-                              </div>
-                              <div className="space-y-1">
-                                <p className="text-xs font-medium text-gray-700">Issues:</p>
-                                <ul className="list-disc list-inside text-xs text-gray-600 space-y-0.5">
-                                  {ad.issues.map((issue, i) => (
-                                    <li key={i}>{issue}</li>
-                                  ))}
-                                </ul>
-                              </div>
-                            </div>
-                          ))}
-                        </CardContent>
-                      </Card>
-                    )}
-                  </div>
-
-                  {/* Creative Patterns */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Creative Patterns Analysis</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div>
-                          <h4 className="font-semibold text-green-700 mb-2">Winning Elements</h4>
-                          <ul className="space-y-1">
-                            {strategistOpinion.creativePatterns.winningElements.map((element, index) => (
-                              <li key={index} className="flex items-start gap-2">
-                                <span className="text-green-500 mt-0.5">✓</span>
-                                <span className="text-sm">{element}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                        <div>
-                          <h4 className="font-semibold text-red-700 mb-2">Elements to Avoid</h4>
-                          <ul className="space-y-1">
-                            {strategistOpinion.creativePatterns.losingElements.map((element, index) => (
-                              <li key={index} className="flex items-start gap-2">
-                                <span className="text-red-500 mt-0.5">✗</span>
-                                <span className="text-sm">{element}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      </div>
-                      <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-                        <p className="text-sm">
-                          <strong className="text-blue-800">Optimal Sit-in-Problem Range:</strong> {strategistOpinion.creativePatterns.optimalSitInProblemRange}
-                        </p>
-                        <p className="text-sm mt-2">
-                          <strong className="text-blue-800">Best Performing Hooks:</strong> {strategistOpinion.creativePatterns.bestPerformingHooks.join(', ')}
-                        </p>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  {/* Recommendations */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Strategic Recommendations</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      {strategistOpinion.recommendations.map((rec, index) => (
-                        <div key={index} className={`p-4 rounded-lg border ${
-                          rec.priority === 'high' ? 'border-red-200 bg-red-50' :
-                          rec.priority === 'medium' ? 'border-amber-200 bg-amber-50' :
-                          'border-gray-200 bg-gray-50'
-                        }`}>
-                          <div className="flex items-start justify-between mb-2">
-                            <h4 className="font-semibold text-sm">{rec.recommendation}</h4>
-                            <span className={`px-2 py-1 text-xs rounded-full ${
-                              rec.priority === 'high' ? 'bg-red-200 text-red-800' :
-                              rec.priority === 'medium' ? 'bg-amber-200 text-amber-800' :
-                              'bg-gray-200 text-gray-800'
-                            }`}>
-                              {rec.priority.toUpperCase()}
-                            </span>
-                          </div>
-                          <p className="text-sm text-gray-600">
-                            <strong>Expected Impact:</strong> {rec.expectedImpact}
-                          </p>
-                        </div>
-                      ))}
-                    </CardContent>
-                  </Card>
-                </div>
-              ) : (
-                /* Empty State */
-                <Card>
-                  <CardContent className="py-12 text-center">
-                    <Brain className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold mb-2">No Strategic Analysis Yet</h3>
-                    <p className="text-gray-600 mb-6">
-                      {analyzedCount === 0 
-                        ? "Please analyze your ads first before running the AI strategist"
-                        : "Click the 'AI Strategist' button in the header to generate strategic insights"}
-                    </p>
-                    {analyzedCount > 0 && (
-                      <Button onClick={handleRunStrategist} disabled={isRunningStrategist}>
-                        <Brain className={`mr-2 h-4 w-4 ${isRunningStrategist ? 'animate-spin' : ''}`} />
-                        {isRunningStrategist ? 'Analyzing...' : 'Run AI Strategist'}
-                      </Button>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Strategist System Instructions (Protected) */}
-              <Card className="border-indigo-200 bg-indigo-50">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-indigo-800">
-                    <Bot className="h-5 w-5" />
-                    Strategist System Instructions (Protected)
-                  </CardTitle>
-                  <CardDescription className="text-indigo-700">
-                    Advanced AI instructions for strategic analysis (Model: {aiInstructions.strategistModel || 'Loading...'})
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="bg-white p-4 rounded-lg border border-indigo-200">
-                    <p className="text-gray-700 whitespace-pre-wrap text-sm">
-                      {aiInstructions.strategistSystemInstructions || 'Loading strategist system instructions...'}
-                    </p>
-                  </div>
-                  <p className="text-sm text-indigo-600 mt-2">
-                    <Info className="h-4 w-4 inline mr-1" />
-                    Uses structured output with {aiInstructions.strategistModel || 'gemini-2.5-pro'} for comprehensive analysis
-                  </p>
-                </CardContent>
-              </Card>
-
-              {/* Strategist Prompt Template */}
-              <Card className="border-purple-200 bg-purple-50">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-purple-800">
-                    <Sparkles className="h-5 w-5" />
-                    Strategist Prompt Template
-                  </CardTitle>
-                  <CardDescription className="text-purple-700">
-                    This template is used to generate strategic analysis prompts
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="bg-white p-4 rounded-md border border-purple-200 font-mono text-xs overflow-x-auto">
-                    <div className="whitespace-pre-wrap text-gray-800">
-                      {aiInstructions.strategistPromptTemplate || 'Loading strategist prompt template...'}
-                    </div>
-                  </div>
-                  <div className="mt-4 flex items-center gap-2 text-xs text-purple-700">
-                    <Settings className="h-4 w-4" />
-                    <span>Model: {aiInstructions.strategistModel || 'Loading...'}</span>
-                    <span className="text-purple-500">•</span>
-                    <span>Response Format: Structured JSON</span>
-                  </div>
-                  <div className="mt-2 p-3 bg-purple-100 rounded-md">
-                    <p className="text-xs text-purple-800">
-                      <Info className="h-4 w-4 inline mr-1" />
-                      Variables like <code>{`{{totalAds}}`}</code>, <code>{`{{benchmarkRoas}}`}</code>, and <code>{`{{iterationCount}}`}</code> are replaced with actual values during analysis.
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Strategist Response Schema Preview */}
-              <Card className="border-indigo-200 bg-indigo-50">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-indigo-800">
-                    <Code className="h-5 w-5" />
-                    Strategist Response Schema
-                  </CardTitle>
-                  <CardDescription className="text-indigo-700">
-                    This JSON schema enforces the structure of strategic analysis responses
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="bg-white p-4 rounded-md border border-indigo-200 font-mono text-xs overflow-x-auto">
-                    <pre>{JSON.stringify(aiInstructions.strategistResponseSchema || { message: "Loading strategist response schema..." }, null, 2)}</pre>
-                  </div>
-                  <p className="text-xs text-indigo-700 mt-2">
-                    <Info className="h-4 w-4 inline mr-1" />
-                    Ensures consistent, comprehensive strategic analysis output with all required sections.
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
+            <OneSheetAiStrategist
+              onesheetId={onesheetId}
+              brandId={brandId}
+              aiInstructions={aiInstructions}
+              setStrategistOpinion={setStrategistOpinion}
+              isRunningStrategist={isRunningStrategist}
+              setIsRunningStrategist={setIsRunningStrategist}
+              isRescraping={isRescraping}
+              setIsRescraping={setIsRescraping}
+              iterationCount={iterationCount}
+              setIterationCount={setIterationCount}
+              lowPerformerCriteria={lowPerformerCriteria}
+              setLowPerformerCriteria={setLowPerformerCriteria}
+              strategistOpinion={strategistOpinion}
+            />
           </TabsContent>
         </Tabs>
       )}
