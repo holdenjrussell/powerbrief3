@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { createClient } from '@/utils/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
+import type { AIStrategistOpinion } from '@/lib/types/onesheet';
 
 interface AdData {
   id: string;
@@ -254,36 +255,13 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
   });
   const [isLoadingInstructions, setIsLoadingInstructions] = useState(false);
   const [isRunningStrategist, setIsRunningStrategist] = useState(false);
-  const [strategistOpinion, setStrategistOpinion] = useState<{
-    summary: string;
-    topPerformers: Array<{
-      adId: string;
-      adName: string;
-      spend: number;
-      roas: number;
-      keySuccessFactors: string[];
-    }>;
-    worstPerformers: Array<{
-      adId: string;
-      adName: string;
-      spend: number;
-      roas: number;
-      failureReasons: string[];
-    }>;
-    creativePatterns: {
-      winningElements: string[];
-      losingElements: string[];
-      optimalSitInProblemRange: string;
-      bestPerformingHooks: string[];
-    };
-    recommendations: Array<{
-      priority: 'high' | 'medium' | 'low';
-      recommendation: string;
-      expectedImpact: string;
-    }>;
-    analyzedAt: string;
-    totalAdsAnalyzed: number;
-  } | null>(null);
+  const [strategistOpinion, setStrategistOpinion] = useState<AIStrategistOpinion | null>(null);
+  const [iterationCount, setIterationCount] = useState(5);
+  const [lowPerformerCriteria, setLowPerformerCriteria] = useState({
+    minSpend: 50,
+    maxRoas: 1.0,
+    enabled: true
+  });
   const supabase = createClient();
   const { toast } = useToast();
 
@@ -407,6 +385,19 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
         strategistPromptTemplate: instructions.strategist_prompt_template || undefined,
         strategistResponseSchema: instructions.strategist_response_schema || undefined
       }));
+      
+      // Load low performer criteria and iteration settings
+      if (instructions.low_performer_criteria) {
+        setLowPerformerCriteria({
+          minSpend: instructions.low_performer_criteria.min_spend || 50,
+          maxRoas: instructions.low_performer_criteria.max_roas || 1.0,
+          enabled: instructions.low_performer_criteria.enabled !== false
+        });
+      }
+      
+      if (instructions.iteration_settings) {
+        setIterationCount(instructions.iteration_settings.default_count || 5);
+      }
     } catch (error) {
       console.error('Error loading AI instructions:', error);
       toast({
@@ -441,7 +432,7 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
         // Stay at 90% until completion
         return prev;
       });
-    }, 500); // Faster interval for quicker progress
+    }, 1000); // Faster interval for quicker progress
 
     try {
       const response = await fetch('/api/onesheet/ad-audit/import', {
@@ -710,7 +701,8 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          onesheet_id: onesheetId
+          onesheet_id: onesheetId,
+          iteration_count: iterationCount
         }),
       });
 
@@ -2060,6 +2052,20 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
                     Configure benchmarks and analysis parameters for the AI strategist
                   </CardDescription>
                 </CardHeader>
+                <CardContent className="space-y-6">
+                  {/* Benchmarks */}
+                  <div>
+                    <h4 className="font-medium text-sm mb-3">Performance Benchmarks</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="benchmarkRoas" className="text-sm font-medium">
+                          Target ROAS
+                        </Label>
+                        <Input
+                          id="benchmarkRoas"
+                          type="number"
+                          step="0.1"
+                          value={aiInstructions.benchmarkRoas}
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div className="space-y-2">

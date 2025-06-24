@@ -763,6 +763,7 @@ export type CurrentStage = 'context_loading' | 'audience_research' | 'competitor
 // AI Strategist Opinion Types
 export interface AIStrategistOpinion {
   summary: string;
+  executiveSummary: string;
   topPerformers: Array<{
     adId: string;
     adName: string;
@@ -777,6 +778,31 @@ export interface AIStrategistOpinion {
     roas: number;
     failureReasons: string[];
   }>;
+  lowPerformers: Array<{
+    adId: string;
+    adName: string;
+    spend: number;
+    roas: number;
+    issues: string[];
+  }>;
+  whatWorks: {
+    hooks: string[];
+    angles: string[];
+    formats: string[];
+    emotions: string[];
+    frameworks: string[];
+    visualElements: string[];
+    contentVariables: string[];
+  };
+  whatDoesntWork: {
+    hooks: string[];
+    angles: string[];
+    formats: string[];
+    emotions: string[];
+    frameworks: string[];
+    visualElements: string[];
+    contentVariables: string[];
+  };
   creativePatterns: {
     winningElements: string[];
     losingElements: string[];
@@ -787,6 +813,37 @@ export interface AIStrategistOpinion {
     priority: 'high' | 'medium' | 'low';
     recommendation: string;
     expectedImpact: string;
+  }>;
+  netNewConcepts: Array<{
+    title: string;
+    description: string;
+    type: string;
+    duration: string;
+    productIntroSuggestion: string;
+    sitInProblemSuggestion: string;
+    creatorsNeeded: number;
+    angle: string;
+    awarenessLevel: string;
+    contentVariables: string[];
+    format: string;
+    emotion: string;
+    framework: string;
+    hookSuggestions: string[];
+    visualNotes: string;
+  }>;
+  iterationSuggestions: Array<{
+    adId: string;
+    adName: string;
+    currentPerformance: {
+      spend: number;
+      roas: number;
+      hookRate: number | null;
+      holdRate: number | null;
+    };
+    iterationType: 'early' | 'script' | 'fine_tuning' | 'late';
+    suggestions: string[];
+    rationale: string;
+    expectedImprovement: string;
   }>;
   analyzedAt: string;
   totalAdsAnalyzed: number;
@@ -840,6 +897,21 @@ export interface OneSheetAIInstructions {
   strategist_system_instructions?: string;
   strategist_prompt_template?: string;
   strategist_response_schema?: Record<string, unknown>;
+  low_performer_criteria?: {
+    min_spend: number;
+    max_roas: number;
+    enabled: boolean;
+  };
+  iteration_settings?: {
+    default_count: number;
+    types: string[];
+    enabled_types: {
+      early: boolean;
+      script: boolean;
+      fine_tuning: boolean;
+      late: boolean;
+    };
+  };
   
   created_at?: string;
   updated_at?: string;
