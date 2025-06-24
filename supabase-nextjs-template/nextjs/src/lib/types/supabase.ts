@@ -1885,6 +1885,7 @@ export type Database = {
           ad_duration_prompt: string | null
           allow_new_analysis_values: Json | null
           analysis_fields: Json | null
+          analyze_model: string | null
           angle_prompt: string | null
           awareness_levels: Json | null
           awareness_levels_allow_new: boolean | null
@@ -1907,6 +1908,8 @@ export type Database = {
           format_prompt: string | null
           framework_prompt: string | null
           id: string
+          iteration_settings: Json | null
+          low_performer_criteria: Json | null
           main_analysis_prompt: string | null
           master_prompt_template: string | null
           onesheet_id: string
@@ -1914,6 +1917,7 @@ export type Database = {
           response_schema: Json | null
           sit_in_problem_prompt: string | null
           sit_in_problem_seconds_prompt: string | null
+          strategist_model: string | null
           strategist_prompt_template: string | null
           strategist_response_schema: Json | null
           strategist_system_instructions: string | null
@@ -1927,6 +1931,7 @@ export type Database = {
           ad_duration_prompt?: string | null
           allow_new_analysis_values?: Json | null
           analysis_fields?: Json | null
+          analyze_model?: string | null
           angle_prompt?: string | null
           awareness_levels?: Json | null
           awareness_levels_allow_new?: boolean | null
@@ -1949,6 +1954,8 @@ export type Database = {
           format_prompt?: string | null
           framework_prompt?: string | null
           id?: string
+          iteration_settings?: Json | null
+          low_performer_criteria?: Json | null
           main_analysis_prompt?: string | null
           master_prompt_template?: string | null
           onesheet_id: string
@@ -1956,6 +1963,7 @@ export type Database = {
           response_schema?: Json | null
           sit_in_problem_prompt?: string | null
           sit_in_problem_seconds_prompt?: string | null
+          strategist_model?: string | null
           strategist_prompt_template?: string | null
           strategist_response_schema?: Json | null
           strategist_system_instructions?: string | null
@@ -1969,6 +1977,7 @@ export type Database = {
           ad_duration_prompt?: string | null
           allow_new_analysis_values?: Json | null
           analysis_fields?: Json | null
+          analyze_model?: string | null
           angle_prompt?: string | null
           awareness_levels?: Json | null
           awareness_levels_allow_new?: boolean | null
@@ -1991,6 +2000,8 @@ export type Database = {
           format_prompt?: string | null
           framework_prompt?: string | null
           id?: string
+          iteration_settings?: Json | null
+          low_performer_criteria?: Json | null
           main_analysis_prompt?: string | null
           master_prompt_template?: string | null
           onesheet_id?: string
@@ -1998,6 +2009,7 @@ export type Database = {
           response_schema?: Json | null
           sit_in_problem_prompt?: string | null
           sit_in_problem_seconds_prompt?: string | null
+          strategist_model?: string | null
           strategist_prompt_template?: string | null
           strategist_response_schema?: Json | null
           strategist_system_instructions?: string | null
@@ -2069,6 +2081,53 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "onesheet_context_data_onesheet_id_fkey"
+            columns: ["onesheet_id"]
+            isOneToOne: false
+            referencedRelation: "onesheet"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      onesheet_strategist_analyses: {
+        Row: {
+          analysis_config: Json | null
+          analysis_data: Json
+          brand_id: string
+          created_at: string | null
+          created_by: string | null
+          id: string
+          is_archived: boolean | null
+          notes: string | null
+          onesheet_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          analysis_config?: Json | null
+          analysis_data: Json
+          brand_id: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_archived?: boolean | null
+          notes?: string | null
+          onesheet_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          analysis_config?: Json | null
+          analysis_data?: Json
+          brand_id?: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_archived?: boolean | null
+          notes?: string | null
+          onesheet_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "onesheet_strategist_analyses_onesheet_id_fkey"
             columns: ["onesheet_id"]
             isOneToOne: false
             referencedRelation: "onesheet"

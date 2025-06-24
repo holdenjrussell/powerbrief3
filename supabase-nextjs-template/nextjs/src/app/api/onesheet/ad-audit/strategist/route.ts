@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenAI } from '@google/genai';
 
 interface AdData {
   id: string;
@@ -24,6 +24,12 @@ interface AdData {
   contentVariables?: string;
   transcription?: string;
   visualDescription?: string;
+  creatorsUsed?: number;
+  thumbnailUrl?: string | null;
+  imageUrl?: string | null;
+  videoId?: string | null;
+  assetUrl?: string;
+  assetType?: string;
 }
 
 // Helper function to build strategist prompt from template
@@ -135,7 +141,7 @@ export async function POST(request: NextRequest) {
 
     // Prepare data for Gemini
     console.log(`[Strategist] Preparing data for ${analyzedAds.length} ads`);
-    const adsData = analyzedAds.map((ad: any) => ({
+    const adsData = analyzedAds.map((ad: AdData) => ({
       id: ad.id,
       name: ad.name,
       spend: parseFloat(ad.spend),
@@ -185,27 +191,48 @@ export async function POST(request: NextRequest) {
 
     // Initialize Gemini with configuration from database
     console.log('[Strategist] Initializing Gemini with database configuration...');
-    const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
+    const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      console.error('[Strategist] Missing Gemini API key');
+      return NextResponse.json({ error: 'AI service not configured' }, { status: 500 });
+    }
+    
+    const ai = new GoogleGenAI({ apiKey });
     const modelName = instructions.strategist_model || 'gemini-2.5-pro';
     console.log(`[Strategist] Using model: ${modelName}`);
-    
-    const model = genAI.getGenerativeModel({ 
-      model: modelName,
-      generationConfig: {
-        responseMimeType: 'application/json',
-        responseSchema: instructions.strategist_response_schema
-      },
-      systemInstruction: instructions.strategist_system_instructions
-    });
 
     // Get the analysis from Gemini
     console.log('[Strategist] Sending request to Gemini...');
     const startTime = Date.now();
-    const result = await model.generateContent(prompt);
+    
+    // Use the models.generateContent pattern like in analyze endpoint
+    const generationConfig = instructions.strategist_response_schema ? {
+      responseMimeType: 'application/json',
+      responseSchema: instructions.strategist_response_schema
+    } : {
+      responseMimeType: 'application/json'
+    };
+
+    const result = await ai.models.generateContent({
+      model: modelName,
+      contents: [{
+        role: 'user',
+        parts: [{ text: prompt }]
+      }],
+      config: {
+        ...generationConfig,
+        systemInstruction: instructions.strategist_system_instructions
+      }
+    });
+    
     const endTime = Date.now();
     console.log(`[Strategist] Gemini response received in ${endTime - startTime}ms`);
-    const response = result.response;
-    const analysisText = response.text();
+    
+    if (!result) {
+      throw new Error('No response from Gemini API');
+    }
+    
+    const analysisText = result.text;
     console.log(`[Strategist] Received response (${analysisText.length} characters)`);
     
     let analysis;

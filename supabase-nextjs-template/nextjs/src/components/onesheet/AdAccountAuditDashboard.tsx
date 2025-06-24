@@ -13,6 +13,8 @@ import { createClient } from '@/utils/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 import { v4 as uuidv4 } from 'uuid';
 import type { AIStrategistOpinion } from '@/lib/types/onesheet';
+import { AIInstructionsTab } from './AIInstructionsTab';
+import { AIStrategistTab } from './AIStrategistTab';
 
 // Chart colors
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D', '#FFC658', '#FF6B6B'];
@@ -1253,55 +1255,20 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
           </TabsContent>
 
           <TabsContent value="ai-instructions">
-              <Card>
-                <CardHeader>
-                <CardTitle>AI Instructions</CardTitle>
-                  <CardDescription>
-                  Configure AI analysis settings and prompts
-                  </CardDescription>
-                </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">
-                  AI Instructions configuration is not yet implemented. This will allow you to customize:
-                </p>
-                <ul className="mt-2 space-y-1 text-sm text-muted-foreground">
-                  <li>• Content variables to analyze</li>
-                  <li>• Awareness levels to identify</li>
-                  <li>• Custom prompts for analysis</li>
-                  <li>• Analysis field options</li>
-                </ul>
-                </CardContent>
-              </Card>
+            <AIInstructionsTab onesheetId={onesheetId} brandId={brandId} />
           </TabsContent>
 
           <TabsContent value="strategist">
-              <Card>
-                <CardHeader>
-                <CardTitle>AI Strategist</CardTitle>
-                  <CardDescription>
-                  Get strategic insights from your ad performance data
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                <p className="text-muted-foreground">
-                  AI Strategist analysis is not yet implemented. This will provide:
-                    </p>
-                <ul className="mt-2 space-y-1 text-sm text-muted-foreground">
-                  <li>• Performance analysis across your ads</li>
-                  <li>• Strategic recommendations</li>
-                  <li>• Creative insights and suggestions</li>
-                  <li>• Audience optimization tips</li>
-                </ul>
-                {strategistOpinion && (
-                  <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-                    <h4 className="font-medium text-blue-900">Previous Analysis Available</h4>
-                    <p className="text-sm text-blue-700 mt-1">
-                      Strategic analysis data was found but the display component is not yet implemented.
-                    </p>
-                      </div>
-                )}
-                </CardContent>
-              </Card>
+            <AIStrategistTab 
+              onesheetId={onesheetId}
+              brandId={brandId}
+              analyzedAdsCount={analyzedCount}
+              totalAdsCount={ads.length}
+              hasAds={hasAds}
+              strategistOpinion={strategistOpinion}
+              onRunStrategist={handleRunStrategist}
+              isRunning={isRunningStrategist}
+            />
           </TabsContent>
         </Tabs>
       )}

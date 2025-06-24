@@ -50,7 +50,7 @@ const contextSources = [
     title: 'Customer Reviews',
     icon: MessageSquare,
     description: 'Reviews from your product and competitors',
-    instructions: 'Copy and paste reviews from Amazon, Trustpilot, app stores, or anywhere customers leave feedback.',
+    instructions: 'Import reviews by pasting Amazon product URLs or Trustpilot company review URLs (auto-scrapes all reviews with pagination), or manually copy/paste reviews from app stores or anywhere customers leave feedback. Use brand tagging to categorize reviews.',
     required: true,
   },
   {

@@ -101,6 +101,9 @@ export function ContextLoader({
   const isCompetitorAds = sourceType === 'competitor_ads';
   const isRedditSource = sourceType === 'reddit';
   const isSocialSource = ['organic_social', 'paid_social', 'social_content'].includes(sourceType);
+  const isReviewsSource = sourceType === 'reviews';
+  const isAmazonUrl = sourceUrl.includes('amazon.') && isReviewsSource;
+  const isTrustpilotUrl = sourceUrl.includes('trustpilot.com/review/') && isReviewsSource;
 
   const handleConvertToMarkdown = async () => {
     if (!contentText.trim()) {
@@ -188,7 +191,7 @@ export function ContextLoader({
           // Combine all results into markdown
           let combinedContent = `# Batch Social Media Analysis\n\n**Total URLs:** ${urls.length}\n**Successful:** ${data.successful}\n**Failed:** ${data.failed}\n\n---\n\n`;
           
-          data.results.forEach((result: any, index: number) => {
+          data.results.forEach((result: { url: string; data?: { result?: { title?: string; markdown?: string } } }, index: number) => {
             combinedContent += `## ${index + 1}. ${result.data?.result?.title || 'Social Media Post'}\n\n`;
             combinedContent += `**URL:** ${result.url}\n\n`;
             if (result.data?.result?.markdown) {
@@ -198,7 +201,7 @@ export function ContextLoader({
 
           if (data.errors.length > 0) {
             combinedContent += `## Failed URLs\n\n`;
-            data.errors.forEach((error: any) => {
+            data.errors.forEach((error: { url: string; error: string }) => {
               combinedContent += `- **${error.url}:** ${error.error}\n`;
             });
           }
@@ -237,7 +240,25 @@ export function ContextLoader({
     let body = {};
 
     try {
-      if (isWebsiteSource || isCompetitorAds) {
+      if (isAmazonUrl) {
+        // Use Amazon review scraping for Amazon URLs in reviews section
+        endpoint = '/api/onesheet/extract-amazon-reviews';
+        body = { 
+          url: sourceUrl, 
+          brandId,
+          maxPages: crawlLinks ? maxPages : 10, // Default to 10 pages for Amazon reviews
+          brandType: brandType
+        };
+      } else if (isTrustpilotUrl) {
+        // Use Trustpilot review scraping for Trustpilot URLs in reviews section
+        endpoint = '/api/onesheet/extract-trustpilot-reviews';
+        body = { 
+          url: sourceUrl, 
+          brandId,
+          maxPages: crawlLinks ? maxPages : 20, // Default to 20 pages for Trustpilot reviews
+          brandType: brandType
+        };
+      } else if (isWebsiteSource || isCompetitorAds) {
         // Use HTTP scraping for website scraping
         endpoint = '/api/onesheet/extract';
         body = { 
@@ -323,6 +344,10 @@ export function ContextLoader({
           title: 'Content Extracted',
           description: data.results 
             ? `Successfully extracted content from ${data.results.length} page(s). Auto-saving...`
+            : data.totalReviews && data.method === 'amazon-reviews'
+            ? `Successfully scraped ${data.totalReviews} Amazon reviews from ${data.pagesScraped} page(s). Auto-saving...`
+            : data.totalReviews && data.method === 'trustpilot-reviews'
+            ? `Successfully scraped ${data.totalReviews} Trustpilot reviews from ${data.pagesScraped} page(s) (Trust Score: ${data.trustScore}/5). Auto-saving...`
             : data.result && data.adripper_integrated
             ? 'Successfully analyzed social media content and saved to AdRipper.'
             : 'Successfully extracted and analyzed the content. Auto-saving...',
@@ -871,6 +896,84 @@ export function ContextLoader({
                   </div>
                 )}
 
+                {/* Amazon Review Options for Reviews Sources */}
+                {isReviewsSource && isAmazonUrl && (
+                  <div className="space-y-3 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-5 h-5 bg-yellow-500 rounded-full flex items-center justify-center">
+                        <span className="text-white text-xs font-bold">A</span>
+                      </div>
+                      <Label className="text-sm font-medium text-yellow-800">
+                        Amazon Review Detection
+                      </Label>
+                    </div>
+                    
+                    <div>
+                      <Label htmlFor="amazon-max-pages" className="text-sm">
+                        Maximum review pages to scrape: {maxPages}
+                      </Label>
+                      <Input
+                        id="amazon-max-pages"
+                        type="number"
+                        min="1"
+                        max="20"
+                        value={maxPages}
+                        onChange={(e) => setMaxPages(Math.min(20, Math.max(1, parseInt(e.target.value) || 1)))}
+                        className="mt-1 w-24"
+                      />
+                      <p className="text-xs text-gray-600 mt-1">
+                        Each page typically contains 10 reviews. Amazon has rate limiting, so be respectful.
+                      </p>
+                    </div>
+                    
+                    <Alert className="border-yellow-300 bg-yellow-50">
+                      <Info className="h-4 w-4 text-yellow-600" />
+                      <AlertDescription className="text-yellow-800 text-xs">
+                        <strong>Amazon Review Scraper:</strong> This will automatically extract all reviews from the product page, including ratings, verified purchases, review content, and customer images. The scraper follows pagination to collect reviews from multiple pages.
+                      </AlertDescription>
+                    </Alert>
+                  </div>
+                )}
+
+                {/* Trustpilot Review Options for Reviews Sources */}
+                {isReviewsSource && isTrustpilotUrl && (
+                  <div className="space-y-3 p-4 bg-green-50 rounded-lg border border-green-200">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-5 h-5 bg-green-600 rounded-full flex items-center justify-center">
+                        <span className="text-white text-xs font-bold">T</span>
+                      </div>
+                      <Label className="text-sm font-medium text-green-800">
+                        Trustpilot Review Detection
+                      </Label>
+                    </div>
+                    
+                    <div>
+                      <Label htmlFor="trustpilot-max-pages" className="text-sm">
+                        Maximum review pages to scrape: {maxPages}
+                      </Label>
+                      <Input
+                        id="trustpilot-max-pages"
+                        type="number"
+                        min="1"
+                        max="50"
+                        value={maxPages}
+                        onChange={(e) => setMaxPages(Math.min(50, Math.max(1, parseInt(e.target.value) || 1)))}
+                        className="mt-1 w-24"
+                      />
+                      <p className="text-xs text-gray-600 mt-1">
+                        Each page typically contains 20 reviews. Trustpilot API is efficient and supports concurrent requests.
+                      </p>
+                    </div>
+                    
+                    <Alert className="border-green-300 bg-green-50">
+                      <Info className="h-4 w-4 text-green-600" />
+                      <AlertDescription className="text-green-800 text-xs">
+                        <strong>Trustpilot API Scraper:</strong> This will automatically extract all reviews using Trustpilot&apos;s internal API, including ratings, review content, company replies, reviewer details, and trust scores. Uses efficient concurrent pagination for fast extraction.
+                      </AlertDescription>
+                    </Alert>
+                  </div>
+                )}
+
                 {/* Extract Button */}
                 <Button
                   variant="outline"
@@ -881,7 +984,9 @@ export function ContextLoader({
                   {extracting ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      {isWebsiteSource ? 'Scraping Website...' : 
+                      {isAmazonUrl ? 'Scraping Amazon Reviews...' :
+                       isTrustpilotUrl ? 'Scraping Trustpilot Reviews...' :
+                       isWebsiteSource ? 'Scraping Website...' : 
                        isVideoSource ? 'Analyzing Video...' : 
                        isRedditSource ? 'Scraping Reddit...' : 
                        isSocialSource ? 'Analyzing Social Media...' :
@@ -890,12 +995,24 @@ export function ContextLoader({
                   ) : extracted ? (
                     <>
                       <CheckCircle className="h-4 w-4 mr-2 text-green-500" />
-                      {extractedResults.length > 1 ? `Extracted ${extractedResults.length} ${isRedditSource ? 'Posts' : 'Pages'}` : 'Content Extracted'}
+                      {extractedResults.length > 1 ? `Extracted ${extractedResults.length} ${isRedditSource ? 'Posts' : (isAmazonUrl || isTrustpilotUrl) ? 'Reviews' : 'Pages'}` : 'Content Extracted'}
                     </>
                   ) : (
                     <>
-                      <Globe className="h-4 w-4 mr-2" />
-                      {isWebsiteSource ? 'Scrape Website' : 
+                      {isAmazonUrl ? (
+                        <div className="w-5 h-5 bg-yellow-500 rounded-full flex items-center justify-center mr-2">
+                          <span className="text-white text-xs font-bold">A</span>
+                        </div>
+                      ) : isTrustpilotUrl ? (
+                        <div className="w-5 h-5 bg-green-600 rounded-full flex items-center justify-center mr-2">
+                          <span className="text-white text-xs font-bold">T</span>
+                        </div>
+                      ) : (
+                        <Globe className="h-4 w-4 mr-2" />
+                      )}
+                      {isAmazonUrl ? 'Import Amazon Reviews' :
+                       isTrustpilotUrl ? 'Import Trustpilot Reviews' :
+                       isWebsiteSource ? 'Scrape Website' : 
                        isVideoSource ? 'Analyze Video' : 
                        isRedditSource ? 'Scrape Reddit' : 
                        isSocialSource ? 'Analyze Social Media' :
