@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createSSRClient } from '@/lib/supabase/server';
 import { decryptToken } from '@/lib/utils/tokenEncryption';
 import { v4 as uuidv4 } from 'uuid';
+import { setImportProgress, clearImportProgress } from '@/lib/utils/importProgress';
 
 const REQUEST_DELAY = 1000; // 1 second delay between requests
 const ASSET_DOWNLOAD_DELAY = 2000; // 2 second delay for asset downloads
@@ -17,7 +18,8 @@ async function fetchAllAds(
   adAccountId: string, 
   metaAccessToken: string, 
   dateRange: any, 
-  targetAdCount: number = 100
+  targetAdCount: number = 100,
+  requestId?: string
 ) {
   const baseFields = [
     'id',
@@ -32,11 +34,27 @@ async function fetchAllAds(
   let allAds: any[] = [];
   
   console.log(`Starting tiered ad fetch for top ${targetAdCount} highest spending ads`);
+  
+  // Progress tracking
+  const tierProgress: Record<number, { start: number; end: number }> = {
+    20000: { start: 5, end: 15 },
+    10000: { start: 15, end: 30 },
+    5000: { start: 30, end: 45 },
+    1000: { start: 45, end: 60 },
+    500: { start: 60, end: 70 },
+    100: { start: 70, end: 80 },
+    50: { start: 80, end: 85 },
+    10: { start: 85, end: 90 }
+  };
 
   // Try each spending tier until we have enough ads
   for (const minSpend of SPENDING_TIERS) {
     if (allAds.length >= targetAdCount) break;
 
+    const tierRange = tierProgress[minSpend] || { start: 85, end: 90 };
+    if (requestId) {
+      setImportProgress(requestId, tierRange.start, `Fetching ads with spend >= $${minSpend.toLocaleString()}...`);
+    }
     console.log(`Fetching ads with spend >= $${minSpend}`);
     
     const params = new URLSearchParams({
@@ -58,6 +76,10 @@ async function fetchAllAds(
 
     while (nextPageUrl && pageCount < maxPagesPerTier && (allAds.length + tierAds.length) < targetAdCount) {
       try {
+        const pageProgress = tierRange.start + ((tierRange.end - tierRange.start) * (pageCount / maxPagesPerTier));
+        if (requestId) {
+          setImportProgress(requestId, pageProgress, `Tier $${minSpend.toLocaleString()}: Fetching page ${pageCount + 1}...`);
+        }
         console.log(`  Tier $${minSpend}: Fetching page ${pageCount + 1}`);
         
         const response = await fetch(nextPageUrl);
@@ -114,6 +136,9 @@ async function fetchAllAds(
     const newAds = tierAds.filter(ad => !existingIds.has(ad.id));
     allAds = allAds.concat(newAds);
     
+    if (requestId) {
+      setImportProgress(requestId, tierRange.end, `Tier $${minSpend.toLocaleString()} complete: ${newAds.length} new ads added. Total: ${allAds.length}`);
+    }
     console.log(`Tier $${minSpend} complete: ${tierAds.length} ads found, ${newAds.length} new ads added. Total: ${allAds.length}`);
     
     // Small delay between tiers
@@ -1158,6 +1183,30 @@ function isAssetLoadFailed(assetInfo: { url: string; type: string; localUrl?: st
   return false;
 }
 
+// Wrapper function for batch processing with progress tracking
+async function processAdsBatchedWithProgress(
+  ads: any[],
+  accessToken: string,
+  supabase: any,
+  brandId: string,
+  onesheetId: string,
+  adAccountId: string,
+  assetCache: Record<string, { assetUrl: string; assetType: string }> | undefined,
+  requestId: string
+): Promise<any[]> {
+  const totalBatches = Math.ceil(ads.length / BATCH_SIZE);
+  const result = await processAdsBatched(ads, accessToken, supabase, brandId, onesheetId, adAccountId, assetCache);
+  
+  // Update progress as batches complete
+  for (let i = 0; i < ads.length; i += BATCH_SIZE) {
+    const batchNumber = Math.floor(i / BATCH_SIZE) + 1;
+    const batchProgress = 92 + (6 * (batchNumber / totalBatches)); // Progress from 92 to 98
+    setImportProgress(requestId, batchProgress, `Processing batch ${batchNumber}/${totalBatches}...`);
+  }
+  
+  return result;
+}
+
 // Process ads in batches to prevent overwhelming the Meta API and storage system
 async function processAdsBatched(
   ads: any[],
@@ -1401,9 +1450,6 @@ async function processAdsBatched(
 
 export async function POST(request: NextRequest) {
   const supabase = await createSSRClient();
-  const requestId = uuidv4().slice(0, 8);
-  
-  console.log(`[Ad Audit Import ${requestId}] Starting import request`);
   
   try {
     const { data: { user } } = await supabase.auth.getUser();
@@ -1412,7 +1458,14 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { onesheet_id, date_range, max_ads = 500 } = body;
+    const { onesheet_id, date_range, max_ads = 500, request_id } = body;
+    
+    // Use provided request ID or generate a new one
+    const requestId = request_id || uuidv4().slice(0, 8);
+    console.log(`[Ad Audit Import ${requestId}] Starting import request`);
+    
+    // Initialize progress
+    setImportProgress(requestId, 0, 'Starting import...');
 
     if (!onesheet_id) {
       return NextResponse.json({ error: 'OneSheet ID is required' }, { status: 400 });
@@ -1492,7 +1545,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Fetch ads using tiered approach
-    const allAds = await fetchAllAds(adAccountId, accessToken, date_range, maxAdsLimit);
+    setImportProgress(requestId, 5, 'Connecting to Meta API...');
+    const allAds = await fetchAllAds(adAccountId, accessToken, date_range, maxAdsLimit, requestId);
 
     console.log(`Total ads fetched with tiered approach: ${allAds.length}`);
 
@@ -1505,17 +1559,22 @@ export async function POST(request: NextRequest) {
 
     // Process ads into spreadsheet format using batch processing
     console.log(`[Ad Audit Import ${requestId}] Processing ${allAds.length} ads with batch processing`);
-    const processedAds = await processAdsBatched(
+    setImportProgress(requestId, 92, `Processing ${allAds.length} ads...`);
+    
+    // Modified processAdsBatched to include progress tracking
+    const processedAds = await processAdsBatchedWithProgress(
       allAds,
       accessToken,
       supabase,
       onesheet.brand_id,
       onesheet_id,
       adAccountId,
-      assetCache
+      assetCache,
+      requestId
     );
 
     // Update OneSheet with the processed data
+    setImportProgress(requestId, 98, 'Saving to database...');
     const { error: updateError } = await supabase
       .from('onesheet')
       .update({
@@ -1541,8 +1600,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to save audit data' }, { status: 500 });
     }
 
+    // Mark as complete
+    setImportProgress(requestId, 100, `Successfully imported ${processedAds.length} ads!`);
+    
+    // Clear progress after a delay
+    setTimeout(() => clearImportProgress(requestId), 10000);
+
     return NextResponse.json({
       success: true,
+      requestId,
       data: {
         adsImported: processedAds.length,
         dateRange: date_range,

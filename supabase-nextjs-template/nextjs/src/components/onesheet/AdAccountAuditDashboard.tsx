@@ -92,6 +92,7 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
   const [importProgress, setImportProgress] = useState(0);
+  const [importMessage, setImportMessage] = useState('');
   const [dateRange, setDateRange] = useState('last_30d');
   const [maxAds, setMaxAds] = useState(100);
   const [auditData, setAuditData] = useState<typeof initialData['ad_account_audit'] | null>(initialData?.ad_account_audit || null);
@@ -349,25 +350,23 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
     setIsImporting(true);
     setImportProgress(0);
     
-    // Faster progress simulation tied to actual fetching process
-    const progressTimer = setInterval(() => {
-      setImportProgress(prev => {
-        // Quick initial progress for tier setup
-        if (prev < 5) return Math.min(prev + 2, 5); // Setup: 0-5%
-        // Fast progress for first tier ($20k+)
-        if (prev < 15) return Math.min(prev + 1.5, 15); // Tier 1: 5-15%
-        // Medium progress for second tier ($10k+)
-        if (prev < 35) return Math.min(prev + 2, 35); // Tier 2: 15-35%
-        // Medium progress for third tier ($5k+)
-        if (prev < 55) return Math.min(prev + 2, 55); // Tier 3: 35-55%
-        // Fast progress for fourth tier ($1k+)
-        if (prev < 70) return Math.min(prev + 1.5, 70); // Tier 4: 55-70%
-        // Medium progress for final tier and asset processing
-        if (prev < 90) return Math.min(prev + 0.8, 90); // Final tier + assets: 70-90%
-        // Stay at 90% until completion
-        return prev;
-      });
-    }, 1000); // Faster interval for quicker progress
+    // Generate a request ID for tracking progress
+    const requestId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+    
+    // Poll for real progress updates
+    const progressInterval = setInterval(async () => {
+      try {
+        const progressResponse = await fetch(`/api/onesheet/ad-audit/import-progress?requestId=${requestId}`);
+        if (progressResponse.ok) {
+          const progressData = await progressResponse.json();
+          setImportProgress(progressData.progress);
+          setImportMessage(progressData.message);
+          console.log(`Import progress: ${progressData.progress}% - ${progressData.message}`);
+        }
+      } catch (error) {
+        // Ignore errors in progress polling
+      }
+    }, 500); // Poll every 500ms
 
     try {
       const response = await fetch('/api/onesheet/ad-audit/import', {
@@ -376,7 +375,8 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
         body: JSON.stringify({ 
           onesheet_id: onesheetId,
           date_range: dateRange,
-          max_ads: maxAds
+          max_ads: maxAds,
+          request_id: requestId
         }),
       });
 
@@ -388,7 +388,7 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
       const result = await response.json();
       
       // Complete progress
-      clearInterval(progressTimer);
+      clearInterval(progressInterval);
       setImportProgress(100);
       
       // Brief delay to show 100% before hiding
@@ -404,7 +404,7 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
       // Refresh the data
       await loadAuditData();
     } catch (error) {
-      clearInterval(progressTimer);
+      clearInterval(progressInterval);
       setImportProgress(0);
       console.error('Error importing ads:', error);
       toast({
@@ -690,20 +690,14 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
           {isImporting && importProgress > 0 && (
             <div className="w-64 mx-auto">
               <div className="flex justify-between text-sm text-muted-foreground mb-1">
-                <span>
-                  {importProgress < 5 ? 'Setting up...' :
-                   importProgress < 15 ? 'Fetching tier 1 ($20k+)' :
-                   importProgress < 35 ? 'Fetching tier 2 ($10k+)' :
-                   importProgress < 55 ? 'Fetching tier 3 ($5k+)' :
-                   importProgress < 70 ? 'Fetching tier 4 ($1k+)' :
-                   importProgress < 90 ? 'Processing assets...' :
-                   'Finalizing...'}
+                <span className="truncate max-w-[200px]">
+                  {importMessage || 'Starting import...'}
                 </span>
-                <span>{Math.round(importProgress)}%</span>
+                <span className="ml-2">{Math.round(importProgress)}%</span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2">
                 <div 
-                  className="bg-primary h-2 rounded-full transition-all duration-1000 ease-out"
+                  className="bg-primary h-2 rounded-full transition-all duration-300 ease-out"
                   style={{ width: `${importProgress}%` }}
                 />
               </div>
