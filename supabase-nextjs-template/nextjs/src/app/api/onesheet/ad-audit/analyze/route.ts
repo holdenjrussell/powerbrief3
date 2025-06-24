@@ -5,6 +5,50 @@ import { promises as fs } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import type { OneSheetAIInstructions } from '@/lib/types/onesheet';
+import { setAnalyzeProgress, clearAnalyzeProgress } from '@/lib/utils/analyzeProgress';
+
+// Rate limiting configuration
+const RATE_LIMIT = {
+  maxRetries: 3,
+  initialDelay: 2000, // 2 seconds
+  maxDelay: 60000, // 60 seconds
+  backoffMultiplier: 2
+};
+
+// Helper function to sleep
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+// Helper function to retry with exponential backoff
+async function retryWithBackoff<T>(
+  fn: () => Promise<T>, 
+  retries: number = RATE_LIMIT.maxRetries,
+  delay: number = RATE_LIMIT.initialDelay
+): Promise<T> {
+  try {
+    return await fn();
+  } catch (error: unknown) {
+    if (retries === 0) throw error;
+    
+    // Check if it's a rate limit error (503 or 429)
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const isRateLimitError = 
+      errorMessage.includes('503') || 
+      errorMessage.includes('429') ||
+      errorMessage.includes('overloaded') ||
+      errorMessage.includes('rate limit');
+    
+    if (!isRateLimitError) throw error;
+    
+    console.log(`[Analyze] Rate limit hit, retrying in ${delay}ms... (${retries} retries left)`);
+    await sleep(delay);
+    
+    return retryWithBackoff(
+      fn, 
+      retries - 1, 
+      Math.min(delay * RATE_LIMIT.backoffMultiplier, RATE_LIMIT.maxDelay)
+    );
+  }
+}
 
 // Helper to get proper MIME type from URL
 const getProperMimeType = (fileUrl: string): string => {
@@ -304,6 +348,8 @@ function buildMasterPrompt(aiInstructions: OneSheetAIInstructions, ad: Record<st
 }
 
 export async function POST(request: Request) {
+  const requestId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+  
   try {
     const { onesheet_id, ad_ids } = await request.json();
 
@@ -362,34 +408,67 @@ export async function POST(request: Request) {
     if (adsToAnalyze.length === 0) {
       return NextResponse.json({ 
         success: true, 
-        message: 'No ads need analysis' 
+        message: 'No ads need analysis',
+        requestId 
       });
     }
 
     console.log(`[Analyze] Analyzing ${adsToAnalyze.length} ads with Gemini Files API`);
+    
+    // Initialize progress
+    setAnalyzeProgress(requestId, 0, adsToAnalyze.length, 'Starting analysis...');
 
     // Get Gemini API key
     const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
     if (!apiKey) {
       console.error('[Analyze] Missing Gemini API key');
+      clearAnalyzeProgress(requestId);
       return NextResponse.json({ error: 'AI service not configured' }, { status: 500 });
     }
 
     const ai = new GoogleGenAI({ apiKey });
 
-    // Process ads in batches
-    const batchSize = 3; // Reduced batch size due to Files API operations
+    // Process ads in batches with smaller batch size for rate limiting
+    const batchSize = 2; // Reduced batch size to avoid rate limits
     const analyzedAds = [];
+    let successCount = 0;
+    let errorCount = 0;
 
     for (let i = 0; i < adsToAnalyze.length; i += batchSize) {
       const batch = adsToAnalyze.slice(i, i + batchSize);
       
+      // Update progress
+      const currentProgress = Math.min(i, adsToAnalyze.length - 1);
+      setAnalyzeProgress(
+        requestId, 
+        currentProgress, 
+        adsToAnalyze.length, 
+        `Analyzing ads ${currentProgress + 1}-${Math.min(i + batchSize, adsToAnalyze.length)} of ${adsToAnalyze.length}...`
+      );
+      
+      // Add delay between batches to avoid rate limiting
+      if (i > 0) {
+        await sleep(2000); // 2 second delay between batches
+      }
+      
       // Process each ad in the batch
-      const batchPromises = batch.map(async (ad: Record<string, unknown>) => {
+      const batchPromises = batch.map(async (ad: Record<string, unknown>, batchIndex: number) => {
+        const adIndex = i + batchIndex;
+        const adName = String(ad.name || `Ad ${ad.id}`);
+        
         try {
+          // Update progress for individual ad
+          setAnalyzeProgress(
+            requestId,
+            adIndex,
+            adsToAnalyze.length,
+            `Analyzing ad ${adIndex + 1}/${adsToAnalyze.length}: ${adName.substring(0, 50)}...`
+          );
+          
           // Skip all failed assets completely - no analysis for failed assets
           if (ad.assetLoadFailed) {
             console.log(`[Analyze] Skipping ad ${ad.id} - asset load failed, no analysis performed`);
+            errorCount++;
             return {
               ...ad,
               analysisMethod: 'skipped-failed-asset',
@@ -400,6 +479,7 @@ export async function POST(request: Request) {
           // Skip if no asset URL (these should also be marked as failed, but double-check)
           if (!ad.assetUrl) {
             console.log(`[Analyze] Skipping ad ${ad.id} - no asset URL`);
+            errorCount++;
             return {
               ...ad,
               analysisMethod: 'skipped-no-asset',
@@ -410,6 +490,7 @@ export async function POST(request: Request) {
           // Only analyze ads with valid Supabase assets
           if (!String(ad.assetUrl).includes('supabase')) {
             console.log(`[Analyze] Skipping ad ${ad.id} - asset not stored in Supabase`);
+            errorCount++;
             return {
               ...ad,
               analysisMethod: 'skipped-external-asset',
@@ -417,17 +498,12 @@ export async function POST(request: Request) {
             };
           }
 
-          // Upload asset to Files API
-          const uploadedAsset = await uploadAssetToGeminiFilesAPI(String(ad.assetUrl), ai);
-          
-          if (!uploadedAsset) {
-            console.log(`[Analyze] Failed to upload asset for ad ${ad.id} to Gemini`);
-            return {
-              ...ad,
-              analysisMethod: 'upload-failed',
-              message: 'Failed to upload asset to AI service - please try again.'
-            };
-          }
+          // Upload asset to Files API with retry
+          const uploadedAsset = await retryWithBackoff(async () => {
+            const result = await uploadAssetToGeminiFilesAPI(String(ad.assetUrl), ai);
+            if (!result) throw new Error('Failed to upload asset');
+            return result;
+          });
 
           // Build master prompt
           const masterPrompt = buildMasterPrompt(aiInstructions, ad);
@@ -443,25 +519,28 @@ export async function POST(request: Request) {
           // Use system instructions from database - no hardcoded fallback
           const systemInstruction = aiInstructions.system_instructions;
 
-          const result = await ai.models.generateContent({
-            model: aiInstructions.analyze_model || 'gemini-2.5-flash-lite-preview-06-17',
-            contents: [{
-              role: 'user',
-              parts: [
-                // Put media first for single-media prompts (multimodal best practice)
-                {
-                  fileData: {
-                    mimeType: uploadedAsset.mimeType,
-                    fileUri: uploadedAsset.fileUri
-                  }
-                },
-                { text: masterPrompt }
-              ]
-            }],
-            config: {
-              ...generationConfig,
-              systemInstruction
-            }
+          // Generate content with retry for rate limiting
+          const result = await retryWithBackoff(async () => {
+            return await ai.models.generateContent({
+              model: aiInstructions.analyze_model || 'gemini-2.5-flash-lite-preview-06-17',
+              contents: [{
+                role: 'user',
+                parts: [
+                  // Put media first for single-media prompts (multimodal best practice)
+                  {
+                    fileData: {
+                      mimeType: uploadedAsset.mimeType,
+                      fileUri: uploadedAsset.fileUri
+                    }
+                  },
+                  { text: masterPrompt }
+                ]
+              }],
+              config: {
+                ...generationConfig,
+                systemInstruction
+              }
+            });
           });
 
           const analysis = parseGeminiJSON(result.text, String(ad.id));
@@ -518,6 +597,7 @@ export async function POST(request: Request) {
           }
 
           console.log(`[Analyze] Successfully analyzed ad ${ad.id} with visual content`);
+          successCount++;
 
           return {
             ...ad,
@@ -529,18 +609,17 @@ export async function POST(request: Request) {
 
         } catch (error) {
           console.error(`[Analyze] Error analyzing ad ${ad.id}:`, error);
+          errorCount++;
           return ad; // Return unmodified if analysis fails
         }
       });
 
       const batchResults = await Promise.all(batchPromises);
       analyzedAds.push(...batchResults);
-
-      // Add delay between batches to respect rate limits
-      if (i + batchSize < adsToAnalyze.length) {
-        await new Promise(resolve => setTimeout(resolve, 2000)); // Increased delay for Files API
-      }
     }
+
+    // Clear progress
+    clearAnalyzeProgress(requestId);
 
     // Update the onesheet with analyzed ads
     const updatedAds = adAuditData.ads.map((ad: Record<string, unknown>) => {
@@ -566,19 +645,23 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
+      requestId,
       data: {
-        adsAnalyzed: analyzedAds.length,
+        adsAnalyzed: successCount,
+        adsFailed: errorCount,
         totalAds: updatedAds.length,
         analysisBreakdown: {
           visualAndText: analyzedAds.filter(ad => ad.analysisMethod === 'visual-and-text').length,
-          textOnly: analyzedAds.filter(ad => ad.analysisMethod === 'text-only').length,
-          textFallback: analyzedAds.filter(ad => ad.analysisMethod === 'text-fallback').length
+          skippedFailedAsset: analyzedAds.filter(ad => ad.analysisMethod === 'skipped-failed-asset').length,
+          skippedNoAsset: analyzedAds.filter(ad => ad.analysisMethod === 'skipped-no-asset').length,
+          skippedExternalAsset: analyzedAds.filter(ad => ad.analysisMethod === 'skipped-external-asset').length
         }
       }
     });
 
   } catch (error) {
     console.error('[Analyze] Error in ad analysis:', error);
+    clearAnalyzeProgress(requestId);
     return NextResponse.json(
       { error: 'Failed to analyze ads' },
       { status: 500 }

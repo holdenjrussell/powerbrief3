@@ -96,6 +96,8 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
   const [isClearing, setIsClearing] = useState(false);
   const [importProgress, setImportProgress] = useState(0);
   const [importMessage, setImportMessage] = useState('');
+  const [analyzeProgress, setAnalyzeProgress] = useState(0);
+  const [analyzeMessage, setAnalyzeMessage] = useState('');
   const [dateRange, setDateRange] = useState('last_30d');
   const [maxAds, setMaxAds] = useState(100);
   const [auditData, setAuditData] = useState<typeof initialData['ad_account_audit'] | null>(initialData?.ad_account_audit || null);
@@ -429,15 +431,39 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
     if (selectedAds.size === 0) return;
 
     setIsAnalyzing(true);
+    setAnalyzeProgress(0);
+    setAnalyzeMessage('Starting analysis...');
+    
+    const requestId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+    
+    // Poll for real progress updates
+    const progressInterval = setInterval(async () => {
+      try {
+        const progressResponse = await fetch(`/api/onesheet/ad-audit/analyze-progress?requestId=${requestId}`);
+        if (progressResponse.ok) {
+          const progressData = await progressResponse.json();
+          setAnalyzeProgress(progressData.progress);
+          setAnalyzeMessage(progressData.message);
+          console.log(`Analyze progress: ${progressData.currentAd}/${progressData.totalAds} - ${progressData.message}`);
+        }
+      } catch (error) {
+        // Ignore errors in progress polling
+        console.log('Progress polling error:', error);
+      }
+    }, 500); // Poll every 500ms
+    
     try {
       const response = await fetch('/api/onesheet/ad-audit/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           onesheet_id: onesheetId,
-          ad_ids: Array.from(selectedAds)
+          ad_ids: Array.from(selectedAds),
+          request_id: requestId
         })
       });
+
+      clearInterval(progressInterval);
 
       if (!response.ok) {
         const error = await response.json();
@@ -450,12 +476,16 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
       
       toast({
         title: "Success",
-        description: `Successfully analyzed ${result.data?.adsAnalyzed || 0} ads`
+        description: `Successfully analyzed ${result.data?.adsAnalyzed || 0} ads${result.data?.adsFailed ? `, ${result.data.adsFailed} failed` : ''}`
       });
+      
+      // Clear selection after successful analysis
+      setSelectedAds(new Set());
       
       // Refresh the data
       await loadAuditData();
     } catch (error) {
+      clearInterval(progressInterval);
       console.error('Error analyzing ads:', error);
       toast({
         title: "Error",
@@ -752,6 +782,22 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
                 <div 
                   className="bg-primary h-2 rounded-full transition-all duration-300 ease-out"
                   style={{ width: `${importProgress}%` }}
+                />
+              </div>
+            </div>
+          )}
+          {isAnalyzing && analyzeProgress > 0 && (
+            <div className="w-64 mx-auto">
+              <div className="flex justify-between text-sm text-muted-foreground mb-1">
+                <span className="truncate max-w-[200px]">
+                  {analyzeMessage || 'Starting analysis...'}
+                </span>
+                <span className="ml-2">{Math.round(analyzeProgress)}%</span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div 
+                  className="bg-primary h-2 rounded-full transition-all duration-300 ease-out"
+                  style={{ width: `${analyzeProgress}%` }}
                 />
               </div>
             </div>
@@ -1206,91 +1252,91 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
                 {auditData?.demographicBreakdown?.age && Object.keys(auditData.demographicBreakdown.age).length > 0 && (
                   <Card className="p-4">
                     <h3 className="text-lg font-semibold mb-4">Age Distribution</h3>
-                    <ResponsiveContainer width="100%" height={300}>
-                      <PieChart>
-                        <Pie
+                        <ResponsiveContainer width="100%" height={300}>
+                          <PieChart>
+                            <Pie
                           data={Object.entries(auditData.demographicBreakdown.age).map(([age, percentage]) => ({
-                            name: age,
+                                name: age,
                             value: percentage
-                          }))}
-                          cx="50%"
-                          cy="50%"
-                          labelLine={false}
+                              }))}
+                              cx="50%"
+                              cy="50%"
+                              labelLine={false}
                           label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                          outerRadius={80}
+                              outerRadius={80}
                           fill="#8884d8"
-                          dataKey="value"
-                        >
+                              dataKey="value"
+                            >
                           {Object.keys(auditData.demographicBreakdown.age).map((_, index) => (
                             <Cell key={`age-cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                          ))}
-                        </Pie>
+                              ))}
+                            </Pie>
                         <Tooltip formatter={(value: number) => `${value.toFixed(1)}%`} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </Card>
-                )}
+                          </PieChart>
+                        </ResponsiveContainer>
+                    </Card>
+                  )}
 
                 {/* Gender Breakdown */}
                 {auditData?.demographicBreakdown?.gender && Object.keys(auditData.demographicBreakdown.gender).length > 0 && (
                   <Card className="p-4">
                     <h3 className="text-lg font-semibold mb-4">Gender Distribution</h3>
-                    <ResponsiveContainer width="100%" height={300}>
-                      <PieChart>
-                        <Pie
+                        <ResponsiveContainer width="100%" height={300}>
+                          <PieChart>
+                            <Pie
                           data={Object.entries(auditData.demographicBreakdown.gender).map(([gender, percentage]) => ({
                             name: gender === 'male' ? 'Male' : gender === 'female' ? 'Female' : 'Unknown',
                             value: percentage
-                          }))}
-                          cx="50%"
-                          cy="50%"
-                          labelLine={false}
+                              }))}
+                              cx="50%"
+                              cy="50%"
+                              labelLine={false}
                           label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                          outerRadius={80}
+                              outerRadius={80}
                           fill="#82ca9d"
-                          dataKey="value"
-                        >
+                              dataKey="value"
+                            >
                           {Object.keys(auditData.demographicBreakdown.gender).map((_, index) => (
                             <Cell key={`gender-cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                          ))}
-                        </Pie>
+                              ))}
+                            </Pie>
                         <Tooltip formatter={(value: number) => `${value.toFixed(1)}%`} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </Card>
-                )}
+                          </PieChart>
+                        </ResponsiveContainer>
+                    </Card>
+                  )}
 
                 {/* Placement Breakdown */}
                 {auditData?.demographicBreakdown?.placement && Object.keys(auditData.demographicBreakdown.placement).length > 0 && (
                   <Card className="p-4">
                     <h3 className="text-lg font-semibold mb-4">Placement Distribution</h3>
-                    <ResponsiveContainer width="100%" height={300}>
-                      <PieChart>
-                        <Pie
+                        <ResponsiveContainer width="100%" height={300}>
+                          <PieChart>
+                            <Pie
                           data={Object.entries(auditData.demographicBreakdown.placement).map(([placement, percentage]) => ({
                             name: placement === 'facebook' ? 'Facebook' : 
                                   placement === 'instagram' ? 'Instagram' : 
                                   placement === 'audience_network' ? 'Audience Network' : 
                                   placement === 'messenger' ? 'Messenger' : placement,
                             value: percentage
-                          }))}
-                          cx="50%"
-                          cy="50%"
-                          labelLine={false}
+                              }))}
+                              cx="50%"
+                              cy="50%"
+                              labelLine={false}
                           label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                          outerRadius={80}
+                              outerRadius={80}
                           fill="#ffc658"
-                          dataKey="value"
-                        >
+                              dataKey="value"
+                            >
                           {Object.keys(auditData.demographicBreakdown.placement).map((_, index) => (
                             <Cell key={`placement-cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                          ))}
-                        </Pie>
+                              ))}
+                            </Pie>
                         <Tooltip formatter={(value: number) => `${value.toFixed(1)}%`} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </Card>
-                )}
+                          </PieChart>
+                        </ResponsiveContainer>
+                    </Card>
+                  )}
               </div>
             ) : (
               <div className="text-center py-8">
@@ -1302,13 +1348,13 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
           </TabsContent>
 
           <TabsContent value="ai-instructions">
-            <Card>
-              <CardHeader>
+              <Card>
+                <CardHeader>
                 <CardTitle>AI Instructions</CardTitle>
-                <CardDescription>
+                  <CardDescription>
                   Configure AI analysis settings and prompts
-                </CardDescription>
-              </CardHeader>
+                  </CardDescription>
+                </CardHeader>
               <CardContent>
                 <p className="text-muted-foreground">
                   AI Instructions configuration is not yet implemented. This will allow you to customize:
@@ -1319,19 +1365,19 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
                   <li>• Custom prompts for analysis</li>
                   <li>• Analysis field options</li>
                 </ul>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
           </TabsContent>
 
           <TabsContent value="strategist">
-            <Card>
-              <CardHeader>
+              <Card>
+                <CardHeader>
                 <CardTitle>AI Strategist</CardTitle>
-                <CardDescription>
+                  <CardDescription>
                   Get strategic insights from your ad performance data
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
                 <p className="text-muted-foreground">
                   AI Strategist analysis is not yet implemented. This will provide:
                 </p>
@@ -1347,10 +1393,10 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
                     <p className="text-sm text-blue-700 mt-1">
                       Strategic analysis data was found but the display component is not yet implemented.
                     </p>
-                  </div>
+                      </div>
                 )}
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
           </TabsContent>
         </Tabs>
       )}
