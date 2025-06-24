@@ -2228,7 +2228,7 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
                   </Card>
 
                   {/* Top, Worst, and Low Performers */}
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  <div className={`grid grid-cols-1 gap-6 ${strategistOpinion.lowPerformers && strategistOpinion.lowPerformers.length > 0 ? 'lg:grid-cols-3' : 'lg:grid-cols-2'}`}>
                     {/* Top Performers */}
                     <Card className="border-green-200 bg-green-50">
                       <CardHeader>
