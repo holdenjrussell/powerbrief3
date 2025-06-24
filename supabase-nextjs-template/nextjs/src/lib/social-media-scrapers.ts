@@ -68,47 +68,46 @@ function cleanUrl(url: string): string {
 }
 
 // Helper function to extract URLs from DASH manifest
-function extractUrlsFromDashManifest(dashManifestString: string): { hdUrl?: string; sdUrl?: string } {
+function extractUrlsFromDashManifest(dashManifest: string): { hdUrl?: string; sdUrl?: string } {
   try {
-    // Decode unicode escapes
-    const decodedManifest = dashManifestString
+    // Unescape the manifest first
+    const unescapedManifest = dashManifest
+      .replace(/\\"/g, '"')
+      .replace(/\\\//g, '/')
       .replace(/\\u003C/g, '<')
       .replace(/\\u003E/g, '>')
-      .replace(/\\n/g, '\n')
-      .replace(/\\/g, '');
+      .replace(/\\u0026/g, '&')
+      .replace(/\\\\/g, '\\');
     
-    const urls: { hdUrl?: string; sdUrl?: string } = {};
+    // Extract URLs from the manifest
+    const urls: string[] = [];
+    const urlMatches = unescapedManifest.matchAll(/https?:\/\/[^"<>\s]+\.mp4[^"<>\s]*/gi);
     
-    // Look for video representations
-    const videoAdaptationMatch = decodedManifest.match(/<AdaptationSet[^>]*contentType="video"[^>]*>([\s\S]*?)<\/AdaptationSet>/);
-    if (videoAdaptationMatch) {
-      // Find all representations
-      const representations = videoAdaptationMatch[1].matchAll(/<Representation[^>]*>([\s\S]*?)<\/Representation>/g);
-      
-      for (const rep of representations) {
-        const repContent = rep[0];
-        const qualityMatch = repContent.match(/FBQualityLabel="([^"]+)"/);
-        const urlMatch = repContent.match(/<BaseURL>([^<]+)<\/BaseURL>/);
-        
-        if (qualityMatch && urlMatch) {
-          const quality = qualityMatch[1];
-          const url = urlMatch[1];
-          
-          if (quality.includes('1080') || quality.includes('720')) {
-            urls.hdUrl = url;
-            console.log(`Found HD video URL from DASH manifest (${quality}):`, url);
-            break; // Use first HD quality found
-          } else if (quality.includes('480') || quality.includes('360')) {
-            urls.sdUrl = url;
-            console.log(`Found SD video URL from DASH manifest (${quality}):`, url);
-          }
-        }
+    for (const match of urlMatches) {
+      urls.push(match[0]);
+    }
+    
+    // Sort URLs by quality (assuming higher resolution files are larger)
+    // Look for quality indicators in the URL
+    let hdUrl: string | undefined;
+    let sdUrl: string | undefined;
+    
+    for (const url of urls) {
+      if (url.includes('720p') || url.includes('hd')) {
+        hdUrl = url;
+      } else if (!sdUrl) {
+        sdUrl = url;
       }
     }
     
-    return urls;
+    // If no HD URL found, use the first URL as HD
+    if (!hdUrl && urls.length > 0) {
+      hdUrl = urls[0];
+    }
+    
+    return { hdUrl, sdUrl };
   } catch (error) {
-    console.log('Failed to parse DASH manifest:', error);
+    console.error('Error extracting URLs from DASH manifest:', error);
     return {};
   }
 }
@@ -124,6 +123,141 @@ function decodeHtmlEntities(text: string): string {
     .replace(/&nbsp;/g, ' ');
 }
 
+// Helper function to extract video URLs from embedded JSON in script tags
+function extractVideoFromEmbeddedJson(html: string): { hdUrl?: string; sdUrl?: string; videoId?: string } {
+  try {
+    console.log('Attempting to extract video from embedded JSON data...');
+    
+    // First, look for browser_native_hd_url anywhere in the entire HTML
+    // This catches cases where the JSON might not be in a standard script tag
+    const hdUrlMatch = html.match(/"browser_native_hd_url"\s*:\s*"([^"]+)"/);
+    const sdUrlMatch = html.match(/"browser_native_sd_url"\s*:\s*"([^"]+)"/);
+    const videoIdMatch = html.match(/"video_id"\s*:\s*"(\d+)"/);
+    
+    const result: { hdUrl?: string; sdUrl?: string; videoId?: string } = {};
+    
+    if (hdUrlMatch) {
+      // Unescape the URL - handle all common escape sequences
+      result.hdUrl = hdUrlMatch[1]
+        .replace(/\\\//g, '/')
+        .replace(/\\u0026/g, '&')
+        .replace(/\\"/g, '"')
+        .replace(/\\\\/g, '\\')
+        .replace(/\\u003C/g, '<')
+        .replace(/\\u003E/g, '>')
+        .replace(/\\n/g, '\n')
+        .replace(/\\r/g, '\r')
+        .replace(/\\t/g, '\t');
+      console.log('Found HD URL in page source:', result.hdUrl);
+    }
+    
+    if (sdUrlMatch) {
+      // Unescape the URL
+      result.sdUrl = sdUrlMatch[1]
+        .replace(/\\\//g, '/')
+        .replace(/\\u0026/g, '&')
+        .replace(/\\"/g, '"')
+        .replace(/\\\\/g, '\\')
+        .replace(/\\u003C/g, '<')
+        .replace(/\\u003E/g, '>')
+        .replace(/\\n/g, '\n')
+        .replace(/\\r/g, '\r')
+        .replace(/\\t/g, '\t');
+      console.log('Found SD URL in page source:', result.sdUrl);
+    }
+    
+    if (videoIdMatch) {
+      result.videoId = videoIdMatch[1];
+      console.log('Found video ID in page source:', result.videoId);
+    }
+    
+    // If we found URLs, return them
+    if (result.hdUrl || result.sdUrl) {
+      return result;
+    }
+    
+    // Otherwise, try the more specific script tag search
+    // Look for script tags with type="application/json" and data-sjs attribute
+    const scriptMatches = html.matchAll(/<script[^>]*type="application\/json"[^>]*data-sjs[^>]*>([^<]+)<\/script>/gi);
+    
+    for (const match of scriptMatches) {
+      const jsonContent = match[1];
+      
+      // Look for browser_native_hd_url in the JSON content
+      const hdMatch = jsonContent.match(/"browser_native_hd_url"\s*:\s*"([^"]+)"/);
+      const sdMatch = jsonContent.match(/"browser_native_sd_url"\s*:\s*"([^"]+)"/);
+      const videoIdMatch = jsonContent.match(/"video_id"\s*:\s*"(\d+)"/);
+      const dashMatch = jsonContent.match(/"dash_manifest_xml_string"\s*:\s*"([^"]+)"/);
+      
+      if (hdMatch) {
+        // Unescape the URL
+        result.hdUrl = hdMatch[1]
+          .replace(/\\\//g, '/')
+          .replace(/\\u0026/g, '&')
+          .replace(/\\"/g, '"')
+          .replace(/\\\\/g, '\\');
+        console.log('Found HD URL in embedded JSON script:', result.hdUrl);
+      }
+      
+      if (sdMatch) {
+        // Unescape the URL
+        result.sdUrl = sdMatch[1]
+          .replace(/\\\//g, '/')
+          .replace(/\\u0026/g, '&')
+          .replace(/\\"/g, '"')
+          .replace(/\\\\/g, '\\');
+        console.log('Found SD URL in embedded JSON script:', result.sdUrl);
+      }
+      
+      if (videoIdMatch) {
+        result.videoId = videoIdMatch[1];
+        console.log('Found video ID in embedded JSON script:', result.videoId);
+      }
+      
+      // If we found URLs, also check for DASH manifest as a backup
+      if (dashMatch && (!result.hdUrl && !result.sdUrl)) {
+        console.log('Found DASH manifest in embedded JSON, extracting URLs...');
+        const dashUrls = extractUrlsFromDashManifest(dashMatch[1]);
+        if (dashUrls.hdUrl) result.hdUrl = dashUrls.hdUrl;
+        if (dashUrls.sdUrl) result.sdUrl = dashUrls.sdUrl;
+      }
+      
+      // If we found any video URLs, return them
+      if (result.hdUrl || result.sdUrl) {
+        return result;
+      }
+    }
+    
+    // Also check for DASH manifest anywhere in the page as a last resort
+    if (!result.hdUrl && !result.sdUrl) {
+      const dashManifestMatch = html.match(/"dash_manifest_xml_string"\s*:\s*"([^"]+)"/);
+      if (dashManifestMatch) {
+        console.log('Found DASH manifest in page source, extracting URLs...');
+        const dashUrls = extractUrlsFromDashManifest(dashManifestMatch[1]);
+        if (dashUrls.hdUrl) {
+          result.hdUrl = dashUrls.hdUrl;
+          console.log('Extracted HD URL from DASH manifest');
+        }
+        if (dashUrls.sdUrl) {
+          result.sdUrl = dashUrls.sdUrl;
+          console.log('Extracted SD URL from DASH manifest');
+        }
+      }
+    }
+    
+    console.log('Video extraction complete. Found:', {
+      hdUrl: result.hdUrl ? 'yes' : 'no',
+      sdUrl: result.sdUrl ? 'yes' : 'no',
+      videoId: result.videoId || 'none'
+    });
+    
+    return result;
+  } catch (error) {
+    console.error('Error extracting video from embedded JSON:', error);
+    return {};
+  }
+}
+
 // Facebook scraper
 export async function scrapeFacebook(url: string): Promise<ScraperResult> {
   try {
@@ -137,13 +271,17 @@ export async function scrapeFacebook(url: string): Promise<ScraperResult> {
     const tryScrapingUrl = async (targetUrl: string): Promise<{ html: string; finalUrl: string }> => {
       const response = await fetch(targetUrl, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.45 Safari/537.36',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
           'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
           'Accept-Language': 'en-US,en;q=0.5',
           'Accept-Encoding': 'gzip, deflate, br',
           'Cache-Control': 'no-cache',
           'Pragma': 'no-cache',
-          'Upgrade-Insecure-Requests': '1'
+          'Upgrade-Insecure-Requests': '1',
+          'Sec-Fetch-Dest': 'document',
+          'Sec-Fetch-Mode': 'navigate',
+          'Sec-Fetch-Site': 'none',
+          'Sec-Fetch-User': '?1'
         },
         redirect: 'follow' // Explicitly follow redirects
       });
@@ -193,6 +331,15 @@ export async function scrapeFacebook(url: string): Promise<ScraperResult> {
     let videoTitle = '';
     let videoDuration = '';
     let videoDescription = '';
+    let videoId: string | null = null;
+    
+    // First, try the new embedded JSON extraction method
+    const embeddedJsonResult = extractVideoFromEmbeddedJson(html);
+    if (embeddedJsonResult.hdUrl || embeddedJsonResult.sdUrl) {
+      videoUrl = embeddedJsonResult.hdUrl || embeddedJsonResult.sdUrl;
+      videoId = embeddedJsonResult.videoId || null;
+      console.log('Successfully extracted video from embedded JSON');
+    }
     
     // Check if this is a /posts/ URL or was redirected to one
     const isPostsUrl = url.includes('/posts/') || finalUrl.includes('/posts/');
@@ -309,28 +456,28 @@ export async function scrapeFacebook(url: string): Promise<ScraperResult> {
     }
     
     // Try to get video ID from URL or other sources
-    let videoId: string | null = null;
-    
-    // From the URL itself
-    const videoIdMatch = url.match(/\/videos\/(\d+)/) || 
-                        url.match(/[?&]v=(\d+)/) || 
-                        url.match(/\/watch\/\?v=(\d+)/) ||
-                        url.match(/\/posts\/(\d+)/) ||
-                        finalUrl.match(/\/videos\/(\d+)/) ||
-                        finalUrl.match(/\/posts\/(\d+)/);
-    if (videoIdMatch) {
-      videoId = videoIdMatch[1];
-      console.log('Extracted video ID from URL:', videoId);
-    }
-    
-    // From the page content
     if (!videoId) {
-      const idMatch = html.match(/"video_id"\s*:\s*"(\d+)"/) || 
-                     html.match(/"videoID"\s*:\s*"(\d+)"/) ||
-                     html.match(/"id"\s*:\s*"(\d+)"/);
-      if (idMatch) {
-        videoId = idMatch[1];
-        console.log('Extracted video ID from page content:', videoId);
+      // From the URL itself
+      const videoIdMatch = url.match(/\/videos\/(\d+)/) || 
+                          url.match(/[?&]v=(\d+)/) || 
+                          url.match(/\/watch\/\?v=(\d+)/) ||
+                          url.match(/\/posts\/(\d+)/) ||
+                          finalUrl.match(/\/videos\/(\d+)/) ||
+                          finalUrl.match(/\/posts\/(\d+)/);
+      if (videoIdMatch) {
+        videoId = videoIdMatch[1];
+        console.log('Extracted video ID from URL:', videoId);
+      }
+      
+      // From the page content
+      if (!videoId) {
+        const idMatch = html.match(/"video_id"\s*:\s*"(\d+)"/) || 
+                       html.match(/"videoID"\s*:\s*"(\d+)"/) ||
+                       html.match(/"id"\s*:\s*"(\d+)"/);
+        if (idMatch) {
+          videoId = idMatch[1];
+          console.log('Extracted video ID from page content:', videoId);
+        }
       }
     }
     

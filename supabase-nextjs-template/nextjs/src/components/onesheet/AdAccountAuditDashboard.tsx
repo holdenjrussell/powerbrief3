@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Download, RefreshCw, Trash2, ExternalLink, Image, Video, Sparkles, Play, X, AlertTriangle, Upload, BarChart3, PieChart as PieChartIcon, Settings, MessageSquare, Shield, Bot, Info, Code, Brain } from 'lucide-react';
+import { Download, RefreshCw, Trash2, ExternalLink, Image, Video, Sparkles, Play, X, AlertTriangle, Upload, BarChart3, PieChart as PieChartIcon, Settings, Brain } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,13 +12,6 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { createClient } from '@/utils/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 import type { AIStrategistOpinion } from '@/lib/types/onesheet';
-import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import OneSheetAdDataTable from './OneSheetAdDataTable';
-import OneSheetAiInstructions from './OneSheetAiInstructions';
-import OneSheetAiStrategist from './OneSheetAiStrategist';
-import { ImporterProgress } from './ImporterProgress';
-import { v4 as uuidv4 } from 'uuid';
 
 // Chart colors
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D', '#FFC658', '#FF6B6B'];
@@ -1309,31 +1302,55 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
           </TabsContent>
 
           <TabsContent value="ai-instructions">
-            <OneSheetAiInstructions
-              onesheetId={onesheetId}
-              aiInstructions={aiInstructions}
-              setAiInstructions={setAiInstructions}
-              isLoadingInstructions={isLoadingInstructions}
-              setIsLoadingInstructions={setIsLoadingInstructions}
-            />
+            <Card>
+              <CardHeader>
+                <CardTitle>AI Instructions</CardTitle>
+                <CardDescription>
+                  Configure AI analysis settings and prompts
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground">
+                  AI Instructions configuration is not yet implemented. This will allow you to customize:
+                </p>
+                <ul className="mt-2 space-y-1 text-sm text-muted-foreground">
+                  <li>• Content variables to analyze</li>
+                  <li>• Awareness levels to identify</li>
+                  <li>• Custom prompts for analysis</li>
+                  <li>• Analysis field options</li>
+                </ul>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="strategist">
-            <OneSheetAiStrategist
-              onesheetId={onesheetId}
-              brandId={brandId}
-              aiInstructions={aiInstructions}
-              setStrategistOpinion={setStrategistOpinion}
-              isRunningStrategist={isRunningStrategist}
-              setIsRunningStrategist={setIsRunningStrategist}
-              isRescraping={isRescraping}
-              setIsRescraping={setIsRescraping}
-              iterationCount={iterationCount}
-              setIterationCount={setIterationCount}
-              lowPerformerCriteria={lowPerformerCriteria}
-              setLowPerformerCriteria={setLowPerformerCriteria}
-              strategistOpinion={strategistOpinion}
-            />
+            <Card>
+              <CardHeader>
+                <CardTitle>AI Strategist</CardTitle>
+                <CardDescription>
+                  Get strategic insights from your ad performance data
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground">
+                  AI Strategist analysis is not yet implemented. This will provide:
+                </p>
+                <ul className="mt-2 space-y-1 text-sm text-muted-foreground">
+                  <li>• Performance analysis across your ads</li>
+                  <li>• Strategic recommendations</li>
+                  <li>• Creative insights and suggestions</li>
+                  <li>• Audience optimization tips</li>
+                </ul>
+                {strategistOpinion && (
+                  <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+                    <h4 className="font-medium text-blue-900">Previous Analysis Available</h4>
+                    <p className="text-sm text-blue-700 mt-1">
+                      Strategic analysis data was found but the display component is not yet implemented.
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       )}
