@@ -81,6 +81,12 @@ interface AdAccountAuditDashboardProps {
   };
 }
 
+// Helper function to truncate long ad names
+function truncateAdName(name: string, maxLength: number = 60): string {
+  if (name.length <= maxLength) return name;
+  return name.substring(0, maxLength) + '...';
+}
+
 export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: AdAccountAuditDashboardProps) {
   const [isImporting, setIsImporting] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -452,7 +458,7 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
   };
 
   const handleClear = async () => {
-    if (!confirm('Are you sure you want to clear all ad data? AI instructions will be preserved.')) {
+    if (!confirm('Are you sure you want to clear all ad data and analysis? AI instructions will be preserved.')) {
       return;
     }
 
@@ -468,9 +474,12 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
         throw new Error('Failed to clear data');
       }
 
+      // Clear the strategist opinion from local state
+      setStrategistOpinion(null);
+
       toast({
         title: "Success",
-        description: "Ad data cleared successfully. AI instructions preserved."
+        description: "Ad data and analysis cleared successfully. AI instructions preserved."
       });
       
       // Reload the audit data (AI instructions are preserved on the server)
@@ -2228,7 +2237,7 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
                       <CardContent className="space-y-4">
                         {strategistOpinion.topPerformers.map((ad, index) => (
                           <div key={index} className="bg-white p-4 rounded-lg border border-green-200">
-                            <h4 className="font-semibold text-sm mb-2">{ad.adName}</h4>
+                            <h4 className="font-semibold text-sm mb-2 break-words" title={ad.adName}>{truncateAdName(ad.adName)}</h4>
                             <div className="grid grid-cols-2 gap-2 text-sm mb-2">
                               <div>
                                 <span className="text-gray-600">Spend:</span> <span className="font-medium">${ad.spend.toLocaleString()}</span>
@@ -2258,7 +2267,7 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
                       <CardContent className="space-y-4">
                         {strategistOpinion.worstPerformers.map((ad, index) => (
                           <div key={index} className="bg-white p-4 rounded-lg border border-red-200">
-                            <h4 className="font-semibold text-sm mb-2">{ad.adName}</h4>
+                            <h4 className="font-semibold text-sm mb-2 break-words" title={ad.adName}>{truncateAdName(ad.adName)}</h4>
                             <div className="grid grid-cols-2 gap-2 text-sm mb-2">
                               <div>
                                 <span className="text-gray-600">Spend:</span> <span className="font-medium">${ad.spend.toLocaleString()}</span>
@@ -2292,7 +2301,7 @@ export function AdAccountAuditDashboard({ onesheetId, brandId, initialData }: Ad
                         <CardContent className="space-y-4">
                           {strategistOpinion.lowPerformers.map((ad, index) => (
                             <div key={index} className="bg-white p-4 rounded-lg border border-amber-200">
-                              <h4 className="font-semibold text-sm mb-2">{ad.adName}</h4>
+                              <h4 className="font-semibold text-sm mb-2 break-words" title={ad.adName}>{truncateAdName(ad.adName)}</h4>
                               <div className="grid grid-cols-2 gap-2 text-sm mb-2">
                                 <div>
                                   <span className="text-gray-600">Spend:</span> <span className="font-medium">${ad.spend.toLocaleString()}</span>

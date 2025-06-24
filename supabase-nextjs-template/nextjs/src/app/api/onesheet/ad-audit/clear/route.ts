@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
     // Get OneSheet to verify ownership
     const { data: onesheet, error: onesheetError } = await supabase
       .from('onesheet')
-      .select('id, brand_id, ad_account_audit')
+      .select('id, brand_id, ad_account_audit, stages_completed')
       .eq('id', onesheet_id)
       .single();
 
@@ -41,7 +41,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Extract Supabase asset URLs from existing ads to preserve them
-    const existingAds = onesheet.ad_account_audit?.ads || [];
+    const auditData = onesheet.ad_account_audit as any;
+    const existingAds = auditData?.ads || [];
     const assetCache: Record<string, { assetUrl: string; assetType: string }> = {};
     
     existingAds.forEach((ad: { id: string; assetId?: string; name: string; assetUrl?: string; assetType?: string; assetLoadFailed?: boolean }) => {
@@ -56,7 +57,7 @@ export async function POST(request: NextRequest) {
       }
     });
 
-    // Clear the ad audit data but preserve the asset cache
+    // Clear the ad audit data and AI strategist opinion but preserve the asset cache
     const { error: updateError } = await supabase
       .from('onesheet')
       .update({ 
@@ -74,8 +75,9 @@ export async function POST(request: NextRequest) {
           // Preserve asset cache for future imports
           assetCache: assetCache
         },
+        ai_strategist_opinion: null, // Clear strategist analysis
         stages_completed: {
-          ...onesheet.stages_completed,
+          ...(onesheet.stages_completed as Record<string, any> || {}),
           ad_audit: false
         }
       })
