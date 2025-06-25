@@ -54,13 +54,7 @@ export async function GET(
         status,
         first_name,
         last_name,
-        accepted_at,
-        profiles:shared_with_user_id (
-          id,
-          email,
-          full_name,
-          avatar_url
-        )
+        accepted_at
       `)
       .eq('brand_id', brandId)
       .eq('status', 'accepted');
@@ -76,6 +70,22 @@ export async function GET(
       .select('id, email, full_name, avatar_url')
       .eq('id', brand.user_id)
       .single();
+
+    // Get profiles for all shared users
+    const sharedUserIds = shares?.map(s => s.shared_with_user_id).filter(Boolean) || [];
+    let sharedProfiles = [];
+    
+    if (sharedUserIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, email, full_name, avatar_url')
+        .in('id', sharedUserIds);
+      
+      sharedProfiles = profiles || [];
+    }
+
+    // Create a map for easy lookup
+    const profileMap = new Map(sharedProfiles.map(p => [p.id, p]));
 
     // Format the response
     const users = [];
@@ -95,18 +105,17 @@ export async function GET(
     // Add shared users
     if (shares) {
       shares.forEach(share => {
-        if (share.profiles) {
-          users.push({
-            id: share.profiles.id,
-            email: share.profiles.email || share.shared_with_email,
-            fullName: share.profiles.full_name || `${share.first_name || ''} ${share.last_name || ''}`.trim() || share.shared_with_email,
-            avatarUrl: share.profiles.avatar_url,
-            role: share.role,
-            isOwner: false,
-            shareId: share.id,
-            acceptedAt: share.accepted_at
-          });
-        }
+        const profile = share.shared_with_user_id ? profileMap.get(share.shared_with_user_id) : null;
+        users.push({
+          id: share.shared_with_user_id || share.shared_with_email,
+          email: profile?.email || share.shared_with_email,
+          fullName: profile?.full_name || `${share.first_name || ''} ${share.last_name || ''}`.trim() || share.shared_with_email,
+          avatarUrl: profile?.avatar_url || null,
+          role: share.role,
+          isOwner: false,
+          shareId: share.id,
+          acceptedAt: share.accepted_at
+        });
       });
     }
 
