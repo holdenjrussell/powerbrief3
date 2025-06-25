@@ -59,19 +59,29 @@ export async function POST(request: NextRequest) {
       'cpc': 'cpc',
       'ctr': 'ctr',
       'conversions': 'conversions',
-      'purchase_roas': 'purchase_roas',
-      'purchases': 'actions:offsite_conversion.fb_pixel_purchase',
-      'purchase_value': 'action_values:offsite_conversion.fb_pixel_purchase',
+      'purchase_roas': 'purchase_roas:omni_purchase',
+      'purchases': 'actions:omni_purchase',
+      'purchase_value': 'action_values:omni_purchase',
       'link_clicks': 'inline_link_clicks',
       'unique_link_clicks': 'unique_inline_link_clicks',
       'cost_per_unique_link_click': 'cost_per_unique_inline_link_click'
     };
 
     // Build fields for Meta API request
-    const fields = baseMetaMetricKeys
-      .map(key => metaFieldsMap[key] || key)
-      .filter(Boolean)
-      .join(',');
+    const fieldsSet = new Set<string>();
+    
+    baseMetaMetricKeys.forEach(key => {
+      const metaField = metaFieldsMap[key] || key;
+      if (metaField.includes(':')) {
+        // For action fields like 'actions:omni_purchase', we need to request the base field
+        const [baseField] = metaField.split(':');
+        fieldsSet.add(baseField);
+      } else {
+        fieldsSet.add(metaField);
+      }
+    });
+    
+    const fields = Array.from(fieldsSet).join(',');
 
     // Build Meta API URL
     const metaApiUrl = `https://graph.facebook.com/v18.0/act_${brand.meta_ad_account_id}/insights`;
@@ -130,14 +140,16 @@ export async function POST(request: NextRequest) {
       
       baseMetaMetricKeys.forEach(key => {
         const metaField = metaFieldsMap[key];
-        if (metaField && insights[metaField] !== undefined) {
-          processedData[key] = parseFloat(insights[metaField]) || 0;
-        } else if (metaField?.includes(':')) {
-          // Handle action fields
+        if (metaField?.includes(':')) {
+          // Handle action fields like 'actions:omni_purchase' or 'purchase_roas:omni_purchase'
           const [actionType, actionName] = metaField.split(':');
           const actions = insights[actionType] || [];
-          const action = actions.find((a: any) => a.action_type === actionName);
+          const action = Array.isArray(actions) 
+            ? actions.find((a: { action_type: string; value: string }) => a.action_type === actionName)
+            : null;
           processedData[key] = action ? parseFloat(action.value) : 0;
+        } else if (metaField && insights[metaField] !== undefined) {
+          processedData[key] = parseFloat(insights[metaField]) || 0;
         } else {
           processedData[key] = 0;
         }
