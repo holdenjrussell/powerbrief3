@@ -21,151 +21,116 @@ Implementing Slack notifications for UGC (User Generated Content) creator pipeli
 - [x] Added test notification method
 - **Note**: Type errors expected until migration is run (columns don't exist yet)
 
-### Phase 3: API Endpoint Integration 🚧 IN PROGRESS
-- [ ] Update script status endpoints to trigger notifications
-- [ ] Update creator assignment endpoints
-- [ ] Update content submission endpoints
-- [ ] Add test endpoint for settings page
+### Phase 3: API Endpoint Integration ✅ COMPLETED
+- [x] Updated script status endpoints to trigger notifications
+  - [x] Script approval notifications
+  - [x] Revision request notifications
+  - [x] Revision submission notifications
+  - [x] Creator response notifications
+  - [x] Content revision notifications
+- [x] Updated creator assignment endpoints
+- [x] Updated content submission endpoints
+- [x] Added test endpoint for settings page (`/api/ugc/slack-test`)
 
-### Phase 4: Frontend UI Updates 🚧 TODO
-- [ ] Add UGC Slack channel configuration to brand settings
-- [ ] Add enable/disable toggle for UGC notifications
-- [ ] Add test notification button
+### Phase 4: Frontend UI Updates ✅ COMPLETED
+- [x] Added UGC Slack channel configuration to brand settings
+- [x] Added enable/disable toggle for UGC notifications
+- [x] Added test notification button
+- [x] Updated SlackIntegrationCard component
+- [x] Updated save-settings API to handle UGC fields
 
-### Phase 5: Frontend Component Updates 🚧 TODO
-- [ ] Add revision tags to script cards
-- [ ] Add resubmission tags to content cards
-- [ ] Update status displays with revision counts
+### Phase 5: Frontend Component Updates ✅ COMPLETED
+- [x] Added revision tags to script cards
+- [x] Added resubmission tags to content cards
+- [x] Updated status displays with revision counts
 
-## Detailed Implementation Steps
+## Notification Types Implemented
 
-### 1. Database Migration
+1. **Script Approved** (`sendUGCScriptApprovedNotification`)
+   - Triggered when script status changes to `APPROVED`
+   - Includes available creator count
+   - Links to public share and dashboard
 
-```sql
--- Add UGC Slack channel configuration to brands table
-ALTER TABLE brands 
-ADD COLUMN IF NOT EXISTS ugc_slack_channel TEXT;
+2. **Script Revision Requested** (`sendUGCScriptRevisionNotification`)
+   - Triggered when status changes to `REVISION_REQUESTED`
+   - Includes feedback/revision notes
+   - Links to script editor
 
--- Add revision tracking to scripts
-ALTER TABLE ugc_creator_scripts
-ADD COLUMN IF NOT EXISTS has_revisions BOOLEAN DEFAULT false,
-ADD COLUMN IF NOT EXISTS revision_count INTEGER DEFAULT 0,
-ADD COLUMN IF NOT EXISTS last_revision_at TIMESTAMPTZ;
+3. **Script Revision Submitted** (`sendUGCScriptRevisionSubmittedNotification`)
+   - Triggered when status changes from `REVISION_REQUESTED` to `PENDING_APPROVAL`
+   - Shows revision count
+   - Links to review dashboard
 
--- Add resubmission tracking for content
-ALTER TABLE ugc_creator_scripts
-ADD COLUMN IF NOT EXISTS content_resubmitted BOOLEAN DEFAULT false,
-ADD COLUMN IF NOT EXISTS content_revision_count INTEGER DEFAULT 0;
-```
+4. **Creator Assigned** (`sendUGCCreatorAssignedNotification`)
+   - Triggered in creator assignment endpoint
+   - Includes creator details and contract status
+   - Links to dashboard
 
-### 2. Notification Types
+5. **Creator Response** (`sendUGCScriptResponseNotification`)
+   - Triggered for both approval (`CREATOR_APPROVED`) and rejection (`CREATOR_REASSIGNMENT`)
+   - Includes creator feedback if rejected
+   - Links to dashboard
 
-#### 2.1 Script Approved
-**Event**: Script status changes to "approved"
-**Content**:
-- Title: "UGC Pipeline: Script Approved ✅"
-- Script title
-- Public share link
-- Dashboard link
+6. **Content Submitted** (`sendUGCContentSubmittedNotification`)
+   - Triggered when content is submitted
+   - Includes content links
+   - Links to approval dashboard
 
-#### 2.2 Script Revisions Requested
-**Event**: Script status changes to "revision requested"
-**Content**:
-- Title: "UGC Pipeline: Revisions Requested 📝"
-- Script title
-- Revision notes/feedback
-- Public share link
-- Script editor link
+7. **Content Revision Requested** (`sendUGCContentRevisionNotification`)
+   - Triggered when status changes to `CONTENT_REVISION_REQUESTED`
+   - Includes revision feedback
+   - Links to creator dashboard
 
-#### 2.3 Script Revision Submitted
-**Event**: Script updated after revision request
-**Content**:
-- Title: "UGC Pipeline: Revision Submitted 🔄"
-- Script title
-- Public share link
-- Script editor link
+8. **Content Revision Submitted** (`sendUGCContentRevisionSubmittedNotification`)
+   - Triggered when content is resubmitted after revision
+   - Shows resubmission count
+   - Links to approval dashboard
 
-#### 2.4 Creator Assigned
-**Event**: Creator assigned to script
-**Content**:
-- Title: "UGC Pipeline: Creator Assigned 👤"
-- Script title
-- Creator name
-- Public share link
-- Dashboard link
+## Files Created/Modified
 
-#### 2.5 Creator Response
-**Event**: Creator approves/rejects script
-**Content**:
-- Title: "UGC Pipeline: Creator [Approved/Rejected] Script"
-- Script title
-- Creator name
-- Response status
+### Created:
+- `/workspace/supabase-nextjs-template/supabase/migrations/20250203000000_add_ugc_slack_notifications.sql`
+- `/workspace/supabase-nextjs-template/nextjs/src/lib/services/ugcSlackService.ts`
+- `/workspace/supabase-nextjs-template/nextjs/src/app/api/ugc/slack-test/route.ts`
+- `/workspace/supabase-nextjs-template/nextjs/docs/UGC_SLACK_NOTIFICATIONS_IMPLEMENTATION.md`
 
-#### 2.6 Content Submitted
-**Event**: Creator submits content
-**Content**:
-- Title: "UGC Pipeline: Content Submitted 🎬"
-- Script title
-- Content link
-- Approval dashboard link
+### Modified:
+- `/workspace/supabase-nextjs-template/nextjs/src/app/api/ugc/scripts/[scriptId]/status/route.ts`
+- `/workspace/supabase-nextjs-template/nextjs/src/app/api/ugc/scripts/[scriptId]/assign/route.ts`
+- `/workspace/supabase-nextjs-template/nextjs/src/app/api/ugc/scripts/[scriptId]/submit-content/route.ts`
+- `/workspace/supabase-nextjs-template/nextjs/src/app/api/ugc/scripts/[scriptId]/route.ts`
+- `/workspace/supabase-nextjs-template/nextjs/src/components/SlackIntegrationCard.tsx`
+- `/workspace/supabase-nextjs-template/nextjs/src/app/api/slack/save-settings/route.ts`
+- `/workspace/supabase-nextjs-template/nextjs/src/components/ugc-creator/ScriptCard.tsx`
 
-#### 2.7 Content Revisions Requested
-**Event**: Content revision requested
-**Content**:
-- Title: "UGC Pipeline: Content Revisions Requested 📝"
-- Script title
-- Revision feedback
-- Public share link
-- Creator dashboard link
+## Next Steps for User
 
-#### 2.8 Content Revision Submitted
-**Event**: Content resubmitted after revision
-**Content**:
-- Title: "UGC Pipeline: Content Revision Submitted 🔄"
-- Script title
-- Content link
-- Approval dashboard link
+1. **Run the database migration**:
+   ```bash
+   cd supabase-nextjs-template
+   npx supabase db push
+   ```
 
-### 3. Service Implementation
+2. **Regenerate TypeScript types**:
+   ```bash
+   npx supabase gen types typescript --local > nextjs/src/lib/database.types.ts
+   ```
 
-```typescript
-class UgcSlackService extends SlackService {
-  async sendScriptApprovedNotification(script, publicShareLink, dashboardLink)
-  async sendScriptRevisionRequestedNotification(script, feedback, publicShareLink, editorLink)
-  async sendScriptRevisionSubmittedNotification(script, publicShareLink, editorLink)
-  async sendCreatorAssignedNotification(script, creator, publicShareLink, dashboardLink)
-  async sendCreatorResponseNotification(script, creator, response)
-  async sendContentSubmittedNotification(script, contentLink, approvalLink)
-  async sendContentRevisionRequestedNotification(script, feedback, publicShareLink, creatorDashLink)
-  async sendContentRevisionSubmittedNotification(script, contentLink, approvalLink)
-}
-```
+3. **Test the implementation**:
+   - Configure UGC Slack settings in brand settings
+   - Use the "Test UGC" button to verify webhook
+   - Test each notification type through the UGC pipeline workflow
 
-### 4. Frontend Components to Update
+## Configuration
 
-- Brand Settings: Add Slack channel configuration field
-- Script Cards: Add revision indicator badge
-- Content Cards: Add resubmission indicator badge
+In the brand settings Slack integration:
+1. Enable general Slack notifications
+2. Configure UGC-specific channel (optional)
+3. Enable UGC Pipeline notifications
+4. Test using the "Test UGC" button
 
-### 5. Configuration UI
+## Troubleshooting
 
-Add to brand settings:
-- UGC Slack Channel field
-- Test notification button
-- Enable/disable notifications toggle
-
-## Progress Tracking
-
-### Completed:
-- [x] Created implementation guide
-
-### In Progress:
-- [ ] Working on database migration
-
-### Next Steps:
-1. Create database migration
-2. Update TypeScript types
-3. Implement UgcSlackService
-4. Update API endpoints
-5. Update frontend components
+- **Type errors in development**: Expected until migration is run
+- **Notifications not sending**: Check that both general and UGC notifications are enabled
+- **Wrong channel**: Verify UGC channel configuration, falls back to general channel if not set

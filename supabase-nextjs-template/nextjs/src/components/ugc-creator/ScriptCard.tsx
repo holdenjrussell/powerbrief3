@@ -91,6 +91,14 @@ export default function ScriptCard({
   // Contract template state
   const [showSendContractDialog, setShowSendContractDialog] = useState(false);
 
+  // Type assertion for revision tracking fields
+  const scriptWithRevisions = script as UgcCreatorScript & {
+    has_revisions?: boolean;
+    revision_count?: number;
+    content_resubmitted?: boolean;
+    content_revision_count?: number;
+  };
+
   // Function to get badge variant based on status
   const getStatusVariant = (status: string | undefined) => {
     if (!status) return "default";
@@ -382,9 +390,25 @@ export default function ScriptCard({
             )}
             {script.title}
           </span>
-          <Badge variant={getStatusVariant(script.status)}>
-            {script.status === 'CREATOR_REASSIGNMENT' ? 'NEEDS REASSIGNMENT' : script.status || 'NEW'}
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Badge variant={getStatusVariant(script.status)}>
+              {script.status === 'CREATOR_REASSIGNMENT' ? 'NEEDS REASSIGNMENT' : script.status || 'NEW'}
+            </Badge>
+            {/* Revision tag */}
+            {scriptWithRevisions.has_revisions && scriptWithRevisions.revision_count && scriptWithRevisions.revision_count > 0 && (
+              <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
+                <Edit className="h-3 w-3 mr-1" />
+                Revised {scriptWithRevisions.revision_count}x
+              </Badge>
+            )}
+            {/* Content resubmission tag */}
+            {scriptWithRevisions.content_resubmitted && scriptWithRevisions.content_revision_count && scriptWithRevisions.content_revision_count > 0 && (
+              <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
+                <FileText className="h-3 w-3 mr-1" />
+                Resubmitted {scriptWithRevisions.content_revision_count}x
+              </Badge>
+            )}
+          </div>
         </CardTitle>
         <CardDescription className="flex items-center">
           {script.concept_status || 'Creator Script'}

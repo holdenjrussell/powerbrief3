@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { MessageSquare, ExternalLink, Loader2, Trash2, Settings, ChevronDown, ChevronUp } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface Brand {
   id: string;
@@ -21,6 +22,8 @@ interface Brand {
     concept_ready_for_editor?: string;
     ad_launch?: string;
   };
+  ugc_slack_channel?: string;
+  ugc_slack_notifications_enabled?: boolean;
 }
 
 interface SlackIntegrationCardProps {
@@ -40,6 +43,11 @@ const SlackIntegrationCard: React.FC<SlackIntegrationCardProps> = ({
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [showInstructions, setShowInstructions] = useState(false);
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
+  
+  // UGC Pipeline settings
+  const [ugcChannelName, setUgcChannelName] = useState(brand.ugc_slack_channel || '');
+  const [ugcNotificationsEnabled, setUgcNotificationsEnabled] = useState(brand.ugc_slack_notifications_enabled || false);
+  const [isTestingUgc, setIsTestingUgc] = useState(false);
   
   // Channel configuration state
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -77,6 +85,8 @@ const SlackIntegrationCard: React.FC<SlackIntegrationCardProps> = ({
           webhookUrl: webhookUrl.trim(),
           channelName: channelName.trim() || null,
           notificationsEnabled,
+          ugcSlackChannel: ugcChannelName.trim() || null,
+          ugcSlackNotificationsEnabled: ugcNotificationsEnabled,
           channelConfig: {
             default: channelConfig.default.trim() || null,
             concept_submission: channelConfig.concept_submission.trim() || null,
@@ -97,6 +107,8 @@ const SlackIntegrationCard: React.FC<SlackIntegrationCardProps> = ({
         slack_webhook_url: webhookUrl.trim(),
         slack_channel_name: channelName.trim() || null,
         slack_notifications_enabled: notificationsEnabled,
+        ugc_slack_channel: ugcChannelName.trim() || null,
+        ugc_slack_notifications_enabled: ugcNotificationsEnabled,
         slack_channel_config: {
           default: channelConfig.default.trim() || null,
           concept_submission: channelConfig.concept_submission.trim() || null,
@@ -122,11 +134,13 @@ const SlackIntegrationCard: React.FC<SlackIntegrationCardProps> = ({
 
   const handleTestWebhook = async () => {
     if (!webhookUrl.trim()) {
-      setTestResult({ success: false, message: 'Please enter a webhook URL first' });
+      alert('Please enter a Slack webhook URL first');
       return;
     }
 
     setIsTestingWebhook(true);
+    setTestResult(null);
+    
     try {
       const response = await fetch('/api/slack/test-webhook', {
         method: 'POST',
@@ -138,19 +152,50 @@ const SlackIntegrationCard: React.FC<SlackIntegrationCardProps> = ({
       });
 
       const result = await response.json();
-      
-      if (response.ok) {
-        setTestResult({ success: true, message: 'Test message sent successfully!' });
+
+      if (response.ok && result.success) {
+        setTestResult({ success: true, message: 'Test message sent successfully! Check your Slack channel.' });
       } else {
-        setTestResult({ success: false, message: result.error || 'Failed to send test message' });
+        setTestResult({ success: false, message: result.error || 'Failed to send test message. Please check your webhook URL.' });
       }
     } catch (error) {
       console.error('Error testing webhook:', error);
       setTestResult({ success: false, message: 'Failed to test webhook. Please try again.' });
     } finally {
       setIsTestingWebhook(false);
-      // Clear test result after 5 seconds
-      setTimeout(() => setTestResult(null), 5000);
+    }
+  };
+
+  const handleTestUgcNotification = async () => {
+    if (!webhookUrl.trim()) {
+      alert('Please save your Slack settings first');
+      return;
+    }
+
+    setIsTestingUgc(true);
+    setTestResult(null);
+    
+    try {
+      const response = await fetch('/api/ugc/slack-test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          brandId: brand.id
+        }),
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        setTestResult({ success: true, message: 'UGC test notification sent! Check your Slack channel.' });
+      } else {
+        setTestResult({ success: false, message: result.error || 'Failed to send UGC test notification.' });
+      }
+    } catch (error) {
+      console.error('Error testing UGC notification:', error);
+      setTestResult({ success: false, message: 'Failed to test UGC notification. Please try again.' });
+    } finally {
+      setIsTestingUgc(false);
     }
   };
 
@@ -175,13 +220,17 @@ const SlackIntegrationCard: React.FC<SlackIntegrationCardProps> = ({
         ...brand, 
         slack_webhook_url: null,
         slack_channel_name: null,
-        slack_notifications_enabled: false
+        slack_notifications_enabled: false,
+        ugc_slack_channel: null,
+        ugc_slack_notifications_enabled: false
       };
       
       onSlackSettingsUpdated(updatedBrand);
       setWebhookUrl('');
       setChannelName('');
       setNotificationsEnabled(false);
+      setUgcChannelName('');
+      setUgcNotificationsEnabled(false);
       setTestResult({ success: true, message: 'Slack disconnected successfully!' });
       
       // Clear test result after 3 seconds
@@ -229,247 +278,332 @@ const SlackIntegrationCard: React.FC<SlackIntegrationCardProps> = ({
                 {brand.slack_channel_config && Object.values(brand.slack_channel_config).some(Boolean) && (
                   <p><span className="font-medium">Custom Channels:</span> Configured</p>
                 )}
+                {brand.ugc_slack_channel && (
+                  <p><span className="font-medium">UGC Channel:</span> #{brand.ugc_slack_channel}</p>
+                )}
+                {brand.ugc_slack_notifications_enabled && (
+                  <p><span className="font-medium">UGC Notifications:</span> Enabled</p>
+                )}
               </div>
             </div>
           )}
         </div>
 
-        <div className="space-y-4">
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <Label htmlFor="webhookUrl">Slack Webhook URL</Label>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowInstructions(!showInstructions)}
-                className="text-xs"
+        {/* Test Result Alert */}
+        {testResult && (
+          <Alert variant={testResult.success ? "default" : "destructive"} className="mb-4">
+            <AlertDescription>{testResult.message}</AlertDescription>
+          </Alert>
+        )}
+
+        {/* Setup Instructions Toggle */}
+        <Button 
+          variant="link" 
+          onClick={() => setShowInstructions(!showInstructions)}
+          className="p-0 h-auto font-normal text-sm"
+        >
+          {showInstructions ? 'Hide' : 'Show'} setup instructions
+        </Button>
+
+        {showInstructions && (
+          <div className="space-y-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+            <p className="text-sm font-medium text-blue-900">Quick Setup:</p>
+            <ol className="text-xs text-blue-800 space-y-1 list-decimal list-inside">
+              <li>Go to <a href="https://api.slack.com/apps" target="_blank" rel="noopener noreferrer" className="underline">api.slack.com/apps</a></li>
+              <li>Create a new app or select existing</li>
+              <li>Go to &quot;Incoming Webhooks&quot; → Enable → Add New Webhook</li>
+              <li>Select your channel and copy the webhook URL</li>
+              <li>Paste it below and save</li>
+            </ol>
+
+            <div className="mt-2 flex items-center gap-2">
+              <a 
+                href="https://api.slack.com/apps" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-xs text-blue-700 hover:underline flex items-center gap-1"
               >
-                {showInstructions ? 'Hide' : 'Show'} Setup Guide
-              </Button>
+                Open Slack Apps <ExternalLink className="h-3 w-3" />
+              </a>
             </div>
-            
-            {showInstructions && (
-              <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded text-xs">
-                <h5 className="font-medium text-blue-900 mb-2">🚀 Quick Setup</h5>
-                
-                {/* Method 1: App Manifest */}
-                <div className="p-2 bg-white border border-blue-200 rounded mb-2">
-                  <h5 className="font-medium text-blue-900 mb-2">⚡ Method 1: App Manifest (Recommended)</h5>
-                  <ol className="list-decimal list-inside space-y-1 text-blue-800 text-xs">
-                    <li>Go to <a href="https://api.slack.com/apps" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline inline-flex items-center">api.slack.com/apps <ExternalLink className="h-3 w-3 ml-1" /></a></li>
-                    <li>Click &quot;Create New App&quot; → &quot;From an app manifest&quot;</li>
-                    <li>Select your workspace and click &quot;Next&quot;</li>
-                    <li>Copy the manifest from our <a href="/slack-app-manifest.json" target="_blank" className="text-blue-600 hover:underline">manifest file</a></li>
-                  </ol>
-                  <ol className="list-decimal list-inside space-y-1 text-blue-800 text-xs mt-2" start={5}>
-                    <li>Click &quot;Next&quot; → &quot;Create&quot;</li>
-                    <li>Go to &quot;Incoming Webhooks&quot; in the left sidebar</li>
-                    <li>Click &quot;Add New Webhook to Workspace&quot;</li>
-                    <li>Choose your notification channel and click &quot;Allow&quot;</li>
-                    <li>Copy the webhook URL that starts with &quot;https://hooks.slack.com/&quot;</li>
-                  </ol>
-                </div>
 
-                {/* Method 2: Manual Setup */}
-                <div className="p-2 bg-white border border-blue-200 rounded">
-                  <h5 className="font-medium text-blue-900 mb-2">🔧 Method 2: Manual Setup</h5>
-                  <ol className="list-decimal list-inside space-y-1 text-blue-800 text-xs">
-                    <li>Go to <a href="https://api.slack.com/apps" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline inline-flex items-center">api.slack.com/apps <ExternalLink className="h-3 w-3 ml-1" /></a></li>
-                    <li>Click &quot;Create New App&quot; → &quot;From scratch&quot;</li>
-                    <li>Name your app (e.g., &quot;PowerBrief Notifications&quot;) and select your workspace</li>
-                    <li>Go to &quot;Incoming Webhooks&quot; in the left sidebar</li>
-                    <li>Toggle &quot;Activate Incoming Webhooks&quot; to On</li>
-                    <li>Click &quot;Add New Webhook to Workspace&quot;</li>
-                    <li>Choose the channel where you want notifications</li>
-                    <li>Copy the webhook URL that starts with &quot;https://hooks.slack.com/&quot;</li>
-                  </ol>
-                </div>
-
-                <p className="mt-3 text-xs text-blue-700">
-                  💡 <strong>Tip:</strong> You can configure different channels for different notification types below.
-                </p>
-              </div>
-            )}
-            
-            <Input
-              id="webhookUrl"
-              type="url"
-              placeholder="https://hooks.slack.com/services/..."
-              value={webhookUrl}
-              onChange={(e) => setWebhookUrl(e.target.value)}
-              className="mt-1"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Create a webhook in your Slack workspace settings
+            <p className="mt-3 text-xs text-blue-700">
+              💡 <strong>Tip:</strong> You can configure different channels for different notification types below.
             </p>
           </div>
+        )}
+        
+        {/* Slack Configuration Form */}
+        {!isConnected && (
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="webhookUrl">Slack Webhook URL</Label>
+              <Input
+                id="webhookUrl"
+                type="url"
+                placeholder="https://hooks.slack.com/services/..."
+                value={webhookUrl}
+                onChange={(e) => setWebhookUrl(e.target.value)}
+                className="mt-1"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Create a webhook in your Slack workspace settings
+              </p>
+            </div>
 
-          <div>
-            <Label htmlFor="channelName">Default Channel (optional)</Label>
-            <Input
-              id="channelName"
-              type="text"
-              placeholder="general"
-              value={channelName}
-              onChange={(e) => setChannelName(e.target.value)}
-              className="mt-1"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Leave empty to use webhook&apos;s default channel
-            </p>
-          </div>
+            <div>
+              <Label htmlFor="channelName">Default Channel (optional)</Label>
+              <Input
+                id="channelName"
+                type="text"
+                placeholder="general"
+                value={channelName}
+                onChange={(e) => setChannelName(e.target.value)}
+                className="mt-1"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Leave empty to use webhook&apos;s default channel
+              </p>
+            </div>
 
-          {/* Advanced Channel Configuration */}
-          <div className="space-y-3">
-            <Button 
-              variant="outline" 
-              className="w-full justify-between"
-              onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
-            >
-              <div className="flex items-center">
-                <Settings className="h-4 w-4 mr-2" />
-                Advanced Channel Settings
-              </div>
-              {showAdvancedSettings ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-            </Button>
-            
-            {showAdvancedSettings && (
-              <div className="space-y-3 mt-3">
-                <div className="p-3 bg-gray-50 rounded-lg">
-                  <p className="text-xs text-gray-600 mb-3">
-                    Configure different channels for different notification types. Leave empty to use the default channel above.
-                  </p>
-                  
-                  <div className="space-y-3">
-                    <div>
-                      <Label htmlFor="concept_submission" className="text-xs">Concept Submissions</Label>
-                      <Input
-                        id="concept_submission"
-                        type="text"
-                        placeholder="creative-submissions"
-                        value={channelConfig.concept_submission}
-                        onChange={(e) => updateChannelConfig('concept_submission', e.target.value)}
-                        className="mt-1 text-xs"
-                      />
-                      <p className="text-xs text-gray-500 mt-1">When concepts are submitted for review</p>
+            {/* Advanced Channel Configuration */}
+            <div className="space-y-3">
+              <Button 
+                variant="outline" 
+                className="w-full justify-between"
+                onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
+              >
+                <div className="flex items-center">
+                  <Settings className="h-4 w-4 mr-2" />
+                  Advanced Channel Settings
+                </div>
+                {showAdvancedSettings ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </Button>
+              
+              {showAdvancedSettings && (
+                <div className="space-y-3 mt-3">
+                  <div className="p-3 bg-gray-50 rounded-lg">
+                    <p className="text-xs text-gray-600 mb-3">
+                      Configure different channels for different notification types. Leave empty to use the default channel above.
+                    </p>
+                    
+                    <div className="space-y-3">
+                      <div>
+                        <Label htmlFor="default" className="text-xs">Default Override</Label>
+                        <Input
+                          id="default"
+                          type="text"
+                          placeholder="general"
+                          value={channelConfig.default}
+                          onChange={(e) => updateChannelConfig('default', e.target.value)}
+                          className="mt-1 text-xs"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">Overrides webhook default</p>
+                      </div>
+
+                      <div>
+                        <Label htmlFor="concept_submission" className="text-xs">Concept Submissions</Label>
+                        <Input
+                          id="concept_submission"
+                          type="text"
+                          placeholder="creative-submissions"
+                          value={channelConfig.concept_submission}
+                          onChange={(e) => updateChannelConfig('concept_submission', e.target.value)}
+                          className="mt-1 text-xs"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">When creators submit concepts</p>
+                      </div>
+
+                      <div>
+                        <Label htmlFor="concept_revision" className="text-xs">Revision Requests</Label>
+                        <Input
+                          id="concept_revision"
+                          type="text"
+                          placeholder="creative-revisions"
+                          value={channelConfig.concept_revision}
+                          onChange={(e) => updateChannelConfig('concept_revision', e.target.value)}
+                          className="mt-1 text-xs"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">When revisions are requested</p>
+                      </div>
+
+                      <div>
+                        <Label htmlFor="concept_approval" className="text-xs">Concept Approvals</Label>
+                        <Input
+                          id="concept_approval"
+                          type="text"
+                          placeholder="creative-approvals"
+                          value={channelConfig.concept_approval}
+                          onChange={(e) => updateChannelConfig('concept_approval', e.target.value)}
+                          className="mt-1 text-xs"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">When concepts are approved</p>
+                      </div>
+
+                      <div>
+                        <Label htmlFor="concept_ready_for_editor" className="text-xs">Concept Ready for Editor</Label>
+                        <Input
+                          id="concept_ready_for_editor"
+                          type="text"
+                          placeholder="creative-ready-for-editor"
+                          value={channelConfig.concept_ready_for_editor}
+                          onChange={(e) => updateChannelConfig('concept_ready_for_editor', e.target.value)}
+                          className="mt-1 text-xs"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">When concepts are ready for editor review</p>
+                      </div>
+
+                      <div>
+                        <Label htmlFor="ad_launch" className="text-xs">Ad Launches</Label>
+                        <Input
+                          id="ad_launch"
+                          type="text"
+                          placeholder="ad-launches"
+                          value={channelConfig.ad_launch}
+                          onChange={(e) => updateChannelConfig('ad_launch', e.target.value)}
+                          className="mt-1 text-xs"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">When ads are published to Meta</p>
+                      </div>
                     </div>
+                  </div>
 
-                    <div>
-                      <Label htmlFor="concept_revision" className="text-xs">Revision Requests</Label>
-                      <Input
-                        id="concept_revision"
-                        type="text"
-                        placeholder="creative-revisions"
-                        value={channelConfig.concept_revision}
-                        onChange={(e) => updateChannelConfig('concept_revision', e.target.value)}
-                        className="mt-1 text-xs"
-                      />
-                      <p className="text-xs text-gray-500 mt-1">When revisions are requested</p>
-                    </div>
+                  {/* UGC Pipeline Settings */}
+                  <div className="p-3 bg-purple-50 rounded-lg border border-purple-200">
+                    <h4 className="text-sm font-medium text-purple-900 mb-3">UGC Pipeline Notifications</h4>
+                    
+                    <div className="space-y-3">
+                      <div>
+                        <Label htmlFor="ugcChannel" className="text-xs">UGC Channel</Label>
+                        <Input
+                          id="ugcChannel"
+                          type="text"
+                          placeholder="ugc-pipeline"
+                          value={ugcChannelName}
+                          onChange={(e) => setUgcChannelName(e.target.value)}
+                          className="mt-1 text-xs"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">Channel for UGC script and creator updates</p>
+                      </div>
 
-                    <div>
-                      <Label htmlFor="concept_approval" className="text-xs">Concept Approvals</Label>
-                      <Input
-                        id="concept_approval"
-                        type="text"
-                        placeholder="creative-approvals"
-                        value={channelConfig.concept_approval}
-                        onChange={(e) => updateChannelConfig('concept_approval', e.target.value)}
-                        className="mt-1 text-xs"
-                      />
-                      <p className="text-xs text-gray-500 mt-1">When concepts are approved</p>
-                    </div>
+                      <div className="flex items-center space-x-2">
+                        <Switch
+                          id="ugcNotifications"
+                          checked={ugcNotificationsEnabled}
+                          onCheckedChange={setUgcNotificationsEnabled}
+                        />
+                        <Label htmlFor="ugcNotifications" className="text-xs">
+                          Enable UGC Pipeline notifications
+                        </Label>
+                      </div>
 
-                    <div>
-                      <Label htmlFor="concept_ready_for_editor" className="text-xs">Concept Ready for Editor</Label>
-                      <Input
-                        id="concept_ready_for_editor"
-                        type="text"
-                        placeholder="creative-ready-for-editor"
-                        value={channelConfig.concept_ready_for_editor}
-                        onChange={(e) => updateChannelConfig('concept_ready_for_editor', e.target.value)}
-                        className="mt-1 text-xs"
-                      />
-                      <p className="text-xs text-gray-500 mt-1">When concepts are ready for editor review</p>
-                    </div>
-
-                    <div>
-                      <Label htmlFor="ad_launch" className="text-xs">Ad Launches</Label>
-                      <Input
-                        id="ad_launch"
-                        type="text"
-                        placeholder="ad-launches"
-                        value={channelConfig.ad_launch}
-                        onChange={(e) => updateChannelConfig('ad_launch', e.target.value)}
-                        className="mt-1 text-xs"
-                      />
-                      <p className="text-xs text-gray-500 mt-1">When ads are published to Meta</p>
+                      <p className="text-xs text-gray-600">
+                        Get notified about script approvals, creator assignments, content submissions, and more.
+                      </p>
                     </div>
                   </div>
                 </div>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
 
-          <div className="flex items-center space-x-2">
-            <Switch
-              id="notifications"
-              checked={notificationsEnabled}
-              onCheckedChange={setNotificationsEnabled}
-            />
-            <Label htmlFor="notifications">Enable notifications</Label>
-          </div>
-        </div>
-
-        {/* Test Result Display */}
-        {testResult && (
-          <div className={`p-3 rounded-md ${
-            testResult.success 
-              ? 'bg-green-50 border border-green-200 text-green-800' 
-              : 'bg-red-50 border border-red-200 text-red-800'
-          }`}>
-            <p className="text-sm">{testResult.message}</p>
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="notifications"
+                checked={notificationsEnabled}
+                onCheckedChange={setNotificationsEnabled}
+              />
+              <Label htmlFor="notifications">
+                Enable notifications
+              </Label>
+            </div>
           </div>
         )}
 
-        {/* Action Buttons */}
-        <div className="flex space-x-2">
-          <Button 
-            onClick={handleSaveSettings} 
-            disabled={isLoading}
-            className="flex-1"
-          >
-            {isLoading ? 'Saving...' : 'Save Settings'}
-          </Button>
-          
-          <Button 
-            onClick={handleTestWebhook} 
-            disabled={isTestingWebhook || !webhookUrl.trim()}
-            variant="outline"
-          >
-            {isTestingWebhook ? 'Testing...' : 'Test'}
-          </Button>
-        </div>
-
+        {/* Connected State Actions */}
         {isConnected && (
-          <Button
-            onClick={handleDisconnect}
-            disabled={isLoading}
-            variant="outline"
-            className="w-full text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300"
-          >
-            {isLoading ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Disconnecting...
-              </>
-            ) : (
-              <>
-                <Trash2 className="h-4 w-4 mr-2" />
-                Disconnect Slack
-              </>
-            )}
-          </Button>
+          <div className="space-y-3">
+            <div className="flex gap-2">
+              <Button 
+                variant="outline" 
+                onClick={handleTestWebhook}
+                disabled={isTestingWebhook}
+                className="flex-1"
+              >
+                {isTestingWebhook ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Testing...
+                  </>
+                ) : (
+                  'Test Webhook'
+                )}
+              </Button>
+              
+              {brand.ugc_slack_notifications_enabled && (
+                <Button 
+                  variant="outline" 
+                  onClick={handleTestUgcNotification}
+                  disabled={isTestingUgc}
+                  className="flex-1"
+                >
+                  {isTestingUgc ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Testing...
+                    </>
+                  ) : (
+                    'Test UGC'
+                  )}
+                </Button>
+              )}
+            </div>
+            
+            <Button 
+              variant="destructive" 
+              onClick={handleDisconnect}
+              disabled={isLoading}
+              className="w-full"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Disconnect Slack
+            </Button>
+          </div>
+        )}
+
+        {/* Save Button */}
+        {!isConnected && (
+          <div className="space-y-2">
+            <Button 
+              onClick={handleTestWebhook}
+              variant="outline"
+              disabled={isTestingWebhook || !webhookUrl.trim()}
+              className="w-full"
+            >
+              {isTestingWebhook ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Testing...
+                </>
+              ) : (
+                'Test Webhook'
+              )}
+            </Button>
+            
+            <Button 
+              onClick={handleSaveSettings}
+              disabled={isLoading || !webhookUrl.trim()}
+              className="w-full"
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                'Save Settings'
+              )}
+            </Button>
+          </div>
         )}
       </CardContent>
     </Card>
