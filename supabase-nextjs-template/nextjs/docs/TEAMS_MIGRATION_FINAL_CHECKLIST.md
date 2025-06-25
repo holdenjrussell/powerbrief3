@@ -15,11 +15,13 @@
 ### 3. **Scorecard Table Conflict Resolution**
 - ⚠️ Found existing `scorecard_metrics` table from migration `20250603000000_create_scorecard_metrics_table.sql`
 - ⚠️ Existing table has data with NULL values in required columns
+- ⚠️ Existing table has `user_id` as NOT NULL column (not in our new design)
 - ✅ Updated migration to ALTER existing table instead of CREATE
 - ✅ Added safe column additions with IF NOT EXISTS
 - ✅ Added data migration from old `metric_config` JSONB to new columns
 - ✅ Sets default values for any NULL data before adding NOT NULL constraints
 - ✅ Added constraint checks to avoid conflicts
+- ✅ Updated function to provide user_id from brand owner
 - ✅ Will preserve and migrate all existing data
 
 ## 📋 Pre-Migration Verification
