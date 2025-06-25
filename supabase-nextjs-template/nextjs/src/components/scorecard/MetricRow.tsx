@@ -24,6 +24,7 @@ interface MetricRowProps {
   metric: Metric;
   data: any;
   dateRanges: any[];
+  isLastRow?: boolean;
   onEdit: () => void;
   onDelete: () => void;
   onViewChart: () => void;
@@ -33,6 +34,7 @@ export default function MetricRow({
   metric, 
   data, 
   dateRanges, 
+  isLastRow = false,
   onEdit, 
   onDelete, 
   onViewChart 
@@ -138,95 +140,91 @@ export default function MetricRow({
   };
 
   return (
-    <Card className="hover:shadow-md transition-shadow">
-      <CardContent className="p-4">
-        <div className="grid grid-cols-12 gap-4 items-center">
-          {/* Status */}
-          <div className="col-span-1 flex justify-center">
-            {getStatusIcon()}
-          </div>
+    <tr className={`hover:bg-gray-50 transition-colors ${!isLastRow ? 'border-b' : ''}`}>
+      {/* Status */}
+      <td className="px-4 py-3">
+        <div className="flex justify-center">
+          {getStatusIcon()}
+        </div>
+      </td>
 
-          {/* Metric Name */}
-          <div className="col-span-2">
-            <div className="font-medium text-gray-900">{metric.display_name}</div>
-            <div className="text-xs text-gray-500 mt-1">
-              {metric.metric_key}
-            </div>
-          </div>
+      {/* Metric Name */}
+      <td className="px-4 py-3">
+        <div className="font-medium text-gray-900">{metric.display_name}</div>
+        <div className="text-xs text-gray-500 mt-1">
+          {metric.metric_key}
+        </div>
+      </td>
 
-          {/* Current Value */}
-          <div className="col-span-1">
-            <div className="flex items-center gap-1">
-              <span className="font-medium">{formatValue(data?.current)}</span>
-              {getTrendIcon()}
-            </div>
-          </div>
+      {/* Current Value */}
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-1">
+          <span className="font-medium">{formatValue(data?.current)}</span>
+          {getTrendIcon()}
+        </div>
+      </td>
 
-          {/* Average */}
-          <div className="col-span-1">
-            <span className="text-gray-600">{formatValue(data?.average)}</span>
-          </div>
+      {/* Average */}
+      <td className="px-4 py-3">
+        <span className="text-gray-600">{formatValue(data?.average)}</span>
+      </td>
 
-          {/* Goal */}
-          <div className="col-span-1">
-            {metric.goal_value ? (
-              <Badge className={getGoalBadgeColor()}>
-                {formatValue(metric.goal_value)}
-              </Badge>
-            ) : (
-              <span className="text-gray-400">--</span>
-            )}
-          </div>
+      {/* Goal */}
+      <td className="px-4 py-3">
+        {metric.goal_value ? (
+          <Badge className={getGoalBadgeColor()}>
+            {formatValue(metric.goal_value)}
+          </Badge>
+        ) : (
+          <span className="text-gray-400">--</span>
+        )}
+      </td>
 
-          {/* Period Values */}
-          <div className="col-span-5">
-            <div className="overflow-x-auto">
-              <div className="flex gap-4 min-w-max px-2">
-                {dateRanges.map((range, index) => (
-                  <div key={index} className="text-center min-w-[80px]">
-                    <div className="text-sm">
-                      {data?.periods?.[index] 
-                        ? formatValue(data.periods[index].value) 
-                        : '--'
-                      }
-                    </div>
-                  </div>
-                ))}
+      {/* Period Values */}
+      <td className="px-4 py-3">
+        <div className="flex gap-4 min-w-max">
+          {dateRanges.map((range, index) => (
+            <div key={index} className="text-center min-w-[80px]">
+              <div className="text-sm">
+                {data?.periods?.[index] 
+                  ? formatValue(data.periods[index].value) 
+                  : '--'
+                }
               </div>
             </div>
-          </div>
-
-          {/* Actions */}
-          <div className="col-span-1">
-            <div className="flex gap-1">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={onViewChart}
-                title="View Chart"
-              >
-                <BarChart3 className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={onEdit}
-                title="Edit Metric"
-              >
-                <Edit className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={onDelete}
-                title="Delete Metric"
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
+          ))}
         </div>
-      </CardContent>
-    </Card>
+      </td>
+
+      {/* Actions */}
+      <td className="px-4 py-3">
+        <div className="flex gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onViewChart}
+            title="View Chart"
+          >
+            <BarChart3 className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onEdit}
+            title="Edit Metric"
+          >
+            <Edit className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onDelete}
+            title="Delete Metric"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
+      </td>
+    </tr>
   );
 }
