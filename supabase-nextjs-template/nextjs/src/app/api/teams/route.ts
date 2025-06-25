@@ -33,11 +33,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch teams' }, { status: 500 });
     }
 
-    // Process teams to include member count
+    // Process teams to include member count in expected format
     const processedTeams = teams?.map(team => ({
       ...team,
-      // @ts-ignore - Type will be available after migration
-      member_count: team.team_members?.length || 0,
+      _count: {
+        // @ts-ignore - Type will be available after migration
+        team_members: team.team_members?.length || 0
+      },
       team_members: undefined // Remove raw data
     })) || [];
 
