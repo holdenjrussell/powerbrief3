@@ -1,5 +1,6 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
+import { sendUGCContentSubmittedNotification } from '@/lib/services/ugcSlackService';
 
 interface Params {
   scriptId: string;
@@ -22,10 +23,10 @@ export async function POST(
     // Create Supabase client (no auth required for public submission)
     const supabase = await createClient();
     
-    // First, validate that the script exists
-    const { error: fetchError } = await supabase
+    // First, validate that the script exists and get creator info
+    const { data: currentScript, error: fetchError } = await supabase
       .from('ugc_creator_scripts')
-      .select('id')
+      .select('*, ugc_creators(*)')
       .eq('id', scriptId)
       .single();
     
@@ -45,12 +46,33 @@ export async function POST(
         updated_at: new Date().toISOString()
       })
       .eq('id', scriptId)
-      .select()
+      .select('*, ugc_creators(*)')
       .single();
     
     if (updateError) {
       console.error('Error updating script with content:', updateError);
       return NextResponse.json({ error: 'Failed to submit content' }, { status: 500 });
+    }
+    
+    // Send Slack notification for content submission
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+      const publicShareLink = `${baseUrl}/public/ugc-script/${updatedScript.public_share_id}`;
+      const approvalDashboardLink = `${baseUrl}/app/powerbrief/${updatedScript.brand_id}/ugc-pipeline`;
+      const creatorName = updatedScript.ugc_creators?.name || 'Unknown Creator';
+      
+      await sendUGCContentSubmittedNotification({
+        brandId: updatedScript.brand_id,
+        scriptId: updatedScript.id,
+        scriptTitle: updatedScript.title,
+        creatorName,
+        contentLinks: [final_content_link],
+        approvalDashboardLink,
+        publicShareLink
+      });
+    } catch (slackError) {
+      console.error('Error sending Slack notification:', slackError);
+      // Don't fail the content submission if Slack notification fails
     }
     
     return NextResponse.json({ 

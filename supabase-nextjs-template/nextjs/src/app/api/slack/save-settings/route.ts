@@ -6,6 +6,8 @@ interface SaveSlackSettingsRequest {
   webhookUrl: string;
   channelName?: string | null;
   notificationsEnabled: boolean;
+  ugcSlackChannel?: string | null;
+  ugcSlackNotificationsEnabled?: boolean;
   channelConfig?: {
     default?: string | null;
     concept_submission?: string | null;
@@ -22,12 +24,22 @@ interface BrandSlackUpdateData {
   slack_channel_name?: string | null;
   slack_notifications_enabled: boolean;
   slack_channel_config?: Record<string, string | null>;
+  ugc_slack_channel?: string | null;
+  ugc_slack_notifications_enabled?: boolean;
 }
 
 export async function POST(request: NextRequest) {
   try {
     const body: SaveSlackSettingsRequest = await request.json();
-    const { brandId, webhookUrl, channelName, notificationsEnabled, channelConfig } = body;
+    const { 
+      brandId, 
+      webhookUrl, 
+      channelName, 
+      notificationsEnabled, 
+      ugcSlackChannel,
+      ugcSlackNotificationsEnabled,
+      channelConfig 
+    } = body;
 
     if (!brandId) {
       return NextResponse.json(
@@ -81,6 +93,8 @@ export async function POST(request: NextRequest) {
       slack_webhook_url: webhookUrl.trim(),
       slack_channel_name: channelName?.trim() || null,
       slack_notifications_enabled: notificationsEnabled,
+      ugc_slack_channel: ugcSlackChannel?.trim() || null,
+      ugc_slack_notifications_enabled: ugcSlackNotificationsEnabled ?? false,
       updated_at: new Date().toISOString()
     };
 
