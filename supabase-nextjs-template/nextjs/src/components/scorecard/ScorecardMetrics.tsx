@@ -15,30 +15,21 @@ import {
   SelectValue
 } from '@/components/ui';
 import { 
-  Plus, 
   Calendar,
   ChevronLeft,
   ChevronRight,
   RefreshCw,
   BarChart3
 } from 'lucide-react';
-import MetricRow from './MetricRow';
+import { 
+  PREDEFINED_METRICS, 
+  ScorecardMetric, 
+  MetricWithData,
+  DateRange,
+  formatMetricValue,
+  getMetricStatus
+} from '@/lib/types/scorecard';
 import MetricChartModal from './MetricChartModal';
-import MetricConfigModal from './MetricConfigModal';
-
-export interface Metric {
-  id: string;
-  brand_id: string;
-  team_id?: string;
-  metric_key: string;
-  display_name: string;
-  goal_value?: number;
-  goal_operator?: string;
-  meta_campaigns?: string[];
-  formula?: any[];
-  created_at: string;
-  updated_at: string;
-}
 
 interface ScorecardMetricsProps {
   brandId: string;
@@ -46,45 +37,20 @@ interface ScorecardMetricsProps {
 }
 
 export default function ScorecardMetrics({ brandId, teamId }: ScorecardMetricsProps) {
-  const [metrics, setMetrics] = useState<Metric[]>([]);
-  const [metricsData, setMetricsData] = useState<Record<string, any>>({});
+  const [metrics, setMetrics] = useState<ScorecardMetric[]>([]);
+  const [metricsData, setMetricsData] = useState<Record<string, MetricWithData['data']>>({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedDateRange, setSelectedDateRange] = useState('last_13_weeks');
   const [timePeriod, setTimePeriod] = useState<'weekly' | 'monthly' | 'quarterly'>('weekly');
   const [currentWeekOffset, setCurrentWeekOffset] = useState(0);
-  const [selectedMetric, setSelectedMetric] = useState<Metric | null>(null);
+  const [selectedMetric, setSelectedMetric] = useState<ScorecardMetric | null>(null);
   const [showChartModal, setShowChartModal] = useState(false);
-  const [showConfigModal, setShowConfigModal] = useState(false);
-  const [editingMetric, setEditingMetric] = useState<Metric | null>(null);
-
-  // Fetch metrics configuration
-  const fetchMetrics = async () => {
-    try {
-      const params = new URLSearchParams({ brandId });
-      if (teamId) {
-        params.append('teamId', teamId);
-      }
-      
-      const response = await fetch(`/api/scorecard/metrics?${params}`);
-      const data = await response.json();
-      
-      if (response.ok) {
-        setMetrics(data.metrics || []);
-      } else {
-        console.error('Failed to fetch metrics:', data.error);
-      }
-    } catch (error) {
-      console.error('Error fetching metrics:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // Calculate date ranges
-  const getDateRanges = useCallback(() => {
+  const getDateRanges = useCallback((): DateRange[] => {
     const now = new Date();
-    const ranges = [];
+    const ranges: DateRange[] = [];
     const numberOfPeriods = getNumberOfPeriods();
     
     for (let i = 0; i < numberOfPeriods; i++) {
@@ -126,25 +92,8 @@ export default function ScorecardMetrics({ brandId, teamId }: ScorecardMetricsPr
       case 'last_13_weeks': return 13;
       case 'last_26_weeks': return 26;
       case 'last_52_weeks': return 52;
-      case 'qtd': return getQuarterToDatePeriods();
-      case 'ytd': return getYearToDatePeriods();
       default: return 13;
     }
-  };
-
-  const getQuarterToDatePeriods = () => {
-    const now = new Date();
-    const quarterStartMonth = Math.floor(now.getMonth() / 3) * 3;
-    const quarterStart = new Date(now.getFullYear(), quarterStartMonth, 1);
-    const weeksSinceQuarterStart = Math.ceil((now.getTime() - quarterStart.getTime()) / (7 * 24 * 60 * 60 * 1000));
-    return Math.min(weeksSinceQuarterStart, 13);
-  };
-
-  const getYearToDatePeriods = () => {
-    const now = new Date();
-    const yearStart = new Date(now.getFullYear(), 0, 1);
-    const weeksSinceYearStart = Math.ceil((now.getTime() - yearStart.getTime()) / (7 * 24 * 60 * 60 * 1000));
-    return Math.min(weeksSinceYearStart, 52);
   };
 
   const formatDateRangeLabel = (start: Date, end: Date, period: string) => {
@@ -163,103 +112,137 @@ export default function ScorecardMetrics({ brandId, teamId }: ScorecardMetricsPr
     }
   };
 
+  // Initialize metrics from predefined list
+  const initializeMetrics = async () => {
+    try {
+      console.log('[Scorecard] Initializing metrics');
+      
+      // For now, use the predefined metrics directly
+      // In a real implementation, we'd fetch from the database
+      const predefinedMetrics: ScorecardMetric[] = PREDEFINED_METRICS.map((metric, index) => ({
+        ...metric,
+        id: `metric-${index}`,
+        brand_id: brandId,
+        team_id: teamId,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }));
+      
+      setMetrics(predefinedMetrics);
+      setLoading(false);
+    } catch (error) {
+      console.error('[Scorecard] Error initializing metrics:', error);
+      setLoading(false);
+    }
+  };
+
+  // Fetch metrics data
+  const fetchMetricsData = async () => {
+    try {
+      const dateRanges = getDateRanges();
+      console.log(`[Scorecard] Fetching data for ${metrics.length} metrics and ${dateRanges.length} periods`);
+      
+      // Get data from scorecard_data table
+      const response = await fetch(`/api/scorecard/data?brandId=${brandId}${teamId ? `&teamId=${teamId}` : ''}`);
+      
+      if (response.ok) {
+        const { data } = await response.json();
+        
+        // Process data into the format we need
+        const processedData: Record<string, MetricWithData['data']> = {};
+        
+                 metrics.forEach(metric => {
+          const metricData = data.filter((d: { metric_id: string; value: number; period_start: string; period_end: string }) => d.metric_id === metric.id);
+          
+          if (metricData.length > 0) {
+            // Calculate current (most recent period)
+            const current = metricData[0]?.value || 0;
+            
+            // Calculate average
+            const average = metricData.reduce((sum: number, d: { value: number }) => sum + d.value, 0) / metricData.length;
+            
+            // Calculate trend
+            let trend: 'up' | 'down' | 'stable' = 'stable';
+            if (metricData.length >= 2) {
+              const previous = metricData[1]?.value || 0;
+              if (current > previous * 1.05) trend = 'up';
+              else if (current < previous * 0.95) trend = 'down';
+            }
+            
+            // Map periods
+            const periods = dateRanges.map(range => {
+              const periodData = metricData.find((d: { period_start: string; period_end: string; value: number }) => 
+                d.period_start === range.start.toISOString().split('T')[0] &&
+                d.period_end === range.end.toISOString().split('T')[0]
+              );
+              
+              return {
+                period: range.label,
+                value: periodData?.value || 0
+              };
+            });
+            
+            processedData[metric.id] = {
+              current,
+              average,
+              trend,
+              periods
+            };
+          }
+        });
+        
+        setMetricsData(processedData);
+      }
+    } catch (error) {
+      console.error('[Scorecard] Error fetching metrics data:', error);
+    }
+  };
+
   // Refresh data from Meta
   const handleRefreshData = async () => {
     if (metrics.length === 0) return;
     
     setRefreshing(true);
+    console.log('[Scorecard] Starting data refresh');
     
     try {
       const dateRanges = getDateRanges();
+      
       const response = await fetch('/api/scorecard/refresh', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           brandId,
           teamId,
-          dateRange: {
-            start: dateRanges[dateRanges.length - 1].start.toISOString().split('T')[0],
-            end: dateRanges[0].end.toISOString().split('T')[0]
-          },
-          metrics
+          dateRanges: dateRanges.map(range => ({
+            start: range.start,
+            end: range.end,
+            label: range.label
+          }))
         })
       });
       
       if (response.ok) {
+        const result = await response.json();
+        console.log('[Scorecard] Refresh completed:', result.summary);
+        
         // Refetch metrics data
         await fetchMetricsData();
       } else {
         const data = await response.json();
-        console.error('Failed to refresh data:', data.error);
+        console.error('[Scorecard] Failed to refresh data:', data.error);
       }
     } catch (error) {
-      console.error('Error refreshing data:', error);
+      console.error('[Scorecard] Error refreshing data:', error);
     } finally {
       setRefreshing(false);
     }
   };
 
-  // Fetch metrics data
-  const fetchMetricsData = async () => {
-    // Real implementation would fetch actual metric values from the API
-    // For each metric and date range, call the meta-insights API
-    const data: Record<string, any> = {};
-    
-    // TODO: Implement actual data fetching
-    // This will be populated when refresh is clicked
-    
-    setMetricsData(data);
-  };
 
-  // Save metric configuration
-  const handleSaveMetric = async (metric: Partial<Metric>) => {
-    try {
-      const method = metric.id ? 'PUT' : 'POST';
-      const response = await fetch('/api/scorecard/metrics', {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...metric,
-          brand_id: brandId,
-          team_id: teamId
-        })
-      });
-      
-      if (response.ok) {
-        await fetchMetrics();
-        setShowConfigModal(false);
-        setEditingMetric(null);
-      } else {
-        const data = await response.json();
-        console.error('Failed to save metric:', data.error);
-      }
-    } catch (error) {
-      console.error('Error saving metric:', error);
-    }
-  };
-
-  // Delete metric
-  const handleDeleteMetric = async (metricId: string) => {
-    if (!confirm('Are you sure you want to delete this metric?')) return;
-    
-    try {
-      const response = await fetch(`/api/scorecard/metrics?id=${metricId}`, {
-        method: 'DELETE'
-      });
-      
-      if (response.ok) {
-        await fetchMetrics();
-      } else {
-        const data = await response.json();
-        console.error('Failed to delete metric:', data.error);
-      }
-    } catch (error) {
-      console.error('Error deleting metric:', error);
-    }
-  };
 
   useEffect(() => {
-    fetchMetrics();
+    initializeMetrics();
   }, [brandId, teamId]);
 
   useEffect(() => {
@@ -269,7 +252,7 @@ export default function ScorecardMetrics({ brandId, teamId }: ScorecardMetricsPr
   }, [metrics, selectedDateRange, timePeriod, currentWeekOffset]);
 
   const dateRanges = getDateRanges();
-  const currentPeriodInfo = dateRanges[0] || { label: '' };
+  const visibleDateRanges = dateRanges.slice(0, 5); // Show 5 periods at a time
 
   return (
     <div className="space-y-6">
@@ -277,7 +260,7 @@ export default function ScorecardMetrics({ brandId, teamId }: ScorecardMetricsPr
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-semibold text-gray-900">Scorecard Metrics</h2>
-          <p className="text-gray-600">Track your key performance indicators and goals</p>
+          <p className="text-gray-600">Track your key performance indicators</p>
         </div>
         <div className="flex items-center gap-2">
           <Button
@@ -288,16 +271,6 @@ export default function ScorecardMetrics({ brandId, teamId }: ScorecardMetricsPr
           >
             <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
             Refresh Data
-          </Button>
-          <Button
-            onClick={() => {
-              setEditingMetric(null);
-              setShowConfigModal(true);
-            }}
-            className="flex items-center gap-2"
-          >
-            <Plus className="h-4 w-4" />
-            Add Metric
           </Button>
         </div>
       </div>
@@ -336,8 +309,6 @@ export default function ScorecardMetrics({ brandId, teamId }: ScorecardMetricsPr
                   <SelectItem value="last_13_weeks">Last 13 Weeks</SelectItem>
                   <SelectItem value="last_26_weeks">Last 26 Weeks</SelectItem>
                   <SelectItem value="last_52_weeks">Last 52 Weeks</SelectItem>
-                  <SelectItem value="qtd">Quarter to Date</SelectItem>
-                  <SelectItem value="ytd">Year to Date</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -345,7 +316,7 @@ export default function ScorecardMetrics({ brandId, teamId }: ScorecardMetricsPr
             <div className="flex items-center gap-4 text-sm text-gray-600">
               <div className="flex items-center gap-2">
                 <Calendar className="h-4 w-4" />
-                <span>Current Period: {currentPeriodInfo.label}</span>
+                <span>Showing: {visibleDateRanges[0]?.label} - {visibleDateRanges[visibleDateRanges.length - 1]?.label}</span>
               </div>
             </div>
           </div>
@@ -358,81 +329,139 @@ export default function ScorecardMetrics({ brandId, teamId }: ScorecardMetricsPr
           <div className="text-gray-500">Loading metrics...</div>
         </div>
       ) : metrics.length > 0 ? (
-        <div className="space-y-4">
-          {/* Metrics Header */}
-          <div className="sticky top-0 z-10 bg-white">
-            <div className="grid grid-cols-12 gap-4 px-4 py-2 bg-gray-50 rounded-lg font-medium text-sm text-gray-600">
-              <div className="col-span-1">Status</div>
-              <div className="col-span-2">Metric</div>
-              <div className="col-span-1">Current</div>
-              <div className="col-span-1">Average</div>
-              <div className="col-span-1">Goal</div>
-              <div className="col-span-5">
-                <div className="flex items-center">
-                  <button
-                    onClick={() => setCurrentWeekOffset(currentWeekOffset + 1)}
-                    className="p-1 hover:bg-gray-200 rounded mr-2"
-                    disabled={currentWeekOffset >= getNumberOfPeriods() - dateRanges.length}
-                    aria-label="Previous periods"
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </button>
-                  <div className="flex-1 overflow-x-auto">
-                    <div className="flex gap-4 min-w-max px-2">
-                      {dateRanges.map((range, index) => (
-                        <div key={index} className="text-center min-w-[80px] text-xs">
+        <div className="overflow-hidden">
+          {/* Scrollable container */}
+          <div className="overflow-x-auto">
+            <div className="min-w-[1200px]">
+              {/* Header */}
+              <div className="sticky top-0 z-10 bg-white border-b">
+                <div className="grid grid-cols-[50px_250px_100px_100px_100px_1fr_100px] gap-4 px-4 py-3 bg-gray-50 font-medium text-sm text-gray-600">
+                  <div>Status</div>
+                  <div>Metric</div>
+                  <div className="text-right">Current</div>
+                  <div className="text-right">Average</div>
+                  <div className="text-right">Goal</div>
+                  <div className="flex items-center justify-between px-4">
+                    <button
+                      onClick={() => setCurrentWeekOffset(Math.min(currentWeekOffset + 1, dateRanges.length - 5))}
+                      className="p-1 hover:bg-gray-200 rounded"
+                      disabled={currentWeekOffset >= dateRanges.length - 5}
+                      aria-label="Previous weeks"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </button>
+                    <div className="flex-1 grid grid-cols-5 gap-4">
+                      {visibleDateRanges.map((range, index) => (
+                        <div key={index} className="text-center text-xs">
                           {range.label}
                         </div>
                       ))}
                     </div>
+                    <button
+                      onClick={() => setCurrentWeekOffset(Math.max(0, currentWeekOffset - 1))}
+                      className="p-1 hover:bg-gray-200 rounded"
+                      disabled={currentWeekOffset === 0}
+                      aria-label="Next weeks"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </button>
                   </div>
-                  <button
-                    onClick={() => setCurrentWeekOffset(Math.max(0, currentWeekOffset - 1))}
-                    className="p-1 hover:bg-gray-200 rounded ml-2"
-                    disabled={currentWeekOffset === 0}
-                    aria-label="Next periods"
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </button>
+                  <div className="text-center">Actions</div>
                 </div>
               </div>
-              <div className="col-span-1">Actions</div>
+
+              {/* Rows */}
+              <div className="divide-y">
+                {metrics.map((metric) => {
+                  const data = metricsData[metric.id];
+                  const status = getMetricStatus(data?.current || 0, metric.goal_value, metric.goal_operator);
+                  
+                  return (
+                    <div key={metric.id} className="grid grid-cols-[50px_250px_100px_100px_100px_1fr_100px] gap-4 px-4 py-3 hover:bg-gray-50">
+                      {/* Status */}
+                      <div className="flex items-center justify-center">
+                        <div className={`w-3 h-3 rounded-full ${
+                          status === 'on-track' ? 'bg-green-500' :
+                          status === 'at-risk' ? 'bg-yellow-500' :
+                          status === 'off-track' ? 'bg-red-500' :
+                          'bg-gray-300'
+                        }`} />
+                      </div>
+                      
+                      {/* Metric Name */}
+                      <div>
+                        <div className="font-medium text-gray-900">{metric.display_name}</div>
+                        <div className="text-xs text-gray-500">{metric.description}</div>
+                      </div>
+                      
+                      {/* Current */}
+                      <div className="text-right font-medium">
+                        {formatMetricValue(data?.current, metric)}
+                      </div>
+                      
+                      {/* Average */}
+                      <div className="text-right text-gray-600">
+                        {formatMetricValue(data?.average, metric)}
+                      </div>
+                      
+                      {/* Goal */}
+                      <div className="text-right">
+                        {metric.goal_value ? (
+                          <span className={`font-medium ${
+                            status === 'on-track' ? 'text-green-600' :
+                            status === 'at-risk' ? 'text-yellow-600' :
+                            status === 'off-track' ? 'text-red-600' :
+                            'text-gray-600'
+                          }`}>
+                            {formatMetricValue(metric.goal_value, metric)}
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">--</span>
+                        )}
+                      </div>
+                      
+                      {/* Period Values */}
+                      <div className="grid grid-cols-5 gap-4 px-4">
+                        {visibleDateRanges.map((range, index) => {
+                          const periodData = data?.periods.find(p => p.period === range.label);
+                          return (
+                            <div key={index} className="text-right text-sm">
+                              {periodData ? formatMetricValue(periodData.value, metric) : '--'}
+                            </div>
+                          );
+                        })}
+                      </div>
+                      
+                      {/* Actions */}
+                      <div className="flex items-center justify-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedMetric(metric);
+                            setShowChartModal(true);
+                          }}
+                        >
+                          <BarChart3 className="h-4 w-4" />
+                        </Button>
+
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
-
-          {/* Metrics Rows */}
-          {metrics.map((metric) => (
-            <MetricRow
-              key={metric.id}
-              metric={metric}
-              data={metricsData[metric.id]}
-              dateRanges={dateRanges}
-              onEdit={() => {
-                setEditingMetric(metric);
-                setShowConfigModal(true);
-              }}
-              onDelete={() => handleDeleteMetric(metric.id)}
-              onViewChart={() => {
-                setSelectedMetric(metric);
-                setShowChartModal(true);
-              }}
-            />
-          ))}
         </div>
       ) : (
         <div className="text-center py-12">
           <BarChart3 className="mx-auto h-12 w-12 text-gray-400" />
-          <h3 className="mt-2 text-sm font-medium text-gray-900">No metrics yet</h3>
-          <p className="mt-1 text-sm text-gray-500">Get started by creating your first metric.</p>
+          <h3 className="mt-2 text-sm font-medium text-gray-900">No metrics configured</h3>
+          <p className="mt-1 text-sm text-gray-500">Metrics will be automatically created when you refresh data.</p>
           <div className="mt-6">
-            <Button
-              onClick={() => {
-                setEditingMetric(null);
-                setShowConfigModal(true);
-              }}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Create Your First Metric
+            <Button onClick={handleRefreshData}>
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Initialize Metrics
             </Button>
           </div>
         </div>
@@ -449,13 +478,7 @@ export default function ScorecardMetrics({ brandId, teamId }: ScorecardMetricsPr
         />
       )}
 
-      {/* Metric Configuration Modal */}
-      <MetricConfigModal
-        open={showConfigModal}
-        onOpenChange={setShowConfigModal}
-        metric={editingMetric}
-        onSave={handleSaveMetric}
-      />
+
     </div>
   );
 }
