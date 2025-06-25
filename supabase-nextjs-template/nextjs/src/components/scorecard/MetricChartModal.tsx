@@ -19,14 +19,14 @@ import {
   ResponsiveContainer,
   ReferenceLine
 } from 'recharts';
-import { Metric } from './ScorecardMetrics';
+import { ScorecardMetric, MetricWithData, DateRange } from '@/lib/types/scorecard';
 
 interface MetricChartModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  metric: Metric;
-  data: any;
-  dateRanges: any[];
+  metric: ScorecardMetric;
+  data: MetricWithData['data'];
+  dateRanges: DateRange[];
 }
 
 export default function MetricChartModal({ 

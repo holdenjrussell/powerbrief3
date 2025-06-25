@@ -78,15 +78,25 @@ export interface MetricWithData extends ScorecardMetric {
 export const PREDEFINED_METRICS: Omit<ScorecardMetric, 'id' | 'brand_id' | 'team_id' | 'created_at' | 'updated_at'>[] = [
   // Core Performance Metrics
   {
-    metric_key: 'omni_purchase_roas',
-    display_name: 'Omni Purchase ROAS',
-    description: 'Return on ad spend from all purchase sources (web, mobile, offline)',
+    metric_key: 'purchase_roas',
+    display_name: 'Purchase ROAS',
+    description: 'Return on ad spend from all purchase sources',
     metric_type: 'calculated',
     formula: [
       { type: 'metric', value: 'purchase_value' },
       { type: 'operator', value: '/' },
       { type: 'metric', value: 'spend' }
     ],
+    decimal_places: 2,
+    goal_operator: 'gte'
+  },
+  {
+    metric_key: 'purchase_value',
+    display_name: 'Purchase Value',
+    description: 'Total value from all purchase sources',
+    metric_type: 'meta_api',
+    formula: [{ type: 'metric', value: 'purchase_value' }],
+    is_currency: true,
     decimal_places: 2,
     goal_operator: 'gte'
   },
@@ -180,55 +190,6 @@ export const PREDEFINED_METRICS: Omit<ScorecardMetric, 'id' | 'brand_id' | 'team
     is_currency: true,
     decimal_places: 2,
     goal_operator: 'lte'
-  },
-  
-  // Advanced ROAS Metrics
-  {
-    metric_key: 'website_purchase_roas',
-    display_name: 'Website Purchase ROAS',
-    description: 'Return on ad spend from website purchases only',
-    metric_type: 'meta_api',
-    formula: [{ type: 'metric', value: 'website_purchase_roas' }],
-    decimal_places: 2,
-    goal_operator: 'gte'
-  },
-  {
-    metric_key: 'mobile_app_purchase_roas',
-    display_name: 'Mobile App Purchase ROAS',
-    description: 'Return on ad spend from mobile app purchases only',
-    metric_type: 'meta_api',
-    formula: [{ type: 'metric', value: 'mobile_app_purchase_roas' }],
-    decimal_places: 2,
-    goal_operator: 'gte'
-  },
-  
-  // Volume Metrics
-  {
-    metric_key: 'impressions',
-    display_name: 'Impressions',
-    description: 'Number of times ads were shown',
-    metric_type: 'meta_api',
-    formula: [{ type: 'metric', value: 'impressions' }],
-    decimal_places: 0,
-    goal_operator: 'gte'
-  },
-  {
-    metric_key: 'reach',
-    display_name: 'Reach',
-    description: 'Number of unique people who saw ads',
-    metric_type: 'meta_api',
-    formula: [{ type: 'metric', value: 'reach' }],
-    decimal_places: 0,
-    goal_operator: 'gte'
-  },
-  {
-    metric_key: 'frequency',
-    display_name: 'Frequency',
-    description: 'Average number of times each person saw ads',
-    metric_type: 'meta_api',
-    formula: [{ type: 'metric', value: 'frequency' }],
-    decimal_places: 2,
-    goal_operator: 'lte'
   }
 ];
 
@@ -236,17 +197,13 @@ export const PREDEFINED_METRICS: Omit<ScorecardMetric, 'id' | 'brand_id' | 'team
 export const META_FIELD_MAPPINGS: Record<string, string> = {
   'spend': 'spend',
   'impressions': 'impressions',
-  'reach': 'reach',
-  'frequency': 'frequency',
   'clicks': 'clicks',
   'cpm': 'cpm',
   'cpc': 'cpc',
   'ctr': 'ctr',
   'purchases': 'actions:omni_purchase',
   'purchase_value': 'action_values:omni_purchase',
-  'omni_purchase_roas': 'omni_purchase_roas',
-  'website_purchase_roas': 'website_purchase_roas',
-  'mobile_app_purchase_roas': 'mobile_app_purchase_roas',
+  'purchase_roas': 'purchase_roas',
   'link_clicks': 'inline_link_clicks',
   'unique_link_clicks': 'unique_inline_link_clicks',
   'cost_per_unique_link_click': 'cost_per_unique_inline_link_click',

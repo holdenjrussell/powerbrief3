@@ -59,8 +59,15 @@ export default function ScorecardMetrics({ brandId, teamId }: ScorecardMetricsPr
       
       switch (timePeriod) {
         case 'weekly':
-          startDate = new Date(now);
-          startDate.setDate(now.getDate() - (offset * 7) - now.getDay());
+          // Calculate the most recent Sunday
+          const mostRecentSunday = new Date(now);
+          mostRecentSunday.setDate(now.getDate() - now.getDay());
+          
+          // Go back 'offset' weeks from the most recent Sunday
+          startDate = new Date(mostRecentSunday);
+          startDate.setDate(mostRecentSunday.getDate() - (offset * 7));
+          
+          // End date is 6 days after start date (Saturday)
           endDate = new Date(startDate);
           endDate.setDate(startDate.getDate() + 6);
           break;
@@ -69,10 +76,13 @@ export default function ScorecardMetrics({ brandId, teamId }: ScorecardMetricsPr
           endDate = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0);
           break;
         case 'quarterly':
-          const quarterOffset = Math.floor(now.getMonth() / 3) - offset;
-          const quarterStartMonth = quarterOffset * 3;
-          startDate = new Date(now.getFullYear(), quarterStartMonth, 1);
-          endDate = new Date(startDate.getFullYear(), startDate.getMonth() + 3, 0);
+          const currentQuarter = Math.floor(now.getMonth() / 3);
+          const targetQuarter = currentQuarter - offset;
+          const targetYear = now.getFullYear() + Math.floor(targetQuarter / 4);
+          const targetQuarterInYear = ((targetQuarter % 4) + 4) % 4;
+          
+          startDate = new Date(targetYear, targetQuarterInYear * 3, 1);
+          endDate = new Date(targetYear, (targetQuarterInYear + 1) * 3, 0);
           break;
       }
       

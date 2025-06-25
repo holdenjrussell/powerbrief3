@@ -6,9 +6,10 @@ import {
   MetricFormula,
   DateRange
 } from '@/lib/types/scorecard';
+import { decryptToken } from '@/lib/utils/tokenEncryption';
 
 // Constants
-const META_API_VERSION = 'v18.0';
+const META_API_VERSION = 'v20.0';
 const INSIGHTS_LIMIT = 100;
 
 interface RefreshRequest {
@@ -103,6 +104,16 @@ async function fetchMetaInsightsForDateRange(
 
     if (!response.ok) {
       console.error(`[Scorecard] Meta API error:`, data.error);
+      
+      // Check for specific error types
+      if (data.error?.code === 190) {
+        throw new Error('Invalid or expired Meta access token. Please reconnect your Meta account in brand settings.');
+      } else if (data.error?.code === 100) {
+        throw new Error(`Invalid Meta API request: ${data.error.message}`);
+      } else if (data.error?.code === 200) {
+        throw new Error('Permission denied. Please ensure your Meta account has the necessary permissions.');
+      }
+      
       throw new Error(data.error?.message || 'Failed to fetch Meta insights');
     }
 
@@ -128,11 +139,15 @@ async function fetchMetaInsightsForDateRange(
         const action = actions.find((a: { action_type: string; value: string }) => a.action_type === actionName);
         processedData[metricKey] = action ? parseFloat(action.value) : 0;
         console.log(`[Scorecard] Processed action field ${field} -> ${metricKey} = ${processedData[metricKey]}`);
-      } else if (field.includes('roas') && Array.isArray(insights[field])) {
-        // Handle ROAS fields which might be arrays
+      } else if (field === 'purchase_roas' && Array.isArray(insights[field])) {
+        // Handle purchase_roas field which might be an array
         const roasArray = insights[field];
-        const omniRoas = roasArray.find((item: { action_type: string; value: string }) => item.action_type === 'omni_purchase');
-        processedData[metricKey] = omniRoas ? parseFloat(omniRoas.value) : 0;
+        const purchaseRoas = roasArray.find((item: { action_type: string; value: string }) => item.action_type === 'omni_purchase');
+        processedData[metricKey] = purchaseRoas ? parseFloat(purchaseRoas.value) : 0;
+        console.log(`[Scorecard] Processed ROAS field ${field} -> ${metricKey} = ${processedData[metricKey]}`);
+      } else if (field === 'purchase_roas' && typeof insights[field] === 'number') {
+        // Handle purchase_roas as a direct number
+        processedData[metricKey] = insights[field] || 0;
         console.log(`[Scorecard] Processed ROAS field ${field} -> ${metricKey} = ${processedData[metricKey]}`);
       } else {
         // Direct fields
@@ -173,7 +188,7 @@ export async function POST(request: NextRequest) {
     // Get brand with Meta token
     const { data: brand, error: brandError } = await supabase
       .from('brands')
-      .select('meta_access_token, meta_ad_account_id, meta_default_ad_account_id')
+      .select('meta_access_token, meta_access_token_iv, meta_access_token_auth_tag, meta_ad_account_id, meta_default_ad_account_id')
       .eq('id', brandId)
       .single();
 
@@ -186,6 +201,28 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ 
         error: 'Meta integration not configured for this brand' 
       }, { status: 400 });
+    }
+
+    // Decrypt the access token
+    let accessToken: string;
+    try {
+      accessToken = decryptToken({
+        encryptedToken: brand.meta_access_token,
+        iv: brand.meta_access_token_iv!,
+        authTag: brand.meta_access_token_auth_tag!
+      });
+      
+      // Validate token format
+      if (!accessToken || accessToken.length < 10) {
+        throw new Error('Invalid access token format');
+      }
+      
+      console.log(`[Scorecard Refresh] Access token decrypted successfully, length: ${accessToken.length}`);
+    } catch (error) {
+      console.error('[Scorecard Refresh] Failed to decrypt access token:', error);
+      return NextResponse.json({ 
+        error: 'Failed to decrypt Meta access token. Please reconnect your Meta account in brand settings.' 
+      }, { status: 500 });
     }
 
     // Determine which ad account to use
@@ -293,9 +330,6 @@ export async function POST(request: NextRequest) {
       requiredFields.add('actions');
       requiredFields.add('action_values');
       requiredFields.add('purchase_roas');
-      requiredFields.add('omni_purchase_roas');
-      requiredFields.add('website_purchase_roas');
-      requiredFields.add('mobile_app_purchase_roas');
     }
 
     console.log(`[Scorecard Refresh] Required Meta fields:`, Array.from(requiredFields));
@@ -306,17 +340,21 @@ export async function POST(request: NextRequest) {
     let errorCount = 0;
 
     for (const dateRange of dateRanges) {
-      const dateRangeStr = `${dateRange.start.toISOString().split('T')[0]} to ${dateRange.end.toISOString().split('T')[0]}`;
+      // Handle both Date objects and plain objects with start/end properties
+      const startDate = dateRange.start instanceof Date ? dateRange.start : new Date(dateRange.start);
+      const endDate = dateRange.end instanceof Date ? dateRange.end : new Date(dateRange.end);
+      
+      const dateRangeStr = `${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}`;
       console.log(`[Scorecard Refresh] Processing date range: ${dateRangeStr}`);
       
       try {
         // Fetch data from Meta API for this date range
         const metaData = await fetchMetaInsightsForDateRange(
           adAccountId,
-          brand.meta_access_token,
+          accessToken,
           {
-            start: dateRange.start.toISOString().split('T')[0],
-            end: dateRange.end.toISOString().split('T')[0]
+            start: startDate.toISOString().split('T')[0],
+            end: endDate.toISOString().split('T')[0]
           },
           requiredFields
         );
@@ -341,8 +379,8 @@ export async function POST(request: NextRequest) {
               formula, 
               metaData,
               {
-                start: dateRange.start.toISOString().split('T')[0],
-                end: dateRange.end.toISOString().split('T')[0]
+                start: startDate.toISOString().split('T')[0],
+                end: endDate.toISOString().split('T')[0]
               }
             );
 
@@ -351,8 +389,8 @@ export async function POST(request: NextRequest) {
               .from('scorecard_data')
               .upsert({
                 metric_id: metric.id,
-                period_start: dateRange.start.toISOString().split('T')[0],
-                period_end: dateRange.end.toISOString().split('T')[0],
+                period_start: startDate.toISOString().split('T')[0],
+                period_end: endDate.toISOString().split('T')[0],
                 period_type: 'week',
                 value: value,
                 raw_data: metaData
