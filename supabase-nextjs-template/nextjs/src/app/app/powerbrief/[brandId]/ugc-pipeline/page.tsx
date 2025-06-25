@@ -246,6 +246,12 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
       router.replace(`${pathname}${query}`);
       setActiveStatus(UGC_CREATOR_SCRIPT_CONCEPT_STATUSES[0]);
     }
+    
+    // Handle creator filter status from URL
+    const urlCreatorFilter = searchParams.get('creatorFilter');
+    if (urlCreatorFilter && (urlCreatorFilter === 'all' || UGC_CREATOR_ONBOARDING_STATUSES.includes(urlCreatorFilter))) {
+      setCreatorFilterStatus(urlCreatorFilter);
+    }
   }, [searchParams, pathname, router]);
 
   // Sync brand context with URL brandId
@@ -556,6 +562,21 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
   const handleViewChange = (view: ViewType) => {
     const current = new URLSearchParams(Array.from(searchParams.entries()));
     current.set('view', view);
+    const search = current.toString();
+    const query = search ? `?${search}` : "";
+    router.push(`${pathname}${query}`);
+  };
+
+  const handleCreatorFilterChange = (filterStatus: string) => {
+    setCreatorFilterStatus(filterStatus);
+    
+    // Update URL with the new filter
+    const current = new URLSearchParams(Array.from(searchParams.entries()));
+    if (filterStatus === 'all') {
+      current.delete('creatorFilter');
+    } else {
+      current.set('creatorFilter', filterStatus);
+    }
     const search = current.toString();
     const query = search ? `?${search}` : "";
     router.push(`${pathname}${query}`);
@@ -1926,7 +1947,7 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
 
                   {/* Creator Filter/Sort Options */}
                   <div className="flex flex-wrap gap-4 mb-6">
-                    <Select value={creatorFilterStatus} onValueChange={setCreatorFilterStatus}>
+                    <Select value={creatorFilterStatus} onValueChange={handleCreatorFilterChange}>
                       <SelectTrigger className="w-48">
                         <SelectValue placeholder="Filter by status" />
                       </SelectTrigger>

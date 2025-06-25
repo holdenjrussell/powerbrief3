@@ -3,9 +3,14 @@ import { v4 as uuidv4 } from 'uuid';
 import { 
   UgcCreator, 
   UgcCreatorScript, 
-  DbUgcCreator, 
+  DbUgcCreator,
   DbUgcCreatorScript 
 } from '../types/ugcCreator';
+import { 
+  sendUGCCreatorStatusNotification,
+  sendUGCContractStatusNotification,
+  sendUGCProductShipmentNotification 
+} from '@/lib/services/ugcSlackService';
 
 const supabase = createSPAClient();
 
@@ -88,66 +93,127 @@ export async function createUgcCreator(creator: Omit<UgcCreator, 'id' | 'created
 }
 
 export async function updateUgcCreator(creator: Partial<UgcCreator> & { id: string }): Promise<UgcCreator> {
-  // If status is being updated and it's "Approved for Next Steps", use our API endpoint that triggers n8n
-  if (creator.status === 'Approved for Next Steps' && creator.brand_id) {
-    try {
-      console.log(`🚀 Status update to "Approved for Next Steps" - triggering via API endpoint`);
-      
-      const response = await fetch(`/api/ugc/creators/${creator.id}/status`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          status: creator.status,
-          brandId: creator.brand_id
-        }),
-      });
-
-      if (!response.ok) {
-        console.error('Failed to update via API endpoint, falling back to direct update');
-        throw new Error('API endpoint failed');
-      }
-
-      const result = await response.json();
-      console.log(`✅ Successfully triggered n8n workflow via API endpoint`);
-      
-      return {
-        ...result.creator,
-        products: result.creator.products as string[] || [],
-        content_types: result.creator.content_types as string[] || [],
-        platforms: result.creator.platforms as string[] || [],
-        custom_fields: (result.creator.custom_fields as Record<string, string | number | boolean | string[] | null>) || {}
-      };
-    } catch (error) {
-      console.error('Error using API endpoint, falling back to direct update:', error);
-      // Fall through to direct database update if API fails
-    }
+  const supabase = createSPAClient();
+  
+  // Get the current creator to compare status changes
+  const { data: currentCreator, error: fetchError } = await supabase
+    .from('ugc_creators')
+    .select('*')
+    .eq('id', creator.id)
+    .single();
+    
+  if (fetchError) {
+    console.error('Error fetching current creator:', fetchError);
+    throw new Error('Failed to fetch current creator');
   }
-
-  // Default behavior: direct database update (for all other status changes)
+  
   const { data, error } = await supabase
     .from('ugc_creators')
-    .update({
-      ...creator,
-      updated_at: new Date().toISOString()
-    })
+    .update(creator)
     .eq('id', creator.id)
     .select()
     .single();
-
+    
   if (error) {
-    console.error('Error updating UGC creator:', error);
-    throw error;
+    console.error('Error updating creator:', error);
+    throw new Error('Failed to update creator');
   }
-
-  return {
+  
+  // Map the response to match UgcCreator type
+  const updatedCreator = {
     ...data,
     products: data.products as string[] || [],
     content_types: data.content_types as string[] || [],
     platforms: data.platforms as string[] || [],
     custom_fields: (data.custom_fields as Record<string, string | number | boolean | string[] | null>) || {}
-  };
+  } as UgcCreator;
+  
+  // Send Slack notifications for status changes
+  try {
+    const baseUrl = typeof window !== 'undefined' 
+      ? window.location.origin 
+      : 'http://localhost:3000';
+    const creatorDashboardLink = `${baseUrl}/app/powerbrief/${data.brand_id}/ugc-pipeline/creators/${data.id}`;
+    const pipelineDashboardLink = `${baseUrl}/app/powerbrief/${data.brand_id}/ugc-pipeline?view=creator`;
+    
+    // Creator status change notifications (only for specific statuses)
+    if (creator.status && currentCreator.status !== creator.status) {
+      const notifiableStatuses = ['Approved for next steps', 'Ready for scripts', 'Rejected'];
+      if (notifiableStatuses.includes(creator.status)) {
+        await sendUGCCreatorStatusNotification({
+          brandId: data.brand_id,
+          creatorId: data.id,
+          creatorName: data.name,
+          creatorEmail: data.email,
+          previousStatus: currentCreator.status || 'Unknown',
+          newStatus: creator.status,
+          creatorDashboardLink,
+          pipelineDashboardLink
+        });
+      }
+    }
+    
+    // Contract status change notifications
+    if (creator.contract_status && currentCreator.contract_status !== creator.contract_status) {
+      await sendUGCContractStatusNotification({
+        brandId: data.brand_id,
+        creatorId: data.id,
+        creatorName: data.name,
+        creatorEmail: data.email,
+        previousStatus: currentCreator.contract_status || 'not signed',
+        newStatus: creator.contract_status,
+        creatorDashboardLink,
+        pipelineDashboardLink
+      });
+    }
+    
+    // Product shipment status change notifications
+    if (creator.product_shipment_status && currentCreator.product_shipment_status !== creator.product_shipment_status) {
+      await sendUGCProductShipmentNotification({
+        brandId: data.brand_id,
+        creatorId: data.id,
+        creatorName: data.name,
+        creatorEmail: data.email,
+        previousStatus: currentCreator.product_shipment_status || 'Not Shipped',
+        newStatus: creator.product_shipment_status,
+        trackingNumber: creator.tracking_number,
+        creatorDashboardLink,
+        pipelineDashboardLink
+      });
+    }
+  } catch (slackError) {
+    console.error('Error sending Slack notification:', slackError);
+    // Don't fail the update if Slack notification fails
+  }
+  
+  // If brand_id is provided, trigger n8n workflow
+  if (creator.brand_id) {
+    try {
+      // Trigger n8n workflow for creator status change
+      const response = await fetch('/api/ugc/n8n/trigger', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          event: 'creator_status_changed',
+          brandId: creator.brand_id,
+          creatorId: creator.id,
+          status: creator.status,
+          data: updatedCreator
+        }),
+      });
+
+      if (!response.ok) {
+        console.error('Failed to trigger n8n workflow:', await response.text());
+      }
+    } catch (error) {
+      console.error('Error triggering n8n workflow:', error);
+      // Don't fail the update if n8n trigger fails
+    }
+  }
+  
+  return updatedCreator;
 }
 
 export async function deleteUgcCreator(creatorId: string): Promise<void> {

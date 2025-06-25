@@ -1,5 +1,4 @@
 import { createSSRClient } from '@/lib/supabase/server';
-import { Brand } from '@/lib/types/powerbrief';
 
 // Interfaces for UGC notification data
 interface UGCScriptApprovedData {
@@ -1202,5 +1201,455 @@ export async function sendUGCTestNotification(brandId: string): Promise<{ succes
   } catch (error) {
     console.error('Error sending UGC test notification:', error);
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+  }
+}
+
+// 9. Creator status change notification
+export interface UGCCreatorStatusData {
+  brandId: string;
+  creatorId: string;
+  creatorName: string;
+  creatorEmail: string;
+  previousStatus: string;
+  newStatus: string;
+  creatorDashboardLink: string;
+  pipelineDashboardLink: string;
+}
+
+export async function sendUGCCreatorStatusNotification(data: UGCCreatorStatusData): Promise<void> {
+  try {
+    const supabase = await createSSRClient();
+    
+    const { data: brand, error: brandError } = await supabase
+      .from('brands' as any)
+      .select('name, slack_webhook_url, ugc_slack_channel, slack_channel_name, slack_notifications_enabled, ugc_slack_notifications_enabled')
+      .eq('id', data.brandId)
+      .single();
+
+    if (brandError || !brand) {
+      console.error('Error fetching brand for UGC creator status notification:', brandError);
+      return;
+    }
+
+    const typedBrand = brand as unknown as BrandSlackSettings;
+
+    if (!typedBrand.ugc_slack_notifications_enabled || !typedBrand.slack_webhook_url) {
+      console.log('UGC Slack notifications not enabled for brand:', data.brandId);
+      return;
+    }
+
+    // Determine emoji and color based on status
+    let emoji = '📋';
+    let color = '#1f2937'; // gray
+    
+    if (data.newStatus === 'Approved for next steps') {
+      emoji = '✅';
+      color = '#10b981'; // green
+    } else if (data.newStatus === 'Ready for scripts') {
+      emoji = '🎬';
+      color = '#3b82f6'; // blue
+    } else if (data.newStatus === 'Rejected') {
+      emoji = '❌';
+      color = '#ef4444'; // red
+    }
+
+    const message = {
+      text: `${emoji} UGC Pipeline: Creator Status Updated`,
+      blocks: [
+        {
+          type: 'header',
+          text: {
+            type: 'plain_text',
+            text: `${emoji} UGC Pipeline: Creator Status Updated`,
+            emoji: true
+          }
+        },
+        {
+          type: 'section',
+          fields: [
+            {
+              type: 'mrkdwn',
+              text: `*Creator:*\n${data.creatorName}`
+            },
+            {
+              type: 'mrkdwn',
+              text: `*Email:*\n${data.creatorEmail}`
+            },
+            {
+              type: 'mrkdwn',
+              text: `*Previous Status:*\n${data.previousStatus}`
+            },
+            {
+              type: 'mrkdwn',
+              text: `*New Status:*\n${data.newStatus}`
+            }
+          ]
+        },
+        {
+          type: 'section',
+          text: {
+            type: 'mrkdwn',
+            text: `*Brand:* ${typedBrand.name}`
+          }
+        },
+        {
+          type: 'actions',
+          elements: [
+            {
+              type: 'button',
+              text: {
+                type: 'plain_text',
+                text: 'View Creator',
+                emoji: true
+              },
+              url: data.creatorDashboardLink,
+              style: 'primary'
+            },
+            {
+              type: 'button',
+              text: {
+                type: 'plain_text',
+                text: 'View Pipeline',
+                emoji: true
+              },
+              url: data.pipelineDashboardLink
+            }
+          ]
+        },
+        {
+          type: 'context',
+          elements: [
+            {
+              type: 'mrkdwn',
+              text: `Updated at ${new Date().toLocaleString()}`
+            }
+          ]
+        }
+      ],
+      attachments: [{
+        color: color
+      }]
+    };
+
+    const channelOverride = getUGCSlackChannel(typedBrand);
+    if (channelOverride) {
+      (message as any).channel = channelOverride;
+    }
+
+    const response = await fetch(typedBrand.slack_webhook_url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(message),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Failed to send UGC creator status notification:', response.status, errorText);
+    }
+
+  } catch (error) {
+    console.error('Error sending UGC creator status notification:', error);
+  }
+}
+
+// 10. Contract status change notification
+export interface UGCContractStatusData {
+  brandId: string;
+  creatorId: string;
+  creatorName: string;
+  creatorEmail: string;
+  previousStatus: string;
+  newStatus: string;
+  creatorDashboardLink: string;
+  pipelineDashboardLink: string;
+}
+
+export async function sendUGCContractStatusNotification(data: UGCContractStatusData): Promise<void> {
+  try {
+    const supabase = await createSSRClient();
+    
+    const { data: brand, error: brandError } = await supabase
+      .from('brands' as any)
+      .select('name, slack_webhook_url, ugc_slack_channel, slack_channel_name, slack_notifications_enabled, ugc_slack_notifications_enabled')
+      .eq('id', data.brandId)
+      .single();
+
+    if (brandError || !brand) {
+      console.error('Error fetching brand for UGC contract status notification:', brandError);
+      return;
+    }
+
+    const typedBrand = brand as unknown as BrandSlackSettings;
+
+    if (!typedBrand.ugc_slack_notifications_enabled || !typedBrand.slack_webhook_url) {
+      console.log('UGC Slack notifications not enabled for brand:', data.brandId);
+      return;
+    }
+
+    // Determine emoji based on status
+    let emoji = '📄';
+    if (data.newStatus === 'contract sent') {
+      emoji = '📨';
+    } else if (data.newStatus === 'contract signed') {
+      emoji = '✍️';
+    }
+
+    const message = {
+      text: `${emoji} UGC Pipeline: Contract Status Updated`,
+      blocks: [
+        {
+          type: 'header',
+          text: {
+            type: 'plain_text',
+            text: `${emoji} UGC Pipeline: Contract Status Updated`,
+            emoji: true
+          }
+        },
+        {
+          type: 'section',
+          fields: [
+            {
+              type: 'mrkdwn',
+              text: `*Creator:*\n${data.creatorName}`
+            },
+            {
+              type: 'mrkdwn',
+              text: `*Email:*\n${data.creatorEmail}`
+            },
+            {
+              type: 'mrkdwn',
+              text: `*Previous Status:*\n${data.previousStatus}`
+            },
+            {
+              type: 'mrkdwn',
+              text: `*New Status:*\n${data.newStatus}`
+            }
+          ]
+        },
+        {
+          type: 'section',
+          text: {
+            type: 'mrkdwn',
+            text: `*Brand:* ${typedBrand.name}`
+          }
+        },
+        {
+          type: 'actions',
+          elements: [
+            {
+              type: 'button',
+              text: {
+                type: 'plain_text',
+                text: 'View Creator',
+                emoji: true
+              },
+              url: data.creatorDashboardLink,
+              style: 'primary'
+            },
+            {
+              type: 'button',
+              text: {
+                type: 'plain_text',
+                text: 'View Contracts',
+                emoji: true
+              },
+              url: `${data.pipelineDashboardLink}&view=contracts`
+            }
+          ]
+        },
+        {
+          type: 'context',
+          elements: [
+            {
+              type: 'mrkdwn',
+              text: `Updated at ${new Date().toLocaleString()}`
+            }
+          ]
+        }
+      ]
+    };
+
+    const channelOverride = getUGCSlackChannel(typedBrand);
+    if (channelOverride) {
+      (message as any).channel = channelOverride;
+    }
+
+    const response = await fetch(typedBrand.slack_webhook_url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(message),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Failed to send UGC contract status notification:', response.status, errorText);
+    }
+
+  } catch (error) {
+    console.error('Error sending UGC contract status notification:', error);
+  }
+}
+
+// 11. Product shipment status change notification
+export interface UGCProductShipmentData {
+  brandId: string;
+  creatorId: string;
+  creatorName: string;
+  creatorEmail: string;
+  previousStatus: string;
+  newStatus: string;
+  trackingNumber?: string;
+  creatorDashboardLink: string;
+  pipelineDashboardLink: string;
+}
+
+export async function sendUGCProductShipmentNotification(data: UGCProductShipmentData): Promise<void> {
+  try {
+    const supabase = await createSSRClient();
+    
+    const { data: brand, error: brandError } = await supabase
+      .from('brands' as any)
+      .select('name, slack_webhook_url, ugc_slack_channel, slack_channel_name, slack_notifications_enabled, ugc_slack_notifications_enabled')
+      .eq('id', data.brandId)
+      .single();
+
+    if (brandError || !brand) {
+      console.error('Error fetching brand for UGC product shipment notification:', brandError);
+      return;
+    }
+
+    const typedBrand = brand as unknown as BrandSlackSettings;
+
+    if (!typedBrand.ugc_slack_notifications_enabled || !typedBrand.slack_webhook_url) {
+      console.log('UGC Slack notifications not enabled for brand:', data.brandId);
+      return;
+    }
+
+    // Determine emoji based on status
+    let emoji = '📦';
+    if (data.newStatus === 'Shipped') {
+      emoji = '🚚';
+    } else if (data.newStatus === 'Delivered') {
+      emoji = '✅';
+    } else if (data.newStatus === 'Processing') {
+      emoji = '⏳';
+    }
+
+    const message: any = {
+      text: `${emoji} UGC Pipeline: Product Shipment Status Updated`,
+      blocks: [
+        {
+          type: 'header',
+          text: {
+            type: 'plain_text',
+            text: `${emoji} UGC Pipeline: Product Shipment Status Updated`,
+            emoji: true
+          }
+        },
+        {
+          type: 'section',
+          fields: [
+            {
+              type: 'mrkdwn',
+              text: `*Creator:*\n${data.creatorName}`
+            },
+            {
+              type: 'mrkdwn',
+              text: `*Email:*\n${data.creatorEmail}`
+            },
+            {
+              type: 'mrkdwn',
+              text: `*Previous Status:*\n${data.previousStatus}`
+            },
+            {
+              type: 'mrkdwn',
+              text: `*New Status:*\n${data.newStatus}`
+            }
+          ]
+        }
+      ]
+    };
+
+    // Add tracking number if provided
+    if (data.trackingNumber) {
+      message.blocks.push({
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text: `*Tracking Number:* ${data.trackingNumber}`
+        }
+      });
+    }
+
+    // Add brand info
+    message.blocks.push({
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: `*Brand:* ${typedBrand.name}`
+      }
+    });
+
+    // Add actions
+    message.blocks.push({
+      type: 'actions',
+      elements: [
+        {
+          type: 'button',
+          text: {
+            type: 'plain_text',
+            text: 'View Creator',
+            emoji: true
+          },
+          url: data.creatorDashboardLink,
+          style: 'primary'
+        },
+        {
+          type: 'button',
+          text: {
+            type: 'plain_text',
+            text: 'View Pipeline',
+            emoji: true
+          },
+          url: data.pipelineDashboardLink
+        }
+      ]
+    });
+
+    // Add context
+    message.blocks.push({
+      type: 'context',
+      elements: [
+        {
+          type: 'mrkdwn',
+          text: `Updated at ${new Date().toLocaleString()}`
+        }
+      ]
+    });
+
+    const channelOverride = getUGCSlackChannel(typedBrand);
+    if (channelOverride) {
+      message.channel = channelOverride;
+    }
+
+    const response = await fetch(typedBrand.slack_webhook_url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(message),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Failed to send UGC product shipment notification:', response.status, errorText);
+    }
+
+  } catch (error) {
+    console.error('Error sending UGC product shipment notification:', error);
   }
 }
