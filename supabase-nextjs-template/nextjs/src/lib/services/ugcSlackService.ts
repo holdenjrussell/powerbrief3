@@ -1218,6 +1218,8 @@ export interface UGCCreatorStatusData {
 
 export async function sendUGCCreatorStatusNotification(data: UGCCreatorStatusData): Promise<void> {
   try {
+    console.log('sendUGCCreatorStatusNotification called with data:', data);
+    
     const supabase = await createSSRClient();
     
     const { data: brand, error: brandError } = await supabase
@@ -1232,6 +1234,13 @@ export async function sendUGCCreatorStatusNotification(data: UGCCreatorStatusDat
     }
 
     const typedBrand = brand as unknown as BrandSlackSettings;
+    
+    console.log('Brand settings:', {
+      name: typedBrand.name,
+      ugc_slack_notifications_enabled: typedBrand.ugc_slack_notifications_enabled,
+      slack_webhook_url: typedBrand.slack_webhook_url ? 'SET' : 'NOT SET',
+      ugc_slack_channel: typedBrand.ugc_slack_channel
+    });
 
     if (!typedBrand.ugc_slack_notifications_enabled || !typedBrand.slack_webhook_url) {
       console.log('UGC Slack notifications not enabled for brand:', data.brandId);
@@ -1242,13 +1251,13 @@ export async function sendUGCCreatorStatusNotification(data: UGCCreatorStatusDat
     let emoji = '📋';
     let color = '#1f2937'; // gray
     
-    if (data.newStatus === 'Approved for next steps') {
+    if (data.newStatus === 'Approved for Next Steps') {
       emoji = '✅';
       color = '#10b981'; // green
-    } else if (data.newStatus === 'Ready for scripts') {
+    } else if (data.newStatus === 'READY FOR SCRIPTS') {
       emoji = '🎬';
       color = '#3b82f6'; // blue
-    } else if (data.newStatus === 'Rejected') {
+    } else if (data.newStatus === 'REJECTED') {
       emoji = '❌';
       color = '#ef4444'; // red
     }
@@ -1335,6 +1344,9 @@ export async function sendUGCCreatorStatusNotification(data: UGCCreatorStatusDat
     if (channelOverride) {
       (message as any).channel = channelOverride;
     }
+    
+    console.log('Sending Slack message to webhook:', typedBrand.slack_webhook_url);
+    console.log('Message payload:', JSON.stringify(message, null, 2));
 
     const response = await fetch(typedBrand.slack_webhook_url, {
       method: 'POST',
@@ -1347,6 +1359,8 @@ export async function sendUGCCreatorStatusNotification(data: UGCCreatorStatusDat
     if (!response.ok) {
       const errorText = await response.text();
       console.error('Failed to send UGC creator status notification:', response.status, errorText);
+    } else {
+      console.log('UGC creator status notification sent successfully!');
     }
 
   } catch (error) {

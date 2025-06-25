@@ -73,7 +73,7 @@ export async function PATCH(
       
       // Creator status change notifications (only for specific statuses)
       if (body.status && currentCreator.status !== body.status) {
-        const notifiableStatuses = ['Approved for next steps', 'Ready for scripts', 'Rejected'];
+        const notifiableStatuses = ['Approved for Next Steps', 'READY FOR SCRIPTS', 'REJECTED'];
         if (notifiableStatuses.includes(body.status)) {
           console.log('Sending creator status notification...', {
             brandId: data.brand_id,
@@ -91,6 +91,8 @@ export async function PATCH(
             pipelineDashboardLink
           });
           console.log('Creator status notification sent successfully');
+        } else {
+          console.log('Status not in notifiable list:', body.status, 'Notifiable statuses:', notifiableStatuses);
         }
       }
       
