@@ -37,9 +37,9 @@ export default function MetricRow({
   onDelete, 
   onViewChart 
 }: MetricRowProps) {
-  const getStatusIcon = () => {
+  const getStatus = () => {
     if (!data || !metric.goal_value) {
-      return <Minus className="h-4 w-4 text-gray-400" />;
+      return 'none';
     }
 
     const current = data.current || 0;
@@ -72,14 +72,28 @@ export default function MetricRow({
     }
 
     if (isOnTrack) {
-      return <CheckCircle className="h-4 w-4 text-green-500" />;
+      return 'on-track';
     } else {
       const percentageOff = Math.abs((current - goal) / goal) * 100;
       if (percentageOff > 20) {
-        return <X className="h-4 w-4 text-red-500" />;
+        return 'off-track';
       } else {
-        return <AlertTriangle className="h-4 w-4 text-yellow-500" />;
+        return 'at-risk';
       }
+    }
+  };
+
+  const getStatusIcon = () => {
+    const status = getStatus();
+    switch (status) {
+      case 'on-track':
+        return <CheckCircle className="h-4 w-4 text-green-500" />;
+      case 'at-risk':
+        return <AlertTriangle className="h-4 w-4 text-yellow-500" />;
+      case 'off-track':
+        return <X className="h-4 w-4 text-red-500" />;
+      default:
+        return <Minus className="h-4 w-4 text-gray-400" />;
     }
   };
 
@@ -110,11 +124,17 @@ export default function MetricRow({
   };
 
   const getGoalBadgeColor = () => {
-    const statusIcon = getStatusIcon();
-    if (statusIcon?.type === CheckCircle) return 'bg-green-100 text-green-800';
-    if (statusIcon?.type === AlertTriangle) return 'bg-yellow-100 text-yellow-800';
-    if (statusIcon?.type === X) return 'bg-red-100 text-red-800';
-    return 'bg-gray-100 text-gray-800';
+    const status = getStatus();
+    switch (status) {
+      case 'on-track':
+        return 'bg-green-100 text-green-800';
+      case 'at-risk':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'off-track':
+        return 'bg-red-100 text-red-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
   };
 
   return (
