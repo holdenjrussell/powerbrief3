@@ -44,6 +44,8 @@
 
 ## 🟢 DATABASE QUICK FIX (Under 5 Minutes)
 
+**⚠️ Copy and paste into Supabase SQL Editor (don't create migration file):**
+
 ```sql
 -- Make all content visible (run in Supabase SQL Editor)
 UPDATE team_sync_announcements SET is_global = true;

@@ -1,5 +1,10 @@
 # 🚨 EMERGENCY ROLLBACK GUIDE - Teams Migration
 
+## ⚠️ CRITICAL: DO NOT CREATE MIGRATION FILES FOR ROLLBACK
+
+**All SQL commands in this guide should be run manually in Supabase SQL Editor.**
+**DO NOT create `.sql` files in the migrations folder - they will be automatically applied!**
+
 ## Quick Actions (Do These First!)
 
 ### 1. IMMEDIATE FRONTEND DISABLE (< 1 minute)
@@ -46,46 +51,120 @@ If team filtering is causing issues in Team Sync:
 
 This keeps the tables but disables their usage:
 
+**⚠️ IMPORTANT: Copy and paste this SQL into Supabase SQL Editor manually. DO NOT create a migration file!**
+
 ```sql
 -- SOFT ROLLBACK SCRIPT
 -- This disables teams without losing data
+-- MANUALLY RUN THIS IN SUPABASE SQL EDITOR
 
--- 1. Remove team requirements from team sync tables
+-- ============================================================================
+-- STEP 1: Make all team sync content visible to everyone
+-- ============================================================================
+
+-- Make all announcements global (visible to everyone)
+UPDATE team_sync_announcements 
+SET is_global = true 
+WHERE is_global = false;
+
+-- Remove team restrictions from todos
+UPDATE team_sync_todos 
+SET target_team_id = NULL 
+WHERE target_team_id IS NOT NULL;
+
+-- Remove team restrictions from issues
+UPDATE team_sync_issues 
+SET target_team_id = NULL 
+WHERE target_team_id IS NOT NULL;
+
+-- ============================================================================
+-- STEP 2: Set safe defaults for new content
+-- ============================================================================
+
+-- Ensure new announcements are global by default
 ALTER TABLE team_sync_announcements 
-  ALTER COLUMN target_team_ids SET DEFAULT '{}',
-  ALTER COLUMN is_global SET DEFAULT true;
+  ALTER COLUMN is_global SET DEFAULT true,
+  ALTER COLUMN target_team_ids SET DEFAULT '{}';
 
+-- Make team assignment optional for todos and issues
 ALTER TABLE team_sync_todos 
   ALTER COLUMN target_team_id DROP NOT NULL;
 
 ALTER TABLE team_sync_issues 
   ALTER COLUMN target_team_id DROP NOT NULL;
 
--- 2. Set all announcements to global (so they're visible to everyone)
-UPDATE team_sync_announcements 
-SET is_global = true 
-WHERE is_global = false;
+-- ============================================================================
+-- STEP 3: Disable automatic team creation
+-- ============================================================================
 
--- 3. Clear team assignments (optional - only if causing issues)
-UPDATE team_sync_todos SET target_team_id = NULL;
-UPDATE team_sync_issues SET target_team_id = NULL;
-
--- 4. Disable team creation trigger
+-- Disable trigger that creates teams for new brands
 DROP TRIGGER IF EXISTS on_brand_created_create_teams ON brands;
 
--- 5. Disable scorecard trigger
+-- Disable trigger that creates scorecard metrics for new teams
 DROP TRIGGER IF EXISTS on_team_created_create_scorecard ON teams;
 
--- Teams tables remain but are effectively disabled
+-- ============================================================================
+-- STEP 4: Verification
+-- ============================================================================
+
+-- Check that all content is now visible
+SELECT 
+  'Announcements' as content_type,
+  COUNT(*) as total_count,
+  COUNT(CASE WHEN is_global = true THEN 1 END) as global_count,
+  CASE 
+    WHEN COUNT(*) = COUNT(CASE WHEN is_global = true THEN 1 END) 
+    THEN '✅ All announcements are global'
+    ELSE '❌ Some announcements are still team-specific'
+  END as status
+FROM team_sync_announcements
+
+UNION ALL
+
+SELECT 
+  'Todos' as content_type,
+  COUNT(*) as total_count,
+  COUNT(CASE WHEN target_team_id IS NULL THEN 1 END) as unrestricted_count,
+  CASE 
+    WHEN COUNT(*) = COUNT(CASE WHEN target_team_id IS NULL THEN 1 END) 
+    THEN '✅ All todos are unrestricted'
+    ELSE '❌ Some todos are still team-specific'
+  END as status
+FROM team_sync_todos
+
+UNION ALL
+
+SELECT 
+  'Issues' as content_type,
+  COUNT(*) as total_count,
+  COUNT(CASE WHEN target_team_id IS NULL THEN 1 END) as unrestricted_count,
+  CASE 
+    WHEN COUNT(*) = COUNT(CASE WHEN target_team_id IS NULL THEN 1 END) 
+    THEN '✅ All issues are unrestricted'
+    ELSE '❌ Some issues are still team-specific'
+  END as status
+FROM team_sync_issues;
+
+-- ============================================================================
+-- ROLLBACK COMPLETE
+-- ============================================================================
+
+-- Summary
+SELECT 'SOFT ROLLBACK COMPLETE - Teams disabled but data preserved' as status;
 ```
+
+**Teams tables remain but are effectively disabled**
 
 ### Option B: Hard Rollback (Destructive - Last Resort)
 
 ⚠️ **WARNING**: This will DELETE all team data permanently!
 
+**⚠️ IMPORTANT: Copy and paste this SQL into Supabase SQL Editor manually. DO NOT create a migration file!**
+
 ```sql
 -- HARD ROLLBACK SCRIPT
 -- Only use if absolutely necessary - this DELETES data!
+-- MANUALLY RUN THIS IN SUPABASE SQL EDITOR
 
 -- 1. Drop foreign key constraints first
 ALTER TABLE team_sync_todos DROP CONSTRAINT IF EXISTS team_sync_todos_target_team_id_fkey;
