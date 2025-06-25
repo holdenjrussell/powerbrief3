@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createSSRClient } from '@/lib/supabase/server';
+import { createClient } from '@/utils/supabase/server';
 import {
   sendUGCCreatorStatusNotification,
   sendUGCContractStatusNotification,
@@ -17,9 +17,15 @@ export async function PATCH(
   { params }: Params
 ) {
   try {
-    const supabase = await createSSRClient();
+    const supabase = await createClient();
     const { creatorId } = params;
     const body = await request.json();
+    
+    // Check authentication
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     
     // Get the current creator to compare status changes
     const { data: currentCreator, error: fetchError } = await supabase
@@ -56,10 +62,24 @@ export async function PATCH(
       const creatorDashboardLink = `${baseUrl}/app/powerbrief/${data.brand_id}/ugc-pipeline/creators/${data.id}`;
       const pipelineDashboardLink = `${baseUrl}/app/powerbrief/${data.brand_id}/ugc-pipeline?view=creator`;
       
+      console.log('Checking for status changes...', {
+        currentStatus: currentCreator.status,
+        newStatus: body.status,
+        currentContractStatus: currentCreator.contract_status,
+        newContractStatus: body.contract_status,
+        currentShipmentStatus: currentCreator.product_shipment_status,
+        newShipmentStatus: body.product_shipment_status
+      });
+      
       // Creator status change notifications (only for specific statuses)
       if (body.status && currentCreator.status !== body.status) {
         const notifiableStatuses = ['Approved for next steps', 'Ready for scripts', 'Rejected'];
         if (notifiableStatuses.includes(body.status)) {
+          console.log('Sending creator status notification...', {
+            brandId: data.brand_id,
+            creatorName: data.name,
+            newStatus: body.status
+          });
           await sendUGCCreatorStatusNotification({
             brandId: data.brand_id,
             creatorId: data.id,
@@ -70,11 +90,17 @@ export async function PATCH(
             creatorDashboardLink,
             pipelineDashboardLink
           });
+          console.log('Creator status notification sent successfully');
         }
       }
       
       // Contract status change notifications
       if (body.contract_status && currentCreator.contract_status !== body.contract_status) {
+        console.log('Sending contract status notification...', {
+          brandId: data.brand_id,
+          creatorName: data.name,
+          newContractStatus: body.contract_status
+        });
         await sendUGCContractStatusNotification({
           brandId: data.brand_id,
           creatorId: data.id,
@@ -85,10 +111,16 @@ export async function PATCH(
           creatorDashboardLink,
           pipelineDashboardLink
         });
+        console.log('Contract status notification sent successfully');
       }
       
       // Product shipment status change notifications
       if (body.product_shipment_status && currentCreator.product_shipment_status !== body.product_shipment_status) {
+        console.log('Sending product shipment notification...', {
+          brandId: data.brand_id,
+          creatorName: data.name,
+          newShipmentStatus: body.product_shipment_status
+        });
         await sendUGCProductShipmentNotification({
           brandId: data.brand_id,
           creatorId: data.id,
@@ -100,6 +132,7 @@ export async function PATCH(
           creatorDashboardLink,
           pipelineDashboardLink
         });
+        console.log('Product shipment notification sent successfully');
       }
     } catch (slackError) {
       console.error('Error sending Slack notification:', slackError);
