@@ -335,7 +335,10 @@ export type Database = {
           content: string
           created_at: string
           id: string
+          is_global: boolean | null
+          is_resolved: boolean | null
           priority: string | null
+          target_team_ids: string[] | null
           title: string
           updated_at: string
           user_id: string
@@ -345,7 +348,10 @@ export type Database = {
           content: string
           created_at?: string
           id?: string
+          is_global?: boolean | null
+          is_resolved?: boolean | null
           priority?: string | null
+          target_team_ids?: string[] | null
           title: string
           updated_at?: string
           user_id: string
@@ -355,7 +361,10 @@ export type Database = {
           content?: string
           created_at?: string
           id?: string
+          is_global?: boolean | null
+          is_resolved?: boolean | null
           priority?: string | null
+          target_team_ids?: string[] | null
           title?: string
           updated_at?: string
           user_id?: string
@@ -467,13 +476,16 @@ export type Database = {
           brand_id: string
           created_at: string
           expires_at: string | null
+          first_name: string | null
           id: string
           invitation_token: string | null
+          last_name: string | null
           role: string
           shared_by_user_id: string
           shared_with_email: string
           shared_with_user_id: string | null
           status: string
+          team_ids: string[] | null
           updated_at: string
         }
         Insert: {
@@ -481,13 +493,16 @@ export type Database = {
           brand_id: string
           created_at?: string
           expires_at?: string | null
+          first_name?: string | null
           id?: string
           invitation_token?: string | null
+          last_name?: string | null
           role?: string
           shared_by_user_id: string
           shared_with_email: string
           shared_with_user_id?: string | null
           status?: string
+          team_ids?: string[] | null
           updated_at?: string
         }
         Update: {
@@ -495,13 +510,16 @@ export type Database = {
           brand_id?: string
           created_at?: string
           expires_at?: string | null
+          first_name?: string | null
           id?: string
           invitation_token?: string | null
+          last_name?: string | null
           role?: string
           shared_by_user_id?: string
           shared_with_email?: string
           shared_with_user_id?: string | null
           status?: string
+          team_ids?: string[] | null
           updated_at?: string
         }
         Relationships: [
@@ -569,6 +587,8 @@ export type Database = {
           ugc_default_system_instructions: string | null
           ugc_filming_instructions: string | null
           ugc_guide_description: string | null
+          ugc_slack_channel: string | null
+          ugc_slack_notifications_enabled: boolean | null
           updated_at: string
           user_id: string
         }
@@ -626,6 +646,8 @@ export type Database = {
           ugc_default_system_instructions?: string | null
           ugc_filming_instructions?: string | null
           ugc_guide_description?: string | null
+          ugc_slack_channel?: string | null
+          ugc_slack_notifications_enabled?: boolean | null
           updated_at?: string
           user_id: string
         }
@@ -683,6 +705,8 @@ export type Database = {
           ugc_default_system_instructions?: string | null
           ugc_filming_instructions?: string | null
           ugc_guide_description?: string | null
+          ugc_slack_channel?: string | null
+          ugc_slack_notifications_enabled?: boolean | null
           updated_at?: string
           user_id?: string
         }
@@ -1549,8 +1573,11 @@ export type Database = {
           description: string | null
           id: string
           issue_type: string | null
+          metric_context: Json | null
           priority_order: number | null
+          source_metric_id: string | null
           status: string | null
+          target_team_id: string | null
           title: string
           updated_at: string
           user_id: string
@@ -1562,8 +1589,11 @@ export type Database = {
           description?: string | null
           id?: string
           issue_type?: string | null
+          metric_context?: Json | null
           priority_order?: number | null
+          source_metric_id?: string | null
           status?: string | null
+          target_team_id?: string | null
           title: string
           updated_at?: string
           user_id: string
@@ -1575,8 +1605,11 @@ export type Database = {
           description?: string | null
           id?: string
           issue_type?: string | null
+          metric_context?: Json | null
           priority_order?: number | null
+          source_metric_id?: string | null
           status?: string | null
+          target_team_id?: string | null
           title?: string
           updated_at?: string
           user_id?: string
@@ -1587,6 +1620,20 @@ export type Database = {
             columns: ["brand_id"]
             isOneToOne: false
             referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "issues_source_metric_id_fkey"
+            columns: ["source_metric_id"]
+            isOneToOne: false
+            referencedRelation: "scorecard_metrics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "issues_target_team_id_fkey"
+            columns: ["target_team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
             referencedColumns: ["id"]
           },
         ]
@@ -1895,12 +1942,45 @@ export type Database = {
           benchmark_roas: number | null
           benchmark_spend: number | null
           brand_id: string
+          claude_concepts_prompt_template: string | null
+          claude_concepts_system_instructions: string | null
+          claude_hooks_prompt_template: string | null
+          claude_hooks_system_instructions: string | null
+          claude_iterations_prompt_template: string | null
+          claude_iterations_system_instructions: string | null
+          claude_model: string | null
+          claude_practices_prompt_template: string | null
+          claude_practices_system_instructions: string | null
+          claude_prompt_template: string | null
+          claude_system_instructions: string | null
+          claude_visuals_prompt_template: string | null
+          claude_visuals_system_instructions: string | null
           content_variables: Json | null
           content_variables_allow_new: boolean | null
           content_variables_prompt: string | null
           content_variables_return_multiple: boolean | null
           content_variables_selection_guidance: string | null
           created_at: string | null
+          creative_brainstorm_concepts_prompt_template: string | null
+          creative_brainstorm_concepts_response_schema: Json | null
+          creative_brainstorm_concepts_system_instructions: string | null
+          creative_brainstorm_context_options: Json | null
+          creative_brainstorm_hooks_prompt_template: string | null
+          creative_brainstorm_hooks_response_schema: Json | null
+          creative_brainstorm_hooks_system_instructions: string | null
+          creative_brainstorm_iterations_prompt_template: string | null
+          creative_brainstorm_iterations_response_schema: Json | null
+          creative_brainstorm_iterations_system_instructions: string | null
+          creative_brainstorm_model: string | null
+          creative_brainstorm_practices_prompt_template: string | null
+          creative_brainstorm_practices_response_schema: Json | null
+          creative_brainstorm_practices_system_instructions: string | null
+          creative_brainstorm_prompt_template: string | null
+          creative_brainstorm_response_schema: Json | null
+          creative_brainstorm_system_instructions: string | null
+          creative_brainstorm_visuals_prompt_template: string | null
+          creative_brainstorm_visuals_response_schema: Json | null
+          creative_brainstorm_visuals_system_instructions: string | null
           creators_used_prompt: string | null
           discovered_awareness_levels: Json | null
           discovered_content_variables: Json | null
@@ -1942,12 +2022,45 @@ export type Database = {
           benchmark_roas?: number | null
           benchmark_spend?: number | null
           brand_id: string
+          claude_concepts_prompt_template?: string | null
+          claude_concepts_system_instructions?: string | null
+          claude_hooks_prompt_template?: string | null
+          claude_hooks_system_instructions?: string | null
+          claude_iterations_prompt_template?: string | null
+          claude_iterations_system_instructions?: string | null
+          claude_model?: string | null
+          claude_practices_prompt_template?: string | null
+          claude_practices_system_instructions?: string | null
+          claude_prompt_template?: string | null
+          claude_system_instructions?: string | null
+          claude_visuals_prompt_template?: string | null
+          claude_visuals_system_instructions?: string | null
           content_variables?: Json | null
           content_variables_allow_new?: boolean | null
           content_variables_prompt?: string | null
           content_variables_return_multiple?: boolean | null
           content_variables_selection_guidance?: string | null
           created_at?: string | null
+          creative_brainstorm_concepts_prompt_template?: string | null
+          creative_brainstorm_concepts_response_schema?: Json | null
+          creative_brainstorm_concepts_system_instructions?: string | null
+          creative_brainstorm_context_options?: Json | null
+          creative_brainstorm_hooks_prompt_template?: string | null
+          creative_brainstorm_hooks_response_schema?: Json | null
+          creative_brainstorm_hooks_system_instructions?: string | null
+          creative_brainstorm_iterations_prompt_template?: string | null
+          creative_brainstorm_iterations_response_schema?: Json | null
+          creative_brainstorm_iterations_system_instructions?: string | null
+          creative_brainstorm_model?: string | null
+          creative_brainstorm_practices_prompt_template?: string | null
+          creative_brainstorm_practices_response_schema?: Json | null
+          creative_brainstorm_practices_system_instructions?: string | null
+          creative_brainstorm_prompt_template?: string | null
+          creative_brainstorm_response_schema?: Json | null
+          creative_brainstorm_system_instructions?: string | null
+          creative_brainstorm_visuals_prompt_template?: string | null
+          creative_brainstorm_visuals_response_schema?: Json | null
+          creative_brainstorm_visuals_system_instructions?: string | null
           creators_used_prompt?: string | null
           discovered_awareness_levels?: Json | null
           discovered_content_variables?: Json | null
@@ -1989,12 +2102,45 @@ export type Database = {
           benchmark_roas?: number | null
           benchmark_spend?: number | null
           brand_id?: string
+          claude_concepts_prompt_template?: string | null
+          claude_concepts_system_instructions?: string | null
+          claude_hooks_prompt_template?: string | null
+          claude_hooks_system_instructions?: string | null
+          claude_iterations_prompt_template?: string | null
+          claude_iterations_system_instructions?: string | null
+          claude_model?: string | null
+          claude_practices_prompt_template?: string | null
+          claude_practices_system_instructions?: string | null
+          claude_prompt_template?: string | null
+          claude_system_instructions?: string | null
+          claude_visuals_prompt_template?: string | null
+          claude_visuals_system_instructions?: string | null
           content_variables?: Json | null
           content_variables_allow_new?: boolean | null
           content_variables_prompt?: string | null
           content_variables_return_multiple?: boolean | null
           content_variables_selection_guidance?: string | null
           created_at?: string | null
+          creative_brainstorm_concepts_prompt_template?: string | null
+          creative_brainstorm_concepts_response_schema?: Json | null
+          creative_brainstorm_concepts_system_instructions?: string | null
+          creative_brainstorm_context_options?: Json | null
+          creative_brainstorm_hooks_prompt_template?: string | null
+          creative_brainstorm_hooks_response_schema?: Json | null
+          creative_brainstorm_hooks_system_instructions?: string | null
+          creative_brainstorm_iterations_prompt_template?: string | null
+          creative_brainstorm_iterations_response_schema?: Json | null
+          creative_brainstorm_iterations_system_instructions?: string | null
+          creative_brainstorm_model?: string | null
+          creative_brainstorm_practices_prompt_template?: string | null
+          creative_brainstorm_practices_response_schema?: Json | null
+          creative_brainstorm_practices_system_instructions?: string | null
+          creative_brainstorm_prompt_template?: string | null
+          creative_brainstorm_response_schema?: Json | null
+          creative_brainstorm_system_instructions?: string | null
+          creative_brainstorm_visuals_prompt_template?: string | null
+          creative_brainstorm_visuals_response_schema?: Json | null
+          creative_brainstorm_visuals_system_instructions?: string | null
           creators_used_prompt?: string | null
           discovered_awareness_levels?: Json | null
           discovered_content_variables?: Json | null
@@ -2402,6 +2548,47 @@ export type Database = {
         }
         Relationships: []
       }
+      scorecard_data: {
+        Row: {
+          created_at: string | null
+          id: string
+          metric_id: string | null
+          period_end: string
+          period_start: string
+          period_type: string
+          raw_data: Json | null
+          value: number
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          metric_id?: string | null
+          period_end: string
+          period_start: string
+          period_type: string
+          raw_data?: Json | null
+          value: number
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          metric_id?: string | null
+          period_end?: string
+          period_start?: string
+          period_type?: string
+          raw_data?: Json | null
+          value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scorecard_data_metric_id_fkey"
+            columns: ["metric_id"]
+            isOneToOne: false
+            referencedRelation: "scorecard_metrics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       scorecard_manual_data: {
         Row: {
           created_at: string | null
@@ -2518,25 +2705,61 @@ export type Database = {
       scorecard_metrics: {
         Row: {
           brand_id: string | null
+          calculation_formula: string | null
           created_at: string
+          decimal_places: number | null
+          description: string | null
+          display_name: string
+          goal_operator: string | null
+          goal_value: number | null
           id: string
-          metric_config: Json
+          is_currency: boolean | null
+          is_percentage: boolean | null
+          meta_campaigns: string[] | null
+          meta_fields: string[] | null
+          metric_key: string
+          metric_type: string
+          team_id: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
           brand_id?: string | null
+          calculation_formula?: string | null
           created_at?: string
+          decimal_places?: number | null
+          description?: string | null
+          display_name: string
+          goal_operator?: string | null
+          goal_value?: number | null
           id?: string
-          metric_config: Json
+          is_currency?: boolean | null
+          is_percentage?: boolean | null
+          meta_campaigns?: string[] | null
+          meta_fields?: string[] | null
+          metric_key: string
+          metric_type: string
+          team_id?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
           brand_id?: string | null
+          calculation_formula?: string | null
           created_at?: string
+          decimal_places?: number | null
+          description?: string | null
+          display_name?: string
+          goal_operator?: string | null
+          goal_value?: number | null
           id?: string
-          metric_config?: Json
+          is_currency?: boolean | null
+          is_percentage?: boolean | null
+          meta_campaigns?: string[] | null
+          meta_fields?: string[] | null
+          metric_key?: string
+          metric_type?: string
+          team_id?: string | null
           updated_at?: string
           user_id?: string
         }
@@ -2546,6 +2769,13 @@ export type Database = {
             columns: ["brand_id"]
             isOneToOne: false
             referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scorecard_metrics_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
             referencedColumns: ["id"]
           },
         ]
@@ -2738,6 +2968,102 @@ export type Database = {
         }
         Relationships: []
       }
+      team_feature_access: {
+        Row: {
+          created_at: string | null
+          feature_key: string
+          has_access: boolean | null
+          id: string
+          team_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          feature_key: string
+          has_access?: boolean | null
+          id?: string
+          team_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          feature_key?: string
+          has_access?: boolean | null
+          id?: string
+          team_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_feature_access_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      team_members: {
+        Row: {
+          created_at: string | null
+          team_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          team_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          team_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_members_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      teams: {
+        Row: {
+          brand_id: string | null
+          created_at: string | null
+          id: string
+          is_default: boolean | null
+          name: string
+          updated_at: string | null
+        }
+        Insert: {
+          brand_id?: string | null
+          created_at?: string | null
+          id?: string
+          is_default?: boolean | null
+          name: string
+          updated_at?: string | null
+        }
+        Update: {
+          brand_id?: string | null
+          created_at?: string | null
+          id?: string
+          is_default?: boolean | null
+          name?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teams_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       todo_issues: {
         Row: {
           created_at: string
@@ -2817,6 +3143,7 @@ export type Database = {
           due_date: string | null
           id: string
           priority: string | null
+          target_team_id: string | null
           title: string
           updated_at: string
           user_id: string
@@ -2830,6 +3157,7 @@ export type Database = {
           due_date?: string | null
           id?: string
           priority?: string | null
+          target_team_id?: string | null
           title: string
           updated_at?: string
           user_id: string
@@ -2843,6 +3171,7 @@ export type Database = {
           due_date?: string | null
           id?: string
           priority?: string | null
+          target_team_id?: string | null
           title?: string
           updated_at?: string
           user_id?: string
@@ -2853,6 +3182,13 @@ export type Database = {
             columns: ["brand_id"]
             isOneToOne: false
             referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "todos_target_team_id_fkey"
+            columns: ["target_team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
             referencedColumns: ["id"]
           },
         ]
@@ -3205,6 +3541,8 @@ export type Database = {
           brand_id: string
           company_description: string | null
           concept_status: string | null
+          content_resubmitted: boolean | null
+          content_revision_count: number | null
           created_at: string
           creative_strategist: string | null
           creator_footage: string | null
@@ -3217,6 +3555,7 @@ export type Database = {
           final_payment_amount: number | null
           final_payment_paid_date: string | null
           guide_description: string | null
+          has_revisions: boolean | null
           hook_body: string | null
           hook_count: number | null
           hook_type: string | null
@@ -3224,6 +3563,8 @@ export type Database = {
           inspiration_video_notes: string | null
           inspiration_video_url: string | null
           is_ai_generated: boolean | null
+          last_content_revision_at: string | null
+          last_revision_at: string | null
           linked_brief_batch_id: string | null
           linked_brief_concept_id: string | null
           media_type: string | null
@@ -3232,6 +3573,7 @@ export type Database = {
           payment_notes: string | null
           payment_status: string | null
           public_share_id: string | null
+          revision_count: number | null
           revision_notes: string | null
           script_content: Json | null
           status: string | null
@@ -3247,6 +3589,8 @@ export type Database = {
           brand_id: string
           company_description?: string | null
           concept_status?: string | null
+          content_resubmitted?: boolean | null
+          content_revision_count?: number | null
           created_at?: string
           creative_strategist?: string | null
           creator_footage?: string | null
@@ -3259,6 +3603,7 @@ export type Database = {
           final_payment_amount?: number | null
           final_payment_paid_date?: string | null
           guide_description?: string | null
+          has_revisions?: boolean | null
           hook_body?: string | null
           hook_count?: number | null
           hook_type?: string | null
@@ -3266,6 +3611,8 @@ export type Database = {
           inspiration_video_notes?: string | null
           inspiration_video_url?: string | null
           is_ai_generated?: boolean | null
+          last_content_revision_at?: string | null
+          last_revision_at?: string | null
           linked_brief_batch_id?: string | null
           linked_brief_concept_id?: string | null
           media_type?: string | null
@@ -3274,6 +3621,7 @@ export type Database = {
           payment_notes?: string | null
           payment_status?: string | null
           public_share_id?: string | null
+          revision_count?: number | null
           revision_notes?: string | null
           script_content?: Json | null
           status?: string | null
@@ -3289,6 +3637,8 @@ export type Database = {
           brand_id?: string
           company_description?: string | null
           concept_status?: string | null
+          content_resubmitted?: boolean | null
+          content_revision_count?: number | null
           created_at?: string
           creative_strategist?: string | null
           creator_footage?: string | null
@@ -3301,6 +3651,7 @@ export type Database = {
           final_payment_amount?: number | null
           final_payment_paid_date?: string | null
           guide_description?: string | null
+          has_revisions?: boolean | null
           hook_body?: string | null
           hook_count?: number | null
           hook_type?: string | null
@@ -3308,6 +3659,8 @@ export type Database = {
           inspiration_video_notes?: string | null
           inspiration_video_url?: string | null
           is_ai_generated?: boolean | null
+          last_content_revision_at?: string | null
+          last_revision_at?: string | null
           linked_brief_batch_id?: string | null
           linked_brief_concept_id?: string | null
           media_type?: string | null
@@ -3316,6 +3669,7 @@ export type Database = {
           payment_notes?: string | null
           payment_status?: string | null
           public_share_id?: string | null
+          revision_count?: number | null
           revision_notes?: string | null
           script_content?: Json | null
           status?: string | null
@@ -5493,6 +5847,14 @@ export type Database = {
       }
       create_default_page_types: {
         Args: { p_brand_id: string; p_user_id: string }
+        Returns: undefined
+      }
+      create_default_scorecard_metrics: {
+        Args: { p_brand_id: string; p_team_id: string }
+        Returns: undefined
+      }
+      create_default_teams_for_brand: {
+        Args: { p_brand_id: string }
         Returns: undefined
       }
       create_invitation: {

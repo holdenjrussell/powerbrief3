@@ -21,30 +21,22 @@ import {
   TabsList,
   TabsTrigger,
   TabsContent,
-  Alert,
-  AlertDescription,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
-  Checkbox
+  SelectValue
 } from '@/components/ui';
 import { 
   Plus, 
   Edit,
   Trash2,
   Users,
-  Settings,
+  User,
   Shield,
-  AlertCircle,
-  Check,
-  X,
-  UserPlus,
   UserMinus,
   Building2
 } from 'lucide-react';
-import { createClient } from '@/utils/supabase/client';
 
 interface Team {
   id: string;
@@ -61,6 +53,13 @@ interface Team {
 interface TeamMember {
   id: string;
   email: string;
+  fullName?: string | null;
+  avatarUrl?: string | null;
+  role?: string;
+  isOwner?: boolean;
+  shareId?: string;
+  acceptedAt?: string;
+  // Legacy fields for compatibility
   first_name?: string | null;
   last_name?: string | null;
 }
@@ -341,9 +340,15 @@ export default function TeamManagement({ brandId }: TeamManagementProps) {
   };
 
   const getMemberName = (member: TeamMember) => {
+    // Try fullName first (from new API)
+    if (member.fullName) {
+      return member.fullName;
+    }
+    // Fall back to first_name/last_name (legacy)
     if (member.first_name && member.last_name) {
       return `${member.first_name} ${member.last_name}`;
     }
+    // Default to email
     return member.email;
   };
 

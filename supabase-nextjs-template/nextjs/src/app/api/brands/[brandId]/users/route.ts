@@ -26,11 +26,11 @@ export async function GET(
       return NextResponse.json({ error: 'Brand not found' }, { status: 404 });
     }
 
-    // Check if user owns the brand or has accepted brand share
+    // Check if user is owner or has accepted share
     const isOwner = brand.user_id === user.id;
     
     if (!isOwner) {
-      const { data: brandShare } = await supabase
+      const { data: share } = await supabase
         .from('brand_shares')
         .select('id')
         .eq('brand_id', brandId)
@@ -38,65 +38,85 @@ export async function GET(
         .eq('status', 'accepted')
         .single();
 
-      if (!brandShare) {
-        return NextResponse.json({ error: 'Unauthorized to view this brand' }, { status: 403 });
+      if (!share) {
+        return NextResponse.json({ error: 'Access denied' }, { status: 403 });
       }
     }
 
-    // Get all users with accepted brand shares
-    const { data: brandShares, error: sharesError } = await supabase
+    // Get all users with accepted shares for this brand
+    const { data: shares, error: sharesError } = await supabase
       .from('brand_shares')
       .select(`
+        id,
         shared_with_user_id,
+        shared_with_email,
+        role,
+        status,
         first_name,
         last_name,
-        email
+        accepted_at,
+        profiles:shared_with_user_id (
+          id,
+          email,
+          full_name,
+          avatar_url
+        )
       `)
       .eq('brand_id', brandId)
       .eq('status', 'accepted');
 
     if (sharesError) {
       console.error('Error fetching brand shares:', sharesError);
-      return NextResponse.json({ error: 'Failed to fetch brand users' }, { status: 500 });
+      return NextResponse.json({ error: 'Failed to fetch shares' }, { status: 500 });
     }
 
-    // Get brand owner info
-    const { data: ownerData } = await supabase
-      .from('auth.users')
-      .select('id, email')
+    // Get the brand owner's profile
+    const { data: ownerProfile } = await supabase
+      .from('profiles')
+      .select('id, email, full_name, avatar_url')
       .eq('id', brand.user_id)
       .single();
 
     // Format the response
     const users = [];
 
-    // Add brand owner
-    if (ownerData) {
+    // Add owner
+    if (ownerProfile) {
       users.push({
-        id: ownerData.id,
-        email: ownerData.email,
-        first_name: 'Brand',
-        last_name: 'Owner',
-        is_owner: true
+        id: ownerProfile.id,
+        email: ownerProfile.email,
+        fullName: ownerProfile.full_name,
+        avatarUrl: ownerProfile.avatar_url,
+        role: 'owner',
+        isOwner: true
       });
     }
 
-    // Add users with brand shares
-    if (brandShares) {
-      brandShares.forEach(share => {
-        users.push({
-          id: share.shared_with_user_id,
-          email: share.email || '',
-          first_name: share.first_name || '',
-          last_name: share.last_name || '',
-          is_owner: false
-        });
+    // Add shared users
+    if (shares) {
+      shares.forEach(share => {
+        if (share.profiles) {
+          users.push({
+            id: share.profiles.id,
+            email: share.profiles.email || share.shared_with_email,
+            fullName: share.profiles.full_name || `${share.first_name || ''} ${share.last_name || ''}`.trim() || share.shared_with_email,
+            avatarUrl: share.profiles.avatar_url,
+            role: share.role,
+            isOwner: false,
+            shareId: share.id,
+            acceptedAt: share.accepted_at
+          });
+        }
       });
     }
 
     return NextResponse.json({ users });
+
   } catch (error) {
-    console.error('Error in brand users GET:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error('Error in /api/brands/[brandId]/users:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
 } 
