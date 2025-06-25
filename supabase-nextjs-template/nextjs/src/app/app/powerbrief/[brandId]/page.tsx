@@ -20,6 +20,7 @@ import MetaTokenManager from '@/components/MetaTokenManager';
 import BrandSharingManager from '@/components/BrandSharingManager';
 import BrandEmailSettings from '@/components/brand/BrandEmailSettings';
 import OneSheetManager from '@/components/OneSheetManager';
+import TeamManagement from '@/components/teams/TeamManagement';
 
 // Helper to unwrap params safely
 type ParamsType = { brandId: string };
@@ -1470,6 +1471,11 @@ export default function BrandDetailPage({ params }: { params: ParamsType }) {
                         />
                     </CardContent>
                 </Card>
+                
+                {/* Team Management Column */}
+                <div className="min-w-[600px] max-w-[600px] flex-shrink-0">
+                    <TeamManagement brandId={brand.id} />
+                </div>
             </div>
             
             {/* Delete Brand Dialog */}

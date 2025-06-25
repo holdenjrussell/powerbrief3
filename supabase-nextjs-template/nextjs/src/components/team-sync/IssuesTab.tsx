@@ -36,24 +36,49 @@ import {
   XCircle,
   Circle,
   CheckSquare,
-  CheckSquare2
+  CheckSquare2,
+  Send,
+  BarChart3,
+  AlertCircle,
+  Zap,
+  Activity,
+  HelpCircle,
+  X,
+  Bug
 } from 'lucide-react';
-import { linkifyText } from './utils/linkify';
+import { linkifyText, linkifyTextWithWhitespace } from './utils/linkify';
+import { useBrand } from '@/lib/context/BrandContext';
+import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
+
+interface Team {
+  id: string;
+  name: string;
+  brand_id: string;
+}
 
 interface Issue {
   id: string;
   user_id: string;
   brand_id?: string;
   title: string;
-  description: string;
-  issue_type: 'short_term' | 'long_term';
-  status: 'open' | 'in_progress' | 'resolved';
+  description?: string;
+  issue_type: 'bug' | 'feature' | 'improvement' | 'question';
+  status: 'open' | 'in_progress' | 'resolved' | 'closed';
   priority_order: number;
-  assignee_id: string | null;
   created_at: string;
   updated_at: string;
-  assignee?: { email: string };
-  creator?: { email: string };
+  target_team_id?: string;
+  source_metric_id?: string;
+  // Added for display
+  creator?: {
+    email: string;
+  } | null;
+  target_team?: {
+    name: string;
+  } | null;
+  source_metric?: {
+    display_name: string;
+  } | null;
 }
 
 interface Todo {
@@ -102,8 +127,24 @@ const typeColors = {
   long_term: 'bg-purple-100 text-purple-800'
 };
 
+const issueTypeIcons = {
+  bug: Bug,
+  feature: Zap,
+  improvement: Activity,
+  question: HelpCircle
+};
+
+const columns = [
+  { status: 'open' as const, title: 'Open', icon: AlertCircle },
+  { status: 'in_progress' as const, title: 'In Progress', icon: Clock },
+  { status: 'resolved' as const, title: 'Resolved', icon: CheckCircle },
+  { status: 'closed' as const, title: 'Closed', icon: X }
+];
+
 export default function IssuesTab({ brandId }: IssuesTabProps) {
+  const { selectedTeam } = useBrand();
   const [issues, setIssues] = useState<Issue[]>([]);
+  const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isLinkTodoDialogOpen, setIsLinkTodoDialogOpen] = useState(false);
@@ -112,11 +153,12 @@ export default function IssuesTab({ brandId }: IssuesTabProps) {
   const [linkedTodos, setLinkedTodos] = useState<{[issueId: string]: Todo[]}>({});
   const [brandUsers, setBrandUsers] = useState<BrandUser[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
+  const [selectedMetricId, setSelectedMetricId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    issue_type: 'short_term' as 'short_term' | 'long_term',
-    assignee_id: 'none'
+    issue_type: 'bug' as 'bug' | 'feature' | 'improvement' | 'question',
+    target_team_id: ''
   });
   const [todoFormData, setTodoFormData] = useState({
     title: '',
@@ -141,7 +183,11 @@ export default function IssuesTab({ brandId }: IssuesTabProps) {
   const fetchIssues = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/team-sync/issues?brandId=${brandId}`);
+      const params = new URLSearchParams({ brandId });
+      if (selectedTeam) {
+        params.append('teamId', selectedTeam.id);
+      }
+      const response = await fetch(`/api/team-sync/issues?${params}`);
       const data = await response.json();
       if (response.ok) {
         setIssues(data.issues);
@@ -183,10 +229,28 @@ export default function IssuesTab({ brandId }: IssuesTabProps) {
     }
   };
 
+  const fetchTeams = async () => {
+    try {
+      const response = await fetch(`/api/teams?brandId=${brandId}`);
+      const data = await response.json();
+      if (response.ok && data.teams) {
+        setTeams(data.teams);
+      } else {
+        console.error('Failed to fetch teams:', data.error);
+      }
+    } catch (error) {
+      console.error('Error fetching teams:', error);
+    }
+  };
+
   useEffect(() => {
     fetchIssues();
     fetchTodos();
     fetchBrandUsers();
+  }, [brandId, selectedTeam]);
+
+  useEffect(() => {
+    fetchTeams();
   }, [brandId]);
 
   // Fetch linked todos for all issues when issues are loaded
@@ -203,14 +267,19 @@ export default function IssuesTab({ brandId }: IssuesTabProps) {
     
     try {
       const method = editingIssue ? 'PUT' : 'POST';
-      // Convert "none" or "pending" assignee_id to null for API
-      const processedFormData = {
-        ...formData,
-        assignee_id: (formData.assignee_id === 'none' || formData.assignee_id.startsWith('pending-')) ? null : formData.assignee_id
-      };
-      const body = editingIssue 
-        ? { ...processedFormData, id: editingIssue.id, brand_id: brandId }
-        : { ...processedFormData, brand_id: brandId };
+      const body: any = editingIssue 
+        ? { 
+            ...formData, 
+            id: editingIssue.id, 
+            brand_id: brandId,
+            target_team_id: formData.target_team_id || selectedTeam?.id
+          }
+        : { 
+            ...formData, 
+            brand_id: brandId,
+            target_team_id: formData.target_team_id || selectedTeam?.id,
+            source_metric_id: selectedMetricId
+          };
 
       const response = await fetch('/api/team-sync/issues', {
         method,
@@ -224,7 +293,8 @@ export default function IssuesTab({ brandId }: IssuesTabProps) {
         await fetchIssues();
         setIsDialogOpen(false);
         setEditingIssue(null);
-        setFormData({ title: '', description: '', issue_type: 'short_term', assignee_id: 'none' });
+        setSelectedMetricId(null);
+        setFormData({ title: '', description: '', issue_type: 'bug', target_team_id: '' });
       } else {
         console.error('Failed to save issue:', data.error);
       }
@@ -285,9 +355,9 @@ export default function IssuesTab({ brandId }: IssuesTabProps) {
     setEditingIssue(issue);
     setFormData({
       title: issue.title,
-      description: issue.description,
+      description: issue.description || '',
       issue_type: issue.issue_type,
-      assignee_id: issue.assignee_id || 'none'
+      target_team_id: issue.target_team_id || ''
     });
     setIsDialogOpen(true);
   };
@@ -367,8 +437,66 @@ export default function IssuesTab({ brandId }: IssuesTabProps) {
   };
 
   const resetForm = () => {
-    setFormData({ title: '', description: '', issue_type: 'short_term', assignee_id: 'none' });
+    setFormData({ title: '', description: '', issue_type: 'bug', target_team_id: '' });
     setEditingIssue(null);
+    setSelectedMetricId(null);
+  };
+
+  // Handler to create issue from metric
+  const handleCreateIssueFromMetric = (metricId: string, metricName: string) => {
+    setSelectedMetricId(metricId);
+    setFormData({
+      title: `Investigate ${metricName} performance`,
+      description: `This issue was created from the ${metricName} metric in the scorecard.`,
+      issue_type: 'improvement',
+      target_team_id: ''
+    });
+    setIsDialogOpen(true);
+  };
+
+  const getIssuesByStatus = (status: string) => {
+    return issues
+      .filter(issue => issue.status === status)
+      .sort((a, b) => a.priority_order - b.priority_order);
+  };
+
+  const handleDragEnd = async (result: DropResult) => {
+    if (!result.destination) return;
+
+    const { source, destination } = result;
+    
+    // If dropped in the same position, do nothing
+    if (source.droppableId === destination.droppableId && source.index === destination.index) {
+      return;
+    }
+
+    const issueId = result.draggableId;
+    const newStatus = destination.droppableId as Issue['status'];
+    
+    // Update the issue status
+    const issue = issues.find(i => i.id === issueId);
+    if (!issue) return;
+
+    try {
+      const response = await fetch('/api/team-sync/issues', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          id: issue.id, 
+          status: newStatus,
+          priority_order: destination.index 
+        })
+      });
+
+      if (response.ok) {
+        await fetchIssues();
+      } else {
+        const data = await response.json();
+        console.error('Failed to update issue:', data.error);
+      }
+    } catch (error) {
+      console.error('Error updating issue:', error);
+    }
   };
 
   if (loading) {
@@ -390,7 +518,12 @@ export default function IssuesTab({ brandId }: IssuesTabProps) {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-semibold text-gray-900">Team Issues</h2>
-          <p className="text-gray-600">Track and prioritize team issues and blockers</p>
+          <p className="text-gray-600">
+            {selectedTeam 
+              ? `Showing issues for ${selectedTeam.name}`
+              : 'Select a team to filter issues'
+            }
+          </p>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={(open) => {
           setIsDialogOpen(open);
@@ -406,6 +539,7 @@ export default function IssuesTab({ brandId }: IssuesTabProps) {
             <DialogHeader>
               <DialogTitle>
                 {editingIssue ? 'Edit Issue' : 'Create New Issue'}
+                {selectedMetricId && ' from Metric'}
               </DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -435,7 +569,7 @@ export default function IssuesTab({ brandId }: IssuesTabProps) {
                 <Label htmlFor="issue_type">Type</Label>
                 <Select 
                   value={formData.issue_type} 
-                  onValueChange={(value: 'short_term' | 'long_term') => 
+                  onValueChange={(value: 'bug' | 'feature' | 'improvement' | 'question') => 
                     setFormData({ ...formData, issue_type: value })
                   }
                 >
@@ -443,33 +577,32 @@ export default function IssuesTab({ brandId }: IssuesTabProps) {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="short_term">Short Term</SelectItem>
-                    <SelectItem value="long_term">Long Term</SelectItem>
+                    <SelectItem value="bug">Bug</SelectItem>
+                    <SelectItem value="feature">Feature</SelectItem>
+                    <SelectItem value="improvement">Improvement</SelectItem>
+                    <SelectItem value="question">Question</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               
               <div>
-                <Label htmlFor="assignee">Assignee (Optional)</Label>
+                <Label htmlFor="target_team">Target Team</Label>
                 <Select 
-                  value={formData.assignee_id} 
-                  onValueChange={(value: string) => 
-                    setFormData({ ...formData, assignee_id: value })
-                  }
+                  value={formData.target_team_id} 
+                  onValueChange={(value) => setFormData({ ...formData, target_team_id: value })}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder={loadingUsers ? "Loading users..." : "Select assignee"} />
+                    <SelectValue placeholder={selectedTeam ? selectedTeam.name : "Select target team"} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">No Assignee</SelectItem>
-                    {brandUsers.map((user) => (
-                      <SelectItem 
-                        key={user.id || `issue-pending-${user.email}`} 
-                        value={user.id || `pending-${user.email}`}
-                        disabled={!user.id}
-                      >
-                        {user.full_name} ({user.email})
-                        {user.is_pending && ' - Pending'}
+                    {teams.map((team) => (
+                      <SelectItem key={team.id} value={team.id}>
+                        <div className="flex items-center gap-2">
+                          {team.name}
+                          {team.id === selectedTeam?.id && (
+                            <Badge variant="secondary" className="text-xs">Current</Badge>
+                          )}
+                        </div>
                       </SelectItem>
                     ))}
                   </SelectContent>

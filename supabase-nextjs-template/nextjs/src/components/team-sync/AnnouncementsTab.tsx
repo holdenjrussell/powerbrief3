@@ -20,7 +20,8 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue
+  SelectValue,
+  Switch
 } from '@/components/ui';
 import { 
   Plus, 
@@ -31,9 +32,12 @@ import {
   Trash2,
   AlertCircle,
   CheckCircle,
-  Info
+  Info,
+  Globe,
+  Check
 } from 'lucide-react';
 import { linkifyTextWithWhitespace } from './utils/linkify';
+import { useBrand } from '@/lib/context/BrandContext';
 
 interface Announcement {
   id: string;
@@ -42,6 +46,9 @@ interface Announcement {
   title: string;
   content: string;
   priority: 'low' | 'normal' | 'high' | 'urgent';
+  is_resolved?: boolean;
+  is_global?: boolean;
+  target_team_ids?: string[];
   created_at: string;
   updated_at: string;
   profiles?: {
@@ -68,6 +75,7 @@ const priorityIcons = {
 };
 
 export default function AnnouncementsTab({ brandId }: AnnouncementsTabProps) {
+  const { selectedTeam } = useBrand();
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -75,13 +83,18 @@ export default function AnnouncementsTab({ brandId }: AnnouncementsTabProps) {
   const [formData, setFormData] = useState({
     title: '',
     content: '',
-    priority: 'normal' as 'low' | 'normal' | 'high' | 'urgent'
+    priority: 'normal' as 'low' | 'normal' | 'high' | 'urgent',
+    is_global: false
   });
 
   const fetchAnnouncements = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/team-sync/announcements?brandId=${brandId}`);
+      const params = new URLSearchParams({ brandId });
+      if (selectedTeam) {
+        params.append('teamId', selectedTeam.id);
+      }
+      const response = await fetch(`/api/team-sync/announcements?${params}`);
       const data = await response.json();
       if (response.ok) {
         setAnnouncements(data.announcements);
@@ -97,7 +110,7 @@ export default function AnnouncementsTab({ brandId }: AnnouncementsTabProps) {
 
   useEffect(() => {
     fetchAnnouncements();
-  }, [brandId]);
+  }, [brandId, selectedTeam]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -106,7 +119,11 @@ export default function AnnouncementsTab({ brandId }: AnnouncementsTabProps) {
       const method = editingAnnouncement ? 'PUT' : 'POST';
       const body = editingAnnouncement 
         ? { ...formData, id: editingAnnouncement.id, brand_id: brandId }
-        : { ...formData, brand_id: brandId };
+        : { 
+            ...formData, 
+            brand_id: brandId,
+            target_team_ids: formData.is_global ? [] : (selectedTeam ? [selectedTeam.id] : [])
+          };
 
       const response = await fetch('/api/team-sync/announcements', {
         method,
@@ -120,7 +137,7 @@ export default function AnnouncementsTab({ brandId }: AnnouncementsTabProps) {
         await fetchAnnouncements();
         setIsDialogOpen(false);
         setEditingAnnouncement(null);
-        setFormData({ title: '', content: '', priority: 'normal' });
+        setFormData({ title: '', content: '', priority: 'normal', is_global: false });
       } else {
         console.error('Failed to save announcement:', data.error);
       }
@@ -129,12 +146,32 @@ export default function AnnouncementsTab({ brandId }: AnnouncementsTabProps) {
     }
   };
 
+  const handleResolve = async (id: string, is_resolved: boolean) => {
+    try {
+      const response = await fetch('/api/team-sync/announcements', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, is_resolved })
+      });
+
+      if (response.ok) {
+        await fetchAnnouncements();
+      } else {
+        const data = await response.json();
+        console.error('Failed to update announcement:', data.error);
+      }
+    } catch (error) {
+      console.error('Error updating announcement:', error);
+    }
+  };
+
   const handleEdit = (announcement: Announcement) => {
     setEditingAnnouncement(announcement);
     setFormData({
       title: announcement.title,
       content: announcement.content,
-      priority: announcement.priority
+      priority: announcement.priority,
+      is_global: announcement.is_global || false
     });
     setIsDialogOpen(true);
   };
@@ -159,7 +196,7 @@ export default function AnnouncementsTab({ brandId }: AnnouncementsTabProps) {
   };
 
   const resetForm = () => {
-    setFormData({ title: '', content: '', priority: 'normal' });
+    setFormData({ title: '', content: '', priority: 'normal', is_global: false });
     setEditingAnnouncement(null);
   };
 
@@ -177,7 +214,12 @@ export default function AnnouncementsTab({ brandId }: AnnouncementsTabProps) {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-semibold text-gray-900">Team Announcements</h2>
-          <p className="text-gray-600">Share important updates and information with your team</p>
+          <p className="text-gray-600">
+            {selectedTeam 
+              ? `Showing announcements for ${selectedTeam.name}`
+              : 'Select a team to filter announcements'
+            }
+          </p>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={(open) => {
           setIsDialogOpen(open);
@@ -239,6 +281,18 @@ export default function AnnouncementsTab({ brandId }: AnnouncementsTabProps) {
                 </Select>
               </div>
               
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="is_global"
+                  checked={formData.is_global}
+                  onCheckedChange={(checked) => setFormData({ ...formData, is_global: checked })}
+                />
+                <Label htmlFor="is_global" className="flex items-center gap-2">
+                  <Globe className="h-4 w-4" />
+                  Make this a global announcement (visible to all teams)
+                </Label>
+              </div>
+              
               <div className="flex gap-2 pt-4">
                 <Button 
                   type="button" 
@@ -263,7 +317,10 @@ export default function AnnouncementsTab({ brandId }: AnnouncementsTabProps) {
           {announcements.map((announcement) => {
             const PriorityIcon = priorityIcons[announcement.priority];
             return (
-              <Card key={announcement.id} className="hover:shadow-md transition-shadow">
+              <Card 
+                key={announcement.id} 
+                className={`hover:shadow-md transition-shadow ${announcement.is_resolved ? 'opacity-60' : ''}`}
+              >
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
                     <div className="flex items-start gap-3 flex-1">
@@ -276,6 +333,18 @@ export default function AnnouncementsTab({ brandId }: AnnouncementsTabProps) {
                           <Badge className={priorityColors[announcement.priority]}>
                             {announcement.priority}
                           </Badge>
+                          {announcement.is_global && (
+                            <Badge variant="outline" className="flex items-center gap-1">
+                              <Globe className="h-3 w-3" />
+                              Global
+                            </Badge>
+                          )}
+                          {announcement.is_resolved && (
+                            <Badge variant="secondary" className="flex items-center gap-1">
+                              <Check className="h-3 w-3" />
+                              Resolved
+                            </Badge>
+                          )}
                         </div>
                         <div className="flex items-center gap-4 text-sm text-gray-500">
                           <div className="flex items-center gap-1">
@@ -290,6 +359,17 @@ export default function AnnouncementsTab({ brandId }: AnnouncementsTabProps) {
                       </div>
                     </div>
                     <div className="flex gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleResolve(announcement.id, !announcement.is_resolved)}
+                      >
+                        {announcement.is_resolved ? (
+                          <AlertCircle className="h-4 w-4" />
+                        ) : (
+                          <Check className="h-4 w-4" />
+                        )}
+                      </Button>
                       <Button
                         variant="ghost"
                         size="sm"
