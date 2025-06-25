@@ -65,12 +65,9 @@ interface TeamMember {
 }
 
 interface FeatureAccess {
-  id: string;
-  team_id: string;
-  feature_key: string;
+  key: string;
+  label: string;
   has_access: boolean;
-  created_at: string;
-  updated_at: string;
 }
 
 interface TeamManagementProps {
@@ -99,7 +96,7 @@ export default function TeamManagement({ brandId }: TeamManagementProps) {
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [availableUsers, setAvailableUsers] = useState<TeamMember[]>([]);
-  const [featureAccess, setFeatureAccess] = useState<FeatureAccess[]>([]);
+  const [featureAccess, setFeatureAccess] = useState<Record<string, FeatureAccess>>({});
   const [loading, setLoading] = useState(true);
   const [isTeamDialogOpen, setIsTeamDialogOpen] = useState(false);
   const [editingTeam, setEditingTeam] = useState<Team | null>(null);
@@ -167,11 +164,11 @@ export default function TeamManagement({ brandId }: TeamManagementProps) {
         setFeatureAccess(data.features);
       } else {
         console.error('Failed to fetch feature access:', data.error);
-        setFeatureAccess([]); // Set to empty array on error
+        setFeatureAccess({}); // Set to empty object on error
       }
     } catch (error) {
       console.error('Error fetching feature access:', error);
-      setFeatureAccess([]); // Set to empty array on error
+      setFeatureAccess({}); // Set to empty object on error
     }
   };
 
@@ -303,26 +300,22 @@ export default function TeamManagement({ brandId }: TeamManagementProps) {
     if (!selectedTeam) return;
 
     try {
-      const updatedFeatures = (featureAccess || []).map(f => 
-        f.feature_key === featureKey ? { ...f, has_access: hasAccess } : f
-      );
-      
-      // If feature doesn't exist, add it
-      if (!(featureAccess || []).find(f => f.feature_key === featureKey)) {
-        updatedFeatures.push({
-          id: '',
-          team_id: selectedTeam.id,
-          feature_key: featureKey,
-          has_access: hasAccess,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        });
-      }
+      // Create features object for the API
+      const updatedFeatures = { ...featureAccess };
+      updatedFeatures[featureKey] = {
+        key: featureKey,
+        label: updatedFeatures[featureKey]?.label || featureKey,
+        has_access: hasAccess
+      };
 
       const response = await fetch(`/api/teams/${selectedTeam.id}/features`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ features: updatedFeatures })
+        body: JSON.stringify({ 
+          features: Object.fromEntries(
+            Object.entries(updatedFeatures).map(([key, feature]) => [key, feature.has_access])
+          )
+        })
       });
 
       if (response.ok) {
@@ -341,7 +334,7 @@ export default function TeamManagement({ brandId }: TeamManagementProps) {
   );
 
   const getFeatureAccess = (featureKey: string) => {
-    const access = (featureAccess || []).find(f => f.feature_key === featureKey);
+    const access = featureAccess[featureKey];
     return access ? access.has_access : true; // Default to true if not found
   };
 
