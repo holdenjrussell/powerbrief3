@@ -27,7 +27,7 @@ import {
   Label,
   Textarea
 } from "@/components/ui";
-import { ChevronRight, User2, ShoppingBag, FileVideo, AtSign, Package, ExternalLink, Instagram, FileText, Send } from 'lucide-react';
+import { ChevronRight, User2, ShoppingBag, FileVideo, AtSign, Package, ExternalLink, Instagram, FileText, Send, FileCheck } from 'lucide-react';
 import { UgcCreator, UGC_CREATOR_ONBOARDING_STATUSES, UGC_CREATOR_CONTRACT_STATUSES, UGC_CREATOR_PRODUCT_SHIPMENT_STATUSES } from '@/lib/types/ugcCreator';
 import { ContractTemplate } from '@/lib/types/contracts';
 import { updateUgcCreator } from '@/lib/services/ugcCreatorService';
@@ -36,14 +36,15 @@ interface CreatorCardProps {
   creator: UgcCreator;
   brandId: string;
   onUpdate?: (updatedCreator: UgcCreator) => void;
+  scriptCounts?: Record<string, number>;
 }
 
-export default function CreatorCard({ creator, brandId, onUpdate }: CreatorCardProps) {
+export default function CreatorCard({ creator, brandId, onUpdate, scriptCounts }: CreatorCardProps) {
   const [isUpdating, setIsUpdating] = useState(false);
   const [showContractDialog, setShowContractDialog] = useState(false);
   const [contractTemplates, setContractTemplates] = useState<ContractTemplate[]>([]);
   const [loadingTemplates, setLoadingTemplates] = useState(false);
-  const [sendingContract, setSendingContract] = useState(false);
+  const [sendingContract] = useState(false);
   const [contractData, setContractData] = useState({
     title: '',
     templateId: '',
@@ -457,6 +458,36 @@ export default function CreatorCard({ creator, brandId, onUpdate }: CreatorCardP
               >
                 Portfolio
               </a>
+            </div>
+          )}
+          
+          {/* Script counts display */}
+          {scriptCounts && Object.keys(scriptCounts).length > 0 && (
+            <div className="mt-3 pt-3 border-t">
+              <div className="flex items-center text-sm font-medium mb-2">
+                <FileCheck className="h-4 w-4 mr-2 text-gray-500" />
+                <span>Scripts Assigned</span>
+              </div>
+              <div className="space-y-1">
+                {Object.entries(scriptCounts).map(([status, count]) => {
+                  // Define colors for each status
+                  const statusColors: Record<string, string> = {
+                    'Send Script to Creator': 'text-blue-600',
+                    'Creator Shooting': 'text-purple-600',
+                    'Content Approval': 'text-orange-600',
+                    'To Edit': 'text-green-600'
+                  };
+                  
+                  const color = statusColors[status] || 'text-gray-600';
+                  
+                  return (
+                    <div key={status} className="flex items-center justify-between text-xs">
+                      <span className={color}>{status}:</span>
+                      <span className={`font-medium ${color}`}>{count}</span>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
         </div>

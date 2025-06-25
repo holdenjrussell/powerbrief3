@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { 
   Search, 
   Download, 
@@ -13,12 +12,10 @@ import {
   Play, 
   Image as ImageIcon,
   Settings,
-  Eye,
   Calendar,
   Users,
   TrendingUp,
   ExternalLink,
-  Plus,
   Filter,
   ChevronDown,
   ChevronUp

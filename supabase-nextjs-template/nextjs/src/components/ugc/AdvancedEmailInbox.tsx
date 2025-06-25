@@ -18,24 +18,9 @@ import {
   SelectTrigger,
   SelectValue,
   Textarea,
-  Label,
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  Alert,
-  AlertDescription,
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
+  Label
 } from "@/components/ui";
 import { 
-  ArrowLeft, 
   Mail, 
   Send, 
   Clock, 
@@ -46,12 +31,8 @@ import {
   MoreVertical,
   Archive,
   Trash2,
-  CheckCircle,
   XCircle,
   AlertCircle,
-  Eye,
-  EyeOff,
-  Settings,
   Zap
 } from "lucide-react";
 
@@ -101,17 +82,7 @@ interface AdvancedEmailInboxProps {
   brandName: string;
 }
 
-const CONVERSATION_PHASES = [
-  'cold_outreach',
-  'negotiation', 
-  'onboarding',
-  'script_assignment',
-  'production',
-  'review',
-  'payment',
-  'completed',
-  'rejected'
-];
+
 
 const PHASE_COLORS = {
   cold_outreach: 'bg-blue-100 text-blue-800',

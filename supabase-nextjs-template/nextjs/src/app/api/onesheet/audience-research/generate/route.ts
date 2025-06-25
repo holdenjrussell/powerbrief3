@@ -4,11 +4,11 @@ import { cookies } from 'next/headers';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { v4 as uuidv4 } from 'uuid';
 import { Database } from '@/lib/types/supabase';
-import type { AudienceResearchData, AudienceResearchItem, AudiencePersona } from '@/lib/types/onesheet';
+import type { AudienceResearchData } from '@/lib/types/onesheet';
 
 export async function POST(request: NextRequest) {
   try {
-    const { onesheet_id, sections = ['all'] } = await request.json();
+    const { onesheet_id } = await request.json();
 
     if (!onesheet_id) {
       return NextResponse.json({ error: 'OneSheet ID is required' }, { status: 400 });
@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
 
     // Generate AI analysis using Gemini 2.0-flash-thinking-exp
     const model = genAI.getGenerativeModel({ 
-      model: "gemini-2.0-flash-thinking-exp",
+      model: "gemini-2.5-pro",
       generationConfig: {
         temperature: 0.7,
         topK: 40,
@@ -364,8 +364,24 @@ Be thorough and extract as much valuable information as possible from the contex
 
     // Transform the data to match our types
     const timestamp = new Date().toISOString();
+    
+    interface AIAnalysisItem {
+      content: string;
+      evidence?: Array<{ type: string; text: string; source: string }>;
+      priority?: number;
+    }
+    
+    interface AIPersona {
+      name: string;
+      demographics?: Record<string, unknown>;
+      psychographics?: Record<string, unknown>;
+      awarenessLevel?: string;
+      quote?: string;
+      priority?: number;
+    }
+    
     const audienceResearch: AudienceResearchData = {
-      angles: (analysisData.angles || []).map((item: any) => ({
+      angles: (analysisData.angles || []).map((item: AIAnalysisItem) => ({
         id: uuidv4(),
         content: item.content,
         evidence: item.evidence || [],
@@ -374,7 +390,7 @@ Be thorough and extract as much valuable information as possible from the contex
         createdAt: timestamp,
         updatedAt: timestamp
       })),
-      benefits: (analysisData.benefits || []).map((item: any) => ({
+      benefits: (analysisData.benefits || []).map((item: AIAnalysisItem) => ({
         id: uuidv4(),
         content: item.content,
         evidence: item.evidence || [],
@@ -383,7 +399,7 @@ Be thorough and extract as much valuable information as possible from the contex
         createdAt: timestamp,
         updatedAt: timestamp
       })),
-      painPoints: (analysisData.painPoints || []).map((item: any) => ({
+      painPoints: (analysisData.painPoints || []).map((item: AIAnalysisItem) => ({
         id: uuidv4(),
         content: item.content,
         evidence: item.evidence || [],
@@ -392,7 +408,7 @@ Be thorough and extract as much valuable information as possible from the contex
         createdAt: timestamp,
         updatedAt: timestamp
       })),
-      features: (analysisData.features || []).map((item: any) => ({
+      features: (analysisData.features || []).map((item: AIAnalysisItem) => ({
         id: uuidv4(),
         content: item.content,
         evidence: item.evidence || [],
@@ -401,7 +417,7 @@ Be thorough and extract as much valuable information as possible from the contex
         createdAt: timestamp,
         updatedAt: timestamp
       })),
-      objections: (analysisData.objections || []).map((item: any) => ({
+      objections: (analysisData.objections || []).map((item: AIAnalysisItem) => ({
         id: uuidv4(),
         content: item.content,
         evidence: item.evidence || [],
@@ -410,7 +426,7 @@ Be thorough and extract as much valuable information as possible from the contex
         createdAt: timestamp,
         updatedAt: timestamp
       })),
-      failedSolutions: (analysisData.failedSolutions || []).map((item: any) => ({
+      failedSolutions: (analysisData.failedSolutions || []).map((item: AIAnalysisItem) => ({
         id: uuidv4(),
         content: item.content,
         evidence: item.evidence || [],
@@ -419,7 +435,7 @@ Be thorough and extract as much valuable information as possible from the contex
         createdAt: timestamp,
         updatedAt: timestamp
       })),
-      other: (analysisData.other || []).map((item: any) => ({
+      other: (analysisData.other || []).map((item: AIAnalysisItem) => ({
         id: uuidv4(),
         content: item.content,
         evidence: item.evidence || [],
@@ -428,7 +444,7 @@ Be thorough and extract as much valuable information as possible from the contex
         createdAt: timestamp,
         updatedAt: timestamp
       })),
-      personas: (analysisData.personas || []).map((persona: any) => ({
+      personas: (analysisData.personas || []).map((persona: AIPersona) => ({
         id: uuidv4(),
         name: persona.name,
         demographics: persona.demographics || {},
@@ -446,7 +462,7 @@ Be thorough and extract as much valuable information as possible from the contex
     const { error: updateError } = await supabase
       .from('onesheet')
       .update({
-        audience_research: audienceResearch,
+        audience_research: audienceResearch as unknown as Database['public']['Tables']['onesheet']['Update']['audience_research'],
         current_stage: 'audience_research',
         updated_at: timestamp
       })

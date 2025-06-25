@@ -45,7 +45,8 @@ import {
   createUgcCreator, 
   getUgcCreatorScriptsByConceptStatus,
   getBrandUgcFields,
-  updateBrandUgcFields
+  updateBrandUgcFields,
+  getCreatorScriptCounts
 } from '@/lib/services/ugcCreatorService';
 import { UgcCreator, UgcCreatorScript, UGC_CREATOR_SCRIPT_CONCEPT_STATUSES, UGC_CREATOR_ONBOARDING_STATUSES } from '@/lib/types/ugcCreator';
 import { CreatorCard, ScriptCard, CreatorForm } from '@/components/ugc-creator';
@@ -135,6 +136,7 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
   const [brand, setBrand] = useState<Brand | null>(null);
   const [creators, setCreators] = useState<UgcCreator[]>([]);
   const [scripts, setScripts] = useState<UgcCreatorScript[]>([]);
+  const [creatorScriptCounts, setCreatorScriptCounts] = useState<Record<string, Record<string, number>>>({});
   const activeView = (searchParams.get('view') as ViewType) || 'concept';
   const [activeStatus, setActiveStatus] = useState<string>(
     searchParams.get('status') || UGC_CREATOR_SCRIPT_CONCEPT_STATUSES[0]
@@ -334,6 +336,12 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
         
         setScripts(scriptsData);
         
+        // Fetch creator script counts
+        console.log('Fetching creator script counts for brand:', brandId);
+        const scriptCounts = await getCreatorScriptCounts(brandId);
+        console.log('Script counts by creator:', scriptCounts);
+        setCreatorScriptCounts(scriptCounts);
+        
         // Fetch UGC brand settings
         try {
           const ugcFields = await getBrandUgcFields(brandId);
@@ -422,6 +430,10 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
         // Refresh scripts for current status
         const scriptsData = await getUgcCreatorScriptsByConceptStatus(brandId, activeStatus);
         setScripts(scriptsData);
+        
+        // Refresh creator script counts
+        const scriptCounts = await getCreatorScriptCounts(brandId);
+        setCreatorScriptCounts(scriptCounts);
       } catch (err) {
         console.error('Failed to refresh data:', err);
       }
@@ -1954,6 +1966,7 @@ export default function UgcPipelinePage({ params }: { params: ParamsType | Promi
                         key={creator.id}
                         creator={creator}
                         brandId={brandId}
+                        scriptCounts={creatorScriptCounts[creator.id] || {}}
                         onUpdate={(updatedCreator) => {
                           // Update the creator in the list
                           setCreators(prev => 

@@ -6,25 +6,20 @@ import {
   RefreshCw, 
   Clock, 
   CheckCircle, 
-  Lightbulb, 
   Target, 
   Search, 
   BarChart3, 
   Brain, 
   TrendingUp,
   Users,
-  MessageSquare,
-  Eye,
   Zap,
   Database,
   FileText,
-  Star,
-  Settings,
-  CheckCircle2,
-  Calendar
+  Eye,
+  Settings
 } from 'lucide-react';
 import SOPVideoUpload from '@/components/sops/SOPVideoUpload';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, Button } from '@/components/ui';
+
 
 export default function CreativeFeedbackLoopSOPPage() {
   return (

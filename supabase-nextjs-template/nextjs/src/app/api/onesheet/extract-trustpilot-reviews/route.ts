@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { Database } from '@/lib/types/supabase';
+import * as cheerio from 'cheerio';
 
 interface TrustpilotReviewRequest {
   url: string;
@@ -90,10 +91,69 @@ async function fetchTrustpilotPage(companyIdentifier: string, page: number = 1):
 
   console.log(`[TrustpilotScraper] Fetching page ${page}: ${url}`);
 
+  // First attempt: Try with the x-nextjs-data header for JSON response
+  try {
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'application/json, text/html, */*',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'none',
+        'Cache-Control': 'max-age=0',
+        // THE CRUCIAL HEADER: This tells Trustpilot to return JSON data instead of HTML
+        'x-nextjs-data': '1'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const contentType = response.headers.get('content-type');
+    console.log(`[TrustpilotScraper] Response content-type: ${contentType}`);
+
+    try {
+      const jsonData: TrustpilotApiResponse = await response.json();
+      
+      // Validate that we got the expected structure
+      if (!jsonData.props?.pageProps?.reviews) {
+        console.warn(`[TrustpilotScraper] Invalid JSON structure from page ${page}, trying HTML fallback`);
+        throw new Error('Invalid JSON structure');
+      }
+
+      console.log(`[TrustpilotScraper] Successfully parsed JSON for page ${page}`);
+      return jsonData;
+    } catch (jsonError) {
+      console.warn(`[TrustpilotScraper] JSON parsing failed for page ${page}:`, jsonError);
+      throw new Error('Failed to parse JSON response');
+    }
+  } catch (error) {
+    console.error(`[TrustpilotScraper] Primary fetch failed for page ${page}:`, error);
+    
+    // Fallback: Try without special headers to get HTML and parse it
+    console.log(`[TrustpilotScraper] Attempting HTML fallback for page ${page}`);
+    return await fetchTrustpilotPageHtmlFallback(companyIdentifier, page);
+  }
+}
+
+// New fallback function to parse HTML when JSON API fails
+async function fetchTrustpilotPageHtmlFallback(companyIdentifier: string, page: number = 1): Promise<TrustpilotApiResponse> {
+  
+  const url = page === 1 
+    ? `https://www.trustpilot.com/review/${companyIdentifier}`
+    : `https://www.trustpilot.com/review/${companyIdentifier}?page=${page}`;
+
+  console.log(`[TrustpilotScraper] HTML fallback for page ${page}: ${url}`);
+
   const response = await fetch(url, {
     headers: {
       'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      'Accept': 'application/json',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
       'Accept-Language': 'en-US,en;q=0.5',
       'Accept-Encoding': 'gzip, deflate, br',
       'Connection': 'keep-alive',
@@ -101,9 +161,6 @@ async function fetchTrustpilotPage(companyIdentifier: string, page: number = 1):
       'Sec-Fetch-Dest': 'document',
       'Sec-Fetch-Mode': 'navigate',
       'Sec-Fetch-Site': 'none',
-      'Cache-Control': 'max-age=0',
-      // THE CRUCIAL HEADER: This tells Trustpilot to return JSON data instead of HTML
-      'x-nextjs-data': '1'
     }
   });
 
@@ -111,14 +168,142 @@ async function fetchTrustpilotPage(companyIdentifier: string, page: number = 1):
     throw new Error(`Failed to fetch Trustpilot page ${page}: ${response.status} ${response.statusText}`);
   }
 
-  const jsonData: TrustpilotApiResponse = await response.json();
-  
-  // Validate that we got the expected structure
-  if (!jsonData.props?.pageProps?.reviews) {
-    throw new Error(`Invalid response structure from Trustpilot API for page ${page}`);
+  const html = await response.text();
+  const $ = cheerio.load(html);
+
+  // Try to extract data from script tags containing __NEXT_DATA__
+  const nextDataScript = $('script').filter((i, el) => {
+    const text = $(el).html();
+    return text && text.includes('__NEXT_DATA__');
+  }).first();
+
+  if (nextDataScript.length > 0) {
+    try {
+      const scriptContent = nextDataScript.html();
+      const match = scriptContent?.match(/__NEXT_DATA__\s*=\s*({.+})/);
+      if (match) {
+        const nextData = JSON.parse(match[1]);
+        console.log(`[TrustpilotScraper] Successfully extracted __NEXT_DATA__ from HTML for page ${page}`);
+        
+        // Transform to expected structure
+        if (nextData.props?.pageProps?.reviews) {
+          return nextData as TrustpilotApiResponse;
+        }
+      }
+    } catch (parseError) {
+      console.error(`[TrustpilotScraper] Failed to parse __NEXT_DATA__ for page ${page}:`, parseError);
+    }
   }
 
-  return jsonData;
+  // If JSON extraction fails, try to parse HTML structure manually
+  console.log(`[TrustpilotScraper] Attempting manual HTML parsing for page ${page}`);
+  return await parseHtmlReviews($, companyIdentifier, page);
+}
+
+// Function to manually parse HTML when JSON methods fail
+async function parseHtmlReviews($: cheerio.CheerioAPI, companyIdentifier: string, page: number): Promise<TrustpilotApiResponse> {
+  const reviews: TrustpilotReview[] = [];
+  
+  // Try to find review containers with various selectors
+  const reviewSelectors = [
+    'article[data-service-review-target]',
+    'div[data-service-review-target]', 
+    '.review',
+    '[data-review-target]'
+  ];
+  
+  let reviewElements: cheerio.Cheerio<cheerio.AnyNode> | null = null;
+  for (const selector of reviewSelectors) {
+    reviewElements = $(selector);
+    if (reviewElements.length > 0) {
+      console.log(`[TrustpilotScraper] Found ${reviewElements.length} reviews using selector: ${selector}`);
+      break;
+    }
+  }
+
+  if (!reviewElements || reviewElements.length === 0) {
+    console.warn(`[TrustpilotScraper] No review elements found on page ${page}`);
+    throw new Error(`No reviews found on page ${page} using HTML parsing`);
+  }
+
+  // Extract business info
+  const businessName = $('h1').first().text().trim() || 
+                      $('[data-business-unit-name]').text().trim() ||
+                      'Unknown Business';
+  
+  const trustScore = parseFloat($('[data-rating-value]').first().text()) || 0;
+
+  reviewElements.each((i: number, element: cheerio.AnyNode) => {
+    const $review = $(element);
+    
+    try {
+      // Extract review data with multiple fallback selectors
+      const rating = parseInt($review.find('[data-service-review-rating]').first().text()) ||
+                    parseInt($review.find('.star-rating').first().attr('data-rating')) ||
+                    parseInt($review.find('[data-rating]').first().text()) || 0;
+
+      const title = $review.find('h3, h4, .review-title, [data-service-review-title]').first().text().trim() || '';
+      const text = $review.find('.review-content, [data-service-review-text], p').first().text().trim() || '';
+      const authorName = $review.find('.consumer-name, [data-consumer-name]').first().text().trim() || 'Anonymous';
+      
+      // Extract dates
+      const dateElement = $review.find('time, [data-service-review-date]').first();
+      const publishedDate = dateElement.attr('datetime') || dateElement.text().trim() || new Date().toISOString();
+
+      if (rating > 0 && (title || text)) {
+        reviews.push({
+          id: `html-${page}-${i}`,
+          rating,
+          title: title || 'No Title',
+          text: text || 'No Content',
+          source: 'trustpilot',
+          likes: 0,
+          language: 'en',
+          consumer: {
+            id: `consumer-${i}`,
+            displayName: authorName,
+            countryCode: 'Unknown',
+            numberOfReviews: 1,
+            hasImage: false
+          },
+          dates: {
+            experiencedDate: publishedDate,
+            publishedDate: publishedDate
+          },
+          reply: null
+        });
+      }
+    } catch (reviewError) {
+      console.warn(`[TrustpilotScraper] Error parsing review ${i} on page ${page}:`, reviewError);
+    }
+  });
+
+  console.log(`[TrustpilotScraper] Extracted ${reviews.length} reviews from HTML on page ${page}`);
+
+  return {
+    props: {
+      pageProps: {
+        businessUnit: {
+          id: companyIdentifier,
+          displayName: businessName,
+          identifyingName: companyIdentifier,
+          numberOfReviews: reviews.length * 10, // Estimate
+          trustScore: trustScore,
+          websiteUrl: '',
+          isClaimed: false
+        },
+        reviews,
+        filters: {
+          pagination: {
+            page: page,
+            perPage: reviews.length,
+            totalCount: reviews.length * 10, // Estimate
+            totalPages: Math.max(1, Math.ceil(reviews.length * 10 / 20)) // Estimate
+          }
+        }
+      }
+    }
+  };
 }
 
 async function scrapeTrustpilotReviews(url: string, maxPages: number = 20): Promise<TrustpilotReviewData> {

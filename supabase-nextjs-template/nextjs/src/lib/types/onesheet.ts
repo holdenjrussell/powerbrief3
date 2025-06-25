@@ -709,44 +709,56 @@ export interface AdAccountAuditData {
 // Stage 4: Creative Brainstorm Types
 export interface CreativeConcept {
   id: string;
-  title: string;
-  description: string;
+  name: string;
   angle: string;
-  targetPersona?: string;
-  priority: number;
-  aiGenerated: boolean;
-  createdAt: string;
-  updatedAt: string;
+  targetPersona: string;
+  emotion: string;
+  framework: string;
+  awarenessLevel: string;
+  description: string;
+}
+
+export interface CreativeIteration {
+  adId: string;
+  adName: string;
+  iterationType: 'early' | 'script' | 'fine_tuning' | 'late';
+  suggestion: string;
+  expectedImpact: string;
 }
 
 export interface CreativeHook {
   id: string;
-  text: string;
-  angle: string;
-  targetPersona?: string;
-  variations?: string[];
-  priority: number;
-  aiGenerated: boolean;
-  createdAt: string;
-  updatedAt: string;
+  hook: string;
+  conceptId?: string;
+  rationale: string;
 }
 
 export interface CreativeVisual {
   id: string;
+  conceptId?: string;
+  type: 'video' | 'static' | 'carousel' | 'gif';
   description: string;
-  angle: string;
-  type: 'static' | 'video' | 'carousel' | 'gif';
-  style?: string;
-  priority: number;
-  aiGenerated: boolean;
-  createdAt: string;
-  updatedAt: string;
+  scenes?: string[];
+  colorScheme: string;
+  keyElements: string[];
+}
+
+export interface CreativeBestPractices {
+  dos: string[];
+  donts: string[];
+  keyLearnings: string[];
+  recommendations: string[];
 }
 
 export interface CreativeBrainstormData {
-  concepts: CreativeConcept[];
-  hooks: CreativeHook[];
+  netNewConcepts: CreativeConcept[];
+  iterations: CreativeIteration[];
+  hooks: {
+    visual: CreativeHook[];
+    audio: CreativeHook[];
+  };
   visuals: CreativeVisual[];
+  creativeBestPractices: CreativeBestPractices;
 }
 
 // Stage tracking
@@ -968,6 +980,85 @@ export interface OneSheetAIInstructions {
   strategist_response_schema?: Record<string, unknown>;
   analyze_model?: string;
   strategist_model?: string;
+  creative_brainstorm_system_instructions?: string;
+  creative_brainstorm_prompt_template?: string;
+  creative_brainstorm_response_schema?: Record<string, unknown>;
+  creative_brainstorm_model?: string;
+  
+  // Section-specific prompts for Gemini
+  creative_brainstorm_concepts_system_instructions?: string;
+  creative_brainstorm_concepts_prompt_template?: string;
+  creative_brainstorm_concepts_response_schema?: Record<string, unknown>;
+  creative_brainstorm_iterations_system_instructions?: string;
+  creative_brainstorm_iterations_prompt_template?: string;
+  creative_brainstorm_iterations_response_schema?: Record<string, unknown>;
+  creative_brainstorm_hooks_system_instructions?: string;
+  creative_brainstorm_hooks_prompt_template?: string;
+  creative_brainstorm_hooks_response_schema?: Record<string, unknown>;
+  creative_brainstorm_visuals_system_instructions?: string;
+  creative_brainstorm_visuals_prompt_template?: string;
+  creative_brainstorm_visuals_response_schema?: Record<string, unknown>;
+  creative_brainstorm_practices_system_instructions?: string;
+  creative_brainstorm_practices_prompt_template?: string;
+  creative_brainstorm_practices_response_schema?: Record<string, unknown>;
+  
+  // Section-specific prompts for Claude
+  claude_system_instructions?: string;
+  claude_prompt_template?: string;
+  claude_model?: string;
+  claude_concepts_system_instructions?: string;
+  claude_concepts_prompt_template?: string;
+  claude_iterations_system_instructions?: string;
+  claude_iterations_prompt_template?: string;
+  claude_hooks_system_instructions?: string;
+  claude_hooks_prompt_template?: string;
+  claude_visuals_system_instructions?: string;
+  claude_visuals_prompt_template?: string;
+  claude_practices_system_instructions?: string;
+  claude_practices_prompt_template?: string;
+  
+  creative_brainstorm_context_options?: {
+    contextHub?: {
+      websites?: boolean;
+      reviews?: boolean;
+      reddit?: boolean;
+      articles?: boolean;
+      socialContent?: boolean;
+    };
+    audienceResearch?: {
+      angles?: boolean;
+      benefits?: boolean;
+      painPoints?: boolean;
+      features?: boolean;
+      objections?: boolean;
+      failedSolutions?: boolean;
+      other?: boolean;
+      personas?: boolean;
+    };
+    competitorResearch?: {
+      competitors?: boolean;
+      strategicAnalysis?: boolean;
+    };
+    adAccountAudit?: {
+      fullDataTable?: boolean;
+      selectedAds?: boolean;
+      selectedAdIds?: string[];
+    };
+    demographics?: {
+      includeVisualizations?: boolean;
+    };
+    aiStrategist?: {
+      analysisSummary?: boolean;
+      strategicSummary?: boolean;
+      recommendations?: boolean;
+      creativePatterns?: boolean;
+      losingElements?: boolean;
+      bestPerformingHooks?: boolean;
+      optimalSitInProblemRange?: boolean;
+      topPerformingAds?: boolean;
+      lowPerformingAds?: boolean;
+    };
+  };
   created_at: string;
   updated_at: string;
 } 

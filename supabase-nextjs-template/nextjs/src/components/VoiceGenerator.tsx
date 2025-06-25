@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
 import { Loader2, Play, Save, Volume2, RefreshCw, Pause } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 

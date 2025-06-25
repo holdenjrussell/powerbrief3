@@ -28,7 +28,8 @@ export async function getUgcCreators(brandId: string): Promise<UgcCreator[]> {
       ...creator,
       products: creator.products as string[] || [],
       content_types: creator.content_types as string[] || [],
-      platforms: creator.platforms as string[] || []
+      platforms: creator.platforms as string[] || [],
+      custom_fields: (creator.custom_fields as Record<string, string | number | boolean | string[] | null>) || {}
     };
   }) as UgcCreator[];
 
@@ -53,7 +54,8 @@ export async function getUgcCreatorById(creatorId: string): Promise<UgcCreator |
     ...data,
     products: data.products as string[] || [],
     content_types: data.content_types as string[] || [],
-    platforms: data.platforms as string[] || []
+    platforms: data.platforms as string[] || [],
+    custom_fields: (data.custom_fields as Record<string, string | number | boolean | string[] | null>) || {}
   };
 }
 
@@ -80,7 +82,8 @@ export async function createUgcCreator(creator: Omit<UgcCreator, 'id' | 'created
     ...data,
     products: data.products as string[] || [],
     content_types: data.content_types as string[] || [],
-    platforms: data.platforms as string[] || []
+    platforms: data.platforms as string[] || [],
+    custom_fields: (data.custom_fields as Record<string, string | number | boolean | string[] | null>) || {}
   };
 }
 
@@ -113,7 +116,8 @@ export async function updateUgcCreator(creator: Partial<UgcCreator> & { id: stri
         ...result.creator,
         products: result.creator.products as string[] || [],
         content_types: result.creator.content_types as string[] || [],
-        platforms: result.creator.platforms as string[] || []
+        platforms: result.creator.platforms as string[] || [],
+        custom_fields: (result.creator.custom_fields as Record<string, string | number | boolean | string[] | null>) || {}
       };
     } catch (error) {
       console.error('Error using API endpoint, falling back to direct update:', error);
@@ -141,7 +145,8 @@ export async function updateUgcCreator(creator: Partial<UgcCreator> & { id: stri
     ...data,
     products: data.products as string[] || [],
     content_types: data.content_types as string[] || [],
-    platforms: data.platforms as string[] || []
+    platforms: data.platforms as string[] || [],
+    custom_fields: (data.custom_fields as Record<string, string | number | boolean | string[] | null>) || {}
   };
 }
 
@@ -219,7 +224,8 @@ export async function getUgcCreatorScriptsByConceptStatus(brandId: string, conce
       ...script.ugc_creators,
       products: script.ugc_creators.products as string[] || [],
       content_types: script.ugc_creators.content_types as string[] || [],
-      platforms: script.ugc_creators.platforms as string[] || []
+      platforms: script.ugc_creators.platforms as string[] || [],
+      custom_fields: (script.ugc_creators.custom_fields as Record<string, string | number | boolean | string[] | null>) || {}
     } : null
   }));
 }
@@ -401,4 +407,38 @@ export async function submitCreatorApplication(applicationData: {
     console.error('Error submitting creator application:', error);
     throw error;
   }
+}
+
+// Get script counts by creator and concept status
+export async function getCreatorScriptCounts(brandId: string): Promise<Record<string, Record<string, number>>> {
+  const { data, error } = await supabase
+    .from('ugc_creator_scripts')
+    .select('creator_id, concept_status')
+    .eq('brand_id', brandId)
+    .not('concept_status', 'is', null);
+
+  if (error) {
+    console.error('Error fetching creator script counts:', error);
+    throw error;
+  }
+
+  // Group by creator_id and concept_status
+  const counts: Record<string, Record<string, number>> = {};
+  
+  (data || []).forEach((script) => {
+    const creatorId = script.creator_id;
+    const status = script.concept_status || 'Unknown';
+    
+    if (!counts[creatorId]) {
+      counts[creatorId] = {};
+    }
+    
+    if (!counts[creatorId][status]) {
+      counts[creatorId][status] = 0;
+    }
+    
+    counts[creatorId][status]++;
+  });
+
+  return counts;
 } 

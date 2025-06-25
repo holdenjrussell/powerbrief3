@@ -113,7 +113,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    let query = supabase
+    const query = supabase
       .from('ugc_email_sequences')
       .select(includeSteps ? `
         *,
@@ -211,7 +211,7 @@ async function enrollCreator(supabase: any, data: EnrollCreatorRequest, userId: 
     .eq('step_order', 1)
     .single();
 
-  let nextSendAt = new Date();
+        const nextSendAt = new Date();
   if (firstStep) {
     nextSendAt.setDate(nextSendAt.getDate() + firstStep.delay_days);
     nextSendAt.setHours(nextSendAt.getHours() + firstStep.delay_hours);

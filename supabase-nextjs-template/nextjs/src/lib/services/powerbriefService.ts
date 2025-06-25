@@ -1,8 +1,7 @@
 import { createSSRClient } from '@/lib/supabase/server';
 import { Brand, BriefBatch, BriefConcept, DbBrand, DbBriefConcept, DbBriefBatch, ShareSettings, ShareResult, Scene, Hook, EditingResource, ResourceLogin, DosAndDonts } from '@/lib/types/powerbrief';
 import { v4 as uuidv4 } from 'uuid';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { Database } from '@/lib/types/supabase';
+
 
 const getSupabaseClient = async () => await createSSRClient();
 
@@ -18,7 +17,7 @@ export async function getBrands(userId: string): Promise<Brand[]> {
 
     if (!rpcError && rpcData) {
       // For each brand returned by the RPC, fetch the full brand data
-      const brandIds = (rpcData as any[]).map((item: any) => item.id);
+      const brandIds = (rpcData as Array<{ id: string }>).map((item) => item.id);
       
       if (brandIds.length === 0) {
         return [];
