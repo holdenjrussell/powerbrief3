@@ -24,6 +24,7 @@ import {
     Link2,
 } from 'lucide-react';
 import { useGlobal } from "@/lib/context/GlobalContext";
+import { useBrand } from "@/lib/context/BrandContext";
 import { createSPASassClient } from "@/lib/supabase/client";
 import { getPendingReviewsCount } from '@/lib/services/powerbriefService';
 import BrandSelector from './BrandSelector';
@@ -38,6 +39,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     const router = useRouter();
 
     const { user } = useGlobal();
+    const { teamFeatures, selectedTeam } = useBrand();
 
     // Fetch pending reviews count
     useEffect(() => {
@@ -100,15 +102,28 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
     const productName = process.env.NEXT_PUBLIC_PRODUCTNAME;
 
-    const navigation = [
-        { name: 'Homepage', href: '/app', icon: Home },
-        { name: 'PowerBrief', href: '/app/powerbrief', icon: Presentation },
-        { name: 'PowerFrame', href: '/app/powerframe', icon: Frame },
+    interface NavigationItem {
+        name: string;
+        href?: string;
+        icon: any;
+        featureKey: string | null;
+        badge?: number | null;
+        subItems?: Array<{
+            name: string;
+            href: string;
+            icon: any;
+        }>;
+    }
 
-        { name: 'UGC Creator Pipeline', href: '/app/ugc-creator-pipeline', icon: FileText },
+    const allNavigation: NavigationItem[] = [
+        { name: 'Homepage', href: '/app', icon: Home, featureKey: null },
+        { name: 'PowerBrief', href: '/app/powerbrief', icon: Presentation, featureKey: null }, // PowerBrief parent doesn't need feature key
+        { name: 'PowerFrame', href: '/app/powerframe', icon: Frame, featureKey: 'powerframe' },
+        { name: 'UGC Creator Pipeline', href: '/app/ugc-creator-pipeline', icon: FileText, featureKey: 'ugc_creator_pipeline' },
         {
             name: 'Team Sync',
             icon: Users,
+            featureKey: 'team_sync',
             subItems: [
                 { name: 'Scorecard', href: '/app/team-sync?tab=scorecard', icon: BarChart3 },
                 { name: 'Announcements', href: '/app/team-sync?tab=announcements', icon: Megaphone },
@@ -120,13 +135,26 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             name: 'Asset Reviews', 
             href: '/app/reviews', 
             icon: Film,
+            featureKey: 'asset_reviews',
             badge: pendingReviewsCount > 0 ? pendingReviewsCount : null
         },
-        { name: 'AdRipper', href: '/app/adripper', icon: DownloadCloud },
-        { name: 'Ad Upload Tool', href: '/app/ad-upload-tool', icon: UploadCloud },
-        { name: 'SOPs', href: '/app/sops', icon: BookOpen },
-        { name: 'URL to Markdown', href: '/app/url-to-markdown', icon: Link2 },
+        { name: 'AdRipper', href: '/app/adripper', icon: DownloadCloud, featureKey: 'ad_ripper' },
+        { name: 'Ad Upload Tool', href: '/app/ad-upload-tool', icon: UploadCloud, featureKey: 'ad_upload_tool' },
+        { name: 'SOPs', href: '/app/sops', icon: BookOpen, featureKey: null }, // SOPs should be available to all
+        { name: 'URL to Markdown', href: '/app/url-to-markdown', icon: Link2, featureKey: 'url_to_markdown' },
     ];
+
+    // Filter navigation based on team features
+    const navigation = allNavigation.filter(item => {
+        // If no team is selected, show all items
+        if (!selectedTeam) return true;
+        
+        // If the item doesn't have a feature key, always show it
+        if (!item.featureKey) return true;
+        
+        // Check if the team has access to this feature
+        return teamFeatures[item.featureKey] !== false;
+    });
 
     const toggleSidebar = () => setSidebarOpen(!isSidebarOpen);
 

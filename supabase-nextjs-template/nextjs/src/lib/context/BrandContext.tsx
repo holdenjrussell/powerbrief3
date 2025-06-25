@@ -20,6 +20,7 @@ interface BrandContextType {
   setSelectedBrand: (brand: Brand | null) => void;
   selectedTeam: Team | null;
   setSelectedTeam: (team: Team | null) => void;
+  teamFeatures: Record<string, boolean>;
   isLoading: boolean;
   error: string | null;
   refreshBrands: () => Promise<void>;
@@ -32,8 +33,30 @@ export function BrandProvider({ children }: { children: ReactNode }) {
   const [brands, setBrands] = useState<Brand[]>([]);
   const [selectedBrand, setSelectedBrand] = useState<Brand | null>(null);
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
+  const [teamFeatures, setTeamFeatures] = useState<Record<string, boolean>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const fetchTeamFeatures = async (teamId: string) => {
+    try {
+      const response = await fetch(`/api/teams/${teamId}/features`);
+      if (response.ok) {
+        const data = await response.json();
+        // Convert the features object to a simple key-value boolean map
+        const featuresMap: Record<string, boolean> = {};
+        Object.entries(data.features || {}).forEach(([key, feature]: [string, any]) => {
+          featuresMap[key] = feature.has_access || false;
+        });
+        setTeamFeatures(featuresMap);
+      } else {
+        console.error('Failed to fetch team features');
+        setTeamFeatures({});
+      }
+    } catch (error) {
+      console.error('Error fetching team features:', error);
+      setTeamFeatures({});
+    }
+  };
 
   const fetchBrands = async () => {
     if (!user?.id) {
@@ -184,10 +207,34 @@ export function BrandProvider({ children }: { children: ReactNode }) {
     }
   }, [selectedTeam?.id, selectedBrand?.id, user?.id]);
 
-  // Clear team selection when brand changes
+  // Load saved team when brand changes
   useEffect(() => {
-    setSelectedTeam(null);
-  }, [selectedBrand?.id]);
+    if (!selectedBrand?.id || !user?.id) {
+      setSelectedTeam(null);
+      setTeamFeatures({});
+      return;
+    }
+
+    // Load saved team from localStorage
+    const savedTeamId = localStorage.getItem(`selected-team-${user.id}-${selectedBrand.id}`);
+    if (savedTeamId) {
+      // We'll need to wait for the TeamSelector to fetch and set the team
+      // For now, just clear the team and let TeamSelector handle restoration
+      setSelectedTeam(null);
+    } else {
+      setSelectedTeam(null);
+    }
+    setTeamFeatures({});
+  }, [selectedBrand?.id, user?.id]);
+
+  // Fetch team features when team changes
+  useEffect(() => {
+    if (selectedTeam?.id) {
+      fetchTeamFeatures(selectedTeam.id);
+    } else {
+      setTeamFeatures({});
+    }
+  }, [selectedTeam?.id]);
 
   return (
     <BrandContext.Provider value={{ 
@@ -196,6 +243,7 @@ export function BrandProvider({ children }: { children: ReactNode }) {
       setSelectedBrand, 
       selectedTeam,
       setSelectedTeam,
+      teamFeatures,
       isLoading, 
       error, 
       refreshBrands: fetchBrands 
