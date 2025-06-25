@@ -63,17 +63,17 @@ This keeps the tables but disables their usage:
 -- ============================================================================
 
 -- Make all announcements global (visible to everyone)
-UPDATE team_sync_announcements 
+UPDATE announcements 
 SET is_global = true 
 WHERE is_global = false;
 
 -- Remove team restrictions from todos
-UPDATE team_sync_todos 
+UPDATE todos 
 SET target_team_id = NULL 
 WHERE target_team_id IS NOT NULL;
 
 -- Remove team restrictions from issues
-UPDATE team_sync_issues 
+UPDATE issues 
 SET target_team_id = NULL 
 WHERE target_team_id IS NOT NULL;
 
@@ -82,15 +82,15 @@ WHERE target_team_id IS NOT NULL;
 -- ============================================================================
 
 -- Ensure new announcements are global by default
-ALTER TABLE team_sync_announcements 
+ALTER TABLE announcements 
   ALTER COLUMN is_global SET DEFAULT true,
   ALTER COLUMN target_team_ids SET DEFAULT '{}';
 
 -- Make team assignment optional for todos and issues
-ALTER TABLE team_sync_todos 
+ALTER TABLE todos 
   ALTER COLUMN target_team_id DROP NOT NULL;
 
-ALTER TABLE team_sync_issues 
+ALTER TABLE issues 
   ALTER COLUMN target_team_id DROP NOT NULL;
 
 -- ============================================================================
@@ -117,7 +117,7 @@ SELECT
     THEN '✅ All announcements are global'
     ELSE '❌ Some announcements are still team-specific'
   END as status
-FROM team_sync_announcements
+FROM announcements
 
 UNION ALL
 
@@ -130,7 +130,7 @@ SELECT
     THEN '✅ All todos are unrestricted'
     ELSE '❌ Some todos are still team-specific'
   END as status
-FROM team_sync_todos
+FROM todos
 
 UNION ALL
 
@@ -143,7 +143,7 @@ SELECT
     THEN '✅ All issues are unrestricted'
     ELSE '❌ Some issues are still team-specific'
   END as status
-FROM team_sync_issues;
+FROM issues;
 
 -- ============================================================================
 -- ROLLBACK COMPLETE
@@ -167,9 +167,9 @@ SELECT 'SOFT ROLLBACK COMPLETE - Teams disabled but data preserved' as status;
 -- MANUALLY RUN THIS IN SUPABASE SQL EDITOR
 
 -- 1. Drop foreign key constraints first
-ALTER TABLE team_sync_todos DROP CONSTRAINT IF EXISTS team_sync_todos_target_team_id_fkey;
-ALTER TABLE team_sync_issues DROP CONSTRAINT IF EXISTS team_sync_issues_target_team_id_fkey;
-ALTER TABLE team_sync_issues DROP CONSTRAINT IF EXISTS team_sync_issues_source_metric_id_fkey;
+ALTER TABLE todos DROP CONSTRAINT IF EXISTS todos_target_team_id_fkey;
+ALTER TABLE issues DROP CONSTRAINT IF EXISTS issues_target_team_id_fkey;
+ALTER TABLE issues DROP CONSTRAINT IF EXISTS issues_source_metric_id_fkey;
 
 -- 2. Remove columns from existing tables
 ALTER TABLE brand_shares 
@@ -177,15 +177,15 @@ ALTER TABLE brand_shares
   DROP COLUMN IF EXISTS first_name,
   DROP COLUMN IF EXISTS last_name;
 
-ALTER TABLE team_sync_announcements
+ALTER TABLE announcements
   DROP COLUMN IF EXISTS is_resolved,
   DROP COLUMN IF EXISTS is_global,
   DROP COLUMN IF EXISTS target_team_ids;
 
-ALTER TABLE team_sync_todos
+ALTER TABLE todos
   DROP COLUMN IF EXISTS target_team_id;
 
-ALTER TABLE team_sync_issues
+ALTER TABLE issues
   DROP COLUMN IF EXISTS target_team_id,
   DROP COLUMN IF EXISTS source_metric_id,
   DROP COLUMN IF EXISTS metric_context;

@@ -110,13 +110,13 @@ SELECT COUNT(*) as can_see_ad_drafts FROM ad_drafts WHERE brand_id = 'brand-id';
 
 -- Test 6: Verify Team Sync access
 -- Announcements
-SELECT COUNT(*) as can_see_announcements FROM team_sync_announcements WHERE brand_id = 'brand-id';
+SELECT COUNT(*) as can_see_announcements FROM announcements WHERE brand_id = 'brand-id';
 
 -- Todos
-SELECT COUNT(*) as can_see_todos FROM team_sync_todos WHERE brand_id = 'brand-id';
+SELECT COUNT(*) as can_see_todos FROM todos WHERE brand_id = 'brand-id';
 
 -- Issues
-SELECT COUNT(*) as can_see_issues FROM team_sync_issues WHERE brand_id = 'brand-id';
+SELECT COUNT(*) as can_see_issues FROM issues WHERE brand_id = 'brand-id';
 
 -- Test 7: Critical RLS Policy Checks
 -- These queries verify the core access patterns remain intact

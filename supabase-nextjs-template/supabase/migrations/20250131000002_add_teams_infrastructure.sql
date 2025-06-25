@@ -36,16 +36,16 @@ ADD COLUMN IF NOT EXISTS team_ids UUID[] DEFAULT '{}',
 ADD COLUMN IF NOT EXISTS first_name TEXT,
 ADD COLUMN IF NOT EXISTS last_name TEXT;
 
--- Update team_sync tables
-ALTER TABLE team_sync_announcements
+-- Update team sync tables (using correct table names)
+ALTER TABLE announcements
 ADD COLUMN IF NOT EXISTS is_resolved BOOLEAN DEFAULT false,
 ADD COLUMN IF NOT EXISTS is_global BOOLEAN DEFAULT false,
 ADD COLUMN IF NOT EXISTS target_team_ids UUID[] DEFAULT '{}';
 
-ALTER TABLE team_sync_todos
+ALTER TABLE todos
 ADD COLUMN IF NOT EXISTS target_team_id UUID REFERENCES teams(id);
 
-ALTER TABLE team_sync_issues
+ALTER TABLE issues
 ADD COLUMN IF NOT EXISTS target_team_id UUID REFERENCES teams(id);
 
 -- Create RLS policies for teams

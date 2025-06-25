@@ -80,9 +80,9 @@ supabase db push
 ### 3. Database Fix (< 5 minutes)
 ```sql
 -- Copy this into Supabase SQL Editor:
-UPDATE team_sync_announcements SET is_global = true;
-UPDATE team_sync_todos SET target_team_id = NULL;
-UPDATE team_sync_issues SET target_team_id = NULL;
+UPDATE announcements SET is_global = true;
+UPDATE todos SET target_team_id = NULL;
+UPDATE issues SET target_team_id = NULL;
 ```
 
 ## Verification

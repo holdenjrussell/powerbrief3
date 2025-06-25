@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS scorecard_data (
 );
 
 -- Create table for scorecard metric issues
-ALTER TABLE team_sync_issues
+ALTER TABLE issues
 ADD COLUMN IF NOT EXISTS source_metric_id UUID REFERENCES scorecard_metrics(id),
 ADD COLUMN IF NOT EXISTS metric_context JSONB; -- Store metric value, goal, status at time of issue creation
 

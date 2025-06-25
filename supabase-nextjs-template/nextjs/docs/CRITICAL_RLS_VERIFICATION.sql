@@ -32,9 +32,9 @@ WHERE schemaname = 'public'
     'ad_drafts',
     'onesheet',
     'products',
-    'team_sync_announcements',
-    'team_sync_todos',
-    'team_sync_issues'
+    'announcements',
+    'todos',
+    'issues'
   )
 ORDER BY tablename, policyname;
 
@@ -322,7 +322,7 @@ WITH access_tests AS (
     'Announcements',
     COUNT(*),
     true -- May be 0 if no data
-  FROM team_sync_announcements
+  FROM announcements
 )
 SELECT 
   category,
