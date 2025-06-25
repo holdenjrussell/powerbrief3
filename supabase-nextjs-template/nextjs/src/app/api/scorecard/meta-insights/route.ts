@@ -59,27 +59,42 @@ export async function POST(request: NextRequest) {
       'cpc': 'cpc',
       'ctr': 'ctr',
       'conversions': 'conversions',
-      'purchase_roas': 'purchase_roas:omni_purchase',
+      'purchase_roas': 'purchase_roas',
       'purchases': 'actions:omni_purchase',
       'purchase_value': 'action_values:omni_purchase',
+      'omni_purchase_roas': 'omni_purchase_roas',
       'link_clicks': 'inline_link_clicks',
       'unique_link_clicks': 'unique_inline_link_clicks',
-      'cost_per_unique_link_click': 'cost_per_unique_inline_link_click'
+      'cost_per_unique_link_click': 'cost_per_unique_inline_link_click',
+      'cost_per_purchase': 'cost_per_action_type:omni_purchase',
+      'website_purchase_roas': 'website_purchase_roas',
+      'mobile_app_purchase_roas': 'mobile_app_purchase_roas'
     };
 
     // Build fields for Meta API request
     const fieldsSet = new Set<string>();
     
     baseMetaMetricKeys.forEach(key => {
-      const metaField = metaFieldsMap[key] || key;
-      if (metaField.includes(':')) {
-        // For action fields like 'actions:omni_purchase', we need to request the base field
-        const [baseField] = metaField.split(':');
-        fieldsSet.add(baseField);
-      } else {
-        fieldsSet.add(metaField);
+      const metaField = metaFieldsMap[key];
+      if (metaField) {
+        if (metaField.includes(':')) {
+          // For action fields, add the base field (e.g., 'actions' from 'actions:omni_purchase')
+          const [baseField] = metaField.split(':');
+          fieldsSet.add(baseField);
+        } else {
+          // For direct fields
+          fieldsSet.add(metaField);
+        }
       }
     });
+    
+    // Always include these fields for ROAS calculations
+    if (baseMetaMetricKeys.some(key => key.includes('roas') || key.includes('purchase'))) {
+      fieldsSet.add('actions');
+      fieldsSet.add('action_values');
+      fieldsSet.add('purchase_roas');
+      fieldsSet.add('omni_purchase_roas');
+    }
     
     const fields = Array.from(fieldsSet).join(',');
 
@@ -140,16 +155,24 @@ export async function POST(request: NextRequest) {
       
       baseMetaMetricKeys.forEach(key => {
         const metaField = metaFieldsMap[key];
-        if (metaField?.includes(':')) {
-          // Handle action fields like 'actions:omni_purchase' or 'purchase_roas:omni_purchase'
+        
+        // Handle direct fields
+        if (metaField && insights[metaField] !== undefined && !metaField.includes(':')) {
+          // Special handling for ROAS fields which might be arrays
+          if (metaField.includes('roas') && Array.isArray(insights[metaField])) {
+            // ROAS fields can be arrays with action_type
+            const roasArray = insights[metaField];
+            const omniRoas = roasArray.find((item: any) => item.action_type === 'omni_purchase');
+            processedData[key] = omniRoas ? parseFloat(omniRoas.value) : 0;
+          } else {
+            processedData[key] = parseFloat(insights[metaField]) || 0;
+          }
+        } else if (metaField?.includes(':')) {
+          // Handle action fields (e.g., actions:omni_purchase)
           const [actionType, actionName] = metaField.split(':');
           const actions = insights[actionType] || [];
-          const action = Array.isArray(actions) 
-            ? actions.find((a: { action_type: string; value: string }) => a.action_type === actionName)
-            : null;
+          const action = actions.find((a: any) => a.action_type === actionName);
           processedData[key] = action ? parseFloat(action.value) : 0;
-        } else if (metaField && insights[metaField] !== undefined) {
-          processedData[key] = parseFloat(insights[metaField]) || 0;
         } else {
           processedData[key] = 0;
         }

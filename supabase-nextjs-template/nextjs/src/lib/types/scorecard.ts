@@ -112,21 +112,21 @@ export const META_API_METRICS = [
   },
   {
     name: 'Revenue',
-    meta_metric_name: 'purchase_roas_return_value', // Meta API field for revenue
+    meta_metric_name: 'omni_purchase_value', // Changed to omni purchase value for all purchase sources
     meta_level: 'account' as const,
     display_format: 'currency' as const,
     decimal_places: 2,
-    description: 'Total revenue from purchases',
+    description: 'Total revenue from all purchase sources (website, app, offline)',
     requires_configuration: true,
     platform: 'meta'
   },
   {
     name: 'Purchases',
-    meta_metric_name: 'purchases',
+    meta_metric_name: 'omni_purchase', // Changed to omni purchase for all purchase sources
     meta_level: 'account' as const,
     display_format: 'number' as const,
     decimal_places: 0,
-    description: 'Total number of purchases',
+    description: 'Total number of purchases from all sources',
     requires_configuration: true,
     platform: 'meta'
   },
@@ -134,32 +134,32 @@ export const META_API_METRICS = [
   // ROAS Metrics
   {
     name: 'Purchase ROAS',
-    meta_metric_name: 'purchase_roas',
+    meta_metric_name: 'omni_purchase_roas', // Changed to omni purchase ROAS
     meta_level: 'account' as const,
     display_format: 'number' as const,
     decimal_places: 2,
-    description: 'Return on ad spend for purchases',
+    description: 'Return on ad spend for all purchase sources',
     requires_configuration: true,
     platform: 'meta'
   },
   {
     name: 'Prospecting ROAS',
-    meta_metric_name: 'purchase_roas',
+    meta_metric_name: 'omni_purchase_roas', // Changed to omni purchase ROAS
     meta_level: 'campaign' as const,
     display_format: 'number' as const,
     decimal_places: 2,
-    description: 'ROAS for prospecting campaigns',
+    description: 'ROAS for prospecting campaigns (all purchase sources)',
     requires_configuration: true,
     default_campaign_filter: { operator: 'contains' as FilterOperator, value: 'prospecting', case_sensitive: false },
     platform: 'meta'
   },
   {
     name: 'Retargeting ROAS',
-    meta_metric_name: 'purchase_roas',
+    meta_metric_name: 'omni_purchase_roas', // Changed to omni purchase ROAS
     meta_level: 'campaign' as const,
     display_format: 'number' as const,
     decimal_places: 2,
-    description: 'ROAS for retargeting campaigns',
+    description: 'ROAS for retargeting campaigns (all purchase sources)',
     requires_configuration: true,
     default_campaign_filter: { operator: 'contains' as FilterOperator, value: 'retargeting', case_sensitive: false },
     platform: 'meta'

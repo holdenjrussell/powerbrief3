@@ -48,12 +48,16 @@ const META_METRICS = [
   { key: 'cpc', name: 'CPC', category: 'Cost' },
   { key: 'ctr', name: 'CTR', category: 'Engagement' },
   { key: 'conversions', name: 'Conversions', category: 'Performance' },
-  { key: 'purchase_roas', name: 'Purchase ROAS', category: 'Performance' },
-  { key: 'purchases', name: 'Purchases', category: 'Performance' },
-  { key: 'purchase_value', name: 'Purchase Value', category: 'Performance' },
+  { key: 'omni_purchase_roas', name: 'Omni Purchase ROAS', category: 'Performance' },
+  { key: 'purchase_roas', name: 'Purchase ROAS (Legacy)', category: 'Performance' },
+  { key: 'purchases', name: 'Omni Purchases', category: 'Performance' },
+  { key: 'purchase_value', name: 'Omni Purchase Value', category: 'Performance' },
+  { key: 'website_purchase_roas', name: 'Website Purchase ROAS', category: 'Performance' },
+  { key: 'mobile_app_purchase_roas', name: 'Mobile App Purchase ROAS', category: 'Performance' },
   { key: 'link_clicks', name: 'Link Clicks', category: 'Engagement' },
   { key: 'unique_link_clicks', name: 'Unique Link Clicks', category: 'Engagement' },
-  { key: 'cost_per_unique_link_click', name: 'Cost per Unique Link Click', category: 'Cost' }
+  { key: 'cost_per_unique_link_click', name: 'Cost per Unique Link Click', category: 'Cost' },
+  { key: 'cost_per_purchase', name: 'Cost per Omni Purchase', category: 'Cost' }
 ];
 
 export default function MetricConfigModal({ 

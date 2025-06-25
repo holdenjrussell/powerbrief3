@@ -388,74 +388,55 @@ export default function ScorecardMetrics({ brandId, teamId }: ScorecardMetricsPr
           <div className="text-gray-500">Loading metrics...</div>
         </div>
       ) : metrics.length > 0 ? (
-        <Card>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                {/* Table Header */}
-                <thead className="bg-gray-50 border-b">
-                  <tr>
-                    <th className="text-left px-4 py-3 font-medium text-sm text-gray-600 w-16">Status</th>
-                    <th className="text-left px-4 py-3 font-medium text-sm text-gray-600 min-w-[200px]">Metric</th>
-                    <th className="text-left px-4 py-3 font-medium text-sm text-gray-600 w-20">Current</th>
-                    <th className="text-left px-4 py-3 font-medium text-sm text-gray-600 w-20">Average</th>
-                    <th className="text-left px-4 py-3 font-medium text-sm text-gray-600 w-20">Goal</th>
-                    <th className="text-left px-4 py-3 font-medium text-sm text-gray-600 relative">
-                      <div className="flex items-center min-w-max">
-                        <button
-                          onClick={() => setCurrentWeekOffset(currentWeekOffset + 1)}
-                          className="p-1 hover:bg-gray-200 rounded mr-2 flex-shrink-0"
-                          disabled={currentWeekOffset >= getNumberOfPeriods() - dateRanges.length}
-                          title="View earlier periods"
-                        >
-                          <ChevronLeft className="h-4 w-4" />
-                        </button>
-                        <div className="flex gap-4 min-w-max">
-                          {dateRanges.map((range, index) => (
-                            <div key={index} className="text-center min-w-[80px] text-xs">
-                              {range.label}
-                            </div>
-                          ))}
-                        </div>
-                        <button
-                          onClick={() => setCurrentWeekOffset(Math.max(0, currentWeekOffset - 1))}
-                          className="p-1 hover:bg-gray-200 rounded ml-2 flex-shrink-0"
-                          disabled={currentWeekOffset === 0}
-                          title="View later periods"
-                        >
-                          <ChevronRight className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </th>
-                    <th className="text-left px-4 py-3 font-medium text-sm text-gray-600 w-32">Actions</th>
-                  </tr>
-                </thead>
-                
-                {/* Table Body */}
-                <tbody>
-                  {metrics.map((metric, rowIndex) => (
-                    <MetricRow
-                      key={metric.id}
-                      metric={metric}
-                      data={metricsData[metric.id]}
-                      dateRanges={dateRanges}
-                      isLastRow={rowIndex === metrics.length - 1}
-                      onEdit={() => {
-                        setEditingMetric(metric);
-                        setShowConfigModal(true);
-                      }}
-                      onDelete={() => handleDeleteMetric(metric.id)}
-                      onViewChart={() => {
-                        setSelectedMetric(metric);
-                        setShowChartModal(true);
-                      }}
-                    />
-                  ))}
-                </tbody>
-              </table>
+        <div className="space-y-4">
+          {/* Metrics Header */}
+          <div className="grid grid-cols-12 gap-4 px-4 py-2 bg-gray-50 rounded-lg font-medium text-sm text-gray-600">
+            <div className="col-span-1">Status</div>
+            <div className="col-span-2">Metric</div>
+            <div className="col-span-1">Current</div>
+            <div className="col-span-1">Average</div>
+            <div className="col-span-1">Goal</div>
+            <div className="col-span-5">
+              <div className="flex items-center">
+                <button
+                  onClick={() => setCurrentWeekOffset(currentWeekOffset + 1)}
+                  className="p-1 hover:bg-gray-200 rounded mr-2"
+                  disabled={currentWeekOffset >= getNumberOfPeriods() - dateRanges.length}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <div className="flex-1 text-center">Period Values</div>
+                <button
+                  onClick={() => setCurrentWeekOffset(Math.max(0, currentWeekOffset - 1))}
+                  className="p-1 hover:bg-gray-200 rounded ml-2"
+                  disabled={currentWeekOffset === 0}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
             </div>
-          </CardContent>
-        </Card>
+            <div className="col-span-1">Actions</div>
+          </div>
+
+          {/* Metrics Rows */}
+          {metrics.map((metric) => (
+            <MetricRow
+              key={metric.id}
+              metric={metric}
+              data={metricsData[metric.id]}
+              dateRanges={dateRanges}
+              onEdit={() => {
+                setEditingMetric(metric);
+                setShowConfigModal(true);
+              }}
+              onDelete={() => handleDeleteMetric(metric.id)}
+              onViewChart={() => {
+                setSelectedMetric(metric);
+                setShowChartModal(true);
+              }}
+            />
+          ))}
+        </div>
       ) : (
         <div className="text-center py-12">
           <BarChart3 className="mx-auto h-12 w-12 text-gray-400" />
