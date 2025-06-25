@@ -32,24 +32,59 @@ import {
   Trash2,
   Calendar,
   Link,
-  AlertTriangle
+  AlertTriangle,
+  Calendar as CalendarIcon,
+  AlertCircle,
+  Loader2,
+  UserPlus,
+  CheckCircle2,
+  Circle,
+  ExternalLink,
+  Send
 } from 'lucide-react';
-import { linkifyText } from './utils/linkify';
+import { linkifyText, linkifyTextWithWhitespace } from './utils/linkify';
+import { formatDate } from './utils/dateUtils';
+import { Calendar } from '@/components/ui/calendar';
+import { useBrand } from '@/lib/context/BrandContext';
+import { createClient } from '@/utils/supabase/client';
+
+interface TeamMember {
+  id: string;
+  email: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  name?: string;
+}
+
+interface Team {
+  id: string;
+  name: string;
+  brand_id: string;
+}
 
 interface Todo {
   id: string;
   user_id: string;
   brand_id?: string;
   title: string;
-  description: string;
-  completed: boolean;
-  due_date: string | null;
-  assignee_id: string | null;
-  priority: 'low' | 'normal' | 'high' | 'urgent';
+  description?: string;
+  due_date?: string;
+  assigned_to?: string;
+  status: 'pending' | 'in_progress' | 'completed';
+  priority: 'low' | 'normal' | 'high';
   created_at: string;
   updated_at: string;
-  assignee?: { email: string };
-  creator?: { email: string };
+  target_team_id?: string;
+  // Added for display
+  assignee?: {
+    email: string;
+  } | null;
+  creator?: {
+    email: string;
+  } | null;
+  target_team?: {
+    name: string;
+  } | null;
 }
 
 interface Issue {
@@ -84,12 +119,14 @@ interface TodosTabProps {
 const priorityColors = {
   low: 'bg-gray-100 text-gray-800',
   normal: 'bg-blue-100 text-blue-800',
-  high: 'bg-orange-100 text-orange-800',
-  urgent: 'bg-red-100 text-red-800'
+  high: 'bg-orange-100 text-orange-800'
 };
 
 export default function TodosTab({ brandId }: TodosTabProps) {
+  const { selectedTeam } = useBrand();
   const [todos, setTodos] = useState<Todo[]>([]);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
   const [brandUsers, setBrandUsers] = useState<BrandUser[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
@@ -101,9 +138,10 @@ export default function TodosTab({ brandId }: TodosTabProps) {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    priority: 'normal' as 'low' | 'normal' | 'high' | 'urgent',
-    due_date: '',
-    assignee_id: 'none'
+    priority: 'normal' as 'low' | 'normal' | 'high',
+    due_date: undefined as Date | undefined,
+    assigned_to: '',
+    target_team_id: ''
   });
   const [issueFormData, setIssueFormData] = useState({
     title: '',
@@ -115,7 +153,11 @@ export default function TodosTab({ brandId }: TodosTabProps) {
   const fetchTodos = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/team-sync/todos?brandId=${brandId}`);
+      const params = new URLSearchParams({ brandId });
+      if (selectedTeam) {
+        params.append('teamId', selectedTeam.id);
+      }
+      const response = await fetch(`/api/team-sync/todos?${params}`);
       const data = await response.json();
       if (response.ok) {
         setTodos(data.todos);
@@ -126,6 +168,43 @@ export default function TodosTab({ brandId }: TodosTabProps) {
       console.error('Error fetching todos:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchTeamMembers = async () => {
+    if (!selectedTeam) return;
+    
+    try {
+      const response = await fetch(`/api/teams/${selectedTeam.id}/members`);
+      const data = await response.json();
+      if (response.ok && data.members) {
+        // Map the members to include a display name
+        const membersWithNames = data.members.map((member: any) => ({
+          ...member,
+          name: member.first_name && member.last_name 
+            ? `${member.first_name} ${member.last_name}` 
+            : member.email
+        }));
+        setTeamMembers(membersWithNames);
+      } else {
+        console.error('Failed to fetch team members:', data.error);
+      }
+    } catch (error) {
+      console.error('Error fetching team members:', error);
+    }
+  };
+
+  const fetchTeams = async () => {
+    try {
+      const response = await fetch(`/api/teams?brandId=${brandId}`);
+      const data = await response.json();
+      if (response.ok && data.teams) {
+        setTeams(data.teams);
+      } else {
+        console.error('Failed to fetch teams:', data.error);
+      }
+    } catch (error) {
+      console.error('Error fetching teams:', error);
     }
   };
 
@@ -160,6 +239,17 @@ export default function TodosTab({ brandId }: TodosTabProps) {
 
   useEffect(() => {
     fetchTodos();
+  }, [brandId, selectedTeam]);
+
+  useEffect(() => {
+    fetchTeamMembers();
+  }, [selectedTeam]);
+
+  useEffect(() => {
+    fetchTeams();
+  }, [brandId]);
+
+  useEffect(() => {
     fetchBrandUsers();
   }, [brandId]);
 
@@ -177,14 +267,20 @@ export default function TodosTab({ brandId }: TodosTabProps) {
     
     try {
       const method = editingTodo ? 'PUT' : 'POST';
-      // Convert "none" or "pending" assignee_id to null for API
-      const processedFormData = {
-        ...formData,
-        assignee_id: (formData.assignee_id === 'none' || formData.assignee_id.startsWith('pending-')) ? null : formData.assignee_id
-      };
       const body = editingTodo 
-        ? { ...processedFormData, id: editingTodo.id, brand_id: brandId }
-        : { ...processedFormData, brand_id: brandId };
+        ? { 
+            ...formData, 
+            id: editingTodo.id, 
+            brand_id: brandId,
+            due_date: formData.due_date?.toISOString(),
+            target_team_id: formData.target_team_id || selectedTeam?.id
+          }
+        : { 
+            ...formData, 
+            brand_id: brandId,
+            due_date: formData.due_date?.toISOString(),
+            target_team_id: formData.target_team_id || selectedTeam?.id
+          };
 
       const response = await fetch('/api/team-sync/todos', {
         method,
@@ -198,7 +294,14 @@ export default function TodosTab({ brandId }: TodosTabProps) {
         await fetchTodos();
         setIsDialogOpen(false);
         setEditingTodo(null);
-        setFormData({ title: '', description: '', due_date: '', assignee_id: 'none', priority: 'normal' });
+        setFormData({ 
+          title: '', 
+          description: '', 
+          priority: 'normal', 
+          due_date: undefined, 
+          assigned_to: '',
+          target_team_id: ''
+        });
       } else {
         console.error('Failed to save todo:', data.error);
       }
@@ -230,10 +333,11 @@ export default function TodosTab({ brandId }: TodosTabProps) {
     setEditingTodo(todo);
     setFormData({
       title: todo.title,
-      description: todo.description,
-      due_date: todo.due_date ? todo.due_date.split('T')[0] : '',
-      assignee_id: todo.assignee_id || 'none',
-      priority: todo.priority
+      description: todo.description || '',
+      priority: todo.priority,
+      due_date: todo.due_date ? new Date(todo.due_date) : undefined,
+      assigned_to: todo.assigned_to || '',
+      target_team_id: todo.target_team_id || ''
     });
     setIsDialogOpen(true);
   };
@@ -313,7 +417,14 @@ export default function TodosTab({ brandId }: TodosTabProps) {
   };
 
   const resetForm = () => {
-    setFormData({ title: '', description: '', due_date: '', assignee_id: 'none', priority: 'normal' });
+    setFormData({ 
+      title: '', 
+      description: '', 
+      priority: 'normal', 
+      due_date: undefined, 
+      assigned_to: '',
+      target_team_id: ''
+    });
     setEditingTodo(null);
   };
 
@@ -331,8 +442,8 @@ export default function TodosTab({ brandId }: TodosTabProps) {
     );
   }
 
-  const completedTodos = todos.filter(todo => todo.completed);
-  const pendingTodos = todos.filter(todo => !todo.completed);
+  const completedTodos = todos.filter(todo => todo.status === 'completed');
+  const pendingTodos = todos.filter(todo => todo.status === 'pending');
 
   return (
     <div className="space-y-6">
@@ -340,7 +451,12 @@ export default function TodosTab({ brandId }: TodosTabProps) {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-semibold text-gray-900">Team To-Dos</h2>
-          <p className="text-gray-600">Manage tasks and track progress</p>
+          <p className="text-gray-600">
+            {selectedTeam 
+              ? `Showing tasks for ${selectedTeam.name}`
+              : 'Select a team to filter tasks'
+            }
+          </p>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={(open) => {
           setIsDialogOpen(open);
@@ -386,8 +502,8 @@ export default function TodosTab({ brandId }: TodosTabProps) {
                 <Input
                   id="due_date"
                   type="date"
-                  value={formData.due_date}
-                  onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
+                  value={formData.due_date ? formData.due_date.toISOString().split('T')[0] : ''}
+                  onChange={(e) => setFormData({ ...formData, due_date: e.target.value ? new Date(e.target.value) : undefined })}
                 />
               </div>
               
@@ -395,7 +511,7 @@ export default function TodosTab({ brandId }: TodosTabProps) {
                 <Label htmlFor="priority">Priority</Label>
                 <Select 
                   value={formData.priority} 
-                  onValueChange={(value: 'low' | 'normal' | 'high' | 'urgent') => 
+                  onValueChange={(value: 'low' | 'normal' | 'high') => 
                     setFormData({ ...formData, priority: value })
                   }
                 >
@@ -406,36 +522,46 @@ export default function TodosTab({ brandId }: TodosTabProps) {
                     <SelectItem value="low">Low</SelectItem>
                     <SelectItem value="normal">Normal</SelectItem>
                     <SelectItem value="high">High</SelectItem>
-                    <SelectItem value="urgent">Urgent</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               <div>
-                <Label htmlFor="assignee">Assignee (Optional)</Label>
+                <Label htmlFor="assigned_to">Assign To</Label>
                 <Select 
-                  value={formData.assignee_id} 
-                  onValueChange={(value: string) => 
-                    setFormData({ ...formData, assignee_id: value })
-                  }
+                  value={formData.assigned_to} 
+                  onValueChange={(value) => setFormData({ ...formData, assigned_to: value })}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder={loadingUsers ? "Loading users..." : "Select assignee"} />
+                    <SelectValue placeholder="Select team member" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">No Assignee</SelectItem>
-                    {brandUsers.map((user) => (
-                      <SelectItem 
-                        key={user.id || `pending-${user.email}`} 
-                        value={user.id || `pending-${user.email}`}
-                        disabled={!user.id || user.is_pending}
-                      >
+                    <SelectItem value="">Unassigned</SelectItem>
+                    {teamMembers.map((member) => (
+                      <SelectItem key={member.id} value={member.id}>
+                        {member.name || member.email}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div>
+                <Label htmlFor="target_team">Target Team</Label>
+                <Select 
+                  value={formData.target_team_id} 
+                  onValueChange={(value) => setFormData({ ...formData, target_team_id: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={selectedTeam ? selectedTeam.name : "Select target team"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {teams.map((team) => (
+                      <SelectItem key={team.id} value={team.id}>
                         <div className="flex items-center gap-2">
-                          <span>{user.full_name}</span>
-                          {user.is_owner && <span className="text-xs text-blue-600">(Owner)</span>}
-                          {user.is_pending && <span className="text-xs text-gray-500">(Pending)</span>}
-                          {!user.is_owner && !user.is_pending && (
-                            <span className="text-xs text-gray-500">({user.role})</span>
+                          {team.name}
+                          {team.id === selectedTeam?.id && (
+                            <Badge variant="secondary" className="text-xs">Current</Badge>
                           )}
                         </div>
                       </SelectItem>
@@ -623,97 +749,89 @@ export default function TodosTab({ brandId }: TodosTabProps) {
       {pendingTodos.length > 0 && (
         <div className="space-y-4">
           <h3 className="text-lg font-medium text-gray-900">Pending Tasks</h3>
-          {pendingTodos.map((todo) => (
-            <Card key={todo.id} className="hover:shadow-md transition-shadow">
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-start gap-3 flex-1">
-                    <Checkbox
-                      checked={todo.completed}
-                      onCheckedChange={() => handleToggleComplete(todo)}
-                    />
+          {pendingTodos.map((todo) => {
+            const StatusIcon = todo.status === 'completed' ? CheckCircle2 : Circle;
+            return (
+              <Card key={todo.id} className="hover:shadow-md transition-shadow">
+                <CardContent className="p-4">
+                  <div className="flex items-start gap-3">
+                    <button
+                      onClick={() => handleToggleComplete(todo)}
+                      className={`mt-0.5 ${
+                        todo.status === 'completed'
+                          ? 'text-green-600 hover:text-green-700'
+                          : 'text-gray-400 hover:text-gray-600'
+                      }`}
+                    >
+                      <StatusIcon className="h-5 w-5" />
+                    </button>
+                    
                     <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <CardTitle 
-                          className="text-lg cursor-pointer hover:text-blue-600" 
-                          onClick={() => alert(`Todo: ${todo.title}\n\nDescription: ${todo.description || 'No description'}\n\nPriority: ${todo.priority}\n\nDue Date: ${todo.due_date ? new Date(todo.due_date).toLocaleDateString() : 'No due date'}\n\nCompleted: ${todo.completed ? 'Yes' : 'No'}`)}
-                        >
-                          {todo.title}
-                        </CardTitle>
-                        <Badge className={priorityColors[todo.priority]}>
-                          {todo.priority}
-                        </Badge>
-                      </div>
-                      {todo.description && (
-                        <p className="text-gray-600 text-sm mb-2">{linkifyText(todo.description)}</p>
-                      )}
-                      <div className="flex items-center gap-4 text-sm text-gray-500">
-                        <div className="flex items-center gap-1">
-                          <User className="h-3 w-3" />
-                          <span>Created by {todo.creator?.email || 'Unknown'}</span>
-                        </div>
-                        {getAssigneeName(todo.assignee_id) && (
-                          <div className="flex items-center gap-1">
-                            <User className="h-3 w-3 text-blue-500" />
-                            <span className="text-blue-700">Assigned to {getAssigneeName(todo.assignee_id)}</span>
-                          </div>
-                        )}
-                        {todo.due_date && (
-                          <div className="flex items-center gap-1">
-                            <Calendar className="h-3 w-3" />
-                            <span>{new Date(todo.due_date).toLocaleDateString()}</span>
-                          </div>
-                        )}
-                      </div>
-                      {/* Linked Issues */}
-                      {linkedIssues[todo.id] && linkedIssues[todo.id].length > 0 && (
-                        <div className="mt-2 pt-2 border-t border-gray-100">
-                          <p className="text-xs text-gray-500 mb-1">Linked Issues:</p>
-                          <div className="flex flex-wrap gap-1">
-                            {linkedIssues[todo.id].map((issue: Issue) => (
-                              <Badge 
-                                key={issue.id} 
-                                variant="outline" 
-                                className="text-xs cursor-pointer hover:bg-gray-50"
-                                onClick={() => alert(`Issue: ${issue.title}\n\nDescription: ${issue.description || 'No description'}\n\nType: ${issue.issue_type}\n\nStatus: ${issue.status}\n\nPriority Order: ${issue.priority_order}`)}
-                              >
-                                {issue.title}
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <h3 className={`font-medium ${
+                            todo.status === 'completed' ? 'line-through text-gray-500' : 'text-gray-900'
+                          }`}>
+                            {todo.title}
+                          </h3>
+                          {todo.description && (
+                            <p className="text-gray-600 mt-1 whitespace-pre-wrap">{linkifyTextWithWhitespace(todo.description)}</p>
+                          )}
+                          
+                          <div className="flex items-center gap-4 mt-2 text-sm">
+                            <Badge className={`${priorityColors[todo.priority]} text-xs`}>
+                              {todo.priority}
+                            </Badge>
+                            {todo.due_date && (
+                              <div className="flex items-center gap-1 text-gray-500">
+                                <CalendarIcon className="h-3 w-3" />
+                                <span>{new Date(todo.due_date).toLocaleDateString()}</span>
+                              </div>
+                            )}
+                            {todo.assignee && (
+                              <div className="flex items-center gap-1 text-gray-500">
+                                <UserPlus className="h-3 w-3" />
+                                <span>{todo.assignee.email}</span>
+                              </div>
+                            )}
+                            {todo.creator && (
+                              <div className="flex items-center gap-1 text-gray-500">
+                                <User className="h-3 w-3" />
+                                <span>Created by {todo.creator.email}</span>
+                              </div>
+                            )}
+                            {todo.target_team && todo.target_team_id !== selectedTeam?.id && (
+                              <Badge variant="outline" className="flex items-center gap-1">
+                                <Send className="h-3 w-3" />
+                                {todo.target_team.name}
                               </Badge>
-                            ))}
+                            )}
                           </div>
                         </div>
-                      )}
+                        
+                        <div className="flex gap-1 ml-4">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleEdit(todo)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDelete(todo.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                  <div className="flex gap-1">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleCreateLinkedIssue(todo)}
-                      className="flex items-center gap-1"
-                    >
-                      <Link className="h-3 w-3" />
-                      Create Linked Issue
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleEdit(todo)}
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleDelete(todo.id)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              </CardHeader>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
 
@@ -727,7 +845,7 @@ export default function TodosTab({ brandId }: TodosTabProps) {
                 <div className="flex items-start justify-between">
                   <div className="flex items-start gap-3 flex-1">
                     <Checkbox
-                      checked={todo.completed}
+                      checked={todo.status === 'completed'}
                       onCheckedChange={() => handleToggleComplete(todo)}
                     />
                     <div className="flex-1">

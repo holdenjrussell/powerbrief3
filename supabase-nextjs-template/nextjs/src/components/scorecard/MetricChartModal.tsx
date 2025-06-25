@@ -1,249 +1,230 @@
 'use client';
 
 import React from 'react';
-import {
+import { 
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  Button,
-  Badge,
   Card,
-  CardContent,
-  CardHeader,
-  CardTitle
+  CardContent
 } from '@/components/ui';
-import { X, TrendingUp, TrendingDown, Target, Calendar } from 'lucide-react';
-import { MetricWithData, MetricStatus } from '@/lib/types/scorecard';
+import { 
+  LineChart, 
+  Line, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer,
+  ReferenceLine
+} from 'recharts';
+import { Metric } from './ScorecardMetrics';
 
 interface MetricChartModalProps {
-  metric: MetricWithData;
-  isOpen: boolean;
-  onClose: () => void;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  metric: Metric;
+  data: any;
+  dateRanges: any[];
 }
 
-export default function MetricChartModal({ metric, isOpen, onClose }: MetricChartModalProps) {
-  // Mock data for the chart - in real implementation this would come from the metric's data_points
-  const mockWeeklyData = [
-    { week: 'Apr 28 - May 04', value: 1.61, goal: metric.weekly_goal },
-    { week: 'May 05 - May 11', value: 1.52, goal: metric.weekly_goal },
-    { week: 'May 12 - May 18', value: 1.62, goal: metric.weekly_goal },
-    { week: 'May 19 - May 25', value: 1.64, goal: metric.weekly_goal },
-    { week: 'May 26 - Jun 01', value: metric.current_value, goal: metric.weekly_goal }
-  ];
+export default function MetricChartModal({ 
+  open, 
+  onOpenChange, 
+  metric, 
+  data,
+  dateRanges 
+}: MetricChartModalProps) {
+  // Prepare chart data
+  const chartData = dateRanges.map((range, index) => ({
+    period: range.label,
+    value: data?.periods?.[index]?.value || 0,
+    goal: metric.goal_value || 0
+  })).reverse(); // Reverse to show oldest to newest
 
-  const getStatusBadge = (status: MetricStatus) => {
-    switch (status) {
-      case 'on_track':
-        return <Badge className="bg-green-100 text-green-800 hover:bg-green-100">On Track</Badge>;
-      case 'at_risk':
-        return <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100">At Risk</Badge>;
-      case 'off_track':
-        return <Badge className="bg-red-100 text-red-800 hover:bg-red-100">Off Track</Badge>;
+  const formatYAxisValue = (value: number) => {
+    // Format based on metric type
+    if (metric.metric_key.includes('roas')) {
+      return `${value.toFixed(1)}x`;
+    } else if (metric.metric_key.includes('ctr') || metric.metric_key.includes('rate')) {
+      return `${value.toFixed(1)}%`;
+    } else if (metric.metric_key.includes('cost') || metric.metric_key.includes('spend') || metric.metric_key.includes('revenue')) {
+      return `$${value.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+    } else {
+      return value.toLocaleString(undefined, { maximumFractionDigits: 0 });
     }
   };
 
-  const formatValue = (value: number | undefined) => {
-    if (value === undefined) return '--';
-    switch (metric.display_format) {
-      case 'currency':
-        return `$${value.toFixed(metric.decimal_places)}`;
-      case 'percentage':
-        return `${value.toFixed(metric.decimal_places)}%`;
-      default:
-        return value.toFixed(metric.decimal_places);
+  const formatTooltipValue = (value: number) => {
+    // Format based on metric type
+    if (metric.metric_key.includes('roas')) {
+      return `${value.toFixed(2)}x`;
+    } else if (metric.metric_key.includes('ctr') || metric.metric_key.includes('rate')) {
+      return `${value.toFixed(2)}%`;
+    } else if (metric.metric_key.includes('cost') || metric.metric_key.includes('spend') || metric.metric_key.includes('revenue')) {
+      return `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    } else {
+      return value.toLocaleString(undefined, { maximumFractionDigits: 2 });
     }
   };
-
-  const getTrendIcon = () => {
-    if (!metric.current_value || !metric.average_value) return null;
-    
-    if (metric.current_value > metric.average_value) {
-      return <TrendingUp className="h-4 w-4 text-green-600" />;
-    } else if (metric.current_value < metric.average_value) {
-      return <TrendingDown className="h-4 w-4 text-red-600" />;
-    }
-    return null;
-  };
-
-  const getMaxValue = () => {
-    const values = mockWeeklyData.map(d => d.value).filter(v => v !== undefined) as number[];
-    const goals = mockWeeklyData.map(d => d.goal).filter(g => g !== undefined) as number[];
-    return Math.max(...values, ...goals) * 1.1; // Add 10% padding
-  };
-
-  const maxValue = getMaxValue();
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl">
         <DialogHeader>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <DialogTitle className="text-xl">{metric.name}</DialogTitle>
-              {getStatusBadge(metric.status)}
-            </div>
-            <Button variant="ghost" size="sm" onClick={onClose}>
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
+          <DialogTitle>{metric.display_name} Trend</DialogTitle>
         </DialogHeader>
-
-        <div className="space-y-6">
-          {/* Key Stats */}
-          <div className="grid grid-cols-3 gap-4">
+        
+        <div className="space-y-4">
+          {/* Summary Stats */}
+          <div className="grid grid-cols-4 gap-4">
             <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-gray-600">Current Value</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-2">
-                  <span className="text-2xl font-bold">{formatValue(metric.current_value)}</span>
-                  {getTrendIcon()}
+              <CardContent className="p-4">
+                <div className="text-sm text-gray-600">Current</div>
+                <div className="text-xl font-semibold">{formatTooltipValue(data?.current || 0)}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <div className="text-sm text-gray-600">Average</div>
+                <div className="text-xl font-semibold">{formatTooltipValue(data?.average || 0)}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <div className="text-sm text-gray-600">Goal</div>
+                <div className="text-xl font-semibold">
+                  {metric.goal_value ? formatTooltipValue(metric.goal_value) : '--'}
                 </div>
               </CardContent>
             </Card>
-
             <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-gray-600">Goal</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-2">
-                  <Target className="h-4 w-4 text-blue-600" />
-                  <span className="text-2xl font-bold">{formatValue(metric.weekly_goal)}</span>
+              <CardContent className="p-4">
+                <div className="text-sm text-gray-600">Status</div>
+                <div className="text-xl font-semibold">
+                  {getStatusText(data?.current || 0, metric.goal_value, metric.goal_operator)}
                 </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-gray-600">Average</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{formatValue(metric.average_value)}</div>
               </CardContent>
             </Card>
           </div>
 
           {/* Chart */}
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Calendar className="h-5 w-5" />
-                Weekly Performance
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {/* Simple bar chart representation */}
-                <div className="space-y-3">
-                  {mockWeeklyData.map((dataPoint, index) => (
-                    <div key={index} className="space-y-1">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-600">{dataPoint.week}</span>
-                        <div className="flex items-center gap-4">
-                          <span className={`font-medium ${
-                            dataPoint.goal && dataPoint.value && dataPoint.value >= dataPoint.goal 
-                              ? 'text-green-600' 
-                              : 'text-red-600'
-                          }`}>
-                            {formatValue(dataPoint.value)}
-                          </span>
-                          {dataPoint.goal && (
-                            <span className="text-gray-400 text-xs">
-                              Goal: {formatValue(dataPoint.goal)}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      
-                      {/* Bar visualization */}
-                      <div className="relative h-6 bg-gray-100 rounded-full overflow-hidden">
-                        {/* Goal line */}
-                        {dataPoint.goal && (
-                          <div 
-                            className="absolute top-0 w-0.5 h-full bg-blue-400 z-10"
-                            style={{ left: `${(dataPoint.goal / maxValue) * 100}%` }}
-                          />
-                        )}
-                        
-                        {/* Actual value bar */}
-                        <div
-                          className={`h-full rounded-full transition-all duration-300 ${
-                            dataPoint.goal && dataPoint.value && dataPoint.value >= dataPoint.goal
-                              ? 'bg-green-500'
-                              : 'bg-red-500'
-                          }`}
-                          style={{ 
-                            width: `${(dataPoint.value / maxValue) * 100}%`
-                          }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                
-                {/* Legend */}
-                <div className="flex items-center gap-6 text-sm text-gray-600 pt-4 border-t">
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 bg-green-500 rounded"></div>
-                    <span>On Track</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 bg-red-500 rounded"></div>
-                    <span>Below Goal</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-0.5 h-3 bg-blue-400"></div>
-                    <span>Goal Line</span>
-                  </div>
-                </div>
-              </div>
+            <CardContent className="p-6">
+              <ResponsiveContainer width="100%" height={400}>
+                <LineChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis 
+                    dataKey="period" 
+                    angle={-45}
+                    textAnchor="end"
+                    height={80}
+                    fontSize={12}
+                  />
+                  <YAxis 
+                    tickFormatter={formatYAxisValue}
+                    fontSize={12}
+                  />
+                  <Tooltip 
+                    formatter={(value: number) => formatTooltipValue(value)}
+                    labelStyle={{ color: '#000' }}
+                  />
+                  
+                  {metric.goal_value && (
+                    <ReferenceLine 
+                      y={metric.goal_value} 
+                      stroke="#10b981" 
+                      strokeDasharray="5 5"
+                      label={{ value: "Goal", position: "right" }}
+                    />
+                  )}
+                  
+                  <Line 
+                    type="monotone" 
+                    dataKey="value" 
+                    stroke="#3b82f6" 
+                    strokeWidth={2}
+                    dot={{ fill: '#3b82f6', r: 4 }}
+                    activeDot={{ r: 6 }}
+                    name={metric.display_name}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
             </CardContent>
           </Card>
 
-          {/* Metric Details */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Metric Details</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <span className="font-medium text-gray-600">Type:</span>
-                  <span className="ml-2">{metric.type === 'meta_api' ? 'Meta API' : 'Custom Formula'}</span>
+          {/* Goal Details */}
+          {metric.goal_value && (
+            <Card>
+              <CardContent className="p-4">
+                <div className="text-sm text-gray-600">
+                  Goal: {formatTooltipValue(metric.goal_value)} 
+                  {metric.goal_operator && ` (${getOperatorText(metric.goal_operator)})`}
                 </div>
-                
-                {metric.type === 'meta_api' && (
-                  <>
-                    <div>
-                      <span className="font-medium text-gray-600">Meta Metric:</span>
-                      <span className="ml-2">{metric.meta_metric_name}</span>
-                    </div>
-                    <div>
-                      <span className="font-medium text-gray-600">Level:</span>
-                      <span className="ml-2 capitalize">{metric.meta_level}</span>
-                    </div>
-                  </>
-                )}
-                
-                <div>
-                  <span className="font-medium text-gray-600">Status Calculation:</span>
-                  <span className="ml-2 capitalize">{metric.status_calculation_method.replace('_', ' ')}</span>
-                </div>
-                
-                {metric.description && (
-                  <div className="col-span-2">
-                    <span className="font-medium text-gray-600">Description:</span>
-                    <p className="ml-2 text-gray-700">{metric.description}</p>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </DialogContent>
     </Dialog>
   );
-} 
+}
+
+function getStatusText(current: number, goalValue?: number, goalOperator?: string): string {
+  if (!goalValue) return 'No Goal';
+  
+  let isOnTrack = false;
+  switch (goalOperator) {
+    case 'gte':
+    case 'ge_goal':
+      isOnTrack = current >= goalValue;
+      break;
+    case 'gt':
+    case 'gt_goal':
+      isOnTrack = current > goalValue;
+      break;
+    case 'lte':
+    case 'le_goal':
+      isOnTrack = current <= goalValue;
+      break;
+    case 'lt':
+    case 'lt_goal':
+      isOnTrack = current < goalValue;
+      break;
+    case 'eq':
+    case 'eq_goal':
+      isOnTrack = current === goalValue;
+      break;
+    default:
+      isOnTrack = current >= goalValue;
+  }
+  
+  if (isOnTrack) return '✅ On Track';
+  
+  const percentageOff = Math.abs((current - goalValue) / goalValue) * 100;
+  if (percentageOff > 20) return '❌ Off Track';
+  return '⚠️ At Risk';
+}
+
+function getOperatorText(operator: string): string {
+  switch (operator) {
+    case 'gte':
+    case 'ge_goal':
+      return 'Greater than or equal to';
+    case 'gt':
+    case 'gt_goal':
+      return 'Greater than';
+    case 'lte':
+    case 'le_goal':
+      return 'Less than or equal to';
+    case 'lt':
+    case 'lt_goal':
+      return 'Less than';
+    case 'eq':
+    case 'eq_goal':
+      return 'Equal to';
+    default:
+      return operator;
+  }
+}

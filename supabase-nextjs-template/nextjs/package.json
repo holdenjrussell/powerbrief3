@@ -92,7 +92,7 @@
     "react-pdf": "^9.2.1",
     "react-rnd": "^10.5.2",
     "reactflow": "^11.11.4",
-    "recharts": "^2.15.0",
+    "recharts": "^2.15.4",
     "rss-parser": "^3.13.0",
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",
