@@ -1,26 +1,113 @@
 -- Add scorecard infrastructure for Meta API metrics tracking
 
--- Create scorecard metrics configuration table
-CREATE TABLE IF NOT EXISTS scorecard_metrics (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  brand_id UUID REFERENCES brands(id) ON DELETE CASCADE,
-  team_id UUID REFERENCES teams(id) ON DELETE CASCADE,
-  metric_key TEXT NOT NULL,
-  display_name TEXT NOT NULL,
-  description TEXT,
-  metric_type TEXT NOT NULL CHECK (metric_type IN ('standard', 'creative_testing', 'custom')),
-  calculation_formula TEXT, -- For storing the calculation method
-  meta_fields TEXT[], -- Meta API fields needed for this metric
-  goal_value DECIMAL,
-  goal_operator TEXT CHECK (goal_operator IN ('gt', 'gte', 'lt', 'lte', 'eq')),
-  meta_campaigns TEXT[], -- For creative testing metrics
-  is_percentage BOOLEAN DEFAULT false,
-  is_currency BOOLEAN DEFAULT false,
-  decimal_places INTEGER DEFAULT 2,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE(brand_id, team_id, metric_key)
-);
+-- First, check if scorecard_metrics table exists and alter it if needed
+DO $$
+BEGIN
+  -- Check if the table exists
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'scorecard_metrics') THEN
+    -- Table exists, so we need to alter it to add our new columns
+    
+    -- Drop existing policies that might conflict
+    DROP POLICY IF EXISTS "Users can manage their own scorecard metrics" ON scorecard_metrics;
+    
+    -- Add new columns if they don't exist
+    ALTER TABLE scorecard_metrics 
+      ADD COLUMN IF NOT EXISTS team_id UUID REFERENCES teams(id) ON DELETE CASCADE,
+      ADD COLUMN IF NOT EXISTS metric_key TEXT,
+      ADD COLUMN IF NOT EXISTS display_name TEXT,
+      ADD COLUMN IF NOT EXISTS description TEXT,
+      ADD COLUMN IF NOT EXISTS metric_type TEXT,
+      ADD COLUMN IF NOT EXISTS calculation_formula TEXT,
+      ADD COLUMN IF NOT EXISTS meta_fields TEXT[],
+      ADD COLUMN IF NOT EXISTS goal_value DECIMAL,
+      ADD COLUMN IF NOT EXISTS goal_operator TEXT,
+      ADD COLUMN IF NOT EXISTS meta_campaigns TEXT[],
+      ADD COLUMN IF NOT EXISTS is_percentage BOOLEAN DEFAULT false,
+      ADD COLUMN IF NOT EXISTS is_currency BOOLEAN DEFAULT false,
+      ADD COLUMN IF NOT EXISTS decimal_places INTEGER DEFAULT 2;
+    
+    -- Add constraints only if columns exist and are nullable
+    IF EXISTS (SELECT 1 FROM information_schema.columns 
+               WHERE table_name = 'scorecard_metrics' 
+               AND column_name = 'metric_key' 
+               AND is_nullable = 'YES') THEN
+      ALTER TABLE scorecard_metrics ALTER COLUMN metric_key SET NOT NULL;
+    END IF;
+    
+    IF EXISTS (SELECT 1 FROM information_schema.columns 
+               WHERE table_name = 'scorecard_metrics' 
+               AND column_name = 'display_name' 
+               AND is_nullable = 'YES') THEN
+      ALTER TABLE scorecard_metrics ALTER COLUMN display_name SET NOT NULL;
+    END IF;
+    
+    IF EXISTS (SELECT 1 FROM information_schema.columns 
+               WHERE table_name = 'scorecard_metrics' 
+               AND column_name = 'metric_type' 
+               AND is_nullable = 'YES') THEN
+      ALTER TABLE scorecard_metrics ALTER COLUMN metric_type SET NOT NULL;
+    END IF;
+    
+    -- Add check constraint if it doesn't exist
+    DO $constraint$ 
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint 
+        WHERE conname = 'scorecard_metrics_metric_type_check'
+      ) THEN
+        ALTER TABLE scorecard_metrics 
+          ADD CONSTRAINT scorecard_metrics_metric_type_check 
+          CHECK (metric_type IN ('standard', 'creative_testing', 'custom'));
+      END IF;
+      
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint 
+        WHERE conname = 'scorecard_metrics_goal_operator_check'
+      ) THEN
+        ALTER TABLE scorecard_metrics 
+          ADD CONSTRAINT scorecard_metrics_goal_operator_check 
+          CHECK (goal_operator IN ('gt', 'gte', 'lt', 'lte', 'eq'));
+      END IF;
+    END $constraint$;
+    
+    -- Add unique constraint
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_constraint 
+      WHERE conname = 'scorecard_metrics_brand_team_key_unique'
+    ) THEN
+      ALTER TABLE scorecard_metrics 
+        ADD CONSTRAINT scorecard_metrics_brand_team_key_unique 
+        UNIQUE(brand_id, team_id, metric_key);
+    END IF;
+    
+    -- Drop the old metric_config column if it exists
+    ALTER TABLE scorecard_metrics DROP COLUMN IF EXISTS metric_config;
+    
+  ELSE
+    -- Table doesn't exist, create it
+    CREATE TABLE scorecard_metrics (
+      id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+      brand_id UUID REFERENCES brands(id) ON DELETE CASCADE,
+      team_id UUID REFERENCES teams(id) ON DELETE CASCADE,
+      user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+      metric_key TEXT NOT NULL,
+      display_name TEXT NOT NULL,
+      description TEXT,
+      metric_type TEXT NOT NULL CHECK (metric_type IN ('standard', 'creative_testing', 'custom')),
+      calculation_formula TEXT,
+      meta_fields TEXT[],
+      goal_value DECIMAL,
+      goal_operator TEXT CHECK (goal_operator IN ('gt', 'gte', 'lt', 'lte', 'eq')),
+      meta_campaigns TEXT[],
+      is_percentage BOOLEAN DEFAULT false,
+      is_currency BOOLEAN DEFAULT false,
+      decimal_places INTEGER DEFAULT 2,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(brand_id, team_id, metric_key)
+    );
+  END IF;
+END $$;
 
 -- Create scorecard data table for storing calculated values
 CREATE TABLE IF NOT EXISTS scorecard_data (
@@ -43,6 +130,10 @@ ADD COLUMN IF NOT EXISTS metric_context JSONB; -- Store metric value, goal, stat
 -- Enable RLS
 ALTER TABLE scorecard_metrics ENABLE ROW LEVEL SECURITY;
 ALTER TABLE scorecard_data ENABLE ROW LEVEL SECURITY;
+
+-- Drop any existing policies on scorecard_metrics
+DROP POLICY IF EXISTS "Users can view scorecard metrics" ON scorecard_metrics;
+DROP POLICY IF EXISTS "Brand owners can manage scorecard metrics" ON scorecard_metrics;
 
 -- Scorecard metrics policies
 CREATE POLICY "Users can view scorecard metrics"

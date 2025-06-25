@@ -9,8 +9,15 @@
 
 ### 2. **Files Updated**
 - ✅ `20250131000002_add_teams_infrastructure.sql` - Fixed table names
-- ✅ `20250131000003_add_scorecard_tables.sql` - Fixed table names
+- ✅ `20250131000003_add_scorecard_tables.sql` - Fixed table names AND handles existing scorecard_metrics table
 - ✅ All rollback documentation updated with correct table names
+
+### 3. **Scorecard Table Conflict Resolution**
+- ⚠️ Found existing `scorecard_metrics` table from migration `20250603000000_create_scorecard_metrics_table.sql`
+- ✅ Updated migration to ALTER existing table instead of CREATE
+- ✅ Added safe column additions with IF NOT EXISTS
+- ✅ Added constraint checks to avoid conflicts
+- ✅ Will preserve any existing data
 
 ## 📋 Pre-Migration Verification
 
@@ -32,8 +39,12 @@ ORDER BY table_name;
 
 ## 🚀 Migration Steps
 
-### 1. Run Pre-Flight Check
+### 1. Run Pre-Flight Checks
 ```sql
+-- First, check scorecard table status
+-- Copy and run SCORECARD_TABLE_CHECK.sql in Supabase SQL Editor
+
+-- Then run full verification
 -- Copy and run TEAMS_MIGRATION_VERIFICATION.sql in Supabase SQL Editor
 ```
 
