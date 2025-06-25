@@ -30,7 +30,6 @@ import {
 import { ChevronRight, User2, ShoppingBag, FileVideo, AtSign, Package, ExternalLink, Instagram, FileText, Send, FileCheck } from 'lucide-react';
 import { UgcCreator, UGC_CREATOR_ONBOARDING_STATUSES, UGC_CREATOR_CONTRACT_STATUSES, UGC_CREATOR_PRODUCT_SHIPMENT_STATUSES } from '@/lib/types/ugcCreator';
 import { ContractTemplate } from '@/lib/types/contracts';
-import { updateUgcCreator } from '@/lib/services/ugcCreatorService';
 
 interface CreatorCardProps {
   creator: UgcCreator;
@@ -117,11 +116,22 @@ export default function CreatorCard({ creator, brandId, onUpdate, scriptCounts }
     try {
       setIsUpdating(true);
       
-      const updatedCreator = await updateUgcCreator({
-        id: creator.id,
-        brand_id: brandId, // Pass brand_id for n8n workflow trigger
-        status: newStatus
+      const response = await fetch(`/api/ugc/creators/${creator.id}/update`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          status: newStatus,
+          brand_id: brandId
+        }),
       });
+      
+      if (!response.ok) {
+        throw new Error('Failed to update creator status');
+      }
+      
+      const updatedCreator = await response.json();
       
       if (onUpdate) {
         onUpdate(updatedCreator);
@@ -138,10 +148,22 @@ export default function CreatorCard({ creator, brandId, onUpdate, scriptCounts }
     try {
       setIsUpdating(true);
       
-      const updatedCreator = await updateUgcCreator({
-        id: creator.id,
-        contract_status: newStatus
+      const response = await fetch(`/api/ugc/creators/${creator.id}/update`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contract_status: newStatus,
+          brand_id: brandId
+        }),
       });
+      
+      if (!response.ok) {
+        throw new Error('Failed to update contract status');
+      }
+      
+      const updatedCreator = await response.json();
       
       if (onUpdate) {
         onUpdate(updatedCreator);
@@ -158,12 +180,24 @@ export default function CreatorCard({ creator, brandId, onUpdate, scriptCounts }
     try {
       setIsUpdating(true);
       
-      const updatedCreator = await updateUgcCreator({
-        id: creator.id,
-        product_shipment_status: newStatus,
-        // Auto-set product_shipped to true if status is Shipped or Delivered
-        product_shipped: ['Shipped', 'Delivered'].includes(newStatus)
+      const response = await fetch(`/api/ugc/creators/${creator.id}/update`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          product_shipment_status: newStatus,
+          // Auto-set product_shipped to true if status is Shipped or Delivered
+          product_shipped: ['Shipped', 'Delivered'].includes(newStatus),
+          brand_id: brandId
+        }),
       });
+      
+      if (!response.ok) {
+        throw new Error('Failed to update product shipment status');
+      }
+      
+      const updatedCreator = await response.json();
       
       if (onUpdate) {
         onUpdate(updatedCreator);

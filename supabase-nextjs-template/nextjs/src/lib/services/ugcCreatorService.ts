@@ -6,11 +6,6 @@ import {
   DbUgcCreator,
   DbUgcCreatorScript 
 } from '../types/ugcCreator';
-import { 
-  sendUGCCreatorStatusNotification,
-  sendUGCContractStatusNotification,
-  sendUGCProductShipmentNotification 
-} from '@/lib/services/ugcSlackService';
 
 const supabase = createSPAClient();
 
@@ -95,18 +90,6 @@ export async function createUgcCreator(creator: Omit<UgcCreator, 'id' | 'created
 export async function updateUgcCreator(creator: Partial<UgcCreator> & { id: string }): Promise<UgcCreator> {
   const supabase = createSPAClient();
   
-  // Get the current creator to compare status changes
-  const { data: currentCreator, error: fetchError } = await supabase
-    .from('ugc_creators')
-    .select('*')
-    .eq('id', creator.id)
-    .single();
-    
-  if (fetchError) {
-    console.error('Error fetching current creator:', fetchError);
-    throw new Error('Failed to fetch current creator');
-  }
-  
   const { data, error } = await supabase
     .from('ugc_creators')
     .update(creator)
@@ -127,64 +110,6 @@ export async function updateUgcCreator(creator: Partial<UgcCreator> & { id: stri
     platforms: data.platforms as string[] || [],
     custom_fields: (data.custom_fields as Record<string, string | number | boolean | string[] | null>) || {}
   } as UgcCreator;
-  
-  // Send Slack notifications for status changes
-  try {
-    const baseUrl = typeof window !== 'undefined' 
-      ? window.location.origin 
-      : 'http://localhost:3000';
-    const creatorDashboardLink = `${baseUrl}/app/powerbrief/${data.brand_id}/ugc-pipeline/creators/${data.id}`;
-    const pipelineDashboardLink = `${baseUrl}/app/powerbrief/${data.brand_id}/ugc-pipeline?view=creator`;
-    
-    // Creator status change notifications (only for specific statuses)
-    if (creator.status && currentCreator.status !== creator.status) {
-      const notifiableStatuses = ['Approved for next steps', 'Ready for scripts', 'Rejected'];
-      if (notifiableStatuses.includes(creator.status)) {
-        await sendUGCCreatorStatusNotification({
-          brandId: data.brand_id,
-          creatorId: data.id,
-          creatorName: data.name,
-          creatorEmail: data.email,
-          previousStatus: currentCreator.status || 'Unknown',
-          newStatus: creator.status,
-          creatorDashboardLink,
-          pipelineDashboardLink
-        });
-      }
-    }
-    
-    // Contract status change notifications
-    if (creator.contract_status && currentCreator.contract_status !== creator.contract_status) {
-      await sendUGCContractStatusNotification({
-        brandId: data.brand_id,
-        creatorId: data.id,
-        creatorName: data.name,
-        creatorEmail: data.email,
-        previousStatus: currentCreator.contract_status || 'not signed',
-        newStatus: creator.contract_status,
-        creatorDashboardLink,
-        pipelineDashboardLink
-      });
-    }
-    
-    // Product shipment status change notifications
-    if (creator.product_shipment_status && currentCreator.product_shipment_status !== creator.product_shipment_status) {
-      await sendUGCProductShipmentNotification({
-        brandId: data.brand_id,
-        creatorId: data.id,
-        creatorName: data.name,
-        creatorEmail: data.email,
-        previousStatus: currentCreator.product_shipment_status || 'Not Shipped',
-        newStatus: creator.product_shipment_status,
-        trackingNumber: creator.tracking_number,
-        creatorDashboardLink,
-        pipelineDashboardLink
-      });
-    }
-  } catch (slackError) {
-    console.error('Error sending Slack notification:', slackError);
-    // Don't fail the update if Slack notification fails
-  }
   
   // If brand_id is provided, trigger n8n workflow
   if (creator.brand_id) {
