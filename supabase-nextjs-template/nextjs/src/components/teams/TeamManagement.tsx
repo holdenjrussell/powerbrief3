@@ -167,9 +167,11 @@ export default function TeamManagement({ brandId }: TeamManagementProps) {
         setFeatureAccess(data.features);
       } else {
         console.error('Failed to fetch feature access:', data.error);
+        setFeatureAccess([]); // Set to empty array on error
       }
     } catch (error) {
       console.error('Error fetching feature access:', error);
+      setFeatureAccess([]); // Set to empty array on error
     }
   };
 
@@ -301,12 +303,12 @@ export default function TeamManagement({ brandId }: TeamManagementProps) {
     if (!selectedTeam) return;
 
     try {
-      const updatedFeatures = featureAccess.map(f => 
+      const updatedFeatures = (featureAccess || []).map(f => 
         f.feature_key === featureKey ? { ...f, has_access: hasAccess } : f
       );
       
       // If feature doesn't exist, add it
-      if (!featureAccess.find(f => f.feature_key === featureKey)) {
+      if (!(featureAccess || []).find(f => f.feature_key === featureKey)) {
         updatedFeatures.push({
           id: '',
           team_id: selectedTeam.id,
@@ -334,12 +336,12 @@ export default function TeamManagement({ brandId }: TeamManagementProps) {
     }
   };
 
-  const availableUsersNotInTeam = availableUsers.filter(
-    user => !teamMembers.find(member => member.id === user.id)
+  const availableUsersNotInTeam = (availableUsers || []).filter(
+    user => !(teamMembers || []).find(member => member.id === user.id)
   );
 
   const getFeatureAccess = (featureKey: string) => {
-    const access = featureAccess.find(f => f.feature_key === featureKey);
+    const access = (featureAccess || []).find(f => f.feature_key === featureKey);
     return access ? access.has_access : true; // Default to true if not found
   };
 
