@@ -434,10 +434,10 @@ export default function TeamManagement({ brandId }: TeamManagementProps) {
             <CardContent className="p-0">
               <div className="divide-y">
                 {teams.map((team) => (
-                  <button
+                  <div
                     key={team.id}
                     onClick={() => setSelectedTeam(team)}
-                    className={`w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors ${
+                    className={`w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors cursor-pointer ${
                       selectedTeam?.id === team.id ? 'bg-primary-50' : ''
                     }`}
                   >
@@ -480,7 +480,7 @@ export default function TeamManagement({ brandId }: TeamManagementProps) {
                         </div>
                       </div>
                     </div>
-                  </button>
+                  </div>
                 ))}
               </div>
             </CardContent>
