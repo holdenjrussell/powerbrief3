@@ -14,10 +14,13 @@
 
 ### 3. **Scorecard Table Conflict Resolution**
 - ⚠️ Found existing `scorecard_metrics` table from migration `20250603000000_create_scorecard_metrics_table.sql`
+- ⚠️ Existing table has data with NULL values in required columns
 - ✅ Updated migration to ALTER existing table instead of CREATE
 - ✅ Added safe column additions with IF NOT EXISTS
+- ✅ Added data migration from old `metric_config` JSONB to new columns
+- ✅ Sets default values for any NULL data before adding NOT NULL constraints
 - ✅ Added constraint checks to avoid conflicts
-- ✅ Will preserve any existing data
+- ✅ Will preserve and migrate all existing data
 
 ## 📋 Pre-Migration Verification
 
@@ -43,6 +46,12 @@ ORDER BY table_name;
 ```sql
 -- First, check scorecard table status
 -- Copy and run SCORECARD_TABLE_CHECK.sql in Supabase SQL Editor
+
+-- Check existing scorecard data
+-- Copy and run SCORECARD_DATA_MIGRATION_CHECK.sql in Supabase SQL Editor
+
+-- Optional: Backup existing scorecard data
+CREATE TABLE scorecard_metrics_backup AS SELECT * FROM scorecard_metrics;
 
 -- Then run full verification
 -- Copy and run TEAMS_MIGRATION_VERIFICATION.sql in Supabase SQL Editor

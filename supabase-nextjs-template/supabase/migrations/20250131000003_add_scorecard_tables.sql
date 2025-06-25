@@ -26,25 +26,82 @@ BEGIN
       ADD COLUMN IF NOT EXISTS is_currency BOOLEAN DEFAULT false,
       ADD COLUMN IF NOT EXISTS decimal_places INTEGER DEFAULT 2;
     
-    -- Add constraints only if columns exist and are nullable
+    -- First, migrate data from metric_config JSONB to new columns if they exist
+    IF EXISTS (SELECT 1 FROM information_schema.columns 
+               WHERE table_name = 'scorecard_metrics' 
+               AND column_name = 'metric_config') THEN
+      -- Migrate metric_key
+      UPDATE scorecard_metrics 
+      SET metric_key = CASE 
+        WHEN metric_config->>'key' IS NOT NULL THEN metric_config->>'key'
+        WHEN metric_config->>'name' IS NOT NULL THEN lower(replace(metric_config->>'name', ' ', '_'))
+        ELSE 'legacy_metric_' || id::text
+      END
+      WHERE metric_key IS NULL;
+      
+      -- Migrate display_name
+      UPDATE scorecard_metrics 
+      SET display_name = CASE 
+        WHEN metric_config->>'name' IS NOT NULL THEN metric_config->>'name'
+        WHEN metric_config->>'title' IS NOT NULL THEN metric_config->>'title'
+        ELSE 'Legacy Metric ' || COALESCE(metric_key, id::text)
+      END
+      WHERE display_name IS NULL;
+      
+      -- Migrate metric_type
+      UPDATE scorecard_metrics 
+      SET metric_type = CASE 
+        WHEN metric_config->>'type' IN ('standard', 'creative_testing', 'custom') THEN metric_config->>'type'
+        ELSE 'custom'
+      END
+      WHERE metric_type IS NULL;
+      
+      -- Migrate other fields from metric_config if they exist
+      UPDATE scorecard_metrics 
+      SET 
+        description = COALESCE(description, metric_config->>'description'),
+        calculation_formula = COALESCE(calculation_formula, metric_config->>'formula'),
+        goal_value = COALESCE(goal_value, (metric_config->>'goal_value')::DECIMAL),
+        is_percentage = COALESCE(is_percentage, (metric_config->>'is_percentage')::BOOLEAN),
+        is_currency = COALESCE(is_currency, (metric_config->>'is_currency')::BOOLEAN)
+      WHERE metric_config IS NOT NULL;
+    END IF;
+    
+    -- Then update any remaining NULL values with defaults
+    UPDATE scorecard_metrics 
+    SET metric_key = 'legacy_metric_' || id::text 
+    WHERE metric_key IS NULL;
+    
+    UPDATE scorecard_metrics 
+    SET display_name = 'Legacy Metric ' || COALESCE(metric_key, id::text)
+    WHERE display_name IS NULL;
+    
+    UPDATE scorecard_metrics 
+    SET metric_type = 'custom'
+    WHERE metric_type IS NULL;
+    
+    -- Now add constraints only if columns exist and don't have nulls
     IF EXISTS (SELECT 1 FROM information_schema.columns 
                WHERE table_name = 'scorecard_metrics' 
                AND column_name = 'metric_key' 
-               AND is_nullable = 'YES') THEN
+               AND is_nullable = 'YES') 
+       AND NOT EXISTS (SELECT 1 FROM scorecard_metrics WHERE metric_key IS NULL) THEN
       ALTER TABLE scorecard_metrics ALTER COLUMN metric_key SET NOT NULL;
     END IF;
     
     IF EXISTS (SELECT 1 FROM information_schema.columns 
                WHERE table_name = 'scorecard_metrics' 
                AND column_name = 'display_name' 
-               AND is_nullable = 'YES') THEN
+               AND is_nullable = 'YES')
+       AND NOT EXISTS (SELECT 1 FROM scorecard_metrics WHERE display_name IS NULL) THEN
       ALTER TABLE scorecard_metrics ALTER COLUMN display_name SET NOT NULL;
     END IF;
     
     IF EXISTS (SELECT 1 FROM information_schema.columns 
                WHERE table_name = 'scorecard_metrics' 
                AND column_name = 'metric_type' 
-               AND is_nullable = 'YES') THEN
+               AND is_nullable = 'YES')
+       AND NOT EXISTS (SELECT 1 FROM scorecard_metrics WHERE metric_type IS NULL) THEN
       ALTER TABLE scorecard_metrics ALTER COLUMN metric_type SET NOT NULL;
     END IF;
     
