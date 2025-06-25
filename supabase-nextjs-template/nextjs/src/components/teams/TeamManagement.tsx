@@ -135,9 +135,11 @@ export default function TeamManagement({ brandId }: TeamManagementProps) {
         setTeamMembers(data.members);
       } else {
         console.error('Failed to fetch team members:', data.error);
+        setTeamMembers([]); // Set to empty array on error
       }
     } catch (error) {
       console.error('Error fetching team members:', error);
+      setTeamMembers([]); // Set to empty array on error
     }
   };
 
@@ -149,9 +151,11 @@ export default function TeamManagement({ brandId }: TeamManagementProps) {
         setAvailableUsers(data.users);
       } else {
         console.error('Failed to fetch available users:', data.error);
+        setAvailableUsers([]); // Set to empty array on error
       }
     } catch (error) {
       console.error('Error fetching available users:', error);
+      setAvailableUsers([]); // Set to empty array on error
     }
   };
 

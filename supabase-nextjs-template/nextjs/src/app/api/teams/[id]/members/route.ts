@@ -15,18 +15,29 @@ export async function GET(
 
     const teamId = params.id;
 
-    // Get team members with user details from brand_shares
+    // Get team with brand info
+    const { data: team } = await supabase
+      .from('teams')
+      .select(`
+        id,
+        brand_id,
+        brands!inner(
+          user_id
+        )
+      `)
+      .eq('id', teamId)
+      .single();
+
+    if (!team) {
+      return NextResponse.json({ error: 'Team not found' }, { status: 404 });
+    }
+
+    // Get team members
     const { data: teamMembers, error } = await supabase
       .from('team_members')
       .select(`
         user_id,
-        created_at,
-        brand_shares!inner(
-          shared_with_user_id,
-          first_name,
-          last_name,
-          email
-        )
+        created_at
       `)
       .eq('team_id', teamId);
 
@@ -35,49 +46,52 @@ export async function GET(
       return NextResponse.json({ error: 'Failed to fetch team members' }, { status: 500 });
     }
 
-    // Also get brand owner info
-    const { data: team } = await supabase
-      .from('teams')
-      .select(`
-        brand_id,
-        brands!inner(
-          user_id,
-          users:auth.users!inner(
-            email
-          )
-        )
-      `)
-      .eq('id', teamId)
-      .single();
+    // Get all user profiles for team members
+    const userIds = teamMembers?.map(m => m.user_id) || [];
+    
+    // Add brand owner to the list if not already included
+    if (team.brands.user_id && !userIds.includes(team.brands.user_id)) {
+      userIds.push(team.brands.user_id);
+    }
+
+    // Get profiles for all users
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, email, full_name, avatar_url')
+      .in('id', userIds);
+
+    // Also get brand shares to get additional info
+    const { data: brandShares } = await supabase
+      .from('brand_shares')
+      .select('shared_with_user_id, first_name, last_name, shared_with_email, role')
+      .eq('brand_id', team.brand_id)
+      .eq('status', 'accepted')
+      .in('shared_with_user_id', userIds);
+
+    // Create a map for easy lookup
+    const profileMap = new Map(profiles?.map(p => [p.id, p]) || []);
+    const shareMap = new Map(brandShares?.map(s => [s.shared_with_user_id, s]) || []);
 
     // Format the response
-    const members = teamMembers?.map(member => ({
-      // @ts-ignore - Type will be available after migration
-      user_id: member.user_id,
-      // @ts-ignore - Type will be available after migration
-      email: member.brand_shares?.email || '',
-      // @ts-ignore - Type will be available after migration
-      first_name: member.brand_shares?.first_name || '',
-      // @ts-ignore - Type will be available after migration
-      last_name: member.brand_shares?.last_name || '',
-      // @ts-ignore - Type will be available after migration
-      created_at: member.created_at,
-      is_owner: false
-    })) || [];
+    const members = userIds.map(userId => {
+      const profile = profileMap.get(userId);
+      const share = shareMap.get(userId);
+      const isOwner = userId === team.brands.user_id;
+      const teamMember = teamMembers?.find(m => m.user_id === userId);
 
-    // Add brand owner to the list
-    if (team) {
-      members.push({
-        // @ts-ignore - Type will be available after migration
-        user_id: team.brands.user_id,
-        // @ts-ignore - Type will be available after migration
-        email: team.brands.users.email,
-        first_name: 'Brand',
-        last_name: 'Owner',
-        created_at: null,
-        is_owner: true
-      });
-    }
+      return {
+        id: userId,
+        email: profile?.email || share?.shared_with_email || '',
+        fullName: profile?.full_name || `${share?.first_name || ''} ${share?.last_name || ''}`.trim() || '',
+        avatarUrl: profile?.avatar_url || null,
+        role: isOwner ? 'owner' : (share?.role || 'member'),
+        isOwner,
+        created_at: teamMember?.created_at || null,
+        // Legacy fields for compatibility
+        first_name: share?.first_name || '',
+        last_name: share?.last_name || ''
+      };
+    });
 
     return NextResponse.json({ members });
   } catch (error) {
@@ -100,9 +114,9 @@ export async function POST(
 
     const teamId = params.id;
     const body = await request.json();
-    const { userIds } = body;
+    const { user_ids } = body;
 
-    if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
+    if (!user_ids || !Array.isArray(user_ids) || user_ids.length === 0) {
       return NextResponse.json({ error: 'User IDs array is required' }, { status: 400 });
     }
 
@@ -128,17 +142,28 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized to manage this team' }, { status: 403 });
     }
 
-    // Verify all users have accepted brand share
+    // Verify all users have accepted brand share or are the owner
     const { data: validShares } = await supabase
       .from('brand_shares')
       .select('shared_with_user_id')
       .eq('brand_id', team.brand_id)
       .eq('status', 'accepted')
-      .in('shared_with_user_id', userIds);
+      .in('shared_with_user_id', user_ids);
 
     const validUserIds = validShares?.map(share => share.shared_with_user_id) || [];
     
-    if (validUserIds.length !== userIds.length) {
+    // Also check if any of the user_ids is the brand owner
+    const { data: brandOwner } = await supabase
+      .from('brands')
+      .select('user_id')
+      .eq('id', team.brand_id)
+      .single();
+
+    if (brandOwner && user_ids.includes(brandOwner.user_id) && !validUserIds.includes(brandOwner.user_id)) {
+      validUserIds.push(brandOwner.user_id);
+    }
+    
+    if (validUserIds.length !== user_ids.length) {
       return NextResponse.json({ 
         error: 'Some users do not have accepted brand share invitations' 
       }, { status: 400 });
@@ -164,6 +189,9 @@ export async function POST(
 
     // Update brand_shares to include this team
     for (const userId of validUserIds) {
+      // Skip if user is the brand owner
+      if (userId === brandOwner?.user_id) continue;
+
       const { data: currentShare } = await supabase
         .from('brand_shares')
         .select('team_ids')
@@ -171,7 +199,6 @@ export async function POST(
         .eq('shared_with_user_id', userId)
         .single();
 
-      // @ts-ignore - Type will be available after migration
       const currentTeamIds = currentShare?.team_ids || [];
       if (!currentTeamIds.includes(teamId)) {
         await supabase
