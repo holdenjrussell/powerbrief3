@@ -78,7 +78,7 @@ function getStatusColorConfig(status: string): { bg: string; text: string; borde
 
 export default function PowerBriefPage() {
     const { user } = useGlobal();
-    const { brands, selectedBrand } = useBrand();
+    const { brands, selectedBrand, teamFeatures, selectedTeam } = useBrand();
     const router = useRouter();
     const [activeTab, setActiveTab] = useState('onesheet');
     const [loading, setLoading] = useState(false);
@@ -98,6 +98,32 @@ export default function PowerBriefPage() {
     const [renameBatchValue, setRenameBatchValue] = useState('');
     const [renamingBatch, setRenamingBatch] = useState(false);
     const [deletingBatch, setDeletingBatch] = useState(false);
+
+    // Define tabs with feature keys
+    const allTabs = [
+        { value: 'onesheet', label: 'OneSheet', icon: Folder, featureKey: 'powerbrief_onesheet' },
+        { value: 'ads', label: 'Ads', icon: Zap, featureKey: 'powerbrief_ads' },
+        { value: 'web-assets', label: 'Web Assets', icon: Share2, featureKey: 'powerbrief_web_assets' },
+        { value: 'email', label: 'Email', icon: Mail, featureKey: 'powerbrief_email' },
+        { value: 'sms', label: 'SMS', icon: MessageSquare, featureKey: 'powerbrief_sms' },
+        { value: 'organic-social', label: 'Organic Social', icon: Share2, featureKey: 'powerbrief_organic_social' },
+        { value: 'blog', label: 'Blog', icon: PenTool, featureKey: 'powerbrief_blog' }
+    ];
+
+    // Filter tabs based on team features
+    const availableTabs = allTabs.filter(tab => {
+        // If no team is selected, show all tabs
+        if (!selectedTeam) return true;
+        // Check if the team has access to this feature
+        return teamFeatures[tab.featureKey] !== false;
+    });
+
+    // If the active tab is no longer available, switch to the first available tab
+    useEffect(() => {
+        if (availableTabs.length > 0 && !availableTabs.find(tab => tab.value === activeTab)) {
+            setActiveTab(availableTabs[0].value);
+        }
+    }, [availableTabs.length, activeTab]);
 
     // Fetch existing brief batches when selected brand changes
     useEffect(() => {
@@ -623,35 +649,16 @@ export default function PowerBriefPage() {
                 </div>
 
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                    <TabsList className="grid w-full grid-cols-7 mb-8">
-                        <TabsTrigger value="onesheet" className="flex items-center gap-2">
-                            <Folder className="h-4 w-4" />
-                            OneSheet
-                        </TabsTrigger>
-                        <TabsTrigger value="ads" className="flex items-center gap-2">
-                            <Zap className="h-4 w-4" />
-                            Ads
-                        </TabsTrigger>
-                        <TabsTrigger value="web-assets" className="flex items-center gap-2">
-                            <Share2 className="h-4 w-4" />
-                            Web Assets
-                        </TabsTrigger>
-                        <TabsTrigger value="email" className="flex items-center gap-2">
-                            <Mail className="h-4 w-4" />
-                            Email
-                        </TabsTrigger>
-                        <TabsTrigger value="sms" className="flex items-center gap-2">
-                            <MessageSquare className="h-4 w-4" />
-                            SMS
-                        </TabsTrigger>
-                        <TabsTrigger value="organic-social" className="flex items-center gap-2">
-                            <Share2 className="h-4 w-4" />
-                            Organic Social
-                        </TabsTrigger>
-                        <TabsTrigger value="blog" className="flex items-center gap-2">
-                            <PenTool className="h-4 w-4" />
-                            Blog
-                        </TabsTrigger>
+                    <TabsList className={`grid w-full grid-cols-${availableTabs.length} mb-8`}>
+                        {availableTabs.map((tab) => {
+                            const Icon = tab.icon;
+                            return (
+                                <TabsTrigger key={tab.value} value={tab.value} className="flex items-center gap-2">
+                                    <Icon className="h-4 w-4" />
+                                    {tab.label}
+                                </TabsTrigger>
+                            );
+                        })}
                     </TabsList>
 
                     <TabsContent value="onesheet" className="space-y-6">
@@ -759,7 +766,7 @@ export default function PowerBriefPage() {
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                             {renderContentTypeCard('blog')}
                         </div>
-                    </TabsContent>
+                                            </TabsContent>
                 </Tabs>
             </div>
             

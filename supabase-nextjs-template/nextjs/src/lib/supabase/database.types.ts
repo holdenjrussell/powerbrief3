@@ -339,6 +339,9 @@ export type Database = {
           title: string
           updated_at: string
           user_id: string
+          is_resolved: boolean
+          is_global: boolean
+          target_team_ids: string[]
         }
         Insert: {
           brand_id?: string | null
@@ -349,6 +352,9 @@ export type Database = {
           title: string
           updated_at?: string
           user_id: string
+          is_resolved?: boolean
+          is_global?: boolean
+          target_team_ids?: string[]
         }
         Update: {
           brand_id?: string | null
@@ -359,6 +365,9 @@ export type Database = {
           title?: string
           updated_at?: string
           user_id?: string
+          is_resolved?: boolean
+          is_global?: boolean
+          target_team_ids?: string[]
         }
         Relationships: [
           {
@@ -384,6 +393,9 @@ export type Database = {
           shared_with_user_id: string | null
           status: string
           updated_at: string
+          team_ids: string[] | null
+          first_name: string | null
+          last_name: string | null
         }
         Insert: {
           accepted_at?: string | null
@@ -398,6 +410,9 @@ export type Database = {
           shared_with_user_id?: string | null
           status?: string
           updated_at?: string
+          team_ids?: string[] | null
+          first_name?: string | null
+          last_name?: string | null
         }
         Update: {
           accepted_at?: string | null
@@ -412,6 +427,9 @@ export type Database = {
           shared_with_user_id?: string | null
           status?: string
           updated_at?: string
+          team_ids?: string[] | null
+          first_name?: string | null
+          last_name?: string | null
         }
         Relationships: [
           {
@@ -1457,6 +1475,7 @@ export type Database = {
           title: string
           updated_at: string
           user_id: string
+          target_team_id: string | null
         }
         Insert: {
           assignee_id?: string | null
@@ -1470,6 +1489,7 @@ export type Database = {
           title: string
           updated_at?: string
           user_id: string
+          target_team_id?: string | null
         }
         Update: {
           assignee_id?: string | null
@@ -1483,6 +1503,7 @@ export type Database = {
           title?: string
           updated_at?: string
           user_id?: string
+          target_team_id?: string | null
         }
         Relationships: [
           {
@@ -2113,6 +2134,7 @@ export type Database = {
           title: string
           updated_at: string
           user_id: string
+          target_team_id: string | null
         }
         Insert: {
           assignee_id?: string | null
@@ -2126,6 +2148,7 @@ export type Database = {
           title: string
           updated_at?: string
           user_id: string
+          target_team_id?: string | null
         }
         Update: {
           assignee_id?: string | null
@@ -2139,6 +2162,7 @@ export type Database = {
           title?: string
           updated_at?: string
           user_id?: string
+          target_team_id?: string | null
         }
         Relationships: [
           {
@@ -4467,6 +4491,109 @@ export type Database = {
             columns: ["wireframe_id"]
             isOneToOne: false
             referencedRelation: "wireframes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      teams: {
+        Row: {
+          id: string
+          brand_id: string
+          name: string
+          is_default: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          brand_id: string
+          name: string
+          is_default?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          brand_id?: string
+          name?: string
+          is_default?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teams_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      team_members: {
+        Row: {
+          team_id: string
+          user_id: string
+          created_at: string
+        }
+        Insert: {
+          team_id: string
+          user_id: string
+          created_at?: string
+        }
+        Update: {
+          team_id?: string
+          user_id?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_members_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_members_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      team_feature_access: {
+        Row: {
+          id: string
+          team_id: string
+          feature_key: string
+          has_access: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          team_id: string
+          feature_key: string
+          has_access?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          team_id?: string
+          feature_key?: string
+          has_access?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_feature_access_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
             referencedColumns: ["id"]
           },
         ]

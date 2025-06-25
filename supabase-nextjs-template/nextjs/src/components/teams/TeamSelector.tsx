@@ -11,6 +11,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Users } from 'lucide-react';
 import { useBrand } from '@/lib/context/BrandContext';
+import { useGlobal } from '@/lib/context/GlobalContext';
 import { toast } from '@/components/ui/use-toast';
 
 interface Team {
@@ -23,6 +24,7 @@ interface Team {
 
 export default function TeamSelector() {
   const { selectedBrand, selectedTeam, setSelectedTeam } = useBrand();
+  const { user } = useGlobal();
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -43,8 +45,21 @@ export default function TeamSelector() {
       const data = await response.json();
       setTeams(data.teams || []);
       
-      // Set default team if no team is selected
-      if (!selectedTeam && data.teams?.length > 0) {
+      // Check for saved team in localStorage
+      const savedTeamId = user?.id ? localStorage.getItem(`selected-team-${user.id}-${selectedBrand.id}`) : null;
+      
+      if (savedTeamId && data.teams?.length > 0) {
+        // Try to restore the saved team
+        const savedTeam = data.teams.find((t: Team) => t.id === savedTeamId);
+        if (savedTeam) {
+          setSelectedTeam(savedTeam);
+        } else if (!selectedTeam && data.teams?.length > 0) {
+          // Saved team not found, use default
+          const defaultTeam = data.teams.find((t: Team) => t.is_default) || data.teams[0];
+          setSelectedTeam(defaultTeam);
+        }
+      } else if (!selectedTeam && data.teams?.length > 0) {
+        // No saved team, use default
         const defaultTeam = data.teams.find((t: Team) => t.is_default) || data.teams[0];
         setSelectedTeam(defaultTeam);
       }
