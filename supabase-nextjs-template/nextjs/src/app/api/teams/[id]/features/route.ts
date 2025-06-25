@@ -37,7 +37,7 @@ export const FEATURE_LABELS: Record<string, string> = {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const supabase = await createSSRClient();
   
@@ -47,7 +47,7 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const teamId = params.id;
+    const { id: teamId } = await params;
 
     // Get all feature access settings for the team
     const { data: features, error } = await supabase
@@ -80,7 +80,7 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const supabase = await createSSRClient();
   
@@ -90,7 +90,7 @@ export async function PUT(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const teamId = params.id;
+    const { id: teamId } = await params;
     const body = await request.json();
     const { features } = body;
 
@@ -124,7 +124,7 @@ export async function PUT(
     const upserts = Object.entries(features).map(([key, hasAccess]) => ({
       team_id: teamId,
       feature_key: key,
-      has_access: hasAccess,
+      has_access: Boolean(hasAccess),
       updated_at: new Date().toISOString()
     }));
 

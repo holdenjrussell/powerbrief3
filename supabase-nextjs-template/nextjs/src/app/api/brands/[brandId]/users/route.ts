@@ -3,7 +3,7 @@ import { createSSRClient } from '@/lib/supabase/server';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { brandId: string } }
+  { params }: { params: Promise<{ brandId: string }> }
 ) {
   const supabase = await createSSRClient();
   
@@ -13,7 +13,7 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const brandId = params.brandId;
+    const { brandId } = await params;
 
     // Check if user has access to this brand
     const { data: brand } = await supabase
