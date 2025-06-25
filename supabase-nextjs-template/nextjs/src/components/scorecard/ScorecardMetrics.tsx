@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Card, 
   CardContent, 
@@ -12,28 +12,19 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
-  Alert,
-  AlertDescription,
-  Badge
+  SelectValue
 } from '@/components/ui';
 import { 
   Plus, 
-  AlertTriangle,
-  CheckCircle,
   Calendar,
   ChevronLeft,
   ChevronRight,
   RefreshCw,
-  BarChart3,
-  TrendingUp,
-  TrendingDown,
-  Minus
+  BarChart3
 } from 'lucide-react';
 import MetricRow from './MetricRow';
 import MetricChartModal from './MetricChartModal';
 import MetricConfigModal from './MetricConfigModal';
-import { fetchMetaInsights } from '@/lib/metaService';
 
 export interface Metric {
   id: string;
@@ -210,24 +201,14 @@ export default function ScorecardMetrics({ brandId, teamId }: ScorecardMetricsPr
 
   // Fetch metrics data
   const fetchMetricsData = async () => {
-    // Implementation to fetch actual metric values
-    // This would call the meta-insights API for each metric and date range
-    // For now, using mock data
-    const mockData: Record<string, any> = {};
+    // Real implementation would fetch actual metric values from the API
+    // For each metric and date range, call the meta-insights API
+    const data: Record<string, any> = {};
     
-    metrics.forEach(metric => {
-      mockData[metric.id] = {
-        current: Math.random() * 10,
-        average: Math.random() * 10,
-        goal: metric.goal_value || 0,
-        trend: Math.random() > 0.5 ? 'up' : 'down',
-        periods: getDateRanges().map(() => ({
-          value: Math.random() * 10
-        }))
-      };
-    });
+    // TODO: Implement actual data fetching
+    // This will be populated when refresh is clicked
     
-    setMetricsData(mockData);
+    setMetricsData(data);
   };
 
   // Save metric configuration
@@ -292,17 +273,6 @@ export default function ScorecardMetrics({ brandId, teamId }: ScorecardMetricsPr
 
   return (
     <div className="space-y-6">
-      {/* Development Warning - Remove in production */}
-      {process.env.NODE_ENV === 'development' && (
-        <Alert className="border-orange-200 bg-orange-50">
-          <AlertTriangle className="h-4 w-4 text-orange-600" />
-          <AlertDescription>
-            <span className="font-medium text-orange-800">Development Mode:</span>
-            <span className="text-orange-700 ml-1">Scorecard is using mock data. Connect Meta for live data.</span>
-          </AlertDescription>
-        </Alert>
-      )}
-
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -390,32 +360,44 @@ export default function ScorecardMetrics({ brandId, teamId }: ScorecardMetricsPr
       ) : metrics.length > 0 ? (
         <div className="space-y-4">
           {/* Metrics Header */}
-          <div className="grid grid-cols-12 gap-4 px-4 py-2 bg-gray-50 rounded-lg font-medium text-sm text-gray-600">
-            <div className="col-span-1">Status</div>
-            <div className="col-span-2">Metric</div>
-            <div className="col-span-1">Current</div>
-            <div className="col-span-1">Average</div>
-            <div className="col-span-1">Goal</div>
-            <div className="col-span-5">
-              <div className="flex items-center">
-                <button
-                  onClick={() => setCurrentWeekOffset(currentWeekOffset + 1)}
-                  className="p-1 hover:bg-gray-200 rounded mr-2"
-                  disabled={currentWeekOffset >= getNumberOfPeriods() - dateRanges.length}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </button>
-                <div className="flex-1 text-center">Period Values</div>
-                <button
-                  onClick={() => setCurrentWeekOffset(Math.max(0, currentWeekOffset - 1))}
-                  className="p-1 hover:bg-gray-200 rounded ml-2"
-                  disabled={currentWeekOffset === 0}
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </button>
+          <div className="sticky top-0 z-10 bg-white">
+            <div className="grid grid-cols-12 gap-4 px-4 py-2 bg-gray-50 rounded-lg font-medium text-sm text-gray-600">
+              <div className="col-span-1">Status</div>
+              <div className="col-span-2">Metric</div>
+              <div className="col-span-1">Current</div>
+              <div className="col-span-1">Average</div>
+              <div className="col-span-1">Goal</div>
+              <div className="col-span-5">
+                <div className="flex items-center">
+                  <button
+                    onClick={() => setCurrentWeekOffset(currentWeekOffset + 1)}
+                    className="p-1 hover:bg-gray-200 rounded mr-2"
+                    disabled={currentWeekOffset >= getNumberOfPeriods() - dateRanges.length}
+                    aria-label="Previous periods"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                  <div className="flex-1 overflow-x-auto">
+                    <div className="flex gap-4 min-w-max px-2">
+                      {dateRanges.map((range, index) => (
+                        <div key={index} className="text-center min-w-[80px] text-xs">
+                          {range.label}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setCurrentWeekOffset(Math.max(0, currentWeekOffset - 1))}
+                    className="p-1 hover:bg-gray-200 rounded ml-2"
+                    disabled={currentWeekOffset === 0}
+                    aria-label="Next periods"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
+              <div className="col-span-1">Actions</div>
             </div>
-            <div className="col-span-1">Actions</div>
           </div>
 
           {/* Metrics Rows */}

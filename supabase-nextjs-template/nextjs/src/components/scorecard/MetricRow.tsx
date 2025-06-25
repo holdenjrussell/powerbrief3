@@ -180,19 +180,17 @@ export default function MetricRow({
 
           {/* Period Values */}
           <div className="col-span-5">
-            <div className="overflow-x-auto">
-              <div className="flex gap-4 min-w-max px-2">
-                {dateRanges.map((range, index) => (
-                  <div key={index} className="text-center min-w-[80px]">
-                    <div className="text-sm">
-                      {data?.periods?.[index] 
-                        ? formatValue(data.periods[index].value) 
-                        : '--'
-                      }
-                    </div>
+            <div className="flex gap-4 min-w-max px-2">
+              {dateRanges.map((range, index) => (
+                <div key={index} className="text-center min-w-[80px]">
+                  <div className="text-sm">
+                    {data?.periods?.[index] 
+                      ? formatValue(data.periods[index].value) 
+                      : '--'
+                    }
                   </div>
-                ))}
-              </div>
+                </div>
+              ))}
             </div>
           </div>
 
