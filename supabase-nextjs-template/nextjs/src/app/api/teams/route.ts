@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
       .from('teams')
       .select(`
         *,
-        team_members!inner(user_id)
+        team_members(user_id)
       `)
       .eq('brand_id', brandId)
       .order('is_default', { ascending: false })
@@ -60,19 +60,43 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { brandId, name } = body;
 
+    console.log('Creating team:', { brandId, name, userId: user.id });
+
     if (!brandId || !name) {
       return NextResponse.json({ error: 'Brand ID and name are required' }, { status: 400 });
     }
 
-    // Check if user owns the brand
-    const { data: brand } = await supabase
+    // Check if user owns the brand or has edit access through sharing
+    const { data: brandAccess } = await supabase
       .from('brands')
-      .select('id')
+      .select('id, user_id')
       .eq('id', brandId)
-      .eq('user_id', user.id)
-      .single();
+      .maybeSingle();
 
-    if (!brand) {
+    let hasAccess = false;
+    
+    if (brandAccess && brandAccess.user_id === user.id) {
+      hasAccess = true;
+      console.log('User owns the brand');
+    } else {
+      // Check if user has edit access through brand sharing
+      const { data: sharedAccess } = await supabase
+        .from('brand_shares')
+        .select('id')
+        .eq('brand_id', brandId)
+        .eq('shared_with_user_id', user.id)
+        .eq('status', 'accepted')
+        .eq('permission', 'edit')
+        .maybeSingle();
+      
+      if (sharedAccess) {
+        hasAccess = true;
+        console.log('User has edit access through sharing');
+      }
+    }
+
+    if (!hasAccess) {
+      console.log('User does not have access to create teams for this brand');
       return NextResponse.json({ error: 'Unauthorized to create teams for this brand' }, { status: 403 });
     }
 
@@ -120,9 +144,15 @@ export async function POST(request: NextRequest) {
       has_access: true
     }));
 
-    await supabase
+    const { error: featureError } = await supabase
       .from('team_feature_access')
       .insert(featureAccess);
+
+    if (featureError) {
+      console.error('Error adding feature access:', featureError);
+      // Don't fail the entire request, just log the error
+      // Teams can still be created without feature access
+    }
 
     return NextResponse.json({ team });
   } catch (error) {
