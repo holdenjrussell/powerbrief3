@@ -6,10 +6,20 @@ import { getBrands, getBrandById } from '@/lib/services/powerbriefService';
 import { getSharedBrands } from '@/lib/services/brandSharingService';
 import { useGlobal } from './GlobalContext';
 
+interface Team {
+  id: string;
+  brand_id: string;
+  name: string;
+  is_default: boolean;
+  member_count?: number;
+}
+
 interface BrandContextType {
   brands: Brand[];
   selectedBrand: Brand | null;
   setSelectedBrand: (brand: Brand | null) => void;
+  selectedTeam: Team | null;
+  setSelectedTeam: (team: Team | null) => void;
   isLoading: boolean;
   error: string | null;
   refreshBrands: () => Promise<void>;
@@ -21,6 +31,7 @@ export function BrandProvider({ children }: { children: ReactNode }) {
   const { user, loading: userLoading } = useGlobal();
   const [brands, setBrands] = useState<Brand[]>([]);
   const [selectedBrand, setSelectedBrand] = useState<Brand | null>(null);
+  const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -154,8 +165,41 @@ export function BrandProvider({ children }: { children: ReactNode }) {
     }
   }, [selectedBrand?.id, user?.id]);
 
+  // Save selected team to localStorage
+  useEffect(() => {
+    if (selectedTeam?.id && selectedBrand?.id && user?.id) {
+      const saveToStorage = () => {
+        try {
+          localStorage.setItem(`selected-team-${user.id}-${selectedBrand.id}`, selectedTeam.id);
+        } catch (error) {
+          console.warn('Failed to save selected team to localStorage:', error);
+        }
+      };
+
+      if ('requestIdleCallback' in window) {
+        requestIdleCallback(saveToStorage);
+      } else {
+        setTimeout(saveToStorage, 0);
+      }
+    }
+  }, [selectedTeam?.id, selectedBrand?.id, user?.id]);
+
+  // Clear team selection when brand changes
+  useEffect(() => {
+    setSelectedTeam(null);
+  }, [selectedBrand?.id]);
+
   return (
-    <BrandContext.Provider value={{ brands, selectedBrand, setSelectedBrand, isLoading, error, refreshBrands: fetchBrands }}>
+    <BrandContext.Provider value={{ 
+      brands, 
+      selectedBrand, 
+      setSelectedBrand, 
+      selectedTeam,
+      setSelectedTeam,
+      isLoading, 
+      error, 
+      refreshBrands: fetchBrands 
+    }}>
       {children}
     </BrandContext.Provider>
   );

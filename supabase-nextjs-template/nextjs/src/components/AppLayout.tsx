@@ -27,6 +27,7 @@ import { useGlobal } from "@/lib/context/GlobalContext";
 import { createSPASassClient } from "@/lib/supabase/client";
 import { getPendingReviewsCount } from '@/lib/services/powerbriefService';
 import BrandSelector from './BrandSelector';
+import TeamSelector from './teams/TeamSelector';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
     const [isSidebarOpen, setSidebarOpen] = useState(false);
@@ -288,6 +289,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     <div className="flex items-center space-x-4 ml-auto">
                         {/* Brand Selector */}
                         <BrandSelector />
+                        
+                        {/* Team Selector */}
+                        <TeamSelector />
 
                         {/* User Dropdown */}
                         <div className="relative">
