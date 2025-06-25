@@ -43,7 +43,8 @@ import {
   Zap,
   Activity,
   HelpCircle,
-  X
+  X,
+  Bug
 } from 'lucide-react';
 import { linkifyText, linkifyTextWithWhitespace } from './utils/linkify';
 import { useBrand } from '@/lib/context/BrandContext';
