@@ -20,8 +20,7 @@ import {
   BarChart3,
   Target,
   Info,
-  AlertCircle,
-  Filter
+  AlertCircle
 } from 'lucide-react';
 import { 
   ScorecardMetric, 
@@ -31,7 +30,6 @@ import {
   getMetricStatus
 } from '@/lib/types/scorecard';
 import MetricChartModal from './MetricChartModal';
-import CampaignFilterModal from './CampaignFilterModal';
 import CreateIssueModal from './CreateIssueModal';
 
 interface ScorecardMetricsProps {
@@ -52,7 +50,6 @@ export default function ScorecardMetrics({ brandId, teamId }: ScorecardMetricsPr
   const [goalValue, setGoalValue] = useState<string>('');
   const [goalOperator, setGoalOperator] = useState<'gte' | 'lte'>('gte');
 
-  const [filterModalMetric, setFilterModalMetric] = useState<ScorecardMetric | null>(null);
   const [issueModalMetric, setIssueModalMetric] = useState<ScorecardMetric | null>(null);
 
   // Calculate date ranges for display
@@ -519,44 +516,7 @@ export default function ScorecardMetrics({ brandId, teamId }: ScorecardMetricsPr
     alert('Issue created successfully!');
   };
 
-  // Update metric campaign filters
-  const updateMetricFilters = async (metricId: string, filters: Array<{operator: string; value: string; case_sensitive?: boolean}>) => {
-    try {
-      const response = await fetch('/api/scorecard/metrics', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: metricId,
-          meta_campaigns: filters
-        })
-      });
 
-      if (response.ok) {
-        // Update local state
-        setMetrics(prevMetrics => 
-          prevMetrics.map(metric => 
-            metric.id === metricId 
-              ? { ...metric, meta_campaigns: filters } as ScorecardMetric
-              : metric
-          )
-        );
-        setFilterModalMetric(null);
-        // Refresh data to apply new filters
-        await fetchMetricsData();
-      } else {
-        console.error('Failed to update filters');
-      }
-    } catch (error) {
-      console.error('Error updating filters:', error);
-    }
-  };
-
-  const shouldShowFilterButton = (metric: ScorecardMetric) => {
-    // Show filter button for creative testing metrics
-    return metric.metric_key.includes('creative_testing') || 
-           metric.metric_key.includes('video_ads_roas') || 
-           metric.metric_key.includes('image_ads_roas');
-  };
 
   // Sort metrics in the requested order
   const sortMetrics = (metrics: ScorecardMetric[]): ScorecardMetric[] => {
@@ -744,7 +704,6 @@ export default function ScorecardMetrics({ brandId, teamId }: ScorecardMetricsPr
                   <div className="w-20">Status</div>
                   <div className="w-12">Chart</div>
                   <div className="w-12">Issue</div>
-                  <div className="w-12">Filter</div>
                   <div className="w-64">Metric</div>
                   <div className="w-24 text-right">Current</div>
                   <div className="w-24 text-right">Average</div>
@@ -830,26 +789,7 @@ export default function ScorecardMetrics({ brandId, teamId }: ScorecardMetricsPr
                         </Button>
                       </div>
 
-                      {/* Filter Button */}
-                      <div className="w-12 flex justify-center">
-                        {shouldShowFilterButton(metric) ? (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setFilterModalMetric(metric)}
-                            title="Configure Filters"
-                            className={
-                              ((metric as ScorecardMetric & {meta_campaigns?: Array<{operator: string; value: string}>}).meta_campaigns?.length || 0) > 0 
-                                ? 'text-blue-600 hover:text-blue-700' 
-                                : 'text-gray-400 hover:text-gray-600'
-                            }
-                          >
-                            <Filter className="h-4 w-4" />
-                          </Button>
-                        ) : (
-                          <div className="w-12" /> // Empty space for alignment
-                        )}
-                      </div>
+
                       
                       {/* Metric Name */}
                       <div className="w-64">
@@ -987,15 +927,6 @@ export default function ScorecardMetrics({ brandId, teamId }: ScorecardMetricsPr
           metric={selectedMetric}
           data={metricsData[selectedMetric.id]}
           dateRanges={dateRanges}
-        />
-      )}
-
-      {filterModalMetric && (
-        <CampaignFilterModal
-          open={!!filterModalMetric}
-          onOpenChange={(open) => !open && setFilterModalMetric(null)}
-          metric={filterModalMetric}
-          onSave={(filters) => updateMetricFilters(filterModalMetric.id, filters)}
         />
       )}
 

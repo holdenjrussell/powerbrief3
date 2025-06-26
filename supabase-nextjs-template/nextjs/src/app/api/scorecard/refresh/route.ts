@@ -74,16 +74,16 @@ function calculateFormulaValue(
   return result;
 }
 
-// Fetch account-level data from Meta API
-async function fetchAccountLevelData(
+// Fetch data from Meta API
+async function fetchMetaInsightsForDateRange(
   adAccountId: string,
   accessToken: string,
   dateRange: { start: string; end: string },
   requiredFields: Set<string>
 ): Promise<Record<string, number>> {
-  console.log(`[Scorecard] Fetching account-level data for ${dateRange.start} to ${dateRange.end}`);
+  console.log(`[Scorecard] Fetching data for ${dateRange.start} to ${dateRange.end}`);
   
-  // Build fields parameter - only include non-action fields for account level
+  // Build fields parameter
   const fieldsSet = new Set<string>();
   requiredFields.forEach(field => {
     if (field.includes(':')) {
@@ -95,7 +95,7 @@ async function fetchAccountLevelData(
     }
   });
   const fields = Array.from(fieldsSet).join(',');
-  console.log(`[Scorecard] Requesting account-level fields: ${fields}`);
+  console.log(`[Scorecard] Requesting fields: ${fields}`);
 
   // Make request to Meta API at account level
   const params = new URLSearchParams({
@@ -106,7 +106,7 @@ async function fetchAccountLevelData(
   });
 
   const url = `https://graph.facebook.com/${META_API_VERSION}/act_${adAccountId}/insights?${params}`;
-  console.log(`[Scorecard] Account-level API URL: ${url.replace(accessToken, '[REDACTED]')}`);
+  console.log(`[Scorecard] API URL: ${url.replace(accessToken, '[REDACTED]')}`);
 
   try {
     const response = await fetch(url);
@@ -190,153 +190,7 @@ async function fetchAccountLevelData(
 
     return processedData;
   } catch (error) {
-    console.error(`[Scorecard] Error fetching account-level data:`, error);
-    throw error;
-  }
-}
-
-// Fetch campaign-level data for metrics that need filtering
-async function fetchCampaignLevelData(
-  adAccountId: string,
-  accessToken: string,
-  dateRange: { start: string; end: string },
-  requiredFields: Set<string>,
-  campaignFilters: Array<{operator: string; value: string; case_sensitive?: boolean}>
-): Promise<Record<string, number>> {
-  console.log(`[Scorecard] Fetching campaign-level data for ${dateRange.start} to ${dateRange.end}`);
-  
-  // Build fields parameter
-  const fieldsSet = new Set<string>(['campaign_name', 'campaign_id', 'impressions']);
-  requiredFields.forEach(field => {
-    if (field.includes(':')) {
-      const [baseField] = field.split(':');
-      fieldsSet.add(baseField);
-    } else {
-      fieldsSet.add(field);
-    }
-  });
-  const fields = Array.from(fieldsSet).join(',');
-  console.log(`[Scorecard] Requesting campaign-level fields: ${fields}`);
-
-  // Build filters
-  const filtering: Array<{field: string; operator: string; value: string}> = [];
-  campaignFilters.forEach(filter => {
-    let operator = 'CONTAIN';
-    switch (filter.operator) {
-      case 'contains':
-        operator = 'CONTAIN';
-        break;
-      case 'not_contains':
-        operator = 'NOT_CONTAIN';
-        break;
-      case 'starts_with':
-        operator = 'STARTS_WITH';
-        break;
-      case 'ends_with':
-        operator = 'ENDS_WITH';
-        break;
-      case 'equals':
-        operator = 'EQUAL';
-        break;
-    }
-    
-    filtering.push({
-      field: 'campaign.name',
-      operator,
-      value: filter.value
-    });
-  });
-
-  console.log(`[Scorecard] Applying ${filtering.length} campaign filters`);
-
-  // Make request to Meta API at campaign level
-  const params = new URLSearchParams({
-    access_token: accessToken,
-    fields,
-    time_range: JSON.stringify({ since: dateRange.start, until: dateRange.end }),
-    level: 'campaign',
-    ...(filtering.length > 0 && { filtering: JSON.stringify(filtering) })
-  });
-
-  const url = `https://graph.facebook.com/${META_API_VERSION}/act_${adAccountId}/insights?${params}`;
-  console.log(`[Scorecard] Campaign-level API URL: ${url.replace(accessToken, '[REDACTED]')}`);
-
-  try {
-    const response = await fetch(url);
-    const data = await response.json();
-
-    if (!response.ok) {
-      console.error(`[Scorecard] Meta API error:`, data.error);
-      throw new Error(data.error?.message || 'Failed to fetch Meta insights');
-    }
-
-    if (!data.data || data.data.length === 0) {
-      console.log('[Scorecard] No campaigns returned from Meta API');
-      return {};
-    }
-
-    // Process and aggregate campaign data
-    const aggregatedData: Record<string, number> = {};
-    console.log(`[Scorecard] Processing ${data.data.length} campaigns`);
-    
-    // Filter out campaigns with 0 impressions
-    const activeCampaigns = data.data.filter((campaign: Record<string, unknown>) => {
-      const impressions = parseFloat((campaign.impressions as string) || '0');
-      return impressions > 0;
-    });
-    
-    console.log(`[Scorecard] Found ${activeCampaigns.length} active campaigns (with impressions > 0)`);
-    
-    // Process each active campaign
-    activeCampaigns.forEach((campaign: Record<string, unknown>) => {
-      console.log(`[Scorecard] Processing campaign: ${campaign.campaign_name || campaign.campaign_id} (${campaign.impressions} impressions)`);
-      
-      // Process each field for this campaign
-      requiredFields.forEach(field => {
-        const metricKey = Object.entries(META_FIELD_MAPPINGS).find(([, value]) => value === field)?.[0] || field;
-        let value = 0;
-        
-        if (field.includes(':')) {
-          // Handle action fields
-          const [actionType, actionName] = field.split(':');
-          const actionsData = campaign[actionType];
-          if (Array.isArray(actionsData)) {
-            const action = actionsData.find((a: { action_type: string; value: string }) => a.action_type === actionName);
-            value = action ? parseFloat(action.value) : 0;
-          }
-        } else if (field === 'purchase_roas' && Array.isArray(campaign[field])) {
-          // Handle ROAS array
-          const roasArray = campaign[field] as Array<{ action_type: string; value: string }>;
-          const purchaseRoas = roasArray.find((item) => 
-            item.action_type === 'omni_purchase' || item.action_type === 'purchase'
-          );
-          value = purchaseRoas ? parseFloat(purchaseRoas.value) : 0;
-        } else if (field !== 'actions' && field !== 'action_values') {
-          // Direct fields
-          const fieldValue = campaign[field];
-          if (typeof fieldValue === 'string' || typeof fieldValue === 'number') {
-            value = parseFloat(String(fieldValue)) || 0;
-          }
-        }
-        
-        // Aggregate the value
-        if (!aggregatedData[metricKey]) {
-          aggregatedData[metricKey] = 0;
-        }
-        aggregatedData[metricKey] += value;
-      });
-    });
-    
-    // For ROAS metrics, we need to calculate properly (total revenue / total spend)
-    if (aggregatedData['purchase_value'] !== undefined && aggregatedData['spend'] !== undefined && aggregatedData['spend'] > 0) {
-      // Recalculate ROAS as total revenue / total spend
-      aggregatedData['purchase_roas'] = aggregatedData['purchase_value'] / aggregatedData['spend'];
-    }
-    
-    console.log('[Scorecard] Aggregated campaign data:', aggregatedData);
-    return aggregatedData;
-  } catch (error) {
-    console.error(`[Scorecard] Error fetching campaign-level data:`, error);
+    console.error(`[Scorecard] Error fetching data:`, error);
     throw error;
   }
 }
@@ -539,22 +393,6 @@ export async function POST(request: NextRequest) {
 
     console.log(`[Scorecard Refresh] Required Meta fields:`, Array.from(requiredFields));
 
-    // Separate metrics into account-level and campaign-level
-    const accountLevelMetrics = metrics.filter(m => 
-      !m.metric_key.includes('creative_testing') && 
-      !m.metric_key.includes('video_ads_roas') && 
-      !m.metric_key.includes('image_ads_roas')
-    );
-    
-    const campaignLevelMetrics = metrics.filter(m => 
-      m.metric_key.includes('creative_testing') || 
-      m.metric_key.includes('video_ads_roas') || 
-      m.metric_key.includes('image_ads_roas')
-    );
-
-    console.log(`[Scorecard Refresh] Account-level metrics: ${accountLevelMetrics.length}`);
-    console.log(`[Scorecard Refresh] Campaign-level metrics: ${campaignLevelMetrics.length}`);
-
     // Process each date range
     const results = [];
 
@@ -567,8 +405,8 @@ export async function POST(request: NextRequest) {
       console.log(`[Scorecard Refresh] Processing date range: ${dateRangeStr}`);
       
       try {
-        // Fetch account-level data
-        const accountData = await fetchAccountLevelData(
+        // Fetch data from Meta API
+        const metaData = await fetchMetaInsightsForDateRange(
           adAccountId,
           accessToken,
           {
@@ -577,46 +415,6 @@ export async function POST(request: NextRequest) {
           },
           requiredFields
         );
-
-        // Fetch campaign-level data for creative testing metrics
-        let creativeTestingData: Record<string, number> = {};
-        const creativeTestingMetrics = campaignLevelMetrics.filter(m => m.metric_key.includes('creative_testing'));
-        
-        if (creativeTestingMetrics.length > 0) {
-          // Get creative testing filters from the first metric (they should all have the same filters)
-          const filters = creativeTestingMetrics[0].meta_campaigns || [{ operator: 'contains', value: 'Creative Test' }];
-          
-          const campaignFields = new Set<string>();
-          creativeTestingMetrics.forEach(metric => {
-            let formula: MetricFormula[] = [];
-            if (Array.isArray(metric.calculation_formula)) {
-              formula = metric.calculation_formula;
-            }
-            
-            formula.forEach(item => {
-              if (item.type === 'metric' && item.value) {
-                const metaField = META_FIELD_MAPPINGS[item.value];
-                if (metaField) {
-                  campaignFields.add(metaField);
-                }
-              }
-            });
-          });
-
-          creativeTestingData = await fetchCampaignLevelData(
-            adAccountId,
-            accessToken,
-            {
-              start: startDate.toISOString().split('T')[0],
-              end: endDate.toISOString().split('T')[0]
-            },
-            campaignFields,
-            filters
-          );
-        }
-
-        // Merge data
-        const metaData = { ...accountData, ...creativeTestingData };
 
         // Calculate and store values for each metric
         for (const metric of metrics) {
@@ -657,13 +455,10 @@ export async function POST(request: NextRequest) {
               continue;
             }
 
-            // Use appropriate data source based on metric type
-            const dataSource = metric.metric_key.includes('creative_testing') ? creativeTestingData : metaData;
-
             // Calculate value based on formula
             const value = calculateFormulaValue(
               formula, 
-              dataSource,
+              metaData,
               {
                 start: startDate.toISOString().split('T')[0],
                 end: endDate.toISOString().split('T')[0]
@@ -679,7 +474,7 @@ export async function POST(request: NextRequest) {
                 period_end: endDate.toISOString().split('T')[0],
                 period_type: 'week',
                 value: value,
-                raw_data: dataSource
+                raw_data: metaData
               }, {
                 onConflict: 'metric_id,period_start,period_end'
               });
