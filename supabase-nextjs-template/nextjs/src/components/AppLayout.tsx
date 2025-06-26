@@ -358,7 +358,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     </div>
                 </div>
 
-                <main className="h-[calc(100vh-4rem)] overflow-auto">
+                <main className="min-h-[calc(100vh-4rem)]">
                     {children}
                 </main>
             </div>
