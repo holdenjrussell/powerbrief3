@@ -12,16 +12,24 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const brandId = searchParams.get('brandId');
+    const teamId = searchParams.get('teamId');
 
     if (!brandId) {
       return NextResponse.json({ error: 'brandId parameter is required' }, { status: 400 });
     }
 
-    const { data: todos, error } = await supabase
+    let query = supabase
       .from('todos')
       .select('*')
       .eq('brand_id', brandId)
       .order('created_at', { ascending: false });
+
+    // Filter by team if teamId is provided
+    if (teamId) {
+      query = query.or(`target_team_id.is.null,target_team_id.eq.${teamId}`);
+    }
+
+    const { data: todos, error } = await query;
 
     if (error) {
       console.error('Error fetching todos:', error);
@@ -45,7 +53,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { title, description, due_date, assignee_id, priority = 'normal', brand_id } = body;
+    const { title, description, due_date, assignee_id, priority = 'normal', brand_id, team_id } = body;
 
     if (!title) {
       return NextResponse.json({ error: 'Title is required' }, { status: 400 });
@@ -67,7 +75,8 @@ export async function POST(request: NextRequest) {
         due_date,
         assignee_id: cleanAssigneeId,
         priority,
-        brand_id
+        brand_id,
+        target_team_id: team_id || null
       })
       .select('*')
       .single();
@@ -156,8 +165,7 @@ export async function DELETE(request: NextRequest) {
     const { error } = await supabase
       .from('todos')
       .delete()
-      .eq('id', id)
-      .eq('user_id', user.id);
+      .eq('id', id);
 
     if (error) {
       throw error;

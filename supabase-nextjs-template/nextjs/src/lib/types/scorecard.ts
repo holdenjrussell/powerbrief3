@@ -36,6 +36,12 @@ export interface ScorecardMetric {
   formula: MetricFormula[];
   goal_value?: number;
   goal_operator?: 'gte' | 'gt' | 'lte' | 'lt' | 'eq';
+  weekly_goal_value?: number;
+  weekly_goal_operator?: 'gte' | 'gt' | 'lte' | 'lt' | 'eq';
+  monthly_goal_value?: number;
+  monthly_goal_operator?: 'gte' | 'gt' | 'lte' | 'lt' | 'eq';
+  quarterly_goal_value?: number;
+  quarterly_goal_operator?: 'gte' | 'gt' | 'lte' | 'lt' | 'eq';
   is_percentage?: boolean;
   is_currency?: boolean;
   decimal_places?: number;

@@ -2705,7 +2705,7 @@ export type Database = {
       scorecard_metrics: {
         Row: {
           brand_id: string | null
-          calculation_formula: string | null
+          calculation_formula: Json | null
           created_at: string
           decimal_places: number | null
           description: string | null
@@ -2715,7 +2715,9 @@ export type Database = {
           id: string
           is_currency: boolean | null
           is_percentage: boolean | null
-          meta_campaigns: string[] | null
+          meta_ad_sets: Json | null
+          meta_ads: Json | null
+          meta_campaigns: Json | null
           meta_fields: string[] | null
           metric_key: string
           metric_type: string
@@ -2725,7 +2727,7 @@ export type Database = {
         }
         Insert: {
           brand_id?: string | null
-          calculation_formula?: string | null
+          calculation_formula?: Json | null
           created_at?: string
           decimal_places?: number | null
           description?: string | null
@@ -2735,7 +2737,9 @@ export type Database = {
           id?: string
           is_currency?: boolean | null
           is_percentage?: boolean | null
-          meta_campaigns?: string[] | null
+          meta_ad_sets?: Json | null
+          meta_ads?: Json | null
+          meta_campaigns?: Json | null
           meta_fields?: string[] | null
           metric_key: string
           metric_type: string
@@ -2745,7 +2749,7 @@ export type Database = {
         }
         Update: {
           brand_id?: string | null
-          calculation_formula?: string | null
+          calculation_formula?: Json | null
           created_at?: string
           decimal_places?: number | null
           description?: string | null
@@ -2755,7 +2759,9 @@ export type Database = {
           id?: string
           is_currency?: boolean | null
           is_percentage?: boolean | null
-          meta_campaigns?: string[] | null
+          meta_ad_sets?: Json | null
+          meta_ads?: Json | null
+          meta_campaigns?: Json | null
           meta_fields?: string[] | null
           metric_key?: string
           metric_type?: string

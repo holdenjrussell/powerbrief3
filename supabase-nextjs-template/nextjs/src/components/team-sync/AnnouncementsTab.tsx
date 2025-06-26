@@ -37,7 +37,7 @@ import {
   Check
 } from 'lucide-react';
 import { linkifyTextWithWhitespace } from './utils/linkify';
-import { useBrand } from '@/lib/context/BrandContext';
+import { useTeam } from '@/lib/context/TeamContext';
 
 interface Announcement {
   id: string;
@@ -75,7 +75,7 @@ const priorityIcons = {
 };
 
 export default function AnnouncementsTab({ brandId }: AnnouncementsTabProps) {
-  const { selectedTeam } = useBrand();
+  const { selectedTeam } = useTeam();
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -122,7 +122,8 @@ export default function AnnouncementsTab({ brandId }: AnnouncementsTabProps) {
         : { 
             ...formData, 
             brand_id: brandId,
-            target_team_ids: formData.is_global ? [] : (selectedTeam ? [selectedTeam.id] : [])
+            team_id: selectedTeam?.id,
+            is_global: formData.is_global
           };
 
       const response = await fetch('/api/team-sync/announcements', {
@@ -313,86 +314,150 @@ export default function AnnouncementsTab({ brandId }: AnnouncementsTabProps) {
 
       {/* Announcements List */}
       {announcements.length > 0 ? (
-        <div className="space-y-4">
-          {announcements.map((announcement) => {
-            const PriorityIcon = priorityIcons[announcement.priority];
-            return (
-              <Card 
-                key={announcement.id} 
-                className={`hover:shadow-md transition-shadow ${announcement.is_resolved ? 'opacity-60' : ''}`}
-              >
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-start gap-3 flex-1">
-                      <div className="p-2 rounded-lg bg-primary-50">
-                        <PriorityIcon className="h-4 w-4 text-primary-600" />
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <CardTitle className="text-lg">{announcement.title}</CardTitle>
-                          <Badge className={priorityColors[announcement.priority]}>
-                            {announcement.priority}
-                          </Badge>
-                          {announcement.is_global && (
-                            <Badge variant="outline" className="flex items-center gap-1">
-                              <Globe className="h-3 w-3" />
-                              Global
-                            </Badge>
-                          )}
-                          {announcement.is_resolved && (
-                            <Badge variant="secondary" className="flex items-center gap-1">
-                              <Check className="h-3 w-3" />
-                              Resolved
-                            </Badge>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-4 text-sm text-gray-500">
-                          <div className="flex items-center gap-1">
-                            <User className="h-3 w-3" />
-                            <span>{announcement.profiles?.email || 'Team Member'}</span>
+        <div className="space-y-6">
+          {/* Active Announcements */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-medium text-gray-900">Active Announcements</h3>
+            {announcements.filter(a => !a.is_resolved).length > 0 ? (
+              announcements.filter(a => !a.is_resolved).map((announcement) => {
+                const PriorityIcon = priorityIcons[announcement.priority];
+                return (
+                  <Card 
+                    key={announcement.id} 
+                    className="hover:shadow-md transition-shadow"
+                  >
+                    <CardHeader className="pb-3">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-start gap-3 flex-1">
+                          <div className="p-2 rounded-lg bg-primary-50">
+                            <PriorityIcon className="h-4 w-4 text-primary-600" />
                           </div>
-                          <div className="flex items-center gap-1">
-                            <Clock className="h-3 w-3" />
-                            <span>{new Date(announcement.created_at).toLocaleDateString()}</span>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <CardTitle className="text-lg">{announcement.title}</CardTitle>
+                              <Badge className={priorityColors[announcement.priority]}>
+                                {announcement.priority}
+                              </Badge>
+                              {announcement.is_global && (
+                                <Badge variant="outline" className="flex items-center gap-1">
+                                  <Globe className="h-3 w-3" />
+                                  Global
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-4 text-sm text-gray-500">
+                              <div className="flex items-center gap-1">
+                                <User className="h-3 w-3" />
+                                <span>{announcement.profiles?.email || 'Team Member'}</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Clock className="h-3 w-3" />
+                                <span>{new Date(announcement.created_at).toLocaleDateString()}</span>
+                              </div>
+                            </div>
                           </div>
                         </div>
+                        <div className="flex gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleResolve(announcement.id, true)}
+                            title="Mark as resolved"
+                          >
+                            <Check className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleEdit(announcement)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDelete(announcement.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex gap-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleResolve(announcement.id, !announcement.is_resolved)}
-                      >
-                        {announcement.is_resolved ? (
-                          <AlertCircle className="h-4 w-4" />
-                        ) : (
-                          <Check className="h-4 w-4" />
-                        )}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleEdit(announcement)}
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDelete(announcement.id)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <p className="text-gray-700 whitespace-pre-wrap">{linkifyTextWithWhitespace(announcement.content)}</p>
-                </CardContent>
-              </Card>
-            );
-          })}
+                    </CardHeader>
+                    <CardContent className="pt-0">
+                      <p className="text-gray-700 whitespace-pre-wrap">{linkifyTextWithWhitespace(announcement.content)}</p>
+                    </CardContent>
+                  </Card>
+                );
+              })
+            ) : (
+              <p className="text-gray-500 text-sm">No active announcements</p>
+            )}
+          </div>
+
+          {/* Resolved Announcements */}
+          {announcements.filter(a => a.is_resolved).length > 0 && (
+            <div className="space-y-4">
+              <h3 className="text-lg font-medium text-gray-900">Resolved Announcements</h3>
+              {announcements.filter(a => a.is_resolved).map((announcement) => {
+                const PriorityIcon = priorityIcons[announcement.priority];
+                return (
+                  <Card 
+                    key={announcement.id} 
+                    className="hover:shadow-md transition-shadow opacity-60"
+                  >
+                    <CardHeader className="pb-3">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-start gap-3 flex-1">
+                          <div className="p-2 rounded-lg bg-gray-100">
+                            <PriorityIcon className="h-4 w-4 text-gray-600" />
+                          </div>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <CardTitle className="text-lg text-gray-600">{announcement.title}</CardTitle>
+                              <Badge variant="secondary" className="flex items-center gap-1">
+                                <Check className="h-3 w-3" />
+                                Resolved
+                              </Badge>
+                            </div>
+                            <div className="flex items-center gap-4 text-sm text-gray-500">
+                              <div className="flex items-center gap-1">
+                                <User className="h-3 w-3" />
+                                <span>{announcement.profiles?.email || 'Team Member'}</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Clock className="h-3 w-3" />
+                                <span>{new Date(announcement.created_at).toLocaleDateString()}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleResolve(announcement.id, false)}
+                            title="Mark as active"
+                          >
+                            <AlertCircle className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDelete(announcement.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="pt-0">
+                      <p className="text-gray-600 whitespace-pre-wrap">{linkifyTextWithWhitespace(announcement.content)}</p>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
         </div>
       ) : (
         <div className="text-center py-12">

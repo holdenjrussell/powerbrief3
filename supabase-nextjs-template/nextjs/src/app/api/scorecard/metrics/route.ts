@@ -1,32 +1,8 @@
 export const dynamic = 'force-dynamic'; // Ensures dynamic handling for cookies
 
-import { createServerClient, type CookieOptions } from '@supabase/ssr';
-import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
-import { NewMetric } from '@/app/app/scorecard/page'; // Assuming NewMetric is exported from the page
 import { NextRequest } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
-
-const getSupabaseClient = async () => {
-  const cookieStore = await cookies();
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value;
-        },
-        set(name: string, value: string, options: CookieOptions) {
-          cookieStore.set({ name, value, ...options });
-        },
-        remove(name: string, options: CookieOptions) {
-          cookieStore.set({ name, value: '', ...options });
-        },
-      },
-    }
-  );
-};
 
 export async function POST(request: NextRequest) {
   try {
@@ -39,10 +15,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { brand_id, team_id, metric_key, display_name, goal_value, goal_operator, meta_campaigns } = body;
+    const { brand_id, team_id, metric_key, display_name, goal_value, goal_operator, meta_campaigns, calculation_formula } = body;
 
     if (!brand_id || !metric_key || !display_name) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    }
+
+    // Ensure calculation_formula is provided
+    if (!calculation_formula || !Array.isArray(calculation_formula) || calculation_formula.length === 0) {
+      return NextResponse.json({ error: 'calculation_formula is required and must be a non-empty array' }, { status: 400 });
     }
 
     // Insert metric
@@ -51,11 +32,14 @@ export async function POST(request: NextRequest) {
       .insert({
         brand_id,
         team_id,
+        user_id: user.id,
         metric_key,
         display_name,
         goal_value,
         goal_operator,
-        meta_campaigns
+        meta_campaigns,
+        calculation_formula,
+        metric_type: 'standard'
       })
       .select()
       .single();

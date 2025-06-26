@@ -12,23 +12,56 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const brandId = searchParams.get('brandId');
+    const teamId = searchParams.get('teamId');
 
     if (!brandId) {
       return NextResponse.json({ error: 'brandId parameter is required' }, { status: 400 });
     }
 
-    const { data: issues, error } = await supabase
+    // Build query
+    let query = supabase
       .from('issues')
       .select('*')
       .eq('brand_id', brandId)
       .order('priority_order', { ascending: true });
+
+    // Filter by team if teamId is provided
+    if (teamId) {
+      query = query.or(`target_team_id.is.null,target_team_id.eq.${teamId}`);
+    }
+
+    const { data: issues, error } = await query;
 
     if (error) {
       console.error('Error fetching issues:', error);
       return NextResponse.json({ error: 'Failed to fetch issues' }, { status: 500 });
     }
 
-    return NextResponse.json({ issues });
+    // Then get user emails for each issue
+    const issuesWithEmails = await Promise.all(
+      (issues || []).map(async (issue) => {
+        let creatorEmail = 'Team Member'; // Default fallback
+        
+        if (issue.user_id) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('email')
+            .eq('id', issue.user_id)
+            .single();
+          
+          if (profile?.email) {
+            creatorEmail = profile.email;
+          }
+        }
+        
+        return {
+          ...issue,
+          creator: { email: creatorEmail }
+        };
+      })
+    );
+
+    return NextResponse.json({ issues: issuesWithEmails });
   } catch (error) {
     console.error('Error in GET /api/team-sync/issues:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -45,7 +78,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { title, description, issue_type = 'short_term', assignee_id, priority_order = 0, brand_id } = body;
+    const { title, description, issue_type = 'short_term', assignee_id, priority_order = 0, brand_id, team_id } = body;
 
     if (!title) {
       return NextResponse.json({ error: 'Title is required' }, { status: 400 });
@@ -67,7 +100,8 @@ export async function POST(request: NextRequest) {
         description,
         issue_type,
         assignee_id: cleanAssigneeId,
-        priority_order
+        priority_order,
+        target_team_id: team_id || null
       })
       .select('*')
       .single();
@@ -123,7 +157,6 @@ export async function PUT(request: NextRequest) {
       .from('issues')
       .update(updateData)
       .eq('id', id)
-      .eq('user_id', user.id)
       .select('*')
       .single();
 
@@ -157,8 +190,7 @@ export async function DELETE(request: NextRequest) {
     const { error } = await supabase
       .from('issues')
       .delete()
-      .eq('id', id)
-      .eq('user_id', user.id);
+      .eq('id', id);
 
     if (error) {
       throw error;

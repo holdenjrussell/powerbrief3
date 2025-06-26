@@ -24,6 +24,7 @@ import {
     Link2,
 } from 'lucide-react';
 import { useGlobal } from "@/lib/context/GlobalContext";
+import { useTeam } from "@/lib/context/TeamContext";
 import { createSPASassClient } from "@/lib/supabase/client";
 import { getPendingReviewsCount } from '@/lib/services/powerbriefService';
 import BrandSelector from './BrandSelector';
@@ -38,6 +39,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     const router = useRouter();
 
     const { user } = useGlobal();
+    const { hasFeatureAccess } = useTeam();
 
     // Fetch pending reviews count
     useEffect(() => {
@@ -102,11 +104,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
     const navigation = [
         { name: 'Homepage', href: '/app', icon: Home },
-        { name: 'PowerBrief', href: '/app/powerbrief', icon: Presentation },
-        { name: 'PowerFrame', href: '/app/powerframe', icon: Frame },
-
-        { name: 'UGC Creator Pipeline', href: '/app/ugc-creator-pipeline', icon: FileText },
-        {
+        ...(hasFeatureAccess('powerbrief_onesheet') || hasFeatureAccess('powerbrief_ads') || hasFeatureAccess('powerbrief_web_assets') || hasFeatureAccess('powerbrief_email') || hasFeatureAccess('powerbrief_sms') || hasFeatureAccess('powerbrief_organic_social') || hasFeatureAccess('powerbrief_blog') 
+            ? [{ name: 'PowerBrief', href: '/app/powerbrief', icon: Presentation }] 
+            : []),
+        ...(hasFeatureAccess('powerframe') ? [{ name: 'PowerFrame', href: '/app/powerframe', icon: Frame }] : []),
+        ...(hasFeatureAccess('ugc_creator_pipeline') ? [{ name: 'UGC Creator Pipeline', href: '/app/ugc-creator-pipeline', icon: FileText }] : []),
+        ...(hasFeatureAccess('team_sync') ? [{
             name: 'Team Sync',
             icon: Users,
             subItems: [
@@ -115,17 +118,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 { name: 'To-Dos', href: '/app/team-sync?tab=todos', icon: CheckSquare },
                 { name: 'Issues', href: '/app/team-sync?tab=issues', icon: AlertTriangle },
             ],
-        },
-        { 
+        }] : []),
+        ...(hasFeatureAccess('asset_reviews') ? [{ 
             name: 'Asset Reviews', 
             href: '/app/reviews', 
             icon: Film,
             badge: pendingReviewsCount > 0 ? pendingReviewsCount : null
-        },
-        { name: 'AdRipper', href: '/app/adripper', icon: DownloadCloud },
-        { name: 'Ad Upload Tool', href: '/app/ad-upload-tool', icon: UploadCloud },
+        }] : []),
+        ...(hasFeatureAccess('ad_ripper') ? [{ name: 'AdRipper', href: '/app/adripper', icon: DownloadCloud }] : []),
+        ...(hasFeatureAccess('ad_upload_tool') ? [{ name: 'Ad Upload Tool', href: '/app/ad-upload-tool', icon: UploadCloud }] : []),
         { name: 'SOPs', href: '/app/sops', icon: BookOpen },
-        { name: 'URL to Markdown', href: '/app/url-to-markdown', icon: Link2 },
+        ...(hasFeatureAccess('url_to_markdown') ? [{ name: 'URL to Markdown', href: '/app/url-to-markdown', icon: Link2 }] : []),
     ];
 
     const toggleSidebar = () => setSidebarOpen(!isSidebarOpen);

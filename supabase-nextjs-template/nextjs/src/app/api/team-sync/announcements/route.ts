@@ -12,17 +12,26 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const brandId = searchParams.get('brandId');
+    const teamId = searchParams.get('teamId');
 
     if (!brandId) {
       return NextResponse.json({ error: 'brandId parameter is required' }, { status: 400 });
     }
 
-    // First get the announcements
-    const { data: announcements, error } = await supabase
+    // Build query
+    let query = supabase
       .from('announcements')
       .select('*')
       .eq('brand_id', brandId)
       .order('created_at', { ascending: false });
+
+    // Filter by team if teamId is provided
+    if (teamId) {
+      // Get announcements that are either global or targeted to this team
+      query = query.or(`is_global.eq.true,target_team_ids.cs.{${teamId}}`);
+    }
+
+    const { data: announcements, error } = await query;
 
     if (error) {
       console.error('Error fetching announcements:', error);
@@ -70,7 +79,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { title, content, priority = 'normal', brand_id } = body;
+    const { title, content, priority = 'normal', brand_id, team_id, is_global = false } = body;
 
     if (!title || !content) {
       return NextResponse.json({ error: 'Title and content are required' }, { status: 400 });
@@ -87,7 +96,9 @@ export async function POST(request: NextRequest) {
         brand_id,
         title,
         content,
-        priority
+        priority,
+        is_global,
+        target_team_ids: team_id && !is_global ? [team_id] : []
       })
       .select('*')
       .single();
@@ -130,7 +141,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { id, title, content, priority } = body;
+    const { id, title, content, priority, is_resolved } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'Announcement ID is required' }, { status: 400 });
@@ -141,17 +152,18 @@ export async function PUT(request: NextRequest) {
       title?: string;
       content?: string;
       priority?: string;
+      is_resolved?: boolean;
     } = { updated_at: new Date().toISOString() };
     
     if (title !== undefined) updateData.title = title;
     if (content !== undefined) updateData.content = content;
     if (priority !== undefined) updateData.priority = priority;
+    if (is_resolved !== undefined) updateData.is_resolved = is_resolved;
 
     const { data: announcement, error } = await supabase
       .from('announcements')
       .update(updateData)
       .eq('id', id)
-      .eq('user_id', user.id)
       .select('*')
       .single();
 
@@ -202,8 +214,7 @@ export async function DELETE(request: NextRequest) {
     const { error } = await supabase
       .from('announcements')
       .delete()
-      .eq('id', id)
-      .eq('user_id', user.id);
+      .eq('id', id);
 
     if (error) {
       throw error;

@@ -30,23 +30,15 @@ import {
   User,
   Edit,
   Trash2,
-  Calendar,
-  Link,
   AlertTriangle,
   Calendar as CalendarIcon,
-  AlertCircle,
-  Loader2,
   UserPlus,
   CheckCircle2,
   Circle,
-  ExternalLink,
   Send
 } from 'lucide-react';
 import { linkifyText, linkifyTextWithWhitespace } from './utils/linkify';
-import { formatDate } from './utils/dateUtils';
-import { Calendar } from '@/components/ui/calendar';
-import { useBrand } from '@/lib/context/BrandContext';
-import { createClient } from '@/utils/supabase/client';
+import { useTeam } from '@/lib/context/TeamContext';
 
 interface TeamMember {
   id: string;
@@ -70,7 +62,9 @@ interface Todo {
   description?: string;
   due_date?: string;
   assigned_to?: string;
+  assignee_id?: string; // Added for compatibility
   status: 'pending' | 'in_progress' | 'completed';
+  completed?: boolean; // Added for compatibility
   priority: 'low' | 'normal' | 'high';
   created_at: string;
   updated_at: string;
@@ -123,7 +117,7 @@ const priorityColors = {
 };
 
 export default function TodosTab({ brandId }: TodosTabProps) {
-  const { selectedTeam } = useBrand();
+  const { selectedTeam } = useTeam();
   const [todos, setTodos] = useState<Todo[]>([]);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
@@ -179,7 +173,7 @@ export default function TodosTab({ brandId }: TodosTabProps) {
       const data = await response.json();
       if (response.ok && data.members) {
         // Map the members to include a display name
-        const membersWithNames = data.members.map((member: any) => ({
+        const membersWithNames = data.members.map((member: TeamMember) => ({
           ...member,
           name: member.first_name && member.last_name 
             ? `${member.first_name} ${member.last_name}` 
@@ -273,13 +267,13 @@ export default function TodosTab({ brandId }: TodosTabProps) {
             id: editingTodo.id, 
             brand_id: brandId,
             due_date: formData.due_date?.toISOString(),
-            target_team_id: formData.target_team_id || selectedTeam?.id
+            team_id: formData.target_team_id || selectedTeam?.id
           }
         : { 
             ...formData, 
             brand_id: brandId,
             due_date: formData.due_date?.toISOString(),
-            target_team_id: formData.target_team_id || selectedTeam?.id
+            team_id: formData.target_team_id || selectedTeam?.id
           };
 
       const response = await fetch('/api/team-sync/todos', {
@@ -536,7 +530,7 @@ export default function TodosTab({ brandId }: TodosTabProps) {
                     <SelectValue placeholder="Select team member" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Unassigned</SelectItem>
+                    <SelectItem value="unassigned">Unassigned</SelectItem>
                     {teamMembers.map((member) => (
                       <SelectItem key={member.id} value={member.id}>
                         {member.name || member.email}
@@ -762,6 +756,7 @@ export default function TodosTab({ brandId }: TodosTabProps) {
                           ? 'text-green-600 hover:text-green-700'
                           : 'text-gray-400 hover:text-gray-600'
                       }`}
+                      title={todo.status === 'completed' ? 'Mark as incomplete' : 'Mark as complete'}
                     >
                       <StatusIcon className="h-5 w-5" />
                     </button>

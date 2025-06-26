@@ -191,7 +191,10 @@ export default function TeamManagement({ brandId }: TeamManagementProps) {
       const response = await fetch('/api/teams', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...teamFormData, brand_id: brandId })
+        body: JSON.stringify({ 
+          brandId: brandId,
+          name: teamFormData.name 
+        })
       });
 
       const data = await response.json();

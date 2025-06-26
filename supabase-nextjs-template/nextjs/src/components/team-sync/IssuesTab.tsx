@@ -47,7 +47,7 @@ import {
   Bug
 } from 'lucide-react';
 import { linkifyText, linkifyTextWithWhitespace } from './utils/linkify';
-import { useBrand } from '@/lib/context/BrandContext';
+import { useTeam } from '@/lib/context/TeamContext';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 
 interface Team {
@@ -65,6 +65,7 @@ interface Issue {
   issue_type: 'bug' | 'feature' | 'improvement' | 'question';
   status: 'open' | 'in_progress' | 'resolved' | 'closed';
   priority_order: number;
+  assignee_id?: string | null; // Added for compatibility
   created_at: string;
   updated_at: string;
   target_team_id?: string;
@@ -142,7 +143,7 @@ const columns = [
 ];
 
 export default function IssuesTab({ brandId }: IssuesTabProps) {
-  const { selectedTeam } = useBrand();
+  const { selectedTeam } = useTeam();
   const [issues, setIssues] = useState<Issue[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
@@ -267,17 +268,17 @@ export default function IssuesTab({ brandId }: IssuesTabProps) {
     
     try {
       const method = editingIssue ? 'PUT' : 'POST';
-      const body: any = editingIssue 
+      const body = editingIssue 
         ? { 
             ...formData, 
             id: editingIssue.id, 
             brand_id: brandId,
-            target_team_id: formData.target_team_id || selectedTeam?.id
+            team_id: formData.target_team_id || selectedTeam?.id
           }
         : { 
             ...formData, 
             brand_id: brandId,
-            target_team_id: formData.target_team_id || selectedTeam?.id,
+            team_id: formData.target_team_id || selectedTeam?.id,
             source_metric_id: selectedMetricId
           };
 

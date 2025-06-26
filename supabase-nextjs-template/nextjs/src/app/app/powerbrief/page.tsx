@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useGlobal } from '@/lib/context/GlobalContext';
 import { useBrand } from '@/lib/context/BrandContext';
+import { useTeam } from '@/lib/context/TeamContext';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -79,6 +80,7 @@ function getStatusColorConfig(status: string): { bg: string; text: string; borde
 export default function PowerBriefPage() {
     const { user } = useGlobal();
     const { brands, selectedBrand } = useBrand();
+    const { hasFeatureAccess } = useTeam();
     const router = useRouter();
     const [activeTab, setActiveTab] = useState('onesheet');
     const [loading, setLoading] = useState(false);
@@ -623,35 +625,49 @@ export default function PowerBriefPage() {
                 </div>
 
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                    <TabsList className="grid w-full grid-cols-7 mb-8">
-                        <TabsTrigger value="onesheet" className="flex items-center gap-2">
-                            <Folder className="h-4 w-4" />
-                            OneSheet
-                        </TabsTrigger>
-                        <TabsTrigger value="ads" className="flex items-center gap-2">
-                            <Zap className="h-4 w-4" />
-                            Ads
-                        </TabsTrigger>
-                        <TabsTrigger value="web-assets" className="flex items-center gap-2">
-                            <Share2 className="h-4 w-4" />
-                            Web Assets
-                        </TabsTrigger>
-                        <TabsTrigger value="email" className="flex items-center gap-2">
-                            <Mail className="h-4 w-4" />
-                            Email
-                        </TabsTrigger>
-                        <TabsTrigger value="sms" className="flex items-center gap-2">
-                            <MessageSquare className="h-4 w-4" />
-                            SMS
-                        </TabsTrigger>
-                        <TabsTrigger value="organic-social" className="flex items-center gap-2">
-                            <Share2 className="h-4 w-4" />
-                            Organic Social
-                        </TabsTrigger>
-                        <TabsTrigger value="blog" className="flex items-center gap-2">
-                            <PenTool className="h-4 w-4" />
-                            Blog
-                        </TabsTrigger>
+                    <TabsList className="grid w-full grid-cols-auto mb-8">
+                        {hasFeatureAccess('powerbrief_onesheet') && (
+                            <TabsTrigger value="onesheet" className="flex items-center gap-2">
+                                <Folder className="h-4 w-4" />
+                                OneSheet
+                            </TabsTrigger>
+                        )}
+                        {hasFeatureAccess('powerbrief_ads') && (
+                            <TabsTrigger value="ads" className="flex items-center gap-2">
+                                <Zap className="h-4 w-4" />
+                                Ads
+                            </TabsTrigger>
+                        )}
+                        {hasFeatureAccess('powerbrief_web_assets') && (
+                            <TabsTrigger value="web-assets" className="flex items-center gap-2">
+                                <Share2 className="h-4 w-4" />
+                                Web Assets
+                            </TabsTrigger>
+                        )}
+                        {hasFeatureAccess('powerbrief_email') && (
+                            <TabsTrigger value="email" className="flex items-center gap-2">
+                                <Mail className="h-4 w-4" />
+                                Email
+                            </TabsTrigger>
+                        )}
+                        {hasFeatureAccess('powerbrief_sms') && (
+                            <TabsTrigger value="sms" className="flex items-center gap-2">
+                                <MessageSquare className="h-4 w-4" />
+                                SMS
+                            </TabsTrigger>
+                        )}
+                        {hasFeatureAccess('powerbrief_organic_social') && (
+                            <TabsTrigger value="organic-social" className="flex items-center gap-2">
+                                <Share2 className="h-4 w-4" />
+                                Organic Social
+                            </TabsTrigger>
+                        )}
+                        {hasFeatureAccess('powerbrief_blog') && (
+                            <TabsTrigger value="blog" className="flex items-center gap-2">
+                                <PenTool className="h-4 w-4" />
+                                Blog
+                            </TabsTrigger>
+                        )}
                     </TabsList>
 
                     <TabsContent value="onesheet" className="space-y-6">
@@ -674,8 +690,6 @@ export default function PowerBriefPage() {
                             <OneSheetManager brandId={selectedBrand.id} />
                         )}
                     </TabsContent>
-
-
 
                     <TabsContent value="ads" className="space-y-6">
                         <div className="text-center mb-6">
