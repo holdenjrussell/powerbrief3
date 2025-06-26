@@ -83,26 +83,26 @@ export default function TeamSelector() {
         onValueChange={handleTeamChange}
         disabled={loading || teams.length === 0}
       >
-        <SelectTrigger className="w-[200px]">
+        <SelectTrigger className="w-[180px]">
           <SelectValue placeholder={loading ? 'Loading teams...' : 'Select a team'} />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent className="z-50">
           {teams.map((team) => (
-            <SelectItem key={team.id} value={team.id}>
-              <div className="flex items-center justify-between w-full">
-                <span>{team.name}</span>
-                <div className="flex items-center gap-2 ml-2">
+            <SelectItem key={team.id} value={team.id} className="cursor-pointer">
+              <div className="flex flex-col gap-1 w-full">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium">{team.name}</span>
                   {team.is_default && (
-                    <Badge variant="secondary" className="text-xs">
+                    <Badge variant="secondary" className="text-xs px-1 py-0">
                       Default
                     </Badge>
                   )}
-                  {team.member_count !== undefined && (
-                    <Badge variant="outline" className="text-xs">
-                      {team.member_count} members
-                    </Badge>
-                  )}
                 </div>
+                {team.member_count !== undefined && (
+                  <span className="text-xs text-gray-500">
+                    {team.member_count} member{team.member_count !== 1 ? 's' : ''}
+                  </span>
+                )}
               </div>
             </SelectItem>
           ))}
