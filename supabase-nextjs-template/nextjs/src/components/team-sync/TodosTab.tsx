@@ -128,7 +128,7 @@ export default function TodosTab({ brandId }: TodosTabProps) {
   const [isLinkIssueDialogOpen, setIsLinkIssueDialogOpen] = useState(false);
   const [linkingTodo, setLinkingTodo] = useState<Todo | null>(null);
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
-  const [linkedIssues, setLinkedIssues] = useState<{[todoId: string]: Issue[]}>({});
+  // const [linkedIssues, setLinkedIssues] = useState<{[todoId: string]: Issue[]}>({});
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -232,17 +232,17 @@ export default function TodosTab({ brandId }: TodosTabProps) {
     }
   };
 
-  const fetchLinkedIssues = async (todoId: string) => {
-    try {
-      const response = await fetch(`/api/team-sync/link-issue-todo?todo_id=${todoId}`);
-      const data = await response.json();
-      if (response.ok) {
-        setLinkedIssues(prev => ({ ...prev, [todoId]: data.linkedIssues || [] }));
-      }
-    } catch (error) {
-      console.error('Error fetching linked issues:', error);
-    }
-  };
+  // const fetchLinkedIssues = async (todoId: string) => {
+  //   try {
+  //     const response = await fetch(`/api/team-sync/link-issue-todo?todo_id=${todoId}`);
+  //     const data = await response.json();
+  //     if (response.ok) {
+  //       setLinkedIssues(prev => ({ ...prev, [todoId]: data.linkedIssues || [] }));
+  //     }
+  //   } catch (error) {
+  //     console.error('Error fetching linked issues:', error);
+  //   }
+  // };
 
   useEffect(() => {
     fetchTodos();
@@ -261,13 +261,13 @@ export default function TodosTab({ brandId }: TodosTabProps) {
   }, [brandId]);
 
   // Fetch linked issues for all todos when todos are loaded
-  useEffect(() => {
-    if (todos.length > 0) {
-      todos.forEach(todo => {
-        fetchLinkedIssues(todo.id);
-      });
-    }
-  }, [todos]);
+  // useEffect(() => {
+  //   if (todos.length > 0) {
+  //     todos.forEach(todo => {
+  //       fetchLinkedIssues(todo.id);
+  //     });
+  //   }
+  // }, [todos]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -449,8 +449,8 @@ export default function TodosTab({ brandId }: TodosTabProps) {
     );
   }
 
-  const completedTodos = todos.filter(todo => todo.status === 'completed');
-  const pendingTodos = todos.filter(todo => todo.status === 'pending');
+  const completedTodos = todos.filter(todo => todo.completed === true);
+  const pendingTodos = todos.filter(todo => todo.completed !== true);
 
   return (
     <div className="space-y-6">
@@ -757,7 +757,7 @@ export default function TodosTab({ brandId }: TodosTabProps) {
         <div className="space-y-4">
           <h3 className="text-lg font-medium text-gray-900">Pending Tasks</h3>
           {pendingTodos.map((todo) => {
-            const StatusIcon = todo.status === 'completed' ? CheckCircle2 : Circle;
+            const StatusIcon = todo.completed ? CheckCircle2 : Circle;
             return (
               <Card key={todo.id} className="hover:shadow-md transition-shadow">
                 <CardContent className="p-4">
@@ -765,11 +765,11 @@ export default function TodosTab({ brandId }: TodosTabProps) {
                     <button
                       onClick={() => handleToggleComplete(todo)}
                       className={`mt-0.5 ${
-                        todo.status === 'completed'
+                        todo.completed
                           ? 'text-green-600 hover:text-green-700'
                           : 'text-gray-400 hover:text-gray-600'
                       }`}
-                      title={todo.status === 'completed' ? 'Mark as incomplete' : 'Mark as complete'}
+                      title={todo.completed ? 'Mark as incomplete' : 'Mark as complete'}
                     >
                       <StatusIcon className="h-5 w-5" />
                     </button>
@@ -778,7 +778,7 @@ export default function TodosTab({ brandId }: TodosTabProps) {
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <h3 className={`font-medium ${
-                            todo.status === 'completed' ? 'line-through text-gray-500' : 'text-gray-900'
+                            todo.completed ? 'line-through text-gray-500' : 'text-gray-900'
                           }`}>
                             {todo.title}
                           </h3>
@@ -853,7 +853,7 @@ export default function TodosTab({ brandId }: TodosTabProps) {
                 <div className="flex items-start justify-between">
                   <div className="flex items-start gap-3 flex-1">
                     <Checkbox
-                      checked={todo.status === 'completed'}
+                      checked={todo.completed}
                       onCheckedChange={() => handleToggleComplete(todo)}
                     />
                     <div className="flex-1">
