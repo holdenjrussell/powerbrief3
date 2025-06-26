@@ -625,7 +625,7 @@ export default function PowerBriefPage() {
                 </div>
 
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                    <TabsList className="grid w-full grid-cols-auto mb-8">
+                    <TabsList className="flex w-full flex-wrap justify-start mb-8">
                         {hasFeatureAccess('powerbrief_onesheet') && (
                             <TabsTrigger value="onesheet" className="flex items-center gap-2">
                                 <Folder className="h-4 w-4" />
