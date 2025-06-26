@@ -81,21 +81,21 @@ interface Todo {
   } | null;
 }
 
-interface Issue {
-  id: string;
-  user_id: string;
-  brand_id?: string;
-  title: string;
-  description: string;
-  issue_type: 'short_term' | 'long_term';
-  status: 'open' | 'in_progress' | 'resolved';
-  priority_order: number;
-  assignee_id: string | null;
-  created_at: string;
-  updated_at: string;
-  assignee?: { email: string };
-  creator?: { email: string };
-}
+// interface Issue {
+//   id: string;
+//   user_id: string;
+//   brand_id?: string;
+//   title: string;
+//   description: string;
+//   issue_type: 'short_term' | 'long_term';
+//   status: 'open' | 'in_progress' | 'resolved';
+//   priority_order: number;
+//   assignee_id: string | null;
+//   created_at: string;
+//   updated_at: string;
+//   assignee?: { email: string };
+//   creator?: { email: string };
+// }
 
 interface BrandUser {
   id: string | null;
@@ -368,16 +368,16 @@ export default function TodosTab({ brandId }: TodosTabProps) {
     }
   };
 
-  const handleCreateLinkedIssue = async (todo: Todo) => {
-    setLinkingTodo(todo);
-    setIssueFormData({
-      title: `Issue: ${todo.title}`,
-      description: `Related to todo: ${todo.description || 'No description provided'}`,
-      issue_type: 'short_term',
-      assignee_id: todo.assignee_id || 'none'
-    });
-    setIsLinkIssueDialogOpen(true);
-  };
+  // const handleCreateLinkedIssue = async (todo: Todo) => {
+  //   setLinkingTodo(todo);
+  //   setIssueFormData({
+  //     title: `Issue: ${todo.title}`,
+  //     description: `Related to todo: ${todo.description || 'No description provided'}`,
+  //     issue_type: 'short_term',
+  //     assignee_id: todo.assignee_id || 'none'
+  //   });
+  //   setIsLinkIssueDialogOpen(true);
+  // };
 
   const handleSubmitLinkedIssue = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -796,10 +796,10 @@ export default function TodosTab({ brandId }: TodosTabProps) {
                                 <span>{new Date(todo.due_date).toLocaleDateString()}</span>
                               </div>
                             )}
-                            {todo.assignee && (
+                            {getAssigneeName(todo.assignee_id) && (
                               <div className="flex items-center gap-1 text-gray-500">
                                 <UserPlus className="h-3 w-3" />
-                                <span>{todo.assignee.email}</span>
+                                <span>Assigned to {getAssigneeName(todo.assignee_id)}</span>
                               </div>
                             )}
                             {todo.creator && (
