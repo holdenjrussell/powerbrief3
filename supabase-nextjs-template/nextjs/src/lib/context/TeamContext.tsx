@@ -56,34 +56,56 @@ export function TeamProvider({ children }: { children: React.ReactNode }) {
         setError(null);
         const supabase = createSPAClient();
 
-        // Get teams for the brand where user is a member
-        const { data: userTeams, error: teamsError } = await supabase
+        console.log('[TeamContext] Fetching teams for brand:', selectedBrand.id, 'user:', user.id);
+
+        // First, get all teams for the brand
+        const { data: allTeams, error: teamsError } = await supabase
+          .from('teams')
+          .select('*')
+          .eq('brand_id', selectedBrand.id);
+
+        if (teamsError) {
+          console.error('[TeamContext] Error fetching teams:', teamsError);
+          throw teamsError;
+        }
+
+        console.log('[TeamContext] All teams for brand:', allTeams);
+
+        // Then check which teams the user is a member of
+        const { data: memberData, error: memberError } = await supabase
           .from('team_members')
-          .select(`
-            team_id,
-            teams!inner(
-              id,
-              name,
-              brand_id,
-              is_default,
-              created_at,
-              updated_at
-            )
-          `)
-          .eq('user_id', user.id)
-          .eq('teams.brand_id', selectedBrand.id);
+          .select('team_id')
+          .eq('user_id', user.id);
 
-        if (teamsError) throw teamsError;
+        if (memberError) {
+          console.error('[TeamContext] Error fetching team membership:', memberError);
+          // Don't throw here - user might not be a member of any teams yet
+        }
 
-        const teams = userTeams?.map(ut => ut.teams).filter(Boolean) || [];
-        setTeams(teams);
+        const memberTeamIds = memberData?.map(m => m.team_id) || [];
+        console.log('[TeamContext] User is member of teams:', memberTeamIds);
+
+        // Filter teams to only include those the user is a member of
+        // If user is not a member of any teams, show all teams (for backwards compatibility)
+        const userTeams = memberTeamIds.length > 0 
+          ? allTeams?.filter(team => memberTeamIds.includes(team.id)) || []
+          : allTeams || [];
+
+        console.log('[TeamContext] Filtered teams for user:', userTeams);
+        
+        setTeams(userTeams);
 
         // Set default team or first team
-        const defaultTeam = teams.find(t => t.is_default);
-        setSelectedTeam(defaultTeam || teams[0] || null);
+        const defaultTeam = userTeams.find(t => t.is_default);
+        const teamToSelect = defaultTeam || userTeams[0] || null;
+        console.log('[TeamContext] Selected team:', teamToSelect);
+        setSelectedTeam(teamToSelect);
       } catch (err) {
-        console.error('Error fetching teams:', err);
+        console.error('[TeamContext] Error fetching teams:', err);
         setError('Failed to load teams');
+        // Set empty state but don't fail completely
+        setTeams([]);
+        setSelectedTeam(null);
       } finally {
         setLoading(false);
       }

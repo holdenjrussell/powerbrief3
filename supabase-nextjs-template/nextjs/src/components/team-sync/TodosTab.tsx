@@ -147,19 +147,32 @@ export default function TodosTab({ brandId }: TodosTabProps) {
   const fetchTodos = async () => {
     try {
       setLoading(true);
-      const params = new URLSearchParams({ brandId });
+      const url = new URL('/api/team-sync/todos', window.location.origin);
+      url.searchParams.append('brandId', brandId);
+      
       if (selectedTeam) {
-        params.append('teamId', selectedTeam.id);
-      }
-      const response = await fetch(`/api/team-sync/todos?${params}`);
-      const data = await response.json();
-      if (response.ok) {
-        setTodos(data.todos);
+        console.log('[TodosTab] Fetching todos for team:', selectedTeam.id, selectedTeam.name);
+        url.searchParams.append('teamId', selectedTeam.id);
       } else {
-        console.error('Failed to fetch todos:', data.error);
+        console.log('[TodosTab] No selected team, fetching all todos for brand:', brandId);
+      }
+
+      console.log('[TodosTab] Fetching from URL:', url.toString());
+      const response = await fetch(url.toString());
+      const data = await response.json();
+      console.log('[TodosTab] Response status:', response.status);
+      console.log('[TodosTab] Response data:', data);
+
+      if (response.ok) {
+        const todosArray = data.todos || data;
+        console.log('[TodosTab] Setting todos:', todosArray);
+        setTodos(todosArray);
+        console.log('[TodosTab] Todos set, length:', todosArray.length);
+      } else {
+        console.error('[TodosTab] Failed to fetch todos:', response.status, data.error);
       }
     } catch (error) {
-      console.error('Error fetching todos:', error);
+      console.error('[TodosTab] Error fetching todos:', error);
     } finally {
       setLoading(false);
     }
