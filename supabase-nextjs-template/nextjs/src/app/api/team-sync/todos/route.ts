@@ -54,7 +54,11 @@ export async function GET(request: NextRequest) {
 
     let query = supabase
       .from('todos')
-      .select('*')
+      .select(`
+        *,
+        creator:user_id(id, email),
+        assignee:assignee_id(id, email)
+      `)
       .eq('brand_id', brandId)
       .order('created_at', { ascending: false });
 
@@ -117,7 +121,11 @@ export async function POST(request: NextRequest) {
         brand_id,
         target_team_id: team_id || null
       })
-      .select('*')
+      .select(`
+        *,
+        creator:user_id(id, email),
+        assignee:assignee_id(id, email)
+      `)
       .single();
 
     if (error) {
@@ -171,7 +179,11 @@ export async function PUT(request: NextRequest) {
       .from('todos')
       .update(updateData)
       .eq('id', id)
-      .select('*')
+      .select(`
+        *,
+        creator:user_id(id, email),
+        assignee:assignee_id(id, email)
+      `)
       .single();
 
     if (error) {

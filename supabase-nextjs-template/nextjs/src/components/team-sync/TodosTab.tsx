@@ -61,19 +61,19 @@ interface Todo {
   title: string;
   description?: string;
   due_date?: string;
-  assigned_to?: string;
-  assignee_id?: string; // Added for compatibility
-  status: 'pending' | 'in_progress' | 'completed';
-  completed?: boolean; // Added for compatibility
+  assignee_id?: string | null;
+  completed?: boolean;
   priority: 'low' | 'normal' | 'high';
   created_at: string;
   updated_at: string;
   target_team_id?: string;
-  // Added for display
-  assignee?: {
+  // Nested relations from API
+  creator?: {
+    id: string;
     email: string;
   } | null;
-  creator?: {
+  assignee?: {
+    id: string;
     email: string;
   } | null;
   target_team?: {
@@ -343,7 +343,7 @@ export default function TodosTab({ brandId }: TodosTabProps) {
       description: todo.description || '',
       priority: todo.priority,
       due_date: todo.due_date ? new Date(todo.due_date) : undefined,
-      assigned_to: todo.assigned_to || '',
+      assigned_to: todo.assignee_id || '',
       target_team_id: todo.target_team_id || ''
     });
     setIsDialogOpen(true);
@@ -435,8 +435,15 @@ export default function TodosTab({ brandId }: TodosTabProps) {
     setEditingTodo(null);
   };
 
-  const getAssigneeName = (assigneeId: string | null) => {
+  const getAssigneeName = (assigneeId: string | null, assigneeData?: { id: string; email: string } | null) => {
     if (!assigneeId) return null;
+    
+    // Use nested assignee data if available
+    if (assigneeData) {
+      return assigneeData.email;
+    }
+    
+    // Fallback to brandUsers lookup
     const assignee = brandUsers.find(user => user.id === assigneeId);
     return assignee ? assignee.full_name : 'Unknown User';
   };
@@ -796,10 +803,10 @@ export default function TodosTab({ brandId }: TodosTabProps) {
                                 <span>{new Date(todo.due_date).toLocaleDateString()}</span>
                               </div>
                             )}
-                            {getAssigneeName(todo.assignee_id) && (
+                            {getAssigneeName(todo.assignee_id, todo.assignee) && (
                               <div className="flex items-center gap-1 text-gray-500">
                                 <UserPlus className="h-3 w-3" />
-                                <span>Assigned to {getAssigneeName(todo.assignee_id)}</span>
+                                <span>Assigned to {getAssigneeName(todo.assignee_id, todo.assignee)}</span>
                               </div>
                             )}
                             {todo.creator && (
@@ -871,10 +878,10 @@ export default function TodosTab({ brandId }: TodosTabProps) {
                           <User className="h-3 w-3" />
                           <span>Created by {todo.creator?.email || 'Unknown'}</span>
                         </div>
-                        {getAssigneeName(todo.assignee_id) && (
+                        {getAssigneeName(todo.assignee_id, todo.assignee) && (
                           <div className="flex items-center gap-1">
                             <User className="h-3 w-3 text-blue-400" />
-                            <span className="text-blue-500">Assigned to {getAssigneeName(todo.assignee_id)}</span>
+                            <span className="text-blue-500">Assigned to {getAssigneeName(todo.assignee_id, todo.assignee)}</span>
                           </div>
                         )}
                         <div className="flex items-center gap-1">
