@@ -1,0 +1,41 @@
+-- Fix empty calculation formulas for scorecard metrics
+-- This migration updates metrics that have empty formulas with appropriate default formulas
+
+-- Update meta_account_roas metrics with proper ROAS formula
+UPDATE scorecard_metrics
+SET calculation_formula = '[{"type": "metric", "value": "purchase_value"}, {"type": "operator", "value": "/"}, {"type": "metric", "value": "spend"}]'::jsonb
+WHERE metric_key = 'meta_account_roas' 
+  AND (calculation_formula = '[]'::jsonb OR calculation_formula IS NULL);
+
+-- Update meta_account_revenue metrics with proper revenue formula
+UPDATE scorecard_metrics
+SET calculation_formula = '[{"type": "metric", "value": "purchase_value"}]'::jsonb
+WHERE metric_key = 'meta_account_revenue' 
+  AND (calculation_formula = '[]'::jsonb OR calculation_formula IS NULL);
+
+-- Also fix any other metrics that might have empty formulas
+-- cost_per_unique_link_click
+UPDATE scorecard_metrics
+SET calculation_formula = '[{"type": "metric", "value": "spend"}, {"type": "operator", "value": "/"}, {"type": "metric", "value": "unique_link_clicks"}]'::jsonb
+WHERE metric_key = 'cost_per_unique_link_click' 
+  AND (calculation_formula = '[]'::jsonb OR calculation_formula IS NULL);
+
+-- click_to_purchase_rate (if it has empty formula)
+UPDATE scorecard_metrics
+SET calculation_formula = '[{"type": "metric", "value": "purchases"}, {"type": "operator", "value": "/"}, {"type": "metric", "value": "clicks"}, {"type": "operator", "value": "*"}, {"type": "number", "value": "100"}]'::jsonb
+WHERE metric_key = 'click_to_purchase_rate' 
+  AND (calculation_formula = '[]'::jsonb OR calculation_formula IS NULL);
+
+-- click_through_rate (if it has empty formula)
+UPDATE scorecard_metrics
+SET calculation_formula = '[{"type": "metric", "value": "clicks"}, {"type": "operator", "value": "/"}, {"type": "metric", "value": "impressions"}, {"type": "operator", "value": "*"}, {"type": "number", "value": "100"}]'::jsonb
+WHERE metric_key = 'click_through_rate' 
+  AND (calculation_formula = '[]'::jsonb OR calculation_formula IS NULL);
+
+-- Add a check constraint to prevent empty formulas in the future
+ALTER TABLE scorecard_metrics
+ADD CONSTRAINT check_calculation_formula_not_empty
+CHECK (
+  calculation_formula IS NULL 
+  OR jsonb_array_length(calculation_formula) > 0
+); 

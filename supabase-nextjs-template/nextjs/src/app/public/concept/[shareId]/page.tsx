@@ -1427,6 +1427,88 @@ export default function SharedConceptPage({ params }: { params: ParamsType | Pro
                   </CardContent>
                 </Card>
               )}
+              
+              {/* Video Do's and Don'ts */}
+              {brand.dos_and_donts && concept.media_type === 'video' && 
+               (brand.dos_and_donts.videosDos?.length > 0 || brand.dos_and_donts.videosDonts?.length > 0) && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Video Guidelines</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {/* Video Do's */}
+                      {brand.dos_and_donts.videosDos?.length > 0 && (
+                        <div>
+                          <h3 className="text-sm font-medium text-green-600 mb-2">Do's</h3>
+                          <div className="space-y-1">
+                            {brand.dos_and_donts.videosDos.map((item: string, index: number) => (
+                              <div key={index} className="bg-green-50 border border-green-200 p-2 rounded text-sm">
+                                {item}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Video Don'ts */}
+                      {brand.dos_and_donts.videosDonts?.length > 0 && (
+                        <div>
+                          <h3 className="text-sm font-medium text-red-600 mb-2">Don'ts</h3>
+                          <div className="space-y-1">
+                            {brand.dos_and_donts.videosDonts.map((item: string, index: number) => (
+                              <div key={index} className="bg-red-50 border border-red-200 p-2 rounded text-sm">
+                                {item}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+              
+              {/* Image Do's and Don'ts */}
+              {brand.dos_and_donts && concept.media_type === 'image' && 
+               (brand.dos_and_donts.imagesDos?.length > 0 || brand.dos_and_donts.imagesDonts?.length > 0) && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Image Guidelines</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {/* Image Do's */}
+                      {brand.dos_and_donts.imagesDos?.length > 0 && (
+                        <div>
+                          <h3 className="text-sm font-medium text-green-600 mb-2">Do's</h3>
+                          <div className="space-y-1">
+                            {brand.dos_and_donts.imagesDos.map((item: string, index: number) => (
+                              <div key={index} className="bg-green-50 border border-green-200 p-2 rounded text-sm">
+                                {item}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Image Don'ts */}
+                      {brand.dos_and_donts.imagesDonts?.length > 0 && (
+                        <div>
+                          <h3 className="text-sm font-medium text-red-600 mb-2">Don'ts</h3>
+                          <div className="space-y-1">
+                            {brand.dos_and_donts.imagesDonts.map((item: string, index: number) => (
+                              <div key={index} className="bg-red-50 border border-red-200 p-2 rounded text-sm">
+                                {item}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
             </>
           )}
           
