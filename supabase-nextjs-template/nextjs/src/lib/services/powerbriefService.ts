@@ -1,14 +1,12 @@
-import { createSSRClient } from '@/lib/supabase/server';
+import { createSPAClient } from '@/lib/supabase/client';
 import { Brand, BriefBatch, BriefConcept, DbBrand, DbBriefConcept, DbBriefBatch, ShareSettings, ShareResult, Scene, Hook, EditingResource, ResourceLogin, DosAndDonts } from '@/lib/types/powerbrief';
 import { v4 as uuidv4 } from 'uuid';
 
-
-const getSupabaseClient = async () => await createSSRClient();
+// Use client-side Supabase instance
+const supabase = createSPAClient();
 
 // Brand Services
 export async function getBrands(userId: string): Promise<Brand[]> {
-  const supabase = await getSupabaseClient();
-  
   try {
     // Try to use the new RPC function to get all accessible brands (owned + shared)
     // Note: This RPC function might not exist yet if the migration hasn't been run
@@ -66,7 +64,7 @@ export async function getBrands(userId: string): Promise<Brand[]> {
   }
   
   // Fallback to the old method if RPC function doesn't exist yet
-  const fallbackSupabase = await getSupabaseClient();
+  const fallbackSupabase = supabase;
   const { data: fallbackData, error: fallbackError } = await fallbackSupabase
     .from('brands')
     .select('*')
@@ -98,7 +96,6 @@ export async function getBrands(userId: string): Promise<Brand[]> {
 export async function getBrandById(brandId: string): Promise<Brand | null> {
   console.log('getBrandById called with brandId:', brandId);
   
-  const supabase = await getSupabaseClient();
   const { data, error } = await supabase
     .from('brands')
     .select('*')
@@ -134,24 +131,27 @@ export async function getBrandById(brandId: string): Promise<Brand | null> {
 }
 
 export async function createBrand(brand: Omit<Brand, 'id' | 'created_at' | 'updated_at'>): Promise<Brand> {
-  const supabase = await getSupabaseClient();
-  const dbBrand = {
-    ...brand,
-    id: uuidv4(),
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
-  };
+  // Use API route for client-side brand creation
+  const response = await fetch('/api/brands', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      name: brand.name,
+      brand_info_data: brand.brand_info_data,
+      target_audience_data: brand.target_audience_data,
+      competition_data: brand.competition_data,
+    }),
+  });
 
-  const { data, error } = await supabase
-    .from('brands')
-    .insert(dbBrand)
-    .select()
-    .single();
-
-  if (error) {
-    console.error('Error creating brand:', error);
-    throw error;
+  if (!response.ok) {
+    const errorData = await response.json();
+    console.error('Error creating brand:', errorData);
+    throw new Error(errorData.error || 'Failed to create brand');
   }
+
+  const data = await response.json();
 
   // Transform from DB format to app format
   return {
@@ -163,7 +163,6 @@ export async function createBrand(brand: Omit<Brand, 'id' | 'created_at' | 'upda
 }
 
 export async function updateBrand(brand: Partial<Brand> & { id: string }): Promise<Brand> {
-  const supabase = await getSupabaseClient();
   const dbBrand = {
     ...brand,
     updated_at: new Date().toISOString(),
@@ -191,7 +190,6 @@ export async function updateBrand(brand: Partial<Brand> & { id: string }): Promi
 }
 
 export async function deleteBrand(brandId: string): Promise<void> {
-  const supabase = await getSupabaseClient();
   const { error } = await supabase
     .from('brands')
     .delete()
@@ -205,7 +203,6 @@ export async function deleteBrand(brandId: string): Promise<void> {
 
 // Brief Batch Services
 export async function getBriefBatches(brandId: string): Promise<BriefBatch[]> {
-  const supabase = await getSupabaseClient();
   const { data, error } = await supabase
     .from('brief_batches')
     .select('*')
@@ -217,11 +214,13 @@ export async function getBriefBatches(brandId: string): Promise<BriefBatch[]> {
     throw error;
   }
 
-  return data || [];
+  return (data || []).map(batch => ({
+    ...batch,
+    share_settings: (batch.share_settings as any) || {}
+  }));
 }
 
 export async function getBriefBatchById(batchId: string): Promise<BriefBatch | null> {
-  const supabase = await getSupabaseClient();
   const { data, error } = await supabase
     .from('brief_batches')
     .select('*')
@@ -241,7 +240,6 @@ export async function getBriefBatchById(batchId: string): Promise<BriefBatch | n
 }
 
 export async function createBriefBatch(batch: Omit<BriefBatch, 'id' | 'created_at' | 'updated_at'>): Promise<BriefBatch> {
-  const supabase = await getSupabaseClient();
   const newBatch = {
     ...batch,
     id: uuidv4(),
@@ -264,8 +262,6 @@ export async function createBriefBatch(batch: Omit<BriefBatch, 'id' | 'created_a
 }
 
 export async function updateBriefBatch(batch: Partial<BriefBatch> & { id: string }): Promise<BriefBatch> {
-  const supabase = await getSupabaseClient();
-  
   // Enhanced logging for debugging batch updates
   console.log('🔄 Updating batch ID:', batch.id);
   console.log('🔧 Fields being updated:', Object.keys(batch));
@@ -295,7 +291,6 @@ export async function updateBriefBatch(batch: Partial<BriefBatch> & { id: string
 }
 
 export async function deleteBriefBatch(batchId: string): Promise<void> {
-  const supabase = await getSupabaseClient();
   const { error } = await supabase
     .from('brief_batches')
     .delete()
@@ -309,7 +304,6 @@ export async function deleteBriefBatch(batchId: string): Promise<void> {
 
 // Brief Concept Services
 export async function getBriefConcepts(batchId: string): Promise<BriefConcept[]> {
-  const supabase = await getSupabaseClient();
   const { data, error } = await supabase
     .from('brief_concepts')
     .select('*')
@@ -337,7 +331,6 @@ export async function getBriefConcepts(batchId: string): Promise<BriefConcept[]>
 }
 
 export async function getBriefConceptById(conceptId: string): Promise<BriefConcept | null> {
-  const supabase = await getSupabaseClient();
   const { data, error } = await supabase
     .from('brief_concepts')
     .select('*')
@@ -376,7 +369,7 @@ export async function createBriefConcept(concept: Omit<BriefConcept, 'id' | 'cre
   if (concept.brief_batch_id) {
     try {
       // First, get the batch to find the brand_id
-      const batchSupabase = await getSupabaseClient();
+      const batchSupabase = supabase;
       const { data: batchData } = await batchSupabase
         .from('brief_batches')
         .select('brand_id')
@@ -385,7 +378,7 @@ export async function createBriefConcept(concept: Omit<BriefConcept, 'id' | 'cre
       
       if (batchData?.brand_id) {
         // Then get the brand to find the default instructions
-        const brandSupabase = await getSupabaseClient();
+        const brandSupabase = supabase;
         const { data: brandData } = await brandSupabase
           .from('brands')
           .select('*')
@@ -406,7 +399,6 @@ export async function createBriefConcept(concept: Omit<BriefConcept, 'id' | 'cre
   }
 
   // Create the concept with defaults
-  const supabase = await getSupabaseClient();
   const dbConcept: any = {
     ...concept,
     id: uuidv4(),
@@ -453,7 +445,6 @@ export async function createBriefConcept(concept: Omit<BriefConcept, 'id' | 'cre
 
 export async function updateBriefConcept(concept: Partial<BriefConcept> & { id: string }): Promise<BriefConcept> {
   // Use type casting to avoid issues with potentially missing fields
-  const supabase = await getSupabaseClient();
   const dbConcept: any = {
     ...concept,
     updated_at: new Date().toISOString()
@@ -501,7 +492,6 @@ export async function updateBriefConcept(concept: Partial<BriefConcept> & { id: 
 }
 
 export async function deleteBriefConcept(conceptId: string): Promise<void> {
-  const supabase = await getSupabaseClient();
   const { error } = await supabase
     .from('brief_concepts')
     .delete()
@@ -515,7 +505,6 @@ export async function deleteBriefConcept(conceptId: string): Promise<void> {
 
 // Media Upload Service
 export async function uploadMedia(file: File, userId: string): Promise<string> {
-  const supabase = await getSupabaseClient();
   const fileExt = file.name.split('.').pop();
   const filePath = `${userId}/${uuidv4()}.${fileExt}`;
 
@@ -541,57 +530,24 @@ export async function uploadMedia(file: File, userId: string): Promise<string> {
  * @param batchId - ID of the brief batch to share
  * @param shareType - Type of sharing (link or email)
  * @param shareSettings - Settings for the share
+ * @param origin - The origin URL (e.g., https://www.powerbrief.ai) - required for server-side execution
  * @returns The share result with ID and URL
  */
 export async function shareBriefBatch(
   batchId: string,
   shareType: 'link' | 'email',
-  shareSettings: ShareSettings
+  shareSettings: ShareSettings,
+  origin?: string
 ): Promise<ShareResult> {
-  const supabase = await getSupabaseClient();
+  console.log('🔵 shareBriefBatch called with:', { batchId, shareType, shareSettings, origin });
   
-  // Generate a unique share ID
-  const shareId = crypto.randomUUID();
+  // For direct batch ID sharing, we don't need to update the database
+  // Just return the batch ID as the share ID
   
-  // Create the share URL based on the share type
-  const shareUrl = `${window.location.origin}/public/brief/${shareId}`;
-  
-  // First, get the current share_settings to merge with existing ones
-  const { data: currentBatch, error: fetchError } = await supabase
-    .from('brief_batches')
-    .select('share_settings')
-    .eq('id', batchId)
-    .single();
-  
-  if (fetchError) {
-    console.error('Error fetching current batch share settings:', fetchError);
-    throw new Error(`Failed to fetch current batch: ${fetchError.message}`);
-  }
-  
-  // Merge with existing share settings
-  const existingShareSettings = currentBatch?.share_settings || {};
-  const updatedShareSettings = {
-    ...existingShareSettings,
-    [shareId]: {
-      ...shareSettings,
-      created_at: new Date().toISOString(),
-      share_type: shareType
-    }
-  };
-  
-  // Update the brief batch with the merged share settings
-  const { data, error } = await supabase
-    .from('brief_batches')
-    .update({
-      share_settings: updatedShareSettings
-    } as Partial<DbBriefBatch>)
-    .eq('id', batchId)
-    .select();
-  
-  if (error) {
-    console.error('Error sharing brief batch:', error);
-    throw new Error(`Failed to share brief batch: ${error.message}`);
-  }
+  // Create the share URL using the batch ID directly
+  const baseUrl = origin || (typeof window !== 'undefined' ? window.location.origin : 'https://www.powerbrief.ai');
+  const shareUrl = `${baseUrl}/public/brief/${batchId}`;
+  console.log('🔗 Share URL (using batch ID):', shareUrl);
   
   // If email sharing, send the email invitation via an API endpoint
   if (shareType === 'email' && shareSettings.email) {
@@ -605,7 +561,7 @@ export async function shareBriefBatch(
           email: shareSettings.email,
           shareUrl,
           batchId,
-          shareId,
+          shareId: batchId, // Use batch ID as share ID
           shareType: 'batch'
         })
       });
@@ -615,8 +571,10 @@ export async function shareBriefBatch(
     }
   }
   
+  console.log('🎯 Returning share result with batch ID as share ID');
+  
   return {
-    share_id: shareId,
+    share_id: batchId,
     share_url: shareUrl
   };
 }
@@ -626,57 +584,24 @@ export async function shareBriefBatch(
  * @param conceptId - ID of the brief concept to share
  * @param shareType - Type of sharing (link or email)
  * @param shareSettings - Settings for the share
+ * @param origin - The origin URL (e.g., https://www.powerbrief.ai) - required for server-side execution
  * @returns The share result with ID and URL
  */
 export async function shareBriefConcept(
   conceptId: string,
   shareType: 'link' | 'email',
-  shareSettings: ShareSettings
+  shareSettings: ShareSettings,
+  origin?: string
 ): Promise<ShareResult> {
-  const supabase = await getSupabaseClient();
+  console.log('🔵 shareBriefConcept called with:', { conceptId, shareType, shareSettings, origin });
   
-  // Generate a unique share ID
-  const shareId = crypto.randomUUID();
+  // For direct concept ID sharing, we don't need to update the database
+  // Just return the concept ID as the share ID
   
-  // Create the share URL based on the share type
-  const shareUrl = `${window.location.origin}/public/concept/${shareId}`;
-  
-  // First, get the current share_settings to merge with existing ones
-  const { data: currentConcept, error: fetchError } = await supabase
-    .from('brief_concepts')
-    .select('share_settings')
-    .eq('id', conceptId)
-    .single();
-  
-  if (fetchError) {
-    console.error('Error fetching current concept share settings:', fetchError);
-    throw new Error(`Failed to fetch current concept: ${fetchError.message}`);
-  }
-  
-  // Merge with existing share settings
-  const existingShareSettings = currentConcept?.share_settings || {};
-  const updatedShareSettings = {
-    ...existingShareSettings,
-    [shareId]: {
-      ...shareSettings,
-      created_at: new Date().toISOString(),
-      share_type: shareType
-    }
-  };
-  
-  // Update the brief concept with the merged share settings
-  const { data, error } = await supabase
-    .from('brief_concepts')
-    .update({
-      share_settings: updatedShareSettings
-    } as Partial<DbBriefConcept>)
-    .eq('id', conceptId)
-    .select();
-  
-  if (error) {
-    console.error('Error sharing brief concept:', error);
-    throw new Error(`Failed to share brief concept: ${error.message}`);
-  }
+  // Create the share URL using the concept ID directly
+  const baseUrl = origin || (typeof window !== 'undefined' ? window.location.origin : 'https://www.powerbrief.ai');
+  const shareUrl = `${baseUrl}/public/concept/${conceptId}`;
+  console.log('🔗 Share URL (using concept ID):', shareUrl);
   
   // If email sharing, send the email invitation via an API endpoint
   if (shareType === 'email' && shareSettings.email) {
@@ -690,7 +615,7 @@ export async function shareBriefConcept(
           email: shareSettings.email,
           shareUrl,
           conceptId,
-          shareId,
+          shareId: conceptId, // Use concept ID as share ID
           shareType: 'concept'
         })
       });
@@ -700,8 +625,10 @@ export async function shareBriefConcept(
     }
   }
   
+  console.log('🎯 Returning share result with concept ID as share ID');
+  
   return {
-    share_id: shareId,
+    share_id: conceptId,
     share_url: shareUrl
   };
 }
@@ -713,8 +640,6 @@ export async function shareBriefConcept(
  * @returns The updated concept
  */
 export async function moveConceptToBatch(conceptId: string, targetBatchId: string): Promise<BriefConcept> {
-  const supabase = await getSupabaseClient();
-  
   console.log('🔄 Moving concept', conceptId, 'to batch', targetBatchId);
   
   const { data, error } = await supabase
@@ -753,8 +678,6 @@ export async function moveConceptToBatch(conceptId: string, targetBatchId: strin
  * @returns The count of concepts that need review for the specified user
  */
 export async function getPendingReviewsCount(userId: string): Promise<number> {
-  const supabase = await getSupabaseClient();
-  
   const { count, error } = await supabase
     .from('brief_concepts')
     .select('*', { count: 'exact', head: true })
@@ -771,8 +694,6 @@ export async function getPendingReviewsCount(userId: string): Promise<number> {
 
 // Get concept counts by status for batches
 export async function getConceptCountsByStatus(brandId: string): Promise<Record<string, Record<string, number>>> {
-  const supabase = await getSupabaseClient();
-  
   // Get all concepts for batches belonging to this brand
   const { data: conceptsData, error } = await supabase
     .from('brief_concepts')

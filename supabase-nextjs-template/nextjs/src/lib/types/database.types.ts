@@ -335,7 +335,10 @@ export type Database = {
           content: string
           created_at: string
           id: string
+          is_global: boolean | null
+          is_resolved: boolean | null
           priority: string | null
+          target_team_ids: string[] | null
           title: string
           updated_at: string
           user_id: string
@@ -345,7 +348,10 @@ export type Database = {
           content: string
           created_at?: string
           id?: string
+          is_global?: boolean | null
+          is_resolved?: boolean | null
           priority?: string | null
+          target_team_ids?: string[] | null
           title: string
           updated_at?: string
           user_id: string
@@ -355,7 +361,10 @@ export type Database = {
           content?: string
           created_at?: string
           id?: string
+          is_global?: boolean | null
+          is_resolved?: boolean | null
           priority?: string | null
+          target_team_ids?: string[] | null
           title?: string
           updated_at?: string
           user_id?: string
@@ -467,13 +476,16 @@ export type Database = {
           brand_id: string
           created_at: string
           expires_at: string | null
+          first_name: string | null
           id: string
           invitation_token: string | null
+          last_name: string | null
           role: string
           shared_by_user_id: string
           shared_with_email: string
           shared_with_user_id: string | null
           status: string
+          team_ids: string[] | null
           updated_at: string
         }
         Insert: {
@@ -481,13 +493,16 @@ export type Database = {
           brand_id: string
           created_at?: string
           expires_at?: string | null
+          first_name?: string | null
           id?: string
           invitation_token?: string | null
+          last_name?: string | null
           role?: string
           shared_by_user_id: string
           shared_with_email: string
           shared_with_user_id?: string | null
           status?: string
+          team_ids?: string[] | null
           updated_at?: string
         }
         Update: {
@@ -495,13 +510,16 @@ export type Database = {
           brand_id?: string
           created_at?: string
           expires_at?: string | null
+          first_name?: string | null
           id?: string
           invitation_token?: string | null
+          last_name?: string | null
           role?: string
           shared_by_user_id?: string
           shared_with_email?: string
           shared_with_user_id?: string | null
           status?: string
+          team_ids?: string[] | null
           updated_at?: string
         }
         Relationships: [
@@ -1555,8 +1573,11 @@ export type Database = {
           description: string | null
           id: string
           issue_type: string | null
+          metric_context: Json | null
           priority_order: number | null
+          source_metric_id: string | null
           status: string | null
+          target_team_id: string | null
           title: string
           updated_at: string
           user_id: string
@@ -1568,8 +1589,11 @@ export type Database = {
           description?: string | null
           id?: string
           issue_type?: string | null
+          metric_context?: Json | null
           priority_order?: number | null
+          source_metric_id?: string | null
           status?: string | null
+          target_team_id?: string | null
           title: string
           updated_at?: string
           user_id: string
@@ -1581,8 +1605,11 @@ export type Database = {
           description?: string | null
           id?: string
           issue_type?: string | null
+          metric_context?: Json | null
           priority_order?: number | null
+          source_metric_id?: string | null
           status?: string | null
+          target_team_id?: string | null
           title?: string
           updated_at?: string
           user_id?: string
@@ -1593,6 +1620,20 @@ export type Database = {
             columns: ["brand_id"]
             isOneToOne: false
             referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "issues_source_metric_id_fkey"
+            columns: ["source_metric_id"]
+            isOneToOne: false
+            referencedRelation: "scorecard_metrics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "issues_target_team_id_fkey"
+            columns: ["target_team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
             referencedColumns: ["id"]
           },
         ]
@@ -2507,6 +2548,47 @@ export type Database = {
         }
         Relationships: []
       }
+      scorecard_data: {
+        Row: {
+          created_at: string | null
+          id: string
+          metric_id: string | null
+          period_end: string
+          period_start: string
+          period_type: string
+          raw_data: Json | null
+          value: number
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          metric_id?: string | null
+          period_end: string
+          period_start: string
+          period_type: string
+          raw_data?: Json | null
+          value: number
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          metric_id?: string | null
+          period_end?: string
+          period_start?: string
+          period_type?: string
+          raw_data?: Json | null
+          value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scorecard_data_metric_id_fkey"
+            columns: ["metric_id"]
+            isOneToOne: false
+            referencedRelation: "scorecard_metrics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       scorecard_manual_data: {
         Row: {
           created_at: string | null
@@ -2623,25 +2705,67 @@ export type Database = {
       scorecard_metrics: {
         Row: {
           brand_id: string | null
+          calculation_formula: Json | null
           created_at: string
+          decimal_places: number | null
+          description: string | null
+          display_name: string
+          goal_operator: string | null
+          goal_value: number | null
           id: string
-          metric_config: Json
+          is_currency: boolean | null
+          is_percentage: boolean | null
+          meta_ad_sets: Json | null
+          meta_ads: Json | null
+          meta_campaigns: Json | null
+          meta_fields: string[] | null
+          metric_key: string
+          metric_type: string
+          team_id: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
           brand_id?: string | null
+          calculation_formula?: Json | null
           created_at?: string
+          decimal_places?: number | null
+          description?: string | null
+          display_name: string
+          goal_operator?: string | null
+          goal_value?: number | null
           id?: string
-          metric_config: Json
+          is_currency?: boolean | null
+          is_percentage?: boolean | null
+          meta_ad_sets?: Json | null
+          meta_ads?: Json | null
+          meta_campaigns?: Json | null
+          meta_fields?: string[] | null
+          metric_key: string
+          metric_type: string
+          team_id?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
           brand_id?: string | null
+          calculation_formula?: Json | null
           created_at?: string
+          decimal_places?: number | null
+          description?: string | null
+          display_name?: string
+          goal_operator?: string | null
+          goal_value?: number | null
           id?: string
-          metric_config?: Json
+          is_currency?: boolean | null
+          is_percentage?: boolean | null
+          meta_ad_sets?: Json | null
+          meta_ads?: Json | null
+          meta_campaigns?: Json | null
+          meta_fields?: string[] | null
+          metric_key?: string
+          metric_type?: string
+          team_id?: string | null
           updated_at?: string
           user_id?: string
         }
@@ -2651,6 +2775,13 @@ export type Database = {
             columns: ["brand_id"]
             isOneToOne: false
             referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scorecard_metrics_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
             referencedColumns: ["id"]
           },
         ]
@@ -2843,6 +2974,102 @@ export type Database = {
         }
         Relationships: []
       }
+      team_feature_access: {
+        Row: {
+          created_at: string | null
+          feature_key: string
+          has_access: boolean | null
+          id: string
+          team_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          feature_key: string
+          has_access?: boolean | null
+          id?: string
+          team_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          feature_key?: string
+          has_access?: boolean | null
+          id?: string
+          team_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_feature_access_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      team_members: {
+        Row: {
+          created_at: string | null
+          team_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          team_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          team_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_members_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      teams: {
+        Row: {
+          brand_id: string | null
+          created_at: string | null
+          id: string
+          is_default: boolean | null
+          name: string
+          updated_at: string | null
+        }
+        Insert: {
+          brand_id?: string | null
+          created_at?: string | null
+          id?: string
+          is_default?: boolean | null
+          name: string
+          updated_at?: string | null
+        }
+        Update: {
+          brand_id?: string | null
+          created_at?: string | null
+          id?: string
+          is_default?: boolean | null
+          name?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teams_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       todo_issues: {
         Row: {
           created_at: string
@@ -2922,6 +3149,7 @@ export type Database = {
           due_date: string | null
           id: string
           priority: string | null
+          target_team_id: string | null
           title: string
           updated_at: string
           user_id: string
@@ -2935,6 +3163,7 @@ export type Database = {
           due_date?: string | null
           id?: string
           priority?: string | null
+          target_team_id?: string | null
           title: string
           updated_at?: string
           user_id: string
@@ -2948,6 +3177,7 @@ export type Database = {
           due_date?: string | null
           id?: string
           priority?: string | null
+          target_team_id?: string | null
           title?: string
           updated_at?: string
           user_id?: string
@@ -2958,6 +3188,13 @@ export type Database = {
             columns: ["brand_id"]
             isOneToOne: false
             referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "todos_target_team_id_fkey"
+            columns: ["target_team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
             referencedColumns: ["id"]
           },
         ]
@@ -5616,6 +5853,14 @@ export type Database = {
       }
       create_default_page_types: {
         Args: { p_brand_id: string; p_user_id: string }
+        Returns: undefined
+      }
+      create_default_scorecard_metrics: {
+        Args: { p_brand_id: string; p_team_id: string }
+        Returns: undefined
+      }
+      create_default_teams_for_brand: {
+        Args: { p_brand_id: string }
         Returns: undefined
       }
       create_invitation: {

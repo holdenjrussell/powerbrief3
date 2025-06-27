@@ -371,19 +371,29 @@ export default function SharedConceptPage({ params }: { params: ParamsType | Pro
       try {
         setLoading(true);
         
-        // Use the API endpoint instead of direct Supabase query to avoid RLS issues
-        const response = await fetch(`/api/public/concept/${shareId}`);
+        // Since we're using concept IDs directly now, fetch the concept by ID
+        const supabase = createSPAClient();
+        const { data: conceptData, error: conceptError } = await supabase
+          .from('brief_concepts')
+          .select(`
+            *,
+            brief_batches (
+              id,
+              name,
+              brands (*)
+            )
+          `)
+          .eq('id', shareId)
+          .single();
         
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.error || 'Failed to load shared content');
+        if (conceptError || !conceptData) {
+          throw new Error('Concept not found');
         }
         
-        const data = await response.json();
-        const { concept: conceptWithShare, shareSettings, isEditable } = data;
+        const conceptWithShare = conceptData as ConceptWithShareSettings;
         
-        // Set editability based on share settings
-        setIsEditable(isEditable);
+        // Make all public shares editable so anyone can submit assets/revisions
+        setIsEditable(true);
         
         // Initialize review link from concept if it exists
         if (conceptWithShare.review_link) {
@@ -494,7 +504,7 @@ export default function SharedConceptPage({ params }: { params: ParamsType | Pro
           },
           body: JSON.stringify({
             conceptId: concept.id,
-            shareId: shareId,
+            shareId: concept.id,
             reviewLink: reviewLink
           }),
         });
@@ -558,7 +568,7 @@ export default function SharedConceptPage({ params }: { params: ParamsType | Pro
           },
           body: JSON.stringify({
             conceptId: concept.id,
-            shareId: shareId,
+            shareId: concept.id,
             reviewLink: reviewLink
           }),
         });
@@ -607,7 +617,7 @@ export default function SharedConceptPage({ params }: { params: ParamsType | Pro
         body: JSON.stringify({
           conceptId: concept.id,
           assetGroups,
-          shareId
+          shareId: concept.id
         }),
       });
 

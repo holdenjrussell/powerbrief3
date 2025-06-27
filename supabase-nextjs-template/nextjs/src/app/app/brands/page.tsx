@@ -25,10 +25,25 @@ export default function BrandsPage() {
     const router = useRouter();
 
     const handleCreateBrand = async () => {
-        if (!user?.id || !newBrandName.trim()) return;
+        console.log('Starting brand creation...');
+        console.log('User ID:', user?.id);
+        console.log('Brand Name:', newBrandName.trim());
+        
+        if (!user?.id) {
+            console.error('No user ID available');
+            setError('You must be logged in to create a brand');
+            return;
+        }
+        
+        if (!newBrandName.trim()) {
+            console.error('Brand name is empty');
+            setError('Brand name is required');
+            return;
+        }
         
         try {
             setCreatingBrand(true);
+            setError(null); // Clear any previous errors
             
             // Create empty data structures for new brand
             const emptyBrandInfo: BrandInfoData = {
@@ -57,6 +72,11 @@ export default function BrandsPage() {
                 notes: ''
             };
             
+            console.log('Creating brand with data:', {
+                user_id: user.id,
+                name: newBrandName.trim()
+            });
+            
             const newBrand = await createBrand({
                 user_id: user.id,
                 name: newBrandName.trim(),
@@ -64,6 +84,8 @@ export default function BrandsPage() {
                 target_audience_data: emptyTargetAudience,
                 competition_data: emptyCompetition
             });
+            
+            console.log('Brand created successfully:', newBrand);
             
             setNewBrandName('');
             setShowNewBrandDialog(false);
@@ -74,9 +96,28 @@ export default function BrandsPage() {
             // Select the new brand and navigate to it
             setSelectedBrand(newBrand);
             router.push('/app/powerbrief');
-        } catch (err) {
+        } catch (err: any) {
             console.error('Failed to create brand:', err);
-            setError('Failed to create brand. Please try again.');
+            console.error('Error details:', JSON.stringify(err, null, 2));
+            
+            // Extract meaningful error message
+            let errorMessage = 'Failed to create brand. Please try again.';
+            
+            if (err?.message) {
+                errorMessage = `Failed to create brand: ${err.message}`;
+            } else if (err?.error?.message) {
+                errorMessage = `Failed to create brand: ${err.error.message}`;
+            } else if (err?.code) {
+                errorMessage = `Failed to create brand: Error code ${err.code}`;
+            }
+            
+            // Check for specific RLS policy errors
+            if (err?.message?.includes('row-level security policy') || 
+                err?.error?.message?.includes('row-level security policy')) {
+                errorMessage = 'Permission denied: Unable to create brand. Please ensure you are logged in.';
+            }
+            
+            setError(errorMessage);
         } finally {
             setCreatingBrand(false);
         }

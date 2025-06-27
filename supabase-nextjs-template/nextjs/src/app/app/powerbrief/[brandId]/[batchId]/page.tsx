@@ -2515,6 +2515,10 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
         if (!batch) return;
         
         try {
+            console.log('🔵 Starting share batch via link...');
+            console.log('Batch ID:', batch.id);
+            console.log('Share settings:', { is_editable: shareIsEditable });
+            
             setSharingInProgress(true);
             setShareSuccess(false);
             
@@ -2523,12 +2527,27 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                 expires_at: null // No expiration
             };
             
-            const shareResult = await shareBriefBatch(batch.id, 'link', shareSettings);
+            console.log('Calling shareBriefBatch with:', {
+                batchId: batch.id,
+                shareType: 'link',
+                shareSettings,
+                origin: window.location.origin
+            });
+            
+            const shareResult = await shareBriefBatch(
+                batch.id, 
+                'link', 
+                shareSettings,
+                window.location.origin // Pass the origin for client-side execution
+            );
+            
+            console.log('✅ Share result:', shareResult);
             
             setShareLink(shareResult.share_url);
             setShareSuccess(true);
         } catch (err) {
-            console.error('Failed to share batch:', err);
+            console.error('❌ Failed to share batch:', err);
+            console.error('Error details:', JSON.stringify(err, null, 2));
             setError('Failed to create share link. Please try again.');
         } finally {
             setSharingInProgress(false);
@@ -2549,7 +2568,12 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                 email: shareEmail
             };
             
-            await shareBriefBatch(batch.id, 'email', shareSettings);
+            await shareBriefBatch(
+                batch.id, 
+                'email', 
+                shareSettings,
+                window.location.origin // Pass the origin for client-side execution
+            );
             
             setShareSuccess(true);
             setShareEmail('');
@@ -2574,7 +2598,12 @@ Ensure your response is ONLY valid JSON matching the structure in my instruction
                 expires_at: null // No expiration
             };
             
-            const shareResult = await shareBriefConcept(sharingConceptId, 'link', shareSettings);
+            const shareResult = await shareBriefConcept(
+                sharingConceptId, 
+                'link', 
+                shareSettings,
+                window.location.origin // Pass the origin for client-side execution
+            );
             
             setShareLink(shareResult.share_url);
             setShareSuccess(true);

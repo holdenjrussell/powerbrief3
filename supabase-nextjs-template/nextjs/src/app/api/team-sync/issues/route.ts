@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
 
     // Filter by team if teamId is provided
     if (teamId) {
-      query = query.or(`target_team_id.is.null,target_team_id.eq.${teamId}`);
+      query = query.eq('target_team_id', teamId);
     }
 
     const { data: issues, error } = await query;

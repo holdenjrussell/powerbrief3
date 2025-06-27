@@ -16,7 +16,7 @@ import { Label } from '@/components/ui/label';
 import { toast } from '@/components/ui/use-toast';
 import AssetGroupingPreview from '@/components/PowerBriefAssetGroupingPreview';
 import { TimelineComment, CommentModal } from '@/components/CommentModal';
-import { shareBriefConcept } from '@/lib/services/powerbriefService.js';
+import { shareBriefConcept } from '@/lib/services/powerbriefService';
 
 interface ConceptForReview {
     id: string;

@@ -17,6 +17,7 @@ import { Label } from '@/components/ui/label';
 import { TimelineComment, CommentModal } from '@/components/CommentModal';
 import { toast } from '@/components/ui/use-toast';
 import { GeneratedVideo } from '@/lib/types/powerbrief';
+import { useSearchParams } from 'next/navigation';
 
 interface BrandData {
   id: string;
@@ -66,7 +67,13 @@ interface ConceptData {
   generated_broll?: GeneratedVideo[];
 }
 
-export default function SharedBriefPage({ params }: { params: { shareId: string } }) {
+interface PageProps {
+    params: {
+        shareId: string; // Keep the param name for backward compatibility but it's actually batchId now
+    };
+}
+
+export default function SharedBriefPage({ params }: PageProps) {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [showLoginPrompt, setShowLoginPrompt] = useState<boolean>(false);
@@ -96,9 +103,27 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
   // Comments state
   const [conceptComments, setConceptComments] = useState<Record<string, TimelineComment[]>>({});
   
+  // Debug mode state
+  const [debugMode, setDebugMode] = useState<boolean>(false);
+  const [debugInfo, setDebugInfo] = useState<any>(null);
+  
   // Unwrap params using React.use()
   const unwrappedParams = React.use(params) as any;
   const { shareId } = unwrappedParams;
+  
+  // Check for debug mode on mount
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('debug') === 'true') {
+      setDebugMode(true);
+      
+      // Fetch debug info
+      fetch(`/api/debug-share?shareId=${shareId}`)
+        .then(res => res.json())
+        .then(data => setDebugInfo(data))
+        .catch(err => console.error('Failed to fetch debug info:', err));
+    }
+  }, [shareId]);
 
   // Get product name from product ID
   const getProductName = (productId: string | null): string | null => {
@@ -477,6 +502,11 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
           }
         );
 
+        // Enhanced logging for debugging
+        console.log('=== PUBLIC SHARE DEBUGGING ===');
+        console.log('Share ID:', shareId);
+        console.log('Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL);
+
         // First, let's check if we can access ANY batches with share_settings
         console.log('Testing basic access to brief_batches with share_settings...');
         const { data: testData, error: testError } = await supabase
@@ -485,76 +515,64 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
           .not('share_settings', 'is', null)
           .limit(5);
         
-        console.log('Test query result:', { testData, testError });
+        console.log('Test query result:', { 
+          success: !testError, 
+          error: testError,
+          dataCount: testData?.length || 0,
+          sampleData: testData?.map(b => ({
+            id: b.id,
+            name: b.name,
+            shareSettingsKeys: Object.keys(b.share_settings || {})
+          }))
+        });
         
-        // Find the batch with this shareId in its share_settings
-        // We need to get all shared batches and filter in JavaScript due to PostgREST limitations
-        console.log('Looking for shareId:', shareId);
-        const { data: allSharedBatches, error: batchError } = await supabase
+        // Since we're now using batch IDs directly, just fetch the batch by ID
+        console.log('Looking for batch with ID:', shareId);
+        const { data: batchData, error: batchError } = await supabase
           .from('brief_batches')
           .select('*, brands(*)')
-          .not('share_settings', 'is', null);
+          .eq('id', shareId)
+          .single();
 
         if (batchError) {
           console.error('Batch query error:', batchError);
           throw batchError;
         }
 
-        // Filter to find the batch with our shareId
-        const batchData = allSharedBatches?.filter(batch => {
-          const shareSettings = batch.share_settings as Record<string, any>;
-          return shareSettings && shareSettings[shareId];
-        });
+        console.log('Batch found:', batchData ? 'Yes' : 'No');
 
-        if (!batchData || batchData.length === 0) {
-          console.log('No batch found with shareId:', shareId);
-          // Try a more permissive query as fallback
-          const { data: fallbackData } = await supabase
-            .from('brief_batches')
-            .select('*, brands(*)')
-            .not('share_settings', 'is', null);
+        if (!batchData) {
+          console.log('No batch found with ID:', shareId);
           
-          console.log('Fallback query found batches:', fallbackData?.length || 0);
-          if (fallbackData) {
-            const matchingBatch = fallbackData.find(batch => {
-              const settings = batch.share_settings as Record<string, any>;
-              const hasShare = settings && settings[shareId];
-              if (hasShare) {
-                console.log('Found batch with shareId in fallback:', batch.id, batch.name);
-              }
-              return hasShare;
-            });
+          // Also check if the user is logged in and show their batches
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            console.log('Current user:', user.email);
+            console.log('Checking user-specific batches...');
             
-            if (!matchingBatch) {
-              console.log('Share ID not found in any batch share_settings');
-            }
+            // Get batches for this user specifically
+            const { data: userBatches } = await supabase
+              .from('brief_batches')
+              .select('id, name, brand_id')
+              .or(`user_id.eq.${user.id},brand_id.in.(select brand_id from brand_shares where shared_with_user_id='${user.id}' and status='accepted')`);
+            
+            console.log('User has access to batches:', userBatches?.length || 0);
+            userBatches?.forEach(batch => {
+              console.log(`User's batch: ${batch.name} (ID: ${batch.id})`);
+            });
           }
           
-          setError('Shared content not found or has expired. You might need to log in to view this content.');
+          setError('Shared content not found. The batch may have been deleted or you may not have permission to view it.');
           setShowLoginPrompt(true);
           setLoading(false);
           return;
         }
 
-        const batchWithShare = batchData[0] as unknown as BatchData;
-        // Use type assertion to treat the data as having share_settings
-        const shareSettings = batchWithShare.share_settings?.[shareId] as Record<string, unknown>;
+        const batchWithShare = batchData as unknown as BatchData;
         
-        if (!shareSettings) {
-          setError('Share settings not found');
-          setLoading(false);
-          return;
-        }
-
-        // Check if share has expired
-        if (shareSettings.expires_at && new Date(shareSettings.expires_at as string) < new Date()) {
-          setError('This shared link has expired');
-          setLoading(false);
-          return;
-        }
-
-        // Set the editability based on share settings
-        setIsEditable(!!shareSettings.is_editable);
+        // Since we're using batch IDs directly now, we don't need to check share settings
+        // All batches are shareable by their ID
+        setIsEditable(true); // Make public shares editable so anyone can submit assets
 
         // Get the brand data
         const brandData = batchWithShare.brands;
@@ -954,7 +972,7 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
                       {/* View full concept link */}
                       <div className="pt-2">
                         <Link
-                          href={`/public/concept/${shareId}/${concept.id}`}
+                          href={`/public/concept/${concept.id}`}
                           className="text-blue-600 hover:underline text-sm"
                         >
                           View full concept details →
@@ -1186,6 +1204,70 @@ export default function SharedBriefPage({ params }: { params: { shareId: string 
           )}
         </TabsContent>
       </Tabs>
+      
+      {/* Debug Panel - Only show when debug mode is active */}
+      {debugMode && debugInfo && (
+        <Card className="mt-8 border-2 border-orange-400">
+          <CardHeader className="bg-orange-50">
+            <CardTitle className="text-orange-800">🔍 Debug Information</CardTitle>
+            <CardDescription>Share ID: {shareId}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4 mt-4">
+            {debugInfo.currentUser && (
+              <div>
+                <h3 className="font-medium">Current User</h3>
+                <p className="text-sm text-gray-600">ID: {debugInfo.currentUser.id}</p>
+                <p className="text-sm text-gray-600">Email: {debugInfo.currentUser.email}</p>
+              </div>
+            )}
+            
+            <div>
+              <h3 className="font-medium">Search Results</h3>
+              <p className="text-sm text-gray-600">Total batches with shares: {debugInfo.totalBatchesFound}</p>
+              <p className="text-sm text-gray-600">
+                Matching batch found: {debugInfo.matchingBatch ? 'Yes' : 'No'}
+              </p>
+            </div>
+            
+            {debugInfo.matchingBatch && (
+              <div className="bg-green-50 p-3 rounded">
+                <h3 className="font-medium text-green-800">✅ Matching Batch Found</h3>
+                <p className="text-sm">Name: {debugInfo.matchingBatch.batchName}</p>
+                <p className="text-sm">ID: {debugInfo.matchingBatch.batchId}</p>
+                <p className="text-sm">Brand ID: {debugInfo.matchingBatch.brandId}</p>
+                {debugInfo.matchingBatch.targetShareDetails && (
+                  <div className="mt-2">
+                    <p className="text-sm font-medium">Share Details:</p>
+                    <pre className="text-xs bg-white p-2 rounded mt-1 overflow-auto">
+                      {JSON.stringify(debugInfo.matchingBatch.targetShareDetails, null, 2)}
+                    </pre>
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {!debugInfo.matchingBatch && debugInfo.allBatches && (
+              <div className="bg-red-50 p-3 rounded">
+                <h3 className="font-medium text-red-800">❌ No Matching Batch</h3>
+                <p className="text-sm mb-2">The share ID was not found in any batch. Available shares:</p>
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {debugInfo.allBatches.map((batch: any, index: number) => (
+                    <div key={index} className="bg-white p-2 rounded text-xs">
+                      <p className="font-medium">{batch.batchName}</p>
+                      <p>Share IDs: {batch.shareIds.join(', ') || 'None'}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            <div className="text-xs text-gray-500 mt-4">
+              <p>To hide this debug panel, remove ?debug=true from the URL</p>
+              <p>API endpoint: /api/debug-share</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
       
       {/* Comment Modal */}
       {modalMedia && (

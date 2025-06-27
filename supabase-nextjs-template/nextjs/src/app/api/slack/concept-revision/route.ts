@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sendConceptRevisionNotification } from '@/lib/utils/slackNotifications';
-import { shareBriefConcept } from '@/lib/services/powerbriefService';
 
 interface ConceptRevisionRequest {
   conceptId: string;
@@ -28,19 +27,8 @@ export async function POST(request: NextRequest) {
     const reviewDashboardUrl = `${baseUrl}/app/reviews`;
 
     // Create a public share link for the concept
-    let publicShareUrl = `${baseUrl}/app/reviews`; // Fallback
-    try {
-      const shareSettings = {
-        is_editable: true, // Allow editing for revisions
-        expires_at: null // No expiration
-      };
-      
-      const shareResult = await shareBriefConcept(conceptId, 'link', shareSettings);
-      publicShareUrl = shareResult.share_url;
-    } catch (shareError) {
-      console.error('Failed to create share link for concept revision:', shareError);
-      // Continue with fallback URL if share creation fails
-    }
+    // Since we now use concept IDs directly, just construct the public URL
+    const publicShareUrl = `${baseUrl}/public/concept/${conceptId}`;
 
     // Send Slack notification
     await sendConceptRevisionNotification({
