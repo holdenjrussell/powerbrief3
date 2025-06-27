@@ -1,5 +1,5 @@
 import { createSPAClient } from '@/lib/supabase/client';
-import { createServerAdminClient } from '@/lib/supabase/serverAdminClient';
+import { createSSRClient } from '@/lib/supabase/server';
 import { PdfSigningService, SignatureData } from './pdfSigningService';
 import { 
   Contract, 
@@ -90,7 +90,7 @@ export class ContractService {
       console.log(`[ContractService.createTemplate] Field ${index}:`, field);
     });
     
-    const supabase = await createServerAdminClient();
+    const supabase = await createSSRClient();
 
     // Validate PDF
     const validation = await this.pdfService.validatePdf(templateData.document_data);
@@ -178,13 +178,12 @@ export class ContractService {
    * Get contract templates for a brand
    */
   async getTemplates(brandId: string, userId: string): Promise<ContractTemplate[]> {
-    const supabase = await createServerAdminClient();
+    const supabase = await createSSRClient();
 
     const { data, error } = await supabase
       .from('contract_templates')
       .select('*')
       .eq('brand_id', brandId)
-      .eq('user_id', userId)
       .eq('is_active', true)
       .order('created_at', { ascending: false });
 
@@ -205,7 +204,7 @@ export class ContractService {
     brandId: string,
     userId: string
   ): Promise<Contract> {
-    const supabase = await createServerAdminClient();
+    const supabase = await createSSRClient();
 
     // Validate PDF
     const validation = await this.pdfService.validatePdf(documentData);
@@ -326,7 +325,7 @@ export class ContractService {
    * Send contract to recipients
    */
   async sendContract(contractId: string, userId: string): Promise<void> {
-    const supabase = await createServerAdminClient();
+    const supabase = await createSSRClient();
 
     // Get contract with recipients
     const { data: contract, error: contractError } = await supabase
@@ -409,7 +408,7 @@ export class ContractService {
    * Get signing link data for a recipient
    */
   async getSigningLink(contractId: string, authToken: string): Promise<SigningLinkData | null> {
-    const supabase = await createServerAdminClient();
+    const supabase = await createSSRClient();
 
     const { data, error } = await supabase
       .from('contract_recipients')
@@ -449,7 +448,7 @@ export class ContractService {
     ipAddress?: string,
     userAgent?: string
   ): Promise<void> {
-    const supabase = await createServerAdminClient();
+    const supabase = await createSSRClient();
 
     // Verify recipient auth
     const { data: recipient, error: recipientError } = await supabase
@@ -504,7 +503,7 @@ export class ContractService {
    * Check if contract is complete and generate final signed document
    */
   private async checkContractCompletion(contractId: string): Promise<void> {
-    const supabase = await createServerAdminClient();
+    const supabase = await createSSRClient();
 
     // Get all signers for this contract
     const { data: signers, error: signersError } = await supabase
@@ -540,7 +539,7 @@ export class ContractService {
    * Generate the final signed document with all signatures
    */
   private async generateFinalSignedDocument(contractId: string): Promise<void> {
-    const supabase = await createServerAdminClient();
+    const supabase = await createSSRClient();
 
     // Get contract with all related data
     const { data: contract, error: contractError } = await supabase
@@ -619,7 +618,7 @@ export class ContractService {
    * Send completion emails to all contract participants
    */
   private async sendCompletionEmails(contractId: string): Promise<void> {
-    const supabase = await createServerAdminClient();
+    const supabase = await createSSRClient();
 
     const { data: contract, error } = await supabase
       .from('contracts')
@@ -666,7 +665,7 @@ export class ContractService {
     userId: string, 
     status?: ContractStatus
   ): Promise<Contract[]> {
-    const supabase = await createServerAdminClient();
+    const supabase = await createSSRClient();
 
     let query = supabase
       .from('contracts')
@@ -696,7 +695,7 @@ export class ContractService {
    * Get contract by ID with full details
    */
   async getContract(contractId: string, userId?: string): Promise<Contract | null> {
-    const supabase = await createServerAdminClient();
+    const supabase = await createSSRClient();
 
     let query = supabase
       .from('contracts')
@@ -726,7 +725,7 @@ export class ContractService {
    * Get contract by share token (public access)
    */
   async getContractByShareToken(shareToken: string): Promise<Contract | null> {
-    const supabase = await createServerAdminClient();
+    const supabase = await createSSRClient();
 
     const { data, error } = await supabase
       .from('contracts')
@@ -752,7 +751,7 @@ export class ContractService {
     contractId: string,
     recipients: CreateContractRecipient[]
   ): Promise<ContractRecipient[]> {
-    const supabase = await createServerAdminClient();
+    const supabase = await createSSRClient();
 
     const recipientsWithContractId = recipients.map(recipient => ({
       ...recipient,
@@ -778,7 +777,7 @@ export class ContractService {
     contractId: string,
     fields: CreateContractField[]
   ): Promise<ContractField[]> {
-    const supabase = await createServerAdminClient();
+    const supabase = await createSSRClient();
 
     const fieldsWithContractId = fields.map(field => ({
       ...field,
@@ -808,7 +807,7 @@ export class ContractService {
     ipAddress?: string,
     userAgent?: string
   ): Promise<void> {
-    const supabase = await createServerAdminClient();
+    const supabase = await createSSRClient();
 
     await supabase
       .from('contract_audit_logs')
@@ -1047,7 +1046,7 @@ This email was sent by ${brandName} via PowerBrief Contract System.
     creatorId: string,
     status: 'not signed' | 'contract sent' | 'contract signed'
   ): Promise<void> {
-    const supabase = await createServerAdminClient();
+    const supabase = await createSSRClient();
 
     await supabase
       .from('ugc_creators')
@@ -1059,7 +1058,7 @@ This email was sent by ${brandName} via PowerBrief Contract System.
    * Get contracts for a specific creator
    */
   async getCreatorContracts(creatorId: string): Promise<Contract[]> {
-    const supabase = await createServerAdminClient();
+    const supabase = await createSSRClient();
 
     const { data, error } = await supabase
       .from('contracts')
@@ -1081,7 +1080,7 @@ This email was sent by ${brandName} via PowerBrief Contract System.
    * Get contracts for a specific script
    */
   async getScriptContracts(scriptId: string): Promise<Contract[]> {
-    const supabase = await createServerAdminClient();
+    const supabase = await createSSRClient();
 
     const { data, error } = await supabase
       .from('contracts')
