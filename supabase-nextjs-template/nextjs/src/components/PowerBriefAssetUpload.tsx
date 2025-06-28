@@ -871,7 +871,7 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
             supabaseUrl: publicUrl,
             type: assetFile.file.type.startsWith('image/') ? 'image' : 'video',
             aspectRatio: assetFile.detectedRatio || 'unknown',
-            baseName: assetFile.baseName || assetFile.file.name,
+            baseName: assetFile.groupKey || assetFile.baseName || assetFile.file.name,
             uploadedAt: new Date().toISOString()
           };
 
