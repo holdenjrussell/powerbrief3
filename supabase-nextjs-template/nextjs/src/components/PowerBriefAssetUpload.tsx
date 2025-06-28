@@ -672,14 +672,18 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
     // Convert back to our internal format and update selectedFiles
     const updatedFiles: AssetFile[] = [];
     
-    updatedGroups.forEach(group => {
+    updatedGroups.forEach((group, groupIndex) => {
+      // Create a unique group identifier that all files in this group will share
+      // This ensures they stay together through the upload process
+      const sharedGroupKey = `manual_group_${groupIndex}_${group.baseName}`;
+      
       group.assets.forEach(asset => {
         const originalFile = selectedFiles.find(f => f.id === asset.id);
         if (originalFile) {
           updatedFiles.push({
             ...originalFile,
-            baseName: asset.baseName,
-            groupKey: group.baseName
+            baseName: originalFile.baseName, // Keep original baseName for display
+            groupKey: sharedGroupKey // All files in this group get the same groupKey
           });
         }
       });
