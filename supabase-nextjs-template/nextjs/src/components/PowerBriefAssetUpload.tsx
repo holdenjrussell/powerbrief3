@@ -660,6 +660,15 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
   };
 
   const handleConfirmGrouping = (updatedGroups: UploadedAssetGroup[]) => {
+    logger.info('handleConfirmGrouping called', {
+      updatedGroupsCount: updatedGroups.length,
+      groups: updatedGroups.map(g => ({
+        baseName: g.baseName,
+        assetCount: g.assets.length,
+        assetIds: g.assets.map(a => a.id)
+      }))
+    });
+
     // Convert back to our internal format and update selectedFiles
     const updatedFiles: AssetFile[] = [];
     
@@ -676,6 +685,16 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
       });
     });
     
+    logger.info('Updated files with manual grouping', {
+      updatedFilesCount: updatedFiles.length,
+      files: updatedFiles.map(f => ({
+        id: f.id,
+        name: f.file.name,
+        baseName: f.baseName,
+        groupKey: f.groupKey
+      }))
+    });
+
     setSelectedFiles(updatedFiles);
     setShowGroupingPreview(false);
     
@@ -698,6 +717,7 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
         size: f.file.size,
         type: f.file.type,
         baseName: f.baseName,
+        groupKey: f.groupKey,
         detectedRatio: f.detectedRatio,
         needsCompression: f.needsCompression
       }))
@@ -871,7 +891,7 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
             supabaseUrl: publicUrl,
             type: assetFile.file.type.startsWith('image/') ? 'image' : 'video',
             aspectRatio: assetFile.detectedRatio || 'unknown',
-            baseName: assetFile.baseName || assetFile.file.name,
+            baseName: assetFile.groupKey || assetFile.baseName || assetFile.file.name,
             uploadedAt: new Date().toISOString()
           };
 
@@ -943,7 +963,10 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
             fileSize: assetFile.file.size,
             uploadSpeed: (assetFile.file.size / 1024 / 1024) / (uploadDuration / 1000), // MB/s
             wasCompressed: assetFile.originalSize && assetFile.originalSize !== assetFile.file.size,
-            hasThumbnail: !!(assetFile.thumbnailBlob && assetFile.thumbnailBlob.size > 0)
+            hasThumbnail: !!(assetFile.thumbnailBlob && assetFile.thumbnailBlob.size > 0),
+            groupKey: assetFile.groupKey,
+            baseName: assetFile.baseName,
+            uploadedAssetBaseName: uploadedAsset.baseName
           });
         }
 
@@ -998,6 +1021,15 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
     // Group uploaded assets by their groupKey/baseName for the callback
     const assetGroups: AssetGroup[] = [];
     const groupsByGroupKey: Record<string, UploadedAsset[]> = {};
+
+    logger.info('Creating final asset groups from uploaded assets', {
+      uploadedAssetsCount: uploadedAssets.length,
+      uploadedAssets: uploadedAssets.map(a => ({
+        id: a.id,
+        name: a.name,
+        baseName: a.baseName
+      }))
+    });
 
     uploadedAssets.forEach(asset => {
       const groupKey = asset.baseName; // Use baseName as groupKey since UploadedAsset doesn't have groupKey
