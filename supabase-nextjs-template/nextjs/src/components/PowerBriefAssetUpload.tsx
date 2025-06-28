@@ -699,24 +699,24 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
       }))
     });
 
-    setSelectedFiles(updatedFiles);
+    // Close the preview modal first
     setShowGroupingPreview(false);
     
-    // Proceed with upload using the updated grouping
-    processAndUpload();
+    // Process and upload with the updated files directly
+    processAndUploadWithFiles(updatedFiles);
   };
 
-  const processAndUpload = async () => {
-    if (selectedFiles.length === 0) {
+  const processAndUploadWithFiles = async (filesToUpload: AssetFile[]) => {
+    if (filesToUpload.length === 0) {
       logger.warn('Upload attempted with no files selected');
       return;
     }
 
     logger.info('Starting upload process', { 
-      fileCount: selectedFiles.length,
+      fileCount: filesToUpload.length,
       conceptId,
       userId,
-      files: selectedFiles.map(f => ({
+      files: filesToUpload.map(f => ({
         name: f.file.name,
         size: f.file.size,
         type: f.file.type,
@@ -729,10 +729,10 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
 
     // Create a map to preserve manual grouping through the upload process
     const manualGroupingMap: Record<string, string> = {};
-    selectedFiles.forEach(file => {
-      if (file.groupKey) {
-        manualGroupingMap[file.id] = file.groupKey;
-      }
+    filesToUpload.forEach(file => {
+      // Use groupKey if it exists (set by manual grouping), otherwise use baseName
+      const groupIdentifier = file.groupKey || file.baseName || file.file.name;
+      manualGroupingMap[file.id] = groupIdentifier;
     });
     logger.info('Manual grouping map created', { manualGroupingMap });
 
@@ -745,11 +745,11 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
     let errorCount = 0;
     const uploadStartTime = Date.now();
 
-    addToast('info', 'Upload Started', `Starting upload of ${selectedFiles.length} file(s)...`);
+    addToast('info', 'Upload Started', `Starting upload of ${filesToUpload.length} file(s)...`);
 
     // Step 1: Extract thumbnails for videos
     logger.info('Step 1: Extracting video thumbnails...');
-    for (const assetFile of selectedFiles) {
+    for (const assetFile of filesToUpload) {
       if (assetFile.file.type.startsWith('video/')) {
         try {
           logger.info(`Extracting thumbnail for video: ${assetFile.file.name}`);
@@ -778,7 +778,7 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
     // Step 2: Compress videos that need compression
     logger.info('Step 2: Compressing videos...');
     const filesToProcess: AssetFile[] = [];
-    for (const assetFile of selectedFiles) {
+    for (const assetFile of filesToUpload) {
       if (assetFile.needsCompression) {
         try {
           logger.info(`Compressing ${assetFile.file.name} (${getFileSizeMB(assetFile.file).toFixed(2)}MB)`);
@@ -1019,7 +1019,7 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
       totalDuration,
       successCount,
       errorCount,
-      totalFiles: selectedFiles.length,
+      totalFiles: filesToUpload.length,
       uploadedAssets: uploadedAssets.length
     });
 
