@@ -16,7 +16,6 @@ import { Label } from '@/components/ui/label';
 import { toast } from '@/components/ui/use-toast';
 import AssetGroupingPreview from '@/components/PowerBriefAssetGroupingPreview';
 import { TimelineComment, CommentModal } from '@/components/CommentModal';
-import { shareBriefConcept } from '@/lib/services/powerbriefService';
 
 interface ConceptForReview {
     id: string;
@@ -85,9 +84,6 @@ export default function ReviewsPage() {
     const [previewAssetGroups, setPreviewAssetGroups] = useState<UploadedAssetGroup[]>([]);
     const [previewConceptTitle, setPreviewConceptTitle] = useState<string>('');
     const [previewConceptId, setPreviewConceptId] = useState<string>('');
-    
-    // Add state for managing share links
-    const [generatingShareLink, setGeneratingShareLink] = useState<Record<string, boolean>>({});
     
     const supabase = createSPAClient();
 
@@ -1145,27 +1141,10 @@ export default function ReviewsPage() {
     // Utility function to get or create a share link for a concept
     const getOrCreateShareLink = async (concept: ConceptForReview): Promise<string | null> => {
         try {
-            // Check if concept already has a share link
-            if (concept.share_settings) {
-                const existingShareIds = Object.keys(concept.share_settings);
-                if (existingShareIds.length > 0) {
-                    // Return the first available share link
-                    const shareId = existingShareIds[0];
-                    return `${window.location.origin}/public/concept/${shareId}`;
-                }
-            }
-
-            // Create a new share link if none exists
-            setGeneratingShareLink(prev => ({ ...prev, [concept.id]: true }));
-            
-            const shareSettings = {
-                is_editable: false, // View-only for reviews
-                expires_at: null // No expiration
-            };
-            
-            const shareResult = await shareBriefConcept(concept.id, 'link', shareSettings);
-            
-            return shareResult.share_url;
+            // Since we switched to using concept IDs directly, just create the URL
+            const shareUrl = `${window.location.origin}/public/concept/${concept.id}`;
+            console.log('🔗 Share URL (using concept ID):', shareUrl);
+            return shareUrl;
         } catch (error) {
             console.error('Failed to create share link for concept:', error);
             toast({
@@ -1175,8 +1154,6 @@ export default function ReviewsPage() {
                 duration: 3000,
             });
             return null;
-        } finally {
-            setGeneratingShareLink(prev => ({ ...prev, [concept.id]: false }));
         }
     };
 
@@ -1426,20 +1403,10 @@ export default function ReviewsPage() {
                                             </Link>
                                             <button
                                                 onClick={() => handleIndividualShareLink(concept)}
-                                                disabled={generatingShareLink[concept.id]}
-                                                className="text-sm text-green-600 hover:underline text-left disabled:opacity-50 disabled:cursor-not-allowed"
+                                                className="text-sm text-green-600 hover:underline text-left"
                                             >
-                                                {generatingShareLink[concept.id] ? (
-                                                    <>
-                                                        <Loader2 className="h-3 w-3 inline mr-1 animate-spin" />
-                                                        Creating link...
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <Share2 className="h-3 w-3 inline mr-1" />
-                                                        View Individual Concept →
-                                                    </>
-                                                )}
+                                                <Share2 className="h-3 w-3 inline mr-1" />
+                                                View Individual Concept →
                                             </button>
                                         </div>
                                     </CardContent>
@@ -1786,20 +1753,10 @@ export default function ReviewsPage() {
                                                                 </Link>
                                                                 <button
                                                                     onClick={() => handleIndividualShareLink(concept)}
-                                                                    disabled={generatingShareLink[concept.id]}
-                                                                    className="text-sm text-green-600 hover:underline text-left disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                    className="text-sm text-green-600 hover:underline text-left"
                                                                 >
-                                                                    {generatingShareLink[concept.id] ? (
-                                                                        <>
-                                                                            <Loader2 className="h-3 w-3 inline mr-1 animate-spin" />
-                                                                            Creating link...
-                                                                        </>
-                                                                    ) : (
-                                                                        <>
-                                                                            <Share2 className="h-3 w-3 inline mr-1" />
-                                                                            View Individual Concept →
-                                                                        </>
-                                                                    )}
+                                                                    <Share2 className="h-3 w-3 inline mr-1" />
+                                                                    View Individual Concept →
                                                                 </button>
                                                             </div>
                                                             
