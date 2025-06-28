@@ -723,6 +723,15 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
       }))
     });
 
+    // Create a map to preserve manual grouping through the upload process
+    const manualGroupingMap: Record<string, string> = {};
+    selectedFiles.forEach(file => {
+      if (file.groupKey) {
+        manualGroupingMap[file.id] = file.groupKey;
+      }
+    });
+    logger.info('Manual grouping map created', { manualGroupingMap });
+
     setIsProcessing(true);
     setSelectedFiles(prevFiles => prevFiles.map(sf => ({ ...sf, uploading: true, uploadProgress: 0, uploadError: null })));
 
@@ -1028,11 +1037,21 @@ const PowerBriefAssetUpload: React.FC<PowerBriefAssetUploadProps> = ({
         id: a.id,
         name: a.name,
         baseName: a.baseName
-      }))
+      })),
+      manualGroupingMap
     });
 
     uploadedAssets.forEach(asset => {
-      const groupKey = asset.baseName; // Use baseName as groupKey since UploadedAsset doesn't have groupKey
+      // Use the manual grouping if available, otherwise use the baseName
+      const groupKey = manualGroupingMap[asset.id] || asset.baseName;
+      logger.debug('Grouping asset', {
+        assetId: asset.id,
+        assetName: asset.name,
+        manualGroup: manualGroupingMap[asset.id],
+        baseName: asset.baseName,
+        finalGroupKey: groupKey
+      });
+      
       if (!groupsByGroupKey[groupKey]) {
         groupsByGroupKey[groupKey] = [];
       }
